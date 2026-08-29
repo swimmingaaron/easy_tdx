@@ -119,9 +119,13 @@ __all__ = [
 
 
 def _get_version() -> str:
-    from importlib.metadata import version
+    try:
+        from importlib.metadata import PackageNotFoundError, version
 
-    return version("easy-tdx")
+        return version("easy-tdx")
+    except (PackageNotFoundError, Exception):
+        return "0.0.0.dev0"
 
 
 __version__ = _get_version()
+

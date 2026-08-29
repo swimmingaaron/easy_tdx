@@ -571,4 +571,112 @@ def FSL(CLOSE, VOL, CAPITAL):  # 分水岭指标：多空趋势强弱分界（SW
     return RD(SWL), RD(SWS)
 
 
+def ZIG(S, X=35):  # 之字转向指标（未来函数）：S为价格序列，X为转向阈值百分比（如35表示35%）
+    """之字转向指标 (ZigZag) — 经典未来函数。
+
+    当价格从前一个极值点反向变动超过 X% 时确立波峰/波谷拐点并转向。
+    在拐点之间进行线性插值，返回与 S 等长的拟合序列。
+
+    Args:
+        S: 价格序列 (通常为 CLOSE、HIGH 或 LOW)
+        X: 转向阈值百分比。例如 35 表示 35% (也可传入 0.35，自动兼容)
+
+    Returns:
+        np.ndarray: 与 S 等长的 ZIG 之字转向插值序列
+    """
+    S = np.asarray(S, dtype=float)
+    n = len(S)
+    if n == 0:
+        return np.array([], dtype=float)
+    if n == 1:
+        return S.copy()
+
+    x = float(X) / 100.0 if float(X) > 1.0 else float(X)
+    if x <= 0:
+        return S.copy()
+
+    ZIG_STATE_START = 0
+    ZIG_STATE_RISE = 1
+    ZIG_STATE_FALL = 2
+
+    peer_i = 0
+    candidate_i = None
+    peers = [0]
+    state = ZIG_STATE_START
+
+    for scan_i in range(1, n):
+        if scan_i == n - 1:
+            # 扫描到序列尾部
+            if candidate_i is None:
+                peers.append(scan_i)
+            else:
+                if state == ZIG_STATE_RISE:
+                    if S[scan_i] >= S[candidate_i]:
+                        peers.append(scan_i)
+                    else:
+                        peers.append(candidate_i)
+                        if candidate_i != scan_i:
+                            peers.append(scan_i)
+                elif state == ZIG_STATE_FALL:
+                    if S[scan_i] <= S[candidate_i]:
+                        peers.append(scan_i)
+                    else:
+                        peers.append(candidate_i)
+                        if candidate_i != scan_i:
+                            peers.append(scan_i)
+                else:
+                    peers.append(scan_i)
+            break
+
+        if state == ZIG_STATE_START:
+            if S[peer_i] != 0:
+                if S[scan_i] >= S[peer_i] * (1.0 + x):
+                    candidate_i = scan_i
+                    state = ZIG_STATE_RISE
+                elif S[scan_i] <= S[peer_i] * (1.0 - x):
+                    candidate_i = scan_i
+                    state = ZIG_STATE_FALL
+        elif state == ZIG_STATE_RISE:
+            if S[scan_i] >= S[candidate_i]:
+                candidate_i = scan_i
+            elif S[candidate_i] != 0 and S[scan_i] <= S[candidate_i] * (1.0 - x):
+                peer_i = candidate_i
+                peers.append(peer_i)
+                state = ZIG_STATE_FALL
+                candidate_i = scan_i
+        elif state == ZIG_STATE_FALL:
+            if S[scan_i] <= S[candidate_i]:
+                candidate_i = scan_i
+            elif S[candidate_i] != 0 and S[scan_i] >= S[candidate_i] * (1.0 + x):
+                peer_i = candidate_i
+                peers.append(peer_i)
+                state = ZIG_STATE_RISE
+                candidate_i = scan_i
+
+    # 去除重复拐点并确保末端对齐
+    clean_peers: list[int] = []
+    for p in peers:
+        if not clean_peers or p != clean_peers[-1]:
+            clean_peers.append(p)
+    if clean_peers[-1] != n - 1:
+        clean_peers.append(n - 1)
+
+    # 拐点间线性插值
+    z = np.zeros(n, dtype=float)
+    for i in range(len(clean_peers) - 1):
+        p_start = clean_peers[i]
+        p_end = clean_peers[i + 1]
+        v_start = S[p_start]
+        v_end = S[p_end]
+        if p_end == p_start:
+            z[p_start] = v_start
+        else:
+            slope = (v_end - v_start) / (p_end - p_start)
+            for j in range(p_end - p_start + 1):
+                z[p_start + j] = v_start + slope * j
+
+    return RD(z)
+
+
 # 望大家能提交更多指标和函数  https://github.com/mpquant/MyTT
+

@@ -34,6 +34,7 @@ from easy_tdx.MyTT import (
     TAQ,
     TRIX,
     WR,
+    ZIG,
 )
 
 __all__: list[str] = []  # 注册副作用即可，无需导出符号
@@ -595,3 +596,45 @@ class FslStrategy(ParametrizedStrategy):
             self.buy()
         elif self.dead[i] and self.position["size"] > 0:
             self.sell()
+
+
+# ── ZIG 之字转向（未来函数）──────────────────────────────────────────────────
+
+
+@register_strategy(
+    name="zig_future",
+    label="ZIG 之字转向（未来函数）",
+    description="基于 ZIG 指标波谷买入、波峰卖出（经典未来函数理论天花板策略，仅供对比与教学演示）。",
+)
+class ZigFutureStrategy(ParametrizedStrategy):
+    """ZIG 之字转向低买高卖。"""
+
+    params = [
+        Param(
+            "x",
+            float,
+            default=35.0,
+            min_value=1.0,
+            max_value=50.0,
+            label="转向阈值(%)",
+            description="价格反转触发转向的百分比阈值",
+        ),
+    ]
+
+    def init(self) -> None:
+        self.zig = self.I(ZIG, self.data.close, self.p["x"])
+
+    def next(self) -> None:
+        i = self._bar_index
+        if i == 0:
+            return
+        cur_zig = self.zig[i]
+        prev_zig = self.zig[i - 1]
+
+        # 当 ZIG 向上反弹（斜率为正）且当前空仓时买入（波谷已探明）
+        if cur_zig > prev_zig and self.position["size"] == 0:
+            self.buy()
+        # 当 ZIG 见顶回落（斜率为负）且当前持仓时卖出（波峰已见顶）
+        elif cur_zig < prev_zig and self.position["size"] > 0:
+            self.sell()
+

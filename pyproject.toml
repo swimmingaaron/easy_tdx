@@ -71,6 +71,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "--tb=short"
 asyncio_mode = "auto"
 

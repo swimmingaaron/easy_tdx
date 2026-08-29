@@ -158,3 +158,11 @@ class TestComputeIndicators:
         df = _make_ohlcv()
         result = compute_indicators(df, ["RSI"])
         assert list(result.index) == list(range(len(result)))
+
+    def test_zig_indicator(self):
+        df = _make_ohlcv(200)
+        result = compute_indicators(df, ["ZIG"])
+        assert "ZIG" in result.columns
+        assert len(result) == 200
+        assert np.isfinite(result["ZIG"]).all()
+

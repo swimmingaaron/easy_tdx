@@ -539,3 +539,16 @@ class TestWarmupAndLookback:
         df = _make_df(n=15)
         BacktestEngine(CountStrategy, cash=100000).run(df)
         assert next_count == 15
+
+    def test_zig_future_strategy_runs_successfully(self) -> None:
+        """测试 ZIG 未来函数策略正常执行并产生交易。"""
+        from easy_tdx.backtest.engine import BacktestEngine
+        from easy_tdx.backtest.strategies.builtin import ZigFutureStrategy
+
+        df = _make_df(n=100, seed=42)
+        engine = BacktestEngine(ZigFutureStrategy, cash=100000)
+        result = engine.run(df)
+        assert len(result.equity_curve) == 100
+        assert result.performance is not None
+        assert "total_return" in result.performance
+

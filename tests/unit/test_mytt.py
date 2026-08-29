@@ -214,3 +214,55 @@ class TestFK:
         close = np.array([100 - i for i in range(100)], dtype=float)
         fk = MyTT.FK(close)
         assert bool(fk[-1]) is True
+
+
+class TestZIG:
+    """ZIG 之字转向指标（未来函数）测试。"""
+
+    def test_returns_same_length(self):
+        close = _ohlcv()[3]
+        z = MyTT.ZIG(close, 5.0)
+        assert len(z) == len(close)
+
+    def test_empty_and_single_element(self):
+        assert len(MyTT.ZIG(np.array([]), 5)) == 0
+        single = np.array([10.0])
+        res = MyTT.ZIG(single, 5)
+        assert len(res) == 1
+        assert res[0] == 10.0
+
+    def test_flat_market(self):
+        flat = np.full(50, 10.0)
+        z = MyTT.ZIG(flat, 5.0)
+        assert len(z) == 50
+        assert np.allclose(z, 10.0)
+
+    def test_parameter_compatibility(self):
+        close = _ohlcv()[3]
+        z_pct = MyTT.ZIG(close, 5.0)  # 传入 5 (5%)
+        z_dec = MyTT.ZIG(close, 0.05)  # 传入 0.05 (5%)
+        assert np.allclose(z_pct, z_dec)
+
+    def test_v_shape_turning_point(self):
+        # 构造先涨后跌的倒 V 形走势: 10 -> 20 -> 10 (变动 100%, 远超 X=10%)
+        rising = np.linspace(10.0, 20.0, 11)  # index 0..10
+        falling = np.linspace(19.0, 10.0, 10)  # index 11..20
+        close = np.concatenate([rising, falling])
+        z = MyTT.ZIG(close, 10.0)
+        assert len(z) == len(close)
+        # 顶点应该在 index 10 处达到 20.0
+        assert z[10] == pytest.approx(20.0, abs=1e-2)
+        assert z[0] == pytest.approx(10.0, abs=1e-2)
+        assert z[-1] == pytest.approx(10.0, abs=1e-2)
+
+    def test_w_shape_multi_swings(self):
+        # 构造 W 形双底走势: 20 -> 10 -> 20 -> 10 -> 20
+        c1 = np.linspace(20, 10, 10)
+        c2 = np.linspace(11, 20, 10)
+        c3 = np.linspace(19, 10, 10)
+        c4 = np.linspace(11, 20, 10)
+        close = np.concatenate([c1, c2, c3, c4])
+        z = MyTT.ZIG(close, 15.0)
+        assert len(z) == len(close)
+        assert np.isfinite(z).all()
+
