@@ -15,6 +15,7 @@ import SymbolPicker from '../components/SymbolPicker.vue'
 import TradeTable from '../components/TradeTable.vue'
 import { formatError, saveStrategy } from '../api'
 import { detectMarket } from '../market'
+import { fmtPct } from '../format'
 import { gradePerformance } from '../grading'
 import type { Category, ExecutionMode } from '../types'
 import { useBacktestStore } from '../stores/backtest'
@@ -259,7 +260,24 @@ async function onSave() {
         </div>
 
         <section class="report-section">
-          <h3>K线 + 买卖点</h3>
+          <h3 class="kline-header">
+            <span>K线 + 买卖点</span>
+            <span v-if="store.result?.performance" class="kline-header-stats">
+              <span v-if="grade" class="grade-badge" :class="`grade-${grade.grade.toLowerCase()}`">
+                评级: {{ grade.grade }}（{{ grade.score }}分）
+              </span>
+              <span class="stat-item">
+                总收益率:
+                <strong :class="(store.result.performance.total_return ?? 0) >= 0 ? 'up' : 'down'">
+                  {{ (store.result.performance.total_return ?? 0) >= 0 ? '+' : '' }}{{ fmtPct(store.result.performance.total_return) }}
+                </strong>
+              </span>
+              <span class="stat-item">
+                最大回撤:
+                <strong class="down">{{ fmtPct(store.result.performance.max_drawdown) }}</strong>
+              </span>
+            </span>
+          </h3>
           <KlineChart
             :bars="store.ohlcv"
             :trades="store.result.trades"
@@ -510,5 +528,57 @@ async function onSave() {
 .modal-actions .ghost:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.kline-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.kline-header-stats {
+  margin-left: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.stat-item {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.stat-item strong {
+  margin-left: 4px;
+  font-weight: 600;
+}
+.grade-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+.grade-badge.grade-a {
+  background: rgba(24, 160, 88, 0.18);
+  color: var(--down);
+  border: 1px solid var(--down);
+}
+.grade-badge.grade-b {
+  background: rgba(74, 158, 255, 0.18);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.grade-badge.grade-c {
+  background: rgba(240, 160, 32, 0.18);
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
+.grade-badge.grade-d,
+.grade-badge.grade-f {
+  background: rgba(239, 65, 70, 0.18);
+  color: var(--up);
+  border: 1px solid var(--up);
 }
 </style>
