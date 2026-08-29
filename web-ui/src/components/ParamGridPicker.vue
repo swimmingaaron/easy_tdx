@@ -23,6 +23,12 @@ function toggle(name: string) {
   } else {
     if (selected.value.size >= 2) return // 最多 2 个
     selected.value.add(name)
+    if (!inputs.value[name] || inputs.value[name].trim() === '') {
+      const p = props.strategy?.params.find((param) => param.name === name)
+      if (p && p.default !== undefined && p.default !== null) {
+        inputs.value[name] = String(p.default)
+      }
+    }
   }
   // 触发响应式
   selected.value = new Set(selected.value)
@@ -57,7 +63,7 @@ function presetToText(vals: Array<number | string>): string {
 
 // 切换策略时：若有预设网格则自动勾选并填入预设取值，否则清空选择
 watch(
-  () => props.strategy?.name,
+  () => [props.strategy?.name, props.strategy?.preset_grid],
   () => {
     const preset = props.strategy?.preset_grid
     if (preset && Object.keys(preset).length > 0) {
@@ -74,6 +80,7 @@ watch(
     }
     syncOutputs()
   },
+  { immediate: true },
 )
 
 const gridPoints = computed(() => {

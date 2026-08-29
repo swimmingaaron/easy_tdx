@@ -21,8 +21,8 @@ class ZigFutureStrategy(Strategy):
     """ZIG 之字转向未来函数策略。"""
 
     def init(self) -> None:
-        # X=35.0 表示 35% 转向阈值
-        self.zig = self.I(MyTT.ZIG, self.data.close, 35.0)
+        # X=15.0 表示 15% 转向阈值
+        self.zig = self.I(MyTT.ZIG, self.data.close, 15.0)
 
     def next(self) -> None:
         i = self._bar_index

@@ -613,7 +613,7 @@ class ZigFutureStrategy(ParametrizedStrategy):
         Param(
             "x",
             float,
-            default=35.0,
+            default=15.0,
             min_value=1.0,
             max_value=50.0,
             label="转向阈值(%)",
