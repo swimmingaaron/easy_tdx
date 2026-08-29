@@ -55,9 +55,19 @@ function buildOption(): echarts.EChartsCoreOption {
   const markPoints: Array<{
     name: string
     coord: [number, number]
+    value: string
     itemStyle: { color: string }
     symbol: string
     symbolSize: number
+    label: {
+      show: boolean
+      formatter: string
+      position: string
+      color: string
+      fontSize: number
+      fontWeight: string
+      offset?: [number, number]
+    }
   }> = []
   for (const t of props.trades) {
     if (t.rejected) continue
@@ -72,11 +82,21 @@ function buildOption(): echarts.EChartsCoreOption {
     }
     const isBuy = t.direction === 'BUY'
     markPoints.push({
-      name: t.direction,
+      name: isBuy ? '买入 (B)' : '卖出 (S)',
       coord: [idx, t.price],
+      value: isBuy ? 'B' : 'S',
       itemStyle: { color: isBuy ? UP_COLOR : DOWN_COLOR },
       symbol: isBuy ? 'triangle' : 'pin',
       symbolSize: 14,
+      label: {
+        show: true,
+        formatter: isBuy ? 'B' : 'S',
+        position: 'top',
+        color: isBuy ? UP_COLOR : DOWN_COLOR,
+        fontSize: 13,
+        fontWeight: 'bold',
+        offset: [0, -2],
+      },
     })
   }
 
@@ -132,7 +152,6 @@ function buildOption(): echarts.EChartsCoreOption {
         },
         markPoint: {
           data: markPoints,
-          label: { show: false },
         },
       },
     ],
