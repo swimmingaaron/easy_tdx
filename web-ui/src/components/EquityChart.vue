@@ -8,9 +8,15 @@ import echarts from '../echarts-setup'
 import { fmt2 } from '../format'
 import type { EquityPoint } from '../types'
 
-const props = defineProps<{
-  equity: EquityPoint[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    equity: EquityPoint[]
+    groupId?: string
+  }>(),
+  {
+    groupId: 'backtest-charts-sync',
+  },
+)
 
 const container = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
@@ -18,11 +24,19 @@ let chart: echarts.ECharts | null = null
 function render() {
   if (!container.value || props.equity.length === 0) return
   chart ??= echarts.init(container.value, 'dark')
+  chart.group = props.groupId
   chart.setOption(buildOption(), true)
+  echarts.connect(props.groupId)
 }
 
 function buildOption(): echarts.EChartsCoreOption {
-  const dates = props.equity.map((e) => e.datetime.slice(0, 10))
+  const keys = props.equity.map((e) => e.datetime)
+  const isIntraday = keys.some((k) => {
+    const time = k.slice(11, 19)
+    return time && time !== '00:00:00'
+  })
+  const dates = keys.map((k) => (isIntraday ? k.replace('T', ' ').slice(5, 16) : k.slice(0, 10)))
+
   const totals = props.equity.map((e) => e.total)
   // 回撤百分比：后端 drawdown_pct 为正值（如 0.05），显示为 -5% 更直观
   const drawdowns = props.equity.map((e) => -e.drawdown_pct * 100)
@@ -31,17 +45,27 @@ function buildOption(): echarts.EChartsCoreOption {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross' },
+      axisPointer: {
+        type: 'cross',
+        label: {
+          show: true,
+          backgroundColor: '#383f4d',
+        },
+      },
       valueFormatter: (v: number | string) => fmt2(Number(v)),
     },
     legend: { data: ['净值', '回撤%'], top: 0 },
-    grid: { left: '8%', right: '8%', top: 30, bottom: 50 },
+    grid: { left: 80, right: 65, top: 30, bottom: 40 },
     xAxis: {
       type: 'category',
       data: dates,
-      boundaryGap: false,
+      boundaryGap: true,
       axisLine: { onZero: false },
+      splitLine: { show: false },
       axisLabel: { formatter: (v: string) => v },
+      axisPointer: {
+        label: { show: true },
+      },
     },
     yAxis: [
       {

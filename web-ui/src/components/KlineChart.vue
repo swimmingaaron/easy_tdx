@@ -8,10 +8,16 @@ import echarts, { DOWN_COLOR, UP_COLOR } from '../echarts-setup'
 import { fmt2 } from '../format'
 import type { Bar, Trade } from '../types'
 
-const props = defineProps<{
-  bars: Bar[]
-  trades: Trade[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    bars: Bar[]
+    trades: Trade[]
+    groupId?: string
+  }>(),
+  {
+    groupId: 'backtest-charts-sync',
+  },
+)
 
 const container = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
@@ -19,7 +25,9 @@ let chart: echarts.ECharts | null = null
 function render() {
   if (!container.value || props.bars.length === 0) return
   chart ??= echarts.init(container.value, 'dark')
+  chart.group = props.groupId
   chart.setOption(buildOption(), true)
+  echarts.connect(props.groupId)
 }
 
 /** 构建 ECharts 配置。trades 的 datetime 对齐到 K线 index。 */
@@ -76,11 +84,17 @@ function buildOption(): echarts.EChartsCoreOption {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross' },
+      axisPointer: {
+        type: 'cross',
+        label: {
+          show: true,
+          backgroundColor: '#383f4d',
+        },
+      },
       valueFormatter: (v: number | string) => fmt2(Number(v)),
     },
     legend: { data: ['K线'], top: 0 },
-    grid: { left: '8%', right: '3%', top: 30, bottom: 60 },
+    grid: { left: 80, right: 65, top: 30, bottom: 60 },
     xAxis: {
       type: 'category',
       data: dates,
@@ -92,6 +106,9 @@ function buildOption(): echarts.EChartsCoreOption {
       axisLabel: {
         formatter: (v: string) => v,
       },
+      axisPointer: {
+        label: { show: true },
+      },
     },
     yAxis: {
       scale: true,
@@ -99,8 +116,8 @@ function buildOption(): echarts.EChartsCoreOption {
       axisLabel: { formatter: (v: number) => fmt2(v) },
     },
     dataZoom: [
-      { type: 'inside', start: 60, end: 100 },
-      { type: 'slider', bottom: 10, start: 60, end: 100 },
+      { type: 'inside', start: 0, end: 100 },
+      { type: 'slider', bottom: 10, start: 0, end: 100 },
     ],
     series: [
       {

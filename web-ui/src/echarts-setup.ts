@@ -4,6 +4,7 @@
 import * as echarts from 'echarts/core'
 import { BarChart, CandlestickChart, HeatmapChart, LineChart } from 'echarts/charts'
 import {
+  AxisPointerComponent,
   DataZoomComponent,
   GridComponent,
   LegendComponent,
@@ -22,6 +23,7 @@ echarts.use([
   HeatmapChart,
   GridComponent,
   TooltipComponent,
+  AxisPointerComponent,
   LegendComponent,
   TitleComponent,
   DataZoomComponent,
