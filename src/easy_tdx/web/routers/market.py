@@ -1,8 +1,9 @@
-"""市场信息路由：证券列表、实时行情、市场统计、资金流向。"""
-
-from __future__ import annotations
-
+import asyncio
+import functools
+import logging
 from typing import Any
+import urllib.parse
+import urllib.request
 
 from fastapi import APIRouter, Depends, Query
 
@@ -12,9 +13,69 @@ from easy_tdx.web.schemas import (
     CountResponse,
     DataFrameResponse,
     QuoteRequest,
+    StockSuggestItem,
+    StockSuggestResponse,
 )
 
+_logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["market"])
+
+
+@functools.lru_cache(maxsize=1024)
+def _fetch_stock_suggest_sync(query: str) -> list[dict[str, str]]:
+    q = query.strip()
+    if not q:
+        return []
+    url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            content = resp.read().decode("utf-8")
+            first = content.find('"')
+            last = content.rfind('"')
+            raw = content[first + 1 : last] if first != -1 and last != -1 else ""
+            results: list[dict[str, str]] = []
+            if raw:
+                for item in raw.split("^"):
+                    parts = item.split("~")
+                    if len(parts) >= 4:
+                        m, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3]
+                        stype = parts[4] if len(parts) > 4 else ""
+                        if m in ("SH", "SZ", "BJ") and (
+                            stype.startswith("GP")
+                            or stype.startswith("JJ")
+                            or stype.startswith("ETF")
+                            or not stype
+                        ):
+                            try:
+                                name_decoded = name.encode("utf-8").decode("unicode_escape")
+                            except Exception:
+                                name_decoded = name
+                            results.append(
+                                {
+                                    "code": code,
+                                    "name": name_decoded,
+                                    "market": m,
+                                    "pinyin": pinyin,
+                                    "symbol": f"{m}:{code}",
+                                }
+                            )
+            return results
+    except Exception as e:
+        _logger.debug("Stock suggest request failed for %r: %s", query, e)
+        return []
+
+
+@router.get("/security/suggest", response_model=StockSuggestResponse)
+async def security_suggest(
+    q: str = Query(..., min_length=1, max_length=50, description="股票代码 / 拼音声母 / 中文名称"),
+) -> StockSuggestResponse:
+    """股票代码/拼音/名称联想搜索（支持如 jzgf -> 君正股份）。"""
+    loop = asyncio.get_running_loop()
+    items = await loop.run_in_executor(None, lambda: _fetch_stock_suggest_sync(q.lower()))
+    typed_items = [StockSuggestItem(**it) for it in items]
+    return StockSuggestResponse(data=typed_items, count=len(typed_items))
 
 
 def _df_response(df: Any) -> DataFrameResponse:

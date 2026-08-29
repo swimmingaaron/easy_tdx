@@ -19,6 +19,8 @@ import type {
   ServerSwitchResult,
   SignalScanRequest,
   SignalScanResult,
+  StockSuggestItem,
+  StockSuggestResponse,
   StrategiesResponse,
   TaskListResponse,
   TaskState,
@@ -349,3 +351,20 @@ export async function switchServerHost(host: string): Promise<ServerSwitchResult
   if (!resp.ok) await throwError(resp)
   return (await resp.json()) as ServerSwitchResult
 }
+
+// ── 股票搜索联想 ─────────────────────────────────────────────────────────────
+
+/** 股票代码/拼音/名称搜索联想。 */
+export async function fetchStockSuggestions(query: string): Promise<StockSuggestItem[]> {
+  const q = query.trim()
+  if (!q) return []
+  try {
+    const resp = await fetch(`${BASE}/security/suggest?q=${encodeURIComponent(q)}`)
+    if (!resp.ok) return []
+    const json = (await resp.json()) as StockSuggestResponse
+    return json.data || []
+  } catch {
+    return []
+  }
+}
+

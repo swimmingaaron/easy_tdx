@@ -1,10 +1,9 @@
 <script setup lang="ts">
-// 多标的输入（组合回测用）。逐个添加 6 位代码，市场自动识别。
-// 删除手动市场选择（沪市/深市/北交所），由 detectMarket 智能匹配。
+import { ref } from 'vue'
 
-import { computed, ref } from 'vue'
-
-import { detectMarket, marketLabel } from '../market'
+import { detectMarket } from '../market'
+import StockSearchInput from './StockSearchInput.vue'
+import type { StockSuggestItem } from '../types'
 
 const props = defineProps<{
   modelValue: string[]
@@ -12,13 +11,19 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 
 const code = ref('')
-const detectedMarket = computed(() => (code.value && /^\d{6}$/.test(code.value)
-  ? marketLabel(detectMarket(code.value))
-  : ''))
 
 function add() {
   if (!/^\d{6}$/.test(code.value)) return
   const sym = `${detectMarket(code.value)}:${code.value}`
+  if (!props.modelValue.includes(sym)) {
+    emit('update:modelValue', [...props.modelValue, sym])
+  }
+  code.value = ''
+}
+
+/** 选中下拉建议项时，直接添加并清空输入框（组合页选中即添加） */
+function onSelectEntry(entry: StockSuggestItem) {
+  const sym = `${entry.market}:${entry.code}`
   if (!props.modelValue.includes(sym)) {
     emit('update:modelValue', [...props.modelValue, sym])
   }
@@ -33,15 +38,14 @@ function remove(sym: string) {
 <template>
   <div class="stocks-picker">
     <div class="row add-row">
-      <input
+      <StockSearchInput
         v-model="code"
-        maxlength="6"
-        placeholder="6位代码（市场自动识别）"
-        @keyup.enter="add"
+        placeholder="6位代码 / 拼音(如jzgf) / 名称"
+        @select="onSelectEntry"
+        @confirm="add"
       />
-      <button @click="add">添加</button>
+      <button class="add-btn" @click="add">添加</button>
     </div>
-    <p v-if="detectedMarket" class="market-hint">将识别为：{{ detectedMarket }}</p>
 
     <div v-if="modelValue.length" class="stock-list">
       <span v-for="s in modelValue" :key="s" class="stock-tag">
@@ -57,14 +61,15 @@ function remove(sym: string) {
 .add-row {
   display: flex;
   gap: 6px;
+  align-items: flex-start;
 }
-.add-row input {
+.add-row :deep(.stock-search-input) {
   flex: 1;
 }
-.market-hint {
-  color: var(--text-dim);
-  font-size: 11px;
-  margin-top: 4px;
+.add-btn {
+  height: 32px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .stock-list {
   display: flex;

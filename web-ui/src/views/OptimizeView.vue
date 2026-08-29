@@ -34,7 +34,7 @@ function isoDaysFromNow(days: number): string {
 const startDate = ref('2020-01-06')
 const endDate = ref(isoDaysFromNow(0))
 
-const strategy = ref('ma_cross')
+const strategy = ref('zig_breakout')
 const paramGrid = ref<Record<string, Array<number | string>>>({})
 const cash = ref(1000000)
 const execution = ref<ExecutionMode>('next_open')

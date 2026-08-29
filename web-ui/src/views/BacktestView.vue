@@ -38,7 +38,7 @@ const startDate = ref('2020-01-06')
 const endDate = ref(isoDaysFromNow(0))
 
 // 表单状态（v-model 给子组件）
-const strategy = ref('ma_cross')
+const strategy = ref('zig_breakout')
 const params = ref<Record<string, number | string | boolean>>({})
 const cash = ref(1000000)
 const commission = ref(0.0003)

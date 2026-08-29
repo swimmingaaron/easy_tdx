@@ -403,3 +403,19 @@ export interface ServerSwitchResult {
   host: string
   message: string
 }
+
+// ── 股票搜索联想（GET /api/v1/security/suggest）─────────────────────────────
+
+export interface StockSuggestItem {
+  code: string
+  name: string
+  market: string
+  pinyin: string
+  symbol: string
+}
+
+export interface StockSuggestResponse {
+  data: StockSuggestItem[]
+  count: number
+}
+

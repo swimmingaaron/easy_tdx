@@ -147,3 +147,20 @@ class CountResponse(BaseModel):
     """简单计数响应。"""
 
     count: int
+
+
+class StockSuggestItem(BaseModel):
+    """股票搜索联想项。"""
+
+    code: str = Field(..., description="6位股票代码")
+    name: str = Field(..., description="股票名称")
+    market: str = Field(..., description="市场代码 (SH/SZ/BJ)")
+    pinyin: str = Field("", description="拼音声母")
+    symbol: str = Field(..., description="带市场前缀的代码 (如 SH:601216)")
+
+
+class StockSuggestResponse(BaseModel):
+    """股票搜索联想响应。"""
+
+    data: list[StockSuggestItem] = Field(default_factory=list)
+    count: int = 0
