@@ -260,7 +260,12 @@ async function onSave() {
 
         <section class="report-section">
           <h3>K线 + 买卖点</h3>
-          <KlineChart :bars="store.ohlcv" :trades="store.result.trades" />
+          <KlineChart
+            :bars="store.ohlcv"
+            :trades="store.result.trades"
+            :code="code"
+            :symbol="fullSymbol(code)"
+          />
         </section>
 
         <section class="report-section">

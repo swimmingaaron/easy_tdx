@@ -22,49 +22,51 @@ _logger = logging.getLogger(__name__)
 router = APIRouter(tags=["market"])
 
 
-@functools.lru_cache(maxsize=1024)
+@functools.lru_cache(maxsize=2048)
 def _fetch_stock_suggest_sync(query: str) -> list[dict[str, str]]:
     q = query.strip()
     if not q:
         return []
     url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
-            content = resp.read().decode("utf-8")
-            first = content.find('"')
-            last = content.rfind('"')
-            raw = content[first + 1 : last] if first != -1 and last != -1 else ""
-            results: list[dict[str, str]] = []
-            if raw:
-                for item in raw.split("^"):
-                    parts = item.split("~")
-                    if len(parts) >= 4:
-                        m, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3]
-                        stype = parts[4] if len(parts) > 4 else ""
-                        if m in ("SH", "SZ", "BJ") and (
-                            stype.startswith("GP")
-                            or stype.startswith("JJ")
-                            or stype.startswith("ETF")
-                            or not stype
-                        ):
-                            try:
-                                name_decoded = name.encode("utf-8").decode("unicode_escape")
-                            except Exception:
-                                name_decoded = name
-                            results.append(
-                                {
-                                    "code": code,
-                                    "name": name_decoded,
-                                    "market": m,
-                                    "pinyin": pinyin,
-                                    "symbol": f"{m}:{code}",
-                                }
-                            )
-            return results
-    except Exception as e:
-        _logger.debug("Stock suggest request failed for %r: %s", query, e)
-        return []
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                content = resp.read().decode("utf-8")
+                first = content.find('"')
+                last = content.rfind('"')
+                raw = content[first + 1 : last] if first != -1 and last != -1 else ""
+                results: list[dict[str, str]] = []
+                if raw:
+                    for item in raw.split("^"):
+                        parts = item.split("~")
+                        if len(parts) >= 4:
+                            m, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3]
+                            stype = parts[4] if len(parts) > 4 else ""
+                            if m in ("SH", "SZ", "BJ") and (
+                                stype.startswith("GP")
+                                or stype.startswith("JJ")
+                                or stype.startswith("ETF")
+                                or not stype
+                            ):
+                                try:
+                                    name_decoded = name.encode("utf-8").decode("unicode_escape")
+                                except Exception:
+                                    name_decoded = name
+                                results.append(
+                                    {
+                                        "code": code,
+                                        "name": name_decoded,
+                                        "market": m,
+                                        "pinyin": pinyin,
+                                        "symbol": f"{m}:{code}",
+                                    }
+                                )
+                return results
+        except Exception as e:
+            if attempt == 1:
+                _logger.debug("Stock suggest request failed for %r: %s", query, e)
+    return []
 
 
 @router.get("/security/suggest", response_model=StockSuggestResponse)
