@@ -552,3 +552,19 @@ class TestWarmupAndLookback:
         assert result.performance is not None
         assert "total_return" in result.performance
 
+    def test_zig_breakout_strategy_runs_successfully(self) -> None:
+        """测试 ZIG 右侧突破回补策略（方案1）正常执行并仅产生整仓 BUY/SELL 信号。"""
+        from easy_tdx.backtest.engine import BacktestEngine
+        from easy_tdx.backtest.strategies.builtin import ZigBreakoutStrategy
+
+        df = _make_df(n=200, seed=42)
+        engine = BacktestEngine(ZigBreakoutStrategy, cash=100000)
+        result = engine.run(df)
+        assert len(result.equity_curve) == 200
+        assert result.performance is not None
+        assert "total_return" in result.performance
+        # 所有信号只有 BUY / SELL，无分仓（验证方案1的核心特性）
+        if len(result.trades) > 0:
+            assert set(result.trades["direction"].unique()).issubset({"BUY", "SELL"})
+            assert result.performance["total_trades"] > 0
+

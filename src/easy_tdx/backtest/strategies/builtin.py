@@ -26,6 +26,7 @@ from easy_tdx.MyTT import (
     EMA,
     EMV,
     FSL,
+    HHV,
     KDJ,
     KTN,
     MA,
@@ -637,4 +638,101 @@ class ZigFutureStrategy(ParametrizedStrategy):
         # 当 ZIG 见顶回落（斜率为负）且当前持仓时卖出（波峰已见顶）
         elif cur_zig < prev_zig and self.position["size"] > 0:
             self.sell()
+
+
+# -- ZIG right-side breakout re-entry (Plan 1) --------------------------------
+
+
+@register_strategy(
+    name="zig_breakout",
+    label="ZIG 右侧突破回补",
+    description=(
+        "ZIG 见顶全仓卖出，空仓期间收盘价右侧突破前高时回补买入。"
+        "信号全为整仓 BUY/SELL，逻辑清晰、无分仓复杂度。"
+    ),
+)
+class ZigBreakoutStrategy(ParametrizedStrategy):
+    """ZIG 右侧突破回补机制（方案1）。
+
+    交易逻辑
+    --------
+    1. **空仓**：ZIG 向上启动（cur_zig > prev_zig）→ 全仓买入，进入持仓阶段。
+    2. **持仓**：ZIG 见顶回落（cur_zig < prev_zig）→ 全仓卖出，
+       并将当前 N 日最高价记为 breakout_level（后续突破确认位）。
+    3. **空仓等待回补**：收盘价 >= breakout_level × (1 + confirm_pct/100)
+       → 右侧突破确认，全仓买入回补，重置突破位。
+
+    对比方案2（分仓止盈）
+    ---------------------
+    - 全程只有 BUY / SELL 整仓操作，与引擎 next_open 执行模式完全兼容。
+    - 不依赖 ZIG 实时斜率做分仓，避免"ZIG 是未来函数回头重绘"的干扰。
+    - 回补条件（右侧突破）在任意 K 线均可检测，真正做到实时可执行。
+    """
+
+    params = [
+        Param(
+            "zig_delta",
+            float,
+            default=15.0,
+            min_value=1.0,
+            max_value=50.0,
+            label="ZIG 转向阈值(%)",
+            description="价格反转触发 ZIG 转向的百分比阈值",
+        ),
+        Param(
+            "confirm_pct",
+            float,
+            default=3.0,
+            min_value=0.5,
+            max_value=15.0,
+            label="突破确认幅度(%)",
+            description="收盘价需超过前高多少百分比才触发回补买入（防止假突破）",
+        ),
+        Param(
+            "hhv_period",
+            int,
+            default=20,
+            min_value=5,
+            max_value=60,
+            label="前高统计周期",
+            description="卖出时记录最近 N 日最高价作为突破参考位",
+        ),
+    ]
+
+    def init(self) -> None:
+        self.zig = self.I(ZIG, self.data.close, self.p["zig_delta"])
+        self.hhv = self.I(HHV, self.data.high, self.p["hhv_period"])
+        # 卖出后记录的突破确认价位；0 表示尚未有卖出记录或已回补
+        self._breakout_level: float = 0.0
+
+    def next(self) -> None:
+        i = self._bar_index
+        if i == 0:
+            return
+
+        cur_close = float(self.data.close[0])
+        cur_zig = float(self.zig[i])
+        prev_zig = float(self.zig[i - 1])
+        cur_pos = self.position["size"]
+
+        # 持仓：ZIG 见顶 → 全仓卖出，记录突破位 --------------------------------
+        if cur_pos > 0 and cur_zig < prev_zig:
+            self._breakout_level = float(self.hhv[i])
+            self.sell(size=0)
+            return
+
+        # 空仓：两种买入路径 ----------------------------------------------------
+        if cur_pos == 0:
+            # 路径 1：ZIG 向上启动（底部波谷确认）→ 初始建仓
+            if cur_zig > prev_zig:
+                self._breakout_level = 0.0  # 新一轮行情，重置突破位
+                self.buy(size=0)
+                return
+
+            # 路径 2：右侧突破前高 → 回补建仓（洗盘结束、主升确立）
+            if self._breakout_level > 0:
+                threshold = self._breakout_level * (1.0 + self.p["confirm_pct"] / 100.0)
+                if cur_close >= threshold:
+                    self._breakout_level = 0.0
+                    self.buy(size=0)
 
