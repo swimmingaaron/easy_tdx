@@ -673,7 +673,7 @@ class ZigBreakoutStrategy(ParametrizedStrategy):
         Param(
             "zig_delta",
             float,
-            default=15.0,
+            default=10.0,
             min_value=1.0,
             max_value=50.0,
             label="ZIG 转向阈值(%)",
@@ -682,7 +682,7 @@ class ZigBreakoutStrategy(ParametrizedStrategy):
         Param(
             "confirm_pct",
             float,
-            default=3.0,
+            default=2.0,
             min_value=0.5,
             max_value=15.0,
             label="突破确认幅度(%)",

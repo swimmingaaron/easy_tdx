@@ -28,8 +28,8 @@ class ZigBreakoutStrategy(Strategy):
 
     def __init__(
         self,
-        zig_delta: float = 15.0,
-        confirm_pct: float = 3.0,
+        zig_delta: float = 10.0,
+        confirm_pct: float = 2.0,
         hhv_period: int = 20,
     ) -> None:
         super().__init__()
