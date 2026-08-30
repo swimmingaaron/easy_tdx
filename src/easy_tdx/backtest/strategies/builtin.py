@@ -98,6 +98,15 @@ class ZigBreakoutStrategy(ParametrizedStrategy):
             label="前高统计周期",
             description="卖出时记录最近 N 日最高价作为突破参考位",
         ),
+        Param(
+            "stop_loss_pct",
+            float,
+            default=3.0,
+            min_value=0.0,
+            max_value=20.0,
+            label="硬止损比例(%)",
+            description="买入后跌破买入价该百分比强制平仓止损（0 为关闭，防假波谷套牢）",
+        ),
     ]
 
     def init(self) -> None:
@@ -122,12 +131,15 @@ class ZigBreakoutStrategy(ParametrizedStrategy):
             self.sell(size=0, price=cur_close)
             return
 
-        # 空仓：两种买入路径 ----------------------------------------------------
+        # 空仓：两种买入路径（附带硬止损保护）----------------------------------
         if cur_pos == 0:
+            sl_pct = float(self.p.get("stop_loss_pct", 3.0))
+            sl = cur_close * (1.0 - sl_pct / 100.0) if sl_pct > 0 else None
+
             # 路径 1：ZIG 向上启动（底部波谷确认）→ 初始建仓
             if cur_zig > prev_zig:
                 self._breakout_level = 0.0  # 新一轮行情，重置突破位
-                self.buy(size=0, price=cur_close)
+                self.buy(size=0, price=cur_close, stop_loss=sl)
                 return
 
             # 路径 2：右侧突破前高 → 回补建仓（洗盘结束、主升确立）
@@ -135,7 +147,7 @@ class ZigBreakoutStrategy(ParametrizedStrategy):
                 threshold = self._breakout_level * (1.0 + self.p["confirm_pct"] / 100.0)
                 if cur_close >= threshold:
                     self._breakout_level = 0.0
-                    self.buy(size=0, price=cur_close)
+                    self.buy(size=0, price=cur_close, stop_loss=sl)
 
 
 # ── 双均线交叉 ─────────────────────────────────────────────────────────────────
