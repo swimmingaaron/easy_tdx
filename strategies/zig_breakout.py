@@ -55,7 +55,7 @@ class ZigBreakoutStrategy(Strategy):
         # 持仓：ZIG 见顶 → 全仓卖出，记录突破位 --------------------------------
         if cur_pos > 0 and cur_zig < prev_zig:
             self._breakout_level = float(self.hhv[i])
-            self.sell(size=0)
+            self.sell(size=0, price=cur_close)
             return
 
         # 空仓：两种买入路径 ----------------------------------------------------
@@ -63,7 +63,7 @@ class ZigBreakoutStrategy(Strategy):
             # 路径 1：ZIG 向上启动（底部波谷确认）→ 初始建仓
             if cur_zig > prev_zig:
                 self._breakout_level = 0.0
-                self.buy(size=0)
+                self.buy(size=0, price=cur_close)
                 return
 
             # 路径 2：右侧突破前高 → 回补建仓（洗盘结束、主升确立）
@@ -71,4 +71,4 @@ class ZigBreakoutStrategy(Strategy):
                 threshold = self._breakout_level * (1.0 + self.confirm_pct / 100.0)
                 if cur_close >= threshold:
                     self._breakout_level = 0.0
-                    self.buy(size=0)
+                    self.buy(size=0, price=cur_close)
