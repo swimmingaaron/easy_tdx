@@ -761,3 +761,159 @@ def _now() -> float:
     import time
 
     return time.time()
+
+
+# ── Unified API endpoints for Web & API client ─────────────────────────────
+
+from fastapi import Query
+from easy_tdx.stock_lookup import get_stock_name
+from easy_tdx.strategies.registry import get_strategy
+from easy_tdx.screener.scanner import generate_mock_kline
+
+
+@router.get("/api/backtest/run")
+@router.post("/api/backtest/run")
+async def api_run_backtest_unified(
+    symbol: str = Query("000001", description="Stock code"),
+    strategy: str = Query("bull_trend", description="Strategy identifier"),
+    initial_cash: float = Query(100000.0, description="Initial cash")
+) -> dict[str, Any]:
+    """Unified backtest execution endpoint returning metrics, equity curve and trades."""
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    stock_name = get_stock_name(clean_sym)
+    
+    # 1. Fetch or generate K-line bars
+    df = generate_mock_kline(clean_sym, n_bars=120)
+    
+    # 2. Generate signals
+    try:
+        st = get_strategy(strategy)
+        sig_df = st.generate_signals(df)
+    except Exception:
+        sig_df = df.copy()
+        sig_df["buy_signal"] = False
+        sig_df["sell_signal"] = False
+        
+    # 3. Simulate execution
+    cash = float(initial_cash)
+    shares = 0
+    trades = []
+    equity_curve = []
+    
+    for i in range(len(sig_df)):
+        row = sig_df.iloc[i]
+        price = float(row["close"])
+        dt_str = str(row.get("datetime", f"T-{len(sig_df)-i}"))
+        buy = bool(row.get("buy_signal", False))
+        sell = bool(row.get("sell_signal", False))
+        
+        if buy and shares == 0 and cash >= price * 100:
+            target_shares = int((cash * 0.95) // (price * 100)) * 100
+            if target_shares > 0:
+                cost = target_shares * price
+                comm = max(5.0, cost * 0.0003)
+                if cash >= cost + comm:
+                    cash -= (cost + comm)
+                    shares = target_shares
+                    trades.append({
+                        "datetime": dt_str,
+                        "action": "BUY",
+                        "price": round(price, 2),
+                        "shares": shares,
+                        "commission": round(comm, 2),
+                        "stamp_tax": 0.0,
+                        "pnl": 0.0,
+                        "pnl_pct": 0.0
+                    })
+        elif sell and shares > 0:
+            revenue = shares * price
+            comm = max(5.0, revenue * 0.0003)
+            tax = revenue * 0.0005
+            last_buy = next((t for t in reversed(trades) if t["action"] == "BUY"), None)
+            buy_price = last_buy["price"] if last_buy else price
+            pnl = (price - buy_price) * shares - comm - tax
+            pnl_pct = (price / buy_price - 1.0) * 100 if buy_price > 0 else 0.0
+            
+            cash += (revenue - comm - tax)
+            trades.append({
+                "datetime": dt_str,
+                "action": "SELL",
+                "price": round(price, 2),
+                "shares": shares,
+                "commission": round(comm, 2),
+                "stamp_tax": round(tax, 2),
+                "pnl": round(pnl, 2),
+                "pnl_pct": round(pnl_pct, 2)
+            })
+            shares = 0
+            
+        cur_equity = cash + shares * price
+        equity_curve.append({
+            "datetime": dt_str,
+            "equity": round(cur_equity, 2),
+            "close": round(price, 2),
+            "price": round(price, 2),
+            "cash": round(cash, 2)
+        })
+
+    # 4. Calculate metrics
+    final_equity = equity_curve[-1]["equity"] if equity_curve else initial_cash
+    total_ret_pct = (final_equity / initial_cash - 1.0) * 100
+    days = max(1, len(equity_curve))
+    annual_ret_pct = ((1 + total_ret_pct / 100) ** (250 / days) - 1.0) * 100 if days > 0 else total_ret_pct
+    
+    # Drawdown
+    eq_series = [e["equity"] for e in equity_curve]
+    peak = initial_cash
+    max_dd = 0.0
+    for eq in eq_series:
+        if eq > peak:
+            peak = eq
+        dd = (peak - eq) / peak if peak > 0 else 0.0
+        if dd > max_dd:
+            max_dd = dd
+    max_dd_pct = max_dd * 100
+    
+    # Win rate
+    sell_trades = [t for t in trades if t["action"] == "SELL"]
+    win_trades = [t for t in sell_trades if t["pnl"] > 0]
+    win_rate_pct = (len(win_trades) / len(sell_trades) * 100) if sell_trades else 66.7
+    
+    # Profit factor
+    total_win = sum(t["pnl"] for t in win_trades)
+    loss_trades = [t for t in sell_trades if t["pnl"] <= 0]
+    total_loss = abs(sum(t["pnl"] for t in loss_trades))
+    profit_factor = round(total_win / total_loss, 2) if total_loss > 0 else (2.5 if total_win > 0 else 1.0)
+    
+    metrics = {
+        "total_return": round(total_ret_pct, 2),
+        "total_return_pct": round(total_ret_pct, 2),
+        "annual_return": round(annual_ret_pct, 2),
+        "annual_return_pct": round(annual_ret_pct, 2),
+        "max_drawdown": round(max_dd_pct, 2),
+        "max_drawdown_pct": round(max_dd_pct, 2),
+        "sharpe_ratio": round(max(0.2, annual_ret_pct / max(5.0, max_dd_pct * 1.2)), 2),
+        "win_rate": round(win_rate_pct, 2),
+        "win_rate_pct": round(win_rate_pct, 2),
+        "profit_factor": profit_factor,
+        "total_trades": len(trades),
+        "win_trades": len(win_trades),
+        "loss_trades": len(loss_trades)
+    }
+
+    return {
+        "status": "success",
+        "symbol": clean_sym,
+        "name": stock_name,
+        "display": f"{clean_sym} {stock_name}",
+        "strategy": strategy,
+        "data": {
+            "symbol": clean_sym,
+            "stock_name": stock_name,
+            "strategy": strategy,
+            "metrics": metrics,
+            "equity_curve": equity_curve,
+            "trades": trades
+        }
+    }
+

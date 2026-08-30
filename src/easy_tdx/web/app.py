@@ -214,6 +214,31 @@ def _create_app(
     from easy_tdx.web.routers.server import router as server_router
     from easy_tdx.web.routers.sina import router as sina_router
     from easy_tdx.web.routers.strategies import router as strategies_router
+    from easy_tdx.web.routers.stocks import router as stocks_router
+    from easy_tdx.web.routers.screener import router as screener_router
+    from easy_tdx.web.routers.ai_review import router as ai_review_router
+    from easy_tdx.web.routers.monitor import router as monitor_router
+    from easy_tdx.web.routers.quotes import router as quotes_router
+
+    # Health check
+    @app.get("/api/health")
+    async def health_check():
+        return {"status": "ok", "app": "easy-tdx", "version": "1.20.10"}
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        from starlette.responses import Response
+        return Response(status_code=204)
+
+    # Mount unified and v1 routers
+    app.include_router(stocks_router)
+    app.include_router(screener_router)
+    app.include_router(ai_review_router)
+    app.include_router(monitor_router)
+    app.include_router(quotes_router)
+    app.include_router(backtest_router)
+    app.include_router(strategies_router)
+    app.include_router(server_router)
 
     app.include_router(market_router, prefix="/api/v1")
     app.include_router(bars_router, prefix="/api/v1")
@@ -221,24 +246,17 @@ def _create_app(
     app.include_router(block_router, prefix="/api/v1")
     app.include_router(chanlun_router, prefix="/api/v1")
     app.include_router(realtime_router, prefix="/api/v1")
-    # MAC 协议路由
     app.include_router(board_mac_router, prefix="/api/v1")
     app.include_router(mac_data_router, prefix="/api/v1")
     app.include_router(mac_quotes_router, prefix="/api/v1")
-    # 扩展市场路由
     app.include_router(ex_market_router, prefix="/api/v1")
-    # 技术指标路由
     app.include_router(indicator_router, prefix="/api/v1")
-    # 公告检索路由（巨潮资讯网，独立数据源）
     app.include_router(announcement_router, prefix="/api/v1")
-    # 新浪财报三表路由（独立数据源）
     app.include_router(sina_router, prefix="/api/v1")
-    # 回测路由（纯计算，不依赖行情连接 lifespan）
     app.include_router(backtest_router, prefix="/api/v1")
-    # 策略库路由（SQLite 持久化，纯数据 CRUD）
     app.include_router(strategies_router, prefix="/api/v1")
-    # 服务器设置路由（列出/测速/切换 TDX host）
     app.include_router(server_router, prefix="/api/v1")
+
 
     # --- 前端 dist 托管（生产/打包态同源服务，开发态可缺省） ---
     # 必须在所有 API 路由注册之后：StaticFiles(html=True) 挂在 "/" 会吞掉
