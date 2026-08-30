@@ -17,11 +17,18 @@ const props = withDefaults(
     stockName?: string
     symbol?: string
     groupId?: string
+    showDateControls?: boolean
   }>(),
   {
     groupId: 'backtest-charts-sync',
+    showDateControls: true,
   },
 )
+
+const emit = defineEmits<{
+  'shiftStart': [delta: number]
+  'shiftEnd': [delta: number]
+}>()
 
 const container = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
@@ -322,10 +329,94 @@ watch(() => [props.bars, props.trades, props.code, props.stockName, props.symbol
 </script>
 
 <template>
-  <div ref="container" class="kline-chart"></div>
+  <div class="kline-chart-wrapper">
+    <div v-if="showDateControls" class="kline-date-controls">
+      <div class="date-controls-left">
+        <button
+          type="button"
+          class="date-step-btn"
+          title="开始日期往前一日并重新回测"
+          @click="emit('shiftStart', -1)"
+        >
+          ◀ 上一日
+        </button>
+        <button
+          type="button"
+          class="date-step-btn"
+          title="开始日期往后一日并重新回测"
+          @click="emit('shiftStart', 1)"
+        >
+          下一日 ▶
+        </button>
+      </div>
+      <div class="date-controls-right">
+        <button
+          type="button"
+          class="date-step-btn"
+          title="结束日期往前一日并重新回测"
+          @click="emit('shiftEnd', -1)"
+        >
+          ◀ 上一日
+        </button>
+        <button
+          type="button"
+          class="date-step-btn"
+          title="结束日期往后一日并重新回测"
+          @click="emit('shiftEnd', 1)"
+        >
+          下一日 ▶
+        </button>
+      </div>
+    </div>
+    <div ref="container" class="kline-chart"></div>
+  </div>
 </template>
 
 <style scoped>
+.kline-chart-wrapper {
+  position: relative;
+  width: 100%;
+}
+.kline-date-controls {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+}
+.date-controls-left,
+.date-controls-right {
+  pointer-events: auto;
+  display: flex;
+  gap: 6px;
+  padding: 0 4px;
+}
+.date-step-btn {
+  background: rgba(74, 158, 255, 0.12);
+  color: #4a9eff;
+  border: 1px solid rgba(74, 158, 255, 0.35);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+}
+.date-step-btn:hover {
+  background: rgba(74, 158, 255, 0.25);
+  border-color: #4a9eff;
+  color: #70b4ff;
+}
+.date-step-btn:active {
+  transform: scale(0.96);
+}
 .kline-chart {
   width: 100%;
   height: 500px;

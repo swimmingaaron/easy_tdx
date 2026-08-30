@@ -103,6 +103,35 @@ async function onRun() {
   })
 }
 
+function addDays(dateStr: string, days: number): string {
+  const parts = dateStr.split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+  const dt = new Date(parts[0], parts[1] - 1, parts[2])
+  dt.setDate(dt.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+}
+
+async function onShiftStart(delta: number) {
+  const nextStart = addDays(startDate.value, delta)
+  if (nextStart >= endDate.value) return
+  startDate.value = nextStart
+  await nextTick()
+  await onRun()
+}
+
+async function onShiftEnd(delta: number) {
+  const nextEnd = addDays(endDate.value, delta)
+  if (nextEnd <= startDate.value) return
+  endDate.value = nextEnd
+  await nextTick()
+  await onRun()
+}
+
 // ── 保存策略（把当前结果 + 配置 + 上下文存进策略库）──────────────────────────
 const showSaveForm = ref(false)
 const saving = ref(false)
@@ -283,6 +312,8 @@ async function onSave() {
             :trades="store.result.trades"
             :code="code"
             :symbol="fullSymbol(code)"
+            @shift-start="onShiftStart"
+            @shift-end="onShiftEnd"
           />
         </section>
 
