@@ -21,11 +21,11 @@ const store = useBacktestStore()
 //
 // 注意：defineModel 的 default 不能引用本 <script setup> 内声明的局部函数
 // （编译期会被 hoist 到 setup() 外，此时函数还未定义），
-// 因此日期默认值用内联字面量表达式计算。
+// 默认：结束日=今天（最近交易日），开始日=一年前。
 const code = defineModel<string>('code', { default: '000001' })
 const category = defineModel<Category>('category', { default: 'DAY' })
 const startDate = defineModel<string>('startDate', {
-  default: '2020-01-06',
+  default: new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString().slice(0, 10),
 })
 const endDate = defineModel<string>('endDate', {
   default: new Date().toISOString().slice(0, 10),

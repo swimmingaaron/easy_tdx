@@ -26,13 +26,13 @@ const symbolPicker = ref<InstanceType<typeof SymbolPicker> | null>(null)
 // 与 SymbolPicker 通过 v-model 双向同步，初始值与 SymbolPicker 默认一致。
 const code = ref('000001')
 const category = ref<Category>('DAY')
-function isoDaysFromNow(days: number): string {
+function isoYearsFromNow(years: number): string {
   const d = new Date()
-  d.setDate(d.getDate() + days)
+  d.setFullYear(d.getFullYear() + years)
   return d.toISOString().slice(0, 10)
 }
-const startDate = ref('2020-01-06')
-const endDate = ref(isoDaysFromNow(0))
+const startDate = ref(isoYearsFromNow(-1))
+const endDate = ref(new Date().toISOString().slice(0, 10))
 
 const strategy = ref('zig_breakout')
 const paramGrid = ref<Record<string, Array<number | string>>>({})

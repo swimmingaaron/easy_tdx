@@ -33,13 +33,13 @@ const EXECUTIONS: { value: ExecutionMode; label: string }[] = [
 const CATEGORIES: Category[] = ['DAY', 'WEEK', 'MONTH', 'MIN_5', 'MIN_15', 'MIN_30', 'MIN_60']
 
 // 日期默认（复用单标的逻辑）
-function isoDaysFromNow(days: number): string {
+function isoYearsFromNow(years: number): string {
   const d = new Date()
-  d.setDate(d.getDate() + days)
+  d.setFullYear(d.getFullYear() + years)
   return d.toISOString().slice(0, 10)
 }
-const startDate = ref('2020-01-06')
-const endDate = ref(isoDaysFromNow(0))
+const startDate = ref(isoYearsFromNow(-1))
+const endDate = ref(new Date().toISOString().slice(0, 10))
 
 onMounted(async () => {
   store.loadStrategies().catch((e) => {
