@@ -786,55 +786,69 @@ async def api_run_backtest_unified(
     execution: str = Query("next_open", description="Execution mode: next_open / next_close")
 ) -> dict[str, Any]:
     """Unified backtest execution endpoint returning bars, metrics, equity curve, trades and grade."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    def _val(v: Any, default: Any) -> Any:
+        if hasattr(v, "default"):
+            return v.default if v.default is not ... else default
+        return v if v is not None else default
+
+    sym_val = str(_val(symbol, "000001"))
+    st_val = str(_val(strategy, "bull_trend"))
+    cat_val = str(_val(category, "DAY"))
+    s_date = str(_val(start_date, ""))
+    e_date = str(_val(end_date, ""))
+    cash = float(_val(initial_cash, 1000000.0))
+    commission_rate = float(_val(commission, 0.0003))
+    slippage_rate = float(_val(slippage, 0.0))
+    execution_mode = str(_val(execution, "next_open"))
+
+    clean_sym = sym_val.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
     if not clean_sym:
         clean_sym = "000001"
     stock_name = get_stock_name(clean_sym)
     
     # 1. Fetch real market K-line bars from TDX
-    n_bars = 240 if category == "DAY" else 120
+    n_bars = 240 if cat_val == "DAY" else 120
     cat = KlineCategory.DAY
-    if category == "WEEK":
+    if cat_val == "WEEK":
         cat = KlineCategory.WEEK
-    elif category == "MONTH":
+    elif cat_val == "MONTH":
         cat = KlineCategory.MONTH
-    elif category == "MIN_60":
+    elif cat_val == "MIN_60":
         cat = KlineCategory.MIN_60
-    elif category == "MIN_30":
+    elif cat_val == "MIN_30":
         cat = KlineCategory.MIN_30
-    elif category == "MIN_15":
+    elif cat_val == "MIN_15":
         cat = KlineCategory.MIN_15
-    elif category == "MIN_5":
+    elif cat_val == "MIN_5":
         cat = KlineCategory.MIN_5
-    elif category == "MIN_1":
+    elif cat_val == "MIN_1":
         cat = KlineCategory.MIN_1
 
     df = fetch_security_kline(clean_sym, count=n_bars, category=cat)
     
     # Filter by date if supplied
-    if start_date and end_date and "datetime" in df.columns:
+    if s_date and e_date and "datetime" in df.columns:
         dt_col = df["datetime"].astype(str)
-        mask = (dt_col >= start_date) & (dt_col <= end_date)
+        mask = (dt_col >= s_date) & (dt_col <= e_date)
         if mask.sum() >= 10:
             df = df[mask].reset_index(drop=True)
         
     # 2. Generate signals
     try:
-        st = get_strategy(strategy)
+        st = get_strategy(st_val)
         sig_df = st.generate_signals(df)
     except Exception as e:
-        logger.warning(f"Strategy {strategy} failed on {clean_sym}: {e}")
+        logger.warning(f"Strategy {st_val} failed on {clean_sym}: {e}")
         sig_df = df.copy()
         sig_df["buy_signal"] = False
         sig_df["sell_signal"] = False
-        sig_df["sell_signal"] = False
         
     # 3. Simulate execution
-    cash = float(initial_cash)
     shares = 0
     trades = []
     equity_curve = []
     buy_records = []
+    initial_cash_val = cash
     
     for i in range(len(sig_df)):
         row = sig_df.iloc[i]
@@ -847,7 +861,7 @@ async def api_run_backtest_unified(
             target_shares = int((cash * 0.95) // (price * 100)) * 100
             if target_shares > 0:
                 cost = target_shares * price
-                comm = max(5.0, cost * commission)
+                comm = max(5.0, cost * commission_rate)
                 if cash >= cost + comm:
                     cash -= (cost + comm)
                     shares = target_shares
@@ -868,7 +882,7 @@ async def api_run_backtest_unified(
                     buy_records.append({"price": price, "dt": dt_str, "idx": i})
         elif sell and shares > 0:
             revenue = shares * price
-            comm = max(5.0, revenue * commission)
+            comm = max(5.0, revenue * commission_rate)
             tax = revenue * 0.0005
             last_buy = buy_records[-1] if buy_records else {"price": price, "dt": dt_str, "idx": i}
             buy_price = last_buy["price"]
@@ -905,7 +919,7 @@ async def api_run_backtest_unified(
         })
 
     # 4. Calculate drawdowns per point
-    peak = initial_cash
+    peak = initial_cash_val
     for pt in equity_curve:
         if pt["total"] > peak:
             peak = pt["total"]
@@ -913,8 +927,8 @@ async def api_run_backtest_unified(
         pt["drawdown_pct"] = round(dd, 4)
 
     # 5. Performance Metrics
-    final_equity = equity_curve[-1]["total"] if equity_curve else initial_cash
-    total_ret = (final_equity / initial_cash - 1.0)
+    final_equity = equity_curve[-1]["total"] if equity_curve else initial_cash_val
+    total_ret = (final_equity / initial_cash_val - 1.0)
     total_ret_pct = total_ret * 100
     days = max(1, len(equity_curve))
     annual_ret = ((1 + total_ret) ** (250 / days) - 1.0) if days > 0 else total_ret

@@ -25,16 +25,20 @@ def safe_float(val: Any, default: float | None = None) -> float | None:
         return default
 
 def _get_market_suffix(sym: str) -> tuple[str, str]:
-    if sym.startswith(("60", "68")):
+    if sym.startswith("88"):
+        return "HY", f"{sym}.HY"
+    elif sym.startswith(("60", "68", "99")):
         return "SH", f"{sym}.SH"
-    elif sym.startswith(("00", "30")):
+    elif sym.startswith(("00", "30", "399")):
         return "SZ", f"{sym}.SZ"
-    elif sym.startswith(("4", "8", "9")):
+    elif sym.startswith(("4", "83", "87", "92")):
         return "BJ", f"{sym}.BJ"
     return "SZ", f"{sym}.SZ"
 
 def _get_board_tag(sym: str) -> dict[str, str]:
-    if sym.startswith(("300", "301")):
+    if sym.startswith("88"):
+        return {"label": "板", "color": "#ec4899"}
+    elif sym.startswith(("300", "301")):
         return {"label": "创", "color": "#f97316"}
     elif sym.startswith("688"):
         return {"label": "科", "color": "#a855f7"}

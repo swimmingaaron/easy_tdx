@@ -43,13 +43,50 @@ COMMON_STOCKS = [
 
 # Fast in-memory map: symbol -> name
 _SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS}
+_BOARD_MAP: dict[str, dict[str, Any]] = {}
+_BOARD_MAP_LOADED = False
+
+def _ensure_board_map():
+    """Lazily load all 560+ TDX industry and concept board metadata."""
+    global _BOARD_MAP, _BOARD_MAP_LOADED
+    if _BOARD_MAP_LOADED:
+        return
+    try:
+        from easy_tdx.mac.client import MacClient
+        from easy_tdx.mac.enums import BoardType
+        mac = MacClient.from_best_host()
+        mac.connect()
+        df = mac.get_board_list(BoardType.ALL)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                c = str(row.get("code", "")).strip()
+                n = str(row.get("name", "")).strip()
+                if c and n:
+                    _BOARD_MAP[c] = {
+                        "symbol": c,
+                        "code": c,
+                        "name": n,
+                        "market": "HY",
+                        "pinyin": "",
+                        "display": f"{c} {n} [行业板块]"
+                    }
+                    _SYMBOL_NAME_MAP[c] = n
+            _BOARD_MAP_LOADED = True
+    except Exception as e:
+        logger.warning(f"Failed to pre-load TDX board map: {e}")
 
 def get_stock_name(symbol: str) -> str:
-    """Resolve Chinese stock name from symbol, with fallback."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(":", "")
+    """Resolve Chinese stock or board name from symbol, with fallback."""
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(":", "")
     if clean_sym in _SYMBOL_NAME_MAP:
         return _SYMBOL_NAME_MAP[clean_sym]
     
+    # Check board map
+    if clean_sym.startswith("88") or len(clean_sym) == 6:
+        _ensure_board_map()
+        if clean_sym in _SYMBOL_NAME_MAP:
+            return _SYMBOL_NAME_MAP[clean_sym]
+
     # Try quick online search
     results = search_stocks(clean_sym, limit=1)
     if results and results[0]["code"] == clean_sym:
@@ -59,9 +96,11 @@ def get_stock_name(symbol: str) -> str:
     return f"标的_{clean_sym}"
 
 def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
-    """Search stocks by code, Chinese name, or Pinyin initials."""
+    """Search stocks and industry boards by code, Chinese name, or Pinyin initials."""
+    _ensure_board_map()
     q = query.strip()
     if not q:
+        sample_boards = list(_BOARD_MAP.values())[:3]
         return [
             {
                 "symbol": s["code"],
@@ -71,14 +110,14 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
                 "pinyin": s["pinyin"],
                 "display": f"{s['code']} {s['name']}"
             }
-            for s in COMMON_STOCKS[:limit]
-        ]
+            for s in COMMON_STOCKS[:limit - len(sample_boards)]
+        ] + sample_boards
     
     q_lower = q.lower()
     q_upper = q.upper()
     matched_map: dict[str, dict[str, Any]] = {}
 
-    # 1. Check local cache first
+    # 1. Check local stock cache
     for s in COMMON_STOCKS:
         if (
             q in s["code"]
@@ -94,7 +133,12 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
                 "display": f"{s['code']} {s['name']}"
             }
 
-    # 2. Query Tencent Smartbox for full market coverage
+    # 2. Check TDX board indices
+    for c, b_info in _BOARD_MAP.items():
+        if q in c or q in b_info["name"]:
+            matched_map[c] = b_info
+
+    # 3. Query Tencent Smartbox for full individual stock coverage
     try:
         url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
@@ -125,7 +169,7 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
 
     results = list(matched_map.values())
     results.sort(key=lambda x: (
-        not (x["code"].startswith(q) or x["pinyin"].startswith(q_upper) or x["name"].startswith(q)),
+        not (x["code"].startswith(q) or (x.get("pinyin") and x["pinyin"].startswith(q_upper)) or x["name"].startswith(q)),
         len(x["name"])
     ))
     return results[:limit]

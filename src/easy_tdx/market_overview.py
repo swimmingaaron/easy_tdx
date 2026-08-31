@@ -59,6 +59,7 @@ def _fetch_industry_ranking_live() -> list[dict[str, Any]]:
                 chg_str = f"+{chg_val:.2f}%" if chg_val >= 0 else f"{chg_val:.2f}%"
                 inflow_str = f"+{inflow_yi} 亿" if inflow_yi >= 0 else f"{inflow_yi} 亿"
                 industries.append({
+                    "code": str(row.get("code", "")),
                     "name": str(row.get("name", "")),
                     "chg": chg_str,
                     "inflow": inflow_str,

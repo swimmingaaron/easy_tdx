@@ -31,8 +31,16 @@ def _get_market(symbol: str) -> Market:
         return Market.BJ
     return Market.SZ
 
+def _is_board_symbol(clean_sym: str) -> bool:
+    """Detect if symbol is an industry/concept board index (e.g. 881376, 880472, 880xxx, 881xxx)."""
+    if clean_sym.startswith("88") and len(clean_sym) == 6:
+        return True
+    if clean_sym.startswith(("BK", "HY")):
+        return True
+    return False
+
 def _is_index_symbol(clean_sym: str, market: Market) -> bool:
-    """Detect if symbol is an index (e.g. 999999, 399001, 399006, 000300)."""
+    """Detect if symbol is a standard index (e.g. 999999, 399001, 399006, 000300)."""
     if clean_sym in ("999999", "000300", "000016", "000010", "000688") or clean_sym.startswith("99"):
         return True
     if clean_sym.startswith("399") or clean_sym in ("399001", "399006", "399300", "399005", "899050"):
@@ -63,6 +71,30 @@ def _get_or_create_client() -> TdxClient:
             pass
         return _TDX_CLIENT
 
+# Thread-safe MAC client singleton
+_MAC_CLIENT = None
+_MAC_LOCK = threading.Lock()
+
+def _get_or_create_mac_client():
+    """Get or create singleton MacClient for board index K-lines."""
+    global _MAC_CLIENT
+    with _MAC_LOCK:
+        if _MAC_CLIENT is not None:
+            return _MAC_CLIENT
+        from easy_tdx.mac.client import MacClient
+        try:
+            _MAC_CLIENT = MacClient.from_best_host()
+            _MAC_CLIENT.connect()
+            logger.info("MacClient connected for board K-lines")
+        except Exception as e:
+            logger.warning(f"Failed to connect MacClient.from_best_host(): {e}")
+            _MAC_CLIENT = MacClient()
+            try:
+                _MAC_CLIENT.connect()
+            except Exception:
+                pass
+        return _MAC_CLIENT
+
 def fetch_security_kline(
     symbol: str, 
     category: KlineCategory | str = KlineCategory.DAY, 
@@ -90,6 +122,8 @@ def fetch_security_kline(
             "MIN_15": KlineCategory.MIN_15,
             "MIN_30": KlineCategory.MIN_30,
             "MIN_60": KlineCategory.MIN_60,
+            "WEEK": KlineCategory.WEEK,
+            "MONTH": KlineCategory.MONTH,
         }
         category = cat_map.get(category.upper(), KlineCategory.DAY)
 
@@ -101,8 +135,49 @@ def fetch_security_kline(
         ts, cached_df = _CACHE[cache_key]
         if now - ts < CACHE_TTL_SEC:
             return cached_df.copy()
+
+    # 1. Check if this is an industry/concept board index (e.g. 881376, 881422, etc.)
+    if _is_board_symbol(clean_sym):
+        try:
+            from easy_tdx.mac.enums import Period as MacPeriod
+            mac_period_map = {
+                KlineCategory.DAY: MacPeriod.DAILY,
+                KlineCategory.WEEK: MacPeriod.WEEKLY,
+                KlineCategory.MONTH: MacPeriod.MONTHLY,
+                KlineCategory.MIN_60: MacPeriod.MIN_60,
+                KlineCategory.MIN_30: MacPeriod.MIN_30,
+                KlineCategory.MIN_15: MacPeriod.MIN_15,
+                KlineCategory.MIN_5: MacPeriod.MIN_5,
+                KlineCategory.MIN_1: MacPeriod.MIN_1,
+            }
+            mac_p = mac_period_map.get(category, MacPeriod.DAILY)
+            mac = _get_or_create_mac_client()
+            bdf = mac.get_stock_kline(1, clean_sym, mac_p, count=count)
+            if bdf is not None and not bdf.empty and len(bdf) > 0:
+                res_df = pd.DataFrame()
+                if "datetime" in bdf.columns:
+                    # Daily/weekly/monthly is YYYY-MM-DD; intraday contains HH:MM
+                    if mac_p in (MacPeriod.DAILY, MacPeriod.WEEKLY, MacPeriod.MONTHLY):
+                        res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 10)
+                    else:
+                        res_df["datetime"] = bdf["datetime"].astype(str)
+                else:
+                    res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(bdf), freq="B")]
+                    
+                res_df["open"] = pd.to_numeric(bdf["open"], errors="coerce").fillna(0.0).round(2)
+                res_df["high"] = pd.to_numeric(bdf["high"], errors="coerce").fillna(0.0).round(2)
+                res_df["low"] = pd.to_numeric(bdf["low"], errors="coerce").fillna(0.0).round(2)
+                res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
+                res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
+                res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
+                res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
+                
+                _CACHE[cache_key] = (now, res_df)
+                return res_df.copy()
+        except Exception as e:
+            logger.warning(f"Failed to fetch MAC board K-line for {clean_sym}: {e}")
             
-    # Try fetching real data from TDX
+    # Try fetching real data from standard TDX client
     try:
         client = _get_or_create_client()
         market = _get_market(clean_sym)
