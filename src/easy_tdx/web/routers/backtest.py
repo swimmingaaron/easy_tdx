@@ -1037,14 +1037,21 @@ async def api_run_backtest_unified(
         p_h = float(row["high"])
         p_l = float(row["low"])
         vol = float(row["volume"])
+        amt = float(row["amount"]) if ("amount" in row and float(row["amount"]) > 0) else (vol * p_c)
+        pre_c = float(df["close"].iloc[idx - 1]) if idx > 0 else p_o
+        chg = round(p_c - pre_c, 2)
+        chg_pct = round(((p_c / max(0.01, pre_c)) - 1.0) * 100, 2)
         bars_list.append({
             "datetime": str(row["datetime"]),
             "open": p_o,
             "high": p_h,
             "low": p_l,
             "close": p_c,
+            "pre_close": pre_c,
+            "change": chg,
+            "change_pct": chg_pct,
             "volume": vol,
-            "amount": vol * p_c
+            "amount": amt
         })
 
     return {
