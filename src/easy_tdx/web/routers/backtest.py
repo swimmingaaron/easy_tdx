@@ -772,9 +772,12 @@ from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.models import KlineCategory
 
 
+from fastapi import Request
+
 @router.get("/api/backtest/run")
 @router.post("/api/backtest/run")
 async def api_run_backtest_unified(
+    request: Request,
     symbol: str = Query("000001", description="Stock code"),
     strategy: str = Query("bull_trend", description="Strategy identifier"),
     category: str = Query("DAY", description="K-line category"),
@@ -805,6 +808,29 @@ async def api_run_backtest_unified(
     if not clean_sym:
         clean_sym = "000001"
     stock_name = get_stock_name(clean_sym)
+
+    # Extract custom strategy parameters from request
+    reserved_keys = {"symbol", "strategy", "category", "start_date", "end_date", "initial_cash", "commission", "slippage", "execution"}
+    custom_params = {}
+    for k, v in request.query_params.items():
+        if k not in reserved_keys:
+            try:
+                if "." in v:
+                    custom_params[k] = float(v)
+                else:
+                    custom_params[k] = int(v)
+            except Exception:
+                custom_params[k] = v
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                for k, v in body.items():
+                    if k not in reserved_keys:
+                        custom_params[k] = v
+        except Exception:
+            pass
     
     # 1. Fetch real market K-line bars from TDX
     n_bars = 240 if cat_val == "DAY" else 120
@@ -835,7 +861,7 @@ async def api_run_backtest_unified(
         
     # 2. Generate signals
     try:
-        st = get_strategy(st_val)
+        st = get_strategy(st_val, **custom_params)
         sig_df = st.generate_signals(df)
     except Exception as e:
         logger.warning(f"Strategy {st_val} failed on {clean_sym}: {e}")

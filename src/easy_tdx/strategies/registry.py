@@ -23,6 +23,7 @@ def list_all_strategies() -> list[dict[str, Any]]:
             "category": cls.category,
             "description": cls.description,
             "params_schema": cls.params_schema,
+            "params": cls.get_params_schema() if hasattr(cls, "get_params_schema") else [],
         }
         for cls in STRATEGY_REGISTRY.values()
     ]

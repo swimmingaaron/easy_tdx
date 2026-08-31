@@ -1,36 +1,46 @@
+"""捉妖大师多周期共振策略。
+
+基于 ZHUOYAO 指标（20/60/120 日涨幅及指数平滑），通过短中长线趋势共振判断买卖时机。
+入场条件（三条件全部满足）：
+  1. SHORT > 0  — 20 日涨幅为正，短线处于强势
+  2. TREND > 0  — 60 日涨幅的 EMA 为正，中期趋势向上
+  3. SHORT > MID — 短线强于中线，处于加速阶段（非衰竭）
+出场条件（任一触发即卖出）：
+  1. SHORT < 0  — 短线转弱
+  2. TREND < 0  — 中期趋势转向
+严格参考 easy_tdx/strategies/zhuoyao_momentum.py
+"""
 import pandas as pd
-import numpy as np
-from easy_tdx.strategies.base import BaseStrategy
+from easy_tdx.strategies.base import BaseStrategy, Param
 from easy_tdx.strategies.registry import register_strategy
-from easy_tdx.MyTT import MA, REF
+from easy_tdx.MyTT import ZHUOYAO
 
 @register_strategy
-class ZhuoyaoMomentumStrategy(BaseStrategy):
+class ZhuoyaoStrategy(BaseStrategy):
     name = "zhuoyao_momentum"
-    display_name = "捉妖记短线强势战法"
+    display_name = "捉妖大师多周期共振策略"
     category = "technical"
-    description = "多均线高度粘合后突然放量多头发散，捉短线妖股启动点"
-    params_schema = {"adhesive_pct": 0.05}
+    description = "基于 ZHUOYAO 指标：SHORT>0 且 TREND>0 且 SHORT>MID 买入；SHORT<0 或 TREND<0 卖出。"
+    params_list = [
+        Param("n1", int, default=120, min_value=30, max_value=250, step=5, label="长线涨幅周期 (120)", description="长线趋势周期"),
+        Param("n2", int, default=60, min_value=15, max_value=120, step=5, label="中线涨幅周期 (60)", description="中线趋势周期"),
+        Param("n3", int, default=20, min_value=5, max_value=60, step=1, label="短线涨幅周期 (20)", description="短线加速周期"),
+        Param("m", int, default=10, min_value=2, max_value=30, step=1, label="趋势 EMA 平滑周期 (10)", description="趋势平滑指数周期"),
+    ]
+    params_schema = {"n1": 120, "n2": 60, "n3": 20, "m": 10}
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         res = df.copy()
-        c = res["close"].values
-        ma5 = pd.Series(MA(c, 5), index=res.index)
-        ma10 = pd.Series(MA(c, 10), index=res.index)
-        ma20 = pd.Series(MA(c, 20), index=res.index)
+        n1 = int(self.params.get("n1", 120))
+        n2 = int(self.params.get("n2", 60))
+        n3 = int(self.params.get("n3", 20))
+        m = int(self.params.get("m", 10))
         
-        # 均线粘合条件
-        ma_max = np.maximum.reduce([ma5.values, ma10.values, ma20.values])
-        ma_min = np.minimum.reduce([ma5.values, ma10.values, ma20.values])
-        adhesive = pd.Series((ma_max - ma_min) / np.maximum(c, 1e-4) < float(self.params.get("adhesive_pct", 0.05)), index=res.index)
+        long_arr, mid_arr, short_arr, trend_arr = ZHUOYAO(res["close"], n1, n2, n3, m)
+        short = pd.Series(short_arr, index=res.index)
+        mid = pd.Series(mid_arr, index=res.index)
+        trend = pd.Series(trend_arr, index=res.index)
         
-        # 突破发散
-        ref_c1 = pd.Series(REF(c, 1), index=res.index)
-        breakout = (res["close"] > ma5) & (ma5 >= ma10) & (res["close"] / ref_c1 > 1.025)
-        
-        buy_sig = (adhesive.shift(1).fillna(False) & breakout) | ((res["close"] > ma5) & (res["close"].shift(1) <= ma5.shift(1)) & (res["close"] > ma20))
-        sell_sig = res["close"] < ma10
-        
-        res["buy_signal"] = buy_sig.fillna(False)
-        res["sell_signal"] = sell_sig.fillna(False)
+        res["buy_signal"] = (short > 0) & (trend > 0) & (short > mid)
+        res["sell_signal"] = (short < 0) | (trend < 0)
         return res
