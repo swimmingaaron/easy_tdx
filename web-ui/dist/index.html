@@ -578,7 +578,7 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
-                            <tr><th class="pb-3">股票代码</th><th class="pb-3">股票名称</th><th class="pb-3">触发策略</th><th class="pb-3">最新价</th><th class="pb-3">成交量</th><th class="pb-3">信号日期</th><th class="pb-3">操作</th></tr>
+                            <tr><th class="pb-3">股票代码</th><th class="pb-3">股票名称</th><th class="pb-3">触发策略</th><th class="pb-3">最新价</th><th class="pb-3">涨跌幅</th><th class="pb-3">成交量</th><th class="pb-3">信号日期</th><th class="pb-3">操作</th></tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono"></tbody>
                     </table>
@@ -2702,7 +2702,7 @@
             const strategy = stSelect ? stSelect.value : 'zig_breakout';
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
-            tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-2 text-cyan-400"></i>正在使用通达信原生实时数据对全市场标的进行 [${strategy}] 战法策略扫描...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-2 text-cyan-400"></i>正在使用通达信原生实时数据对全市场标的进行 [${strategy}] 战法策略扫描...</td></tr>`;
             lucide.createIcons();
 
             try {
@@ -2711,16 +2711,22 @@
                     const json = await resp.json();
                     const matches = json.matches || json.data || [];
                     if (matches.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400 text-xs">当前所选策略 [${strategy}] 在最新交易窗口内暂无触发买入信号的标的，可尝试切换其他 48 大策略。</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400 text-xs">当前所选策略 [${strategy}] 在最新交易窗口内暂无触发买入信号的标的，可尝试切换其他 48 大策略。</td></tr>`;
                         return;
                     }
 
-                    tbody.innerHTML = matches.map(m => `
+                    tbody.innerHTML = matches.map(m => {
+                        const chg = Number(m.signal_change_pct ?? m.change_pct ?? 0);
+                        const isUp = chg >= 0;
+                        const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                        const chgStr = `${chg.toFixed(2)}%`;
+                        return `
                         <tr class="hover:bg-slate-800/40 transition">
                             <td class="py-3 font-semibold"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-cyan-400 font-mono">${m.symbol || m.code}</span></td>
                             <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
                             <td class="py-3 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategy}</span></td>
                             <td class="py-3 font-bold text-white font-mono">¥${Number(m.price).toFixed(2)}</td>
+                            <td class="py-3 font-mono ${chgClass}">${chgStr}</td>
                             <td class="py-3 text-slate-300 font-mono">${Number(m.volume).toLocaleString()}</td>
                             <td class="py-3 font-mono"><span class="px-2 py-0.5 rounded text-xs ${m.status_label==='今日触发'?'bg-rose-950 text-rose-400 border border-rose-800':'bg-slate-800 text-slate-400'}">${m.signal_date} (${m.status_label || '信号'})</span></td>
                             <td class="py-3 flex items-center space-x-2">
@@ -2728,7 +2734,8 @@
                                 <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900">回测</button>
                             </td>
                         </tr>
-                    `).join('');
+                    `;
+                    }).join('');
                     lucide.createIcons();
                 }
             } catch (e) {
@@ -2821,14 +2828,20 @@
                     const results = json.matches || json.data || [];
 
                     if (results.length === 0) {
-                        document.getElementById('screener-results-table').innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500">今日暂无标的触发【${stName}】信号</td></tr>`;
+                        document.getElementById('screener-results-table').innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500">今日暂无标的触发【${stName}】信号</td></tr>`;
                     } else {
-                        document.getElementById('screener-results-table').innerHTML = results.map(r => `
+                        document.getElementById('screener-results-table').innerHTML = results.map(r => {
+                            const chg = Number(r.signal_change_pct ?? r.change_pct ?? 0);
+                            const isUp = chg >= 0;
+                            const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                            const chgStr = `${chg.toFixed(2)}%`;
+                            return `
                             <tr class="hover:bg-slate-800/40 transition">
                                 <td class="py-3 font-semibold"><span onclick="openKlineModal('${r.symbol}', '${r.name}')" class="stock-click-link text-cyan-400 font-mono">${r.symbol}</span></td>
                                 <td class="py-3 text-white font-sans font-semibold"><span onclick="openKlineModal('${r.symbol}', '${r.name}')" class="stock-click-link text-white">${r.name || '标的' + r.symbol}</span></td>
                                 <td class="py-3 text-slate-300 font-sans">${r.strategy || stName}</td>
                                 <td class="py-3 text-white font-bold font-mono">¥${Number(r.price).toFixed(2)}</td>
+                                <td class="py-3 font-mono ${chgClass}">${chgStr}</td>
                                 <td class="py-3 text-slate-400 font-mono">${Number(r.volume).toLocaleString()}</td>
                                 <td class="py-3 text-slate-500 font-mono">${r.signal_date || '最新'}</td>
                                 <td class="py-3 flex items-center space-x-2">
@@ -2836,7 +2849,8 @@
                                     <button onclick="quickBacktest('${r.symbol}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900">载入回测</button>
                                 </td>
                             </tr>
-                        `).join('');
+                        `;
+                        }).join('');
                     }
                     showToast('选股完成', `命中 ${results.length} 只符合条件的强势标的！`);
                 }

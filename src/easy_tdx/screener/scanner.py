@@ -49,6 +49,7 @@ def scan_market_strategy(
                 # Locate the most recent buy signal bar
                 trigger_idx = buy_mask[buy_mask].index[-1]
                 trigger_bar = sig_df.loc[trigger_idx]
+                trigger_loc = sig_df.index.get_loc(trigger_idx)
                 last_bar = sig_df.iloc[-1]
                 
                 stock_name = get_stock_name(sym)
@@ -56,6 +57,25 @@ def scan_market_strategy(
                 trigger_price = round(float(trigger_bar["close"]), 2)
                 vol = int(last_bar["volume"])
                 amt_wan = round(float(last_bar.get("amount", 0.0)) / 10000.0, 1)
+
+                # Calculate change_pct on signal_date (trigger_bar close vs its prior bar close)
+                if trigger_loc > 0:
+                    trigger_prev_close = float(sig_df.iloc[trigger_loc - 1]["close"])
+                    signal_change_pct = round((trigger_price - trigger_prev_close) / trigger_prev_close * 100.0, 2) if trigger_prev_close > 0 else 0.0
+                elif "change_pct" in trigger_bar and pd.notna(trigger_bar["change_pct"]):
+                    signal_change_pct = round(float(trigger_bar["change_pct"]), 2)
+                else:
+                    signal_change_pct = 0.0
+
+                # Return since signal
+                since_signal_pct = round((close_price - trigger_price) / trigger_price * 100.0, 2) if trigger_price > 0 else 0.0
+
+                # Latest day change
+                if len(sig_df) >= 2:
+                    last_prev_close = float(sig_df.iloc[-2]["close"])
+                    latest_change_pct = round((close_price - last_prev_close) / last_prev_close * 100.0, 2) if last_prev_close > 0 else 0.0
+                else:
+                    latest_change_pct = 0.0
                 
                 signal_date = str(trigger_bar.get("datetime", ""))
                 if " " in signal_date:
@@ -74,6 +94,10 @@ def scan_market_strategy(
                     "strategy": st.display_name,
                     "strategy_id": strategy_name,
                     "price": close_price,
+                    "change_pct": signal_change_pct,
+                    "signal_change_pct": signal_change_pct,
+                    "since_signal_pct": since_signal_pct,
+                    "latest_change_pct": latest_change_pct,
                     "trigger_price": trigger_price,
                     "volume": vol,
                     "days_ago": days_ago,
