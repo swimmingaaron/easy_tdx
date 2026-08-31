@@ -226,3 +226,14 @@ def get_kline(
         },
         "data": bars_data
     }
+
+@router.get("/ladder")
+def get_ladder():
+    """Get real-time limit up ladder and short-term leader promotion matrix."""
+    from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
+    ladder = fetch_realtime_limit_up_ladder()
+    return {
+        "status": "success",
+        "count": sum(len(tier.get("stocks", [])) for tier in ladder),
+        "data": ladder
+    }
