@@ -237,3 +237,13 @@ def get_ladder():
         "count": sum(len(tier.get("stocks", [])) for tier in ladder),
         "data": ladder
     }
+
+@router.get("/anomalies")
+def get_anomalies():
+    """Get real-time market anomalies: Auction gap-ups, Intraday rapid surges, and Deviation redline monitors."""
+    from easy_tdx.market_anomalies import fetch_realtime_anomalies
+    anomalies = fetch_realtime_anomalies()
+    return {
+        "status": "success",
+        "data": anomalies
+    }
