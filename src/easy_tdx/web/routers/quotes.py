@@ -247,3 +247,13 @@ def get_anomalies():
         "status": "success",
         "data": anomalies
     }
+
+@router.get("/dashboard")
+def get_dashboard_summary():
+    """Get real-time market dashboard metrics, sentiment, breadth, and leading industries."""
+    from easy_tdx.market_overview import fetch_realtime_market_summary
+    data = fetch_realtime_market_summary()
+    return {
+        "status": "success",
+        "data": data
+    }

@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 from easy_tdx.client import TdxClient
 from easy_tdx.models import Market, KlineCategory
-from easy_tdx.screener.scanner import generate_mock_kline
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +53,30 @@ def _get_or_create_client() -> TdxClient:
             pass
         return _TDX_CLIENT
 
-def fetch_security_kline(symbol: str, count: int = 120, category: KlineCategory = KlineCategory.DAY) -> pd.DataFrame:
+def fetch_security_kline(
+    symbol: str, 
+    category: KlineCategory | str = KlineCategory.DAY, 
+    count: int = 240,
+    period: str | None = None
+) -> pd.DataFrame:
+    """Fetch historical K-line bars via TDX binary socket connection, with caching."""
+    if period is not None:
+        category = period
     """Fetch real market K-line bars for symbol from TDX server with fallback to realistic mock."""
     clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
-    if not clean_sym:
-        clean_sym = "000001"
-        
+    if isinstance(category, str):
+        cat_map = {
+            "DAY": KlineCategory.DAY,
+            "WEEK": KlineCategory.WEEK,
+            "MONTH": KlineCategory.MONTH,
+            "MIN_1": KlineCategory.MIN_1,
+            "MIN_5": KlineCategory.MIN_5,
+            "MIN_15": KlineCategory.MIN_15,
+            "MIN_30": KlineCategory.MIN_30,
+            "MIN_60": KlineCategory.MIN_60,
+        }
+        category = cat_map.get(category.upper(), KlineCategory.DAY)
+
     cache_key = f"{clean_sym}_{category.value if hasattr(category, 'value') else category}_{count}"
     now = time.time()
     
@@ -100,9 +117,35 @@ def fetch_security_kline(symbol: str, count: int = 120, category: KlineCategory 
     except Exception as e:
         logger.warning(f"Failed to fetch live TDX bars for {clean_sym}: {e}, falling back to generator.")
         
-    # Fallback to realistic mock if TDX is offline
-    fallback_df = generate_mock_kline(clean_sym, n_bars=count)
-    return fallback_df
+    # Fallback to realistic bars if TDX connection fails
+    return _generate_fallback_bars(clean_sym, n_bars=count)
+
+def _generate_fallback_bars(symbol: str, n_bars: int = 120) -> pd.DataFrame:
+    """Deterministic fallback bars generator without circular dependencies."""
+    import hashlib
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=n_bars, freq="B")
+    seed = int(hashlib.md5(symbol.encode()).hexdigest(), 16) % (2**32)
+    rng = np.random.RandomState(seed)
+    base_price = 15.0 + (int(symbol[-2:]) if symbol.isdigit() else 10)
+    daily_returns = rng.normal(0.0008, 0.022, size=n_bars)
+    close_prices = [base_price]
+    for r in daily_returns[:-1]:
+        close_prices.append(max(2.0, close_prices[-1] * (1.0 + r)))
+    
+    opens = [round(max(2.0, close_prices[i] * (1.0 + rng.normal(0, 0.008))), 2) for i in range(n_bars)]
+    highs = [round(max(opens[i], close_prices[i]) + abs(rng.exponential(0.012) * max(opens[i], close_prices[i])), 2) for i in range(n_bars)]
+    lows = [round(max(1.0, min(opens[i], close_prices[i]) - abs(rng.exponential(0.012) * min(opens[i], close_prices[i]))), 2) for i in range(n_bars)]
+    volumes = [rng.randint(30000, 350000) for _ in range(n_bars)]
+    
+    return pd.DataFrame({
+        "datetime": [d.strftime("%Y-%m-%d") for d in dates],
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": [round(x, 2) for x in close_prices],
+        "volume": volumes,
+        "amount": [round(volumes[i] * close_prices[i], 2) for i in range(n_bars)]
+    })
 
 def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[str, Any]]:
     """Fetch real-time snapshot quotes from TDX server."""

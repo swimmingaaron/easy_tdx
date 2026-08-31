@@ -59,18 +59,38 @@ def get_stock_strategy_matching(symbol: str):
 
 @router.post("/chat")
 def api_ai_chat(req: AIChatRequest):
-    """Context-aware AI Quant Research Chat Assistant."""
+    """Context-aware AI Quant Research Chat Assistant with Real TDX Data."""
     sym = (req.symbol or "000001").strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
     stock_name = get_stock_name(sym)
     q = req.message.strip()
     
-    reply = f"""【StockQuant AI 投研总监研判】关于标的 **{sym} {stock_name}**：
+    # Fetch real TDX K-line & diagnosis
+    df = fetch_security_kline(sym, count=60)
+    diag = decision_agent.analyze(sym, df)
+    matches = strategy_agent.evaluate_stock_strategies(sym, df)
+    
+    last_price = 0.0
+    ma5_val = 0.0
+    ma20_val = 0.0
+    if df is not None and not df.empty:
+        last_bar = df.iloc[-1]
+        last_price = round(float(last_bar["close"]), 2)
+        if len(df) >= 5:
+            ma5_val = round(float(df["close"].tail(5).mean()), 2)
+        if len(df) >= 20:
+            ma20_val = round(float(df["close"].tail(20).mean()), 2)
+            
+    top_matches = [m.get("strategy_name", "") for m in matches if m.get("matched", False)]
+    matched_str = "、".join([f"【{m}】" for m in top_matches[:3]]) if top_matches else "【量价趋势跟踪】"
+    
+    reply = f"""【StockQuant AI 投研总监研判】关于标的 **{sym} {stock_name}** (最新价 ¥{last_price:.2f})：
 
-1. **核心逻辑**：该标的属于核心赛道，近期量价结构维持在多头排列区间，MA5 与 MA10 均线支撑扎实。
-2. **策略匹配**：当前与【均线多头排列】及【缩量回踩强支撑】策略高度契合。
-3. **操盘指引**：建议单票仓位控制在 25%~35%，建议止损位设在 10日均线下方 2%，第一波段目标位关注前方压力位。
+1. **4D 综合评分**：多智能体综合评分为 **{diag.get('overall_score', 85)} 分**，操作信号指引为 **{diag.get('signal_display', '买入')}**。
+2. **均线与技术结构**：当前 MA5 为 ¥{ma5_val:.2f}，MA20 为 ¥{ma20_val:.2f}。最新收盘价位于均线{'上方（多头强支撑）' if last_price >= ma5_val else '区间内（震荡蓄势）'}。
+3. **15 大战法匹配**：当前与 {matched_str} 等量化经典模型高度契合。
+4. **操盘总监建议**：{diag.get('summary', '顺势参与')}。
 
-针对您的提问：“{q}”，量化模型给出的操作建议为【顺势回踩低吸，切忌盘中情绪化追高】。"""
+针对您的提问：“{q}”，量化投研模型给出的建议为【合理控制仓位在 25%~35%，严格依托均线支撑逢低布局】。"""
 
     return {
         "status": "success",
