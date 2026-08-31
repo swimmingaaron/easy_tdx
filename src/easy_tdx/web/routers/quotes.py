@@ -196,6 +196,7 @@ def get_kline(
     last_price = last_bar["close"]
     prev_price = prev_bar["close"]
     chg = round(last_price - prev_price, 2)
+    chg_pct = round(((last_price / max(0.01, prev_price)) - 1.0) * 100, 2)
     amt_yi = round(float(last_bar.get("amount", 0.0)) / 100000000.0, 2)
     total_val_yi = round(amt_yi * 18.5, 2) if amt_yi > 0 else round(last_price * 15.0, 2)
     float_val_yi = round(total_val_yi * 0.85, 2)
