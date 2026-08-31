@@ -833,24 +833,8 @@ async def api_run_backtest_unified(
             pass
     
     # 1. Fetch real market K-line bars from TDX
-    n_bars = 240 if cat_val == "DAY" else 120
-    cat = KlineCategory.DAY
-    if cat_val == "WEEK":
-        cat = KlineCategory.WEEK
-    elif cat_val == "MONTH":
-        cat = KlineCategory.MONTH
-    elif cat_val == "MIN_60":
-        cat = KlineCategory.MIN_60
-    elif cat_val == "MIN_30":
-        cat = KlineCategory.MIN_30
-    elif cat_val == "MIN_15":
-        cat = KlineCategory.MIN_15
-    elif cat_val == "MIN_5":
-        cat = KlineCategory.MIN_5
-    elif cat_val == "MIN_1":
-        cat = KlineCategory.MIN_1
-
-    df = fetch_security_kline(clean_sym, count=n_bars, category=cat)
+    n_bars = 240 if cat_val in ("DAY", "WEEK", "MONTH", "SEASON", "YEAR") else 160
+    df = fetch_security_kline(clean_sym, count=n_bars, period=cat_val)
     
     # Filter by date if supplied
     if s_date and e_date and "datetime" in df.columns:

@@ -109,25 +109,35 @@ def fetch_security_kline(
     if not clean_sym:
         clean_sym = "000001"
         
+    is_120m = False
     if isinstance(category, str):
-        cat_map = {
-            "DAY": KlineCategory.DAY,
-            "1M": KlineCategory.MIN_1,
-            "5M": KlineCategory.MIN_5,
-            "15M": KlineCategory.MIN_15,
-            "30M": KlineCategory.MIN_30,
-            "60M": KlineCategory.MIN_60,
-            "MIN_1": KlineCategory.MIN_1,
-            "MIN_5": KlineCategory.MIN_5,
-            "MIN_15": KlineCategory.MIN_15,
-            "MIN_30": KlineCategory.MIN_30,
-            "MIN_60": KlineCategory.MIN_60,
-            "WEEK": KlineCategory.WEEK,
-            "MONTH": KlineCategory.MONTH,
-        }
-        category = cat_map.get(category.upper(), KlineCategory.DAY)
+        c_upper = category.upper()
+        if c_upper in ("120M", "MIN_120", "120MIN", "120"):
+            is_120m = True
+            category = KlineCategory.MIN_60
+        else:
+            cat_map = {
+                "DAY": KlineCategory.DAY,
+                "WEEK": KlineCategory.WEEK,
+                "MONTH": KlineCategory.MONTH,
+                "SEASON": KlineCategory.SEASON,
+                "QUARTER": KlineCategory.SEASON,
+                "YEAR": KlineCategory.YEAR,
+                "60M": KlineCategory.MIN_60,
+                "MIN_60": KlineCategory.MIN_60,
+                "30M": KlineCategory.MIN_30,
+                "MIN_30": KlineCategory.MIN_30,
+                "15M": KlineCategory.MIN_15,
+                "MIN_15": KlineCategory.MIN_15,
+                "5M": KlineCategory.MIN_5,
+                "MIN_5": KlineCategory.MIN_5,
+                "1M": KlineCategory.MIN_1,
+                "MIN_1": KlineCategory.MIN_1,
+            }
+            category = cat_map.get(c_upper, KlineCategory.DAY)
 
-    cache_key = f"{clean_sym}_{category.value if hasattr(category, 'value') else category}_{count}"
+    cache_suffix = "120M" if is_120m else (category.value if hasattr(category, 'value') else category)
+    cache_key = f"{clean_sym}_{cache_suffix}_{count}"
     now = time.time()
     
     # Check cache
@@ -136,14 +146,38 @@ def fetch_security_kline(
         if now - ts < CACHE_TTL_SEC:
             return cached_df.copy()
 
-    # 1. Check if this is an industry/concept board index (e.g. 881376, 881422, etc.)
+    from easy_tdx.mac.enums import Period as MacPeriod
+
+    # 1. Check if 120M requested: MacClient supports native 120M (times=120)
+    if is_120m:
+        try:
+            mac = _get_or_create_mac_client()
+            mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88")) else 0
+            bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count)
+            if bdf is not None and not bdf.empty and len(bdf) > 0:
+                res_df = pd.DataFrame()
+                res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 16)
+                res_df["open"] = pd.to_numeric(bdf["open"], errors="coerce").fillna(0.0).round(2)
+                res_df["high"] = pd.to_numeric(bdf["high"], errors="coerce").fillna(0.0).round(2)
+                res_df["low"] = pd.to_numeric(bdf["low"], errors="coerce").fillna(0.0).round(2)
+                res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
+                res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
+                res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
+                res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
+                _CACHE[cache_key] = (now, res_df)
+                return res_df.copy()
+        except Exception as e:
+            logger.warning(f"Failed to fetch native 120M via MacClient: {e}")
+
+    # 2. Check if this is an industry/concept board index (e.g. 881376, 881422, etc.)
     if _is_board_symbol(clean_sym):
         try:
-            from easy_tdx.mac.enums import Period as MacPeriod
             mac_period_map = {
                 KlineCategory.DAY: MacPeriod.DAILY,
                 KlineCategory.WEEK: MacPeriod.WEEKLY,
                 KlineCategory.MONTH: MacPeriod.MONTHLY,
+                KlineCategory.SEASON: MacPeriod.QUARTERLY,
+                KlineCategory.YEAR: MacPeriod.YEARLY,
                 KlineCategory.MIN_60: MacPeriod.MIN_60,
                 KlineCategory.MIN_30: MacPeriod.MIN_30,
                 KlineCategory.MIN_15: MacPeriod.MIN_15,
@@ -156,11 +190,11 @@ def fetch_security_kline(
             if bdf is not None and not bdf.empty and len(bdf) > 0:
                 res_df = pd.DataFrame()
                 if "datetime" in bdf.columns:
-                    # Daily/weekly/monthly is YYYY-MM-DD; intraday contains HH:MM
-                    if mac_p in (MacPeriod.DAILY, MacPeriod.WEEKLY, MacPeriod.MONTHLY):
+                    # Daily/weekly/monthly/season/year is YYYY-MM-DD; intraday contains HH:MM
+                    if mac_p in (MacPeriod.DAILY, MacPeriod.WEEKLY, MacPeriod.MONTHLY, MacPeriod.QUARTERLY, MacPeriod.YEARLY):
                         res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 10)
                     else:
-                        res_df["datetime"] = bdf["datetime"].astype(str)
+                        res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 16)
                 else:
                     res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(bdf), freq="B")]
                     
@@ -177,22 +211,23 @@ def fetch_security_kline(
         except Exception as e:
             logger.warning(f"Failed to fetch MAC board K-line for {clean_sym}: {e}")
             
-    # Try fetching real data from standard TDX client
+    # 3. Try fetching real data from standard TDX client
     try:
         client = _get_or_create_client()
         market = _get_market(clean_sym)
+        fetch_cnt = count * 2 if is_120m else count
         if _is_index_symbol(clean_sym, market):
-            df = client.get_index_bars(market, clean_sym, category, 0, count)
+            df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)
         else:
-            df = client.get_security_bars(market, clean_sym, category, 0, count)
+            df = client.get_security_bars(market, clean_sym, category, 0, fetch_cnt)
         
         if df is not None and not df.empty and len(df) > 0:
             res_df = pd.DataFrame()
-            if "date" in df.columns:
-                # Format date string: "2026-08-31 00:00:00" -> "2026-08-31"
-                res_df["datetime"] = df["date"].astype(str).str.slice(0, 10)
-            elif "datetime" in df.columns:
-                res_df["datetime"] = df["datetime"].astype(str).str.slice(0, 10)
+            is_intraday = category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30, KlineCategory.MIN_60)
+            date_col = "date" if "date" in df.columns else ("datetime" if "datetime" in df.columns else None)
+            if date_col:
+                slice_len = 16 if is_intraday else 10
+                res_df["datetime"] = df[date_col].astype(str).str.slice(0, slice_len)
             else:
                 res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq="B")]
                 
@@ -203,9 +238,23 @@ def fetch_security_kline(
             res_df["volume"] = pd.to_numeric(df["vol"] if "vol" in df.columns else df["volume"], errors="coerce").fillna(0).astype(int)
             res_df["amount"] = pd.to_numeric(df["amount"] if "amount" in df.columns else (res_df["volume"] * res_df["close"]), errors="coerce").fillna(0.0).round(2)
             
-            # Sort by datetime ascending
+            # If 120M was requested but MacClient wasn't used, resample pairs of 60M bars
+            if is_120m and len(res_df) >= 2:
+                # Group every 2 bars
+                groups = np.arange(len(res_df)) // 2
+                res_df = res_df.groupby(groups).agg({
+                    "datetime": "last",
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                    "amount": "sum"
+                }).reset_index(drop=True)
+                if len(res_df) > count:
+                    res_df = res_df.tail(count).reset_index(drop=True)
+
             res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
-            
             _CACHE[cache_key] = (now, res_df)
             return res_df.copy()
     except Exception as e:

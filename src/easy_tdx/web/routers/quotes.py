@@ -120,24 +120,7 @@ def get_kline(
         
     n_bars = max(30, min(500, count if count != 120 else (months * 22 if months else 120)))
     
-    # Map category
-    cat = KlineCategory.DAY
-    if period == "WEEK":
-        cat = KlineCategory.WEEK
-    elif period == "MONTH":
-        cat = KlineCategory.MONTH
-    elif period == "MIN_60":
-        cat = KlineCategory.MIN_60
-    elif period == "MIN_30":
-        cat = KlineCategory.MIN_30
-    elif period == "MIN_15":
-        cat = KlineCategory.MIN_15
-    elif period == "MIN_5":
-        cat = KlineCategory.MIN_5
-    elif period == "MIN_1":
-        cat = KlineCategory.MIN_1
-
-    df = fetch_security_kline(clean_sym, count=n_bars, category=cat)
+    df = fetch_security_kline(clean_sym, count=n_bars, period=period)
     stock_name = get_stock_name(clean_sym)
     mkt, full_sym = _get_market_suffix(clean_sym)
     board = _get_board_tag(clean_sym)
@@ -167,12 +150,25 @@ def get_kline(
 
     bars_data = []
     for i in range(len(df)):
+        cur_c = safe_float(df["close"].iloc[i], 0.0)
+        cur_o = safe_float(df["open"].iloc[i], 0.0)
+        cur_h = safe_float(df["high"].iloc[i], 0.0)
+        cur_l = safe_float(df["low"].iloc[i], 0.0)
+        pre_c = safe_float(df["close"].iloc[i - 1], cur_o) if i > 0 else cur_o
+        bar_chg = round(cur_c - pre_c, 2)
+        bar_chg_pct = round(((cur_c / max(0.01, pre_c)) - 1.0) * 100, 2)
+        bar_amp_pct = round(((cur_h - cur_l) / max(0.01, pre_c)) * 100, 2)
+
         bars_data.append({
             "datetime": str(df["datetime"].iloc[i]),
-            "open": safe_float(df["open"].iloc[i], 0.0),
-            "high": safe_float(df["high"].iloc[i], 0.0),
-            "low": safe_float(df["low"].iloc[i], 0.0),
-            "close": safe_float(df["close"].iloc[i], 0.0),
+            "open": cur_o,
+            "high": cur_h,
+            "low": cur_l,
+            "close": cur_c,
+            "pre_close": pre_c,
+            "change": bar_chg,
+            "change_pct": bar_chg_pct,
+            "amplitude_pct": bar_amp_pct,
             "volume": int(df["volume"].iloc[i]),
             "amount": safe_float(df["amount"].iloc[i], 0.0),
             "ma5": safe_float(ma5[i]),
