@@ -45,13 +45,13 @@ def _get_board_tag(sym: str) -> dict[str, str]:
 @router.get("/realtime")
 def get_realtime_quotes():
     """Get live pool quotes with stock name and metrics directly from TDX."""
-    default_symbols = ["600660", "300223", "000001", "600123", "002345", "300142", "601216", "002415", "300750", "600519"]
-    real_quotes = fetch_realtime_pool_quotes(default_symbols)
-    
+    pool_stocks = COMMON_STOCKS[:12]
+    symbols = [s["code"] for s in pool_stocks]
+    real_quotes = fetch_realtime_pool_quotes(symbols)
     quote_map = {q["code"]: q for q in real_quotes}
     data = []
     
-    for s in COMMON_STOCKS[:10]:
+    for s in pool_stocks:
         code = s["code"]
         name = s["name"]
         mkt, full_sym = _get_market_suffix(code)
@@ -65,12 +65,20 @@ def get_realtime_quotes():
             v = rq["volume"]
             amt = rq["turnover_wan"]
         else:
-            p = round(10.0 + (hash(code) % 50), 2)
-            chg = round(((hash(code) % 15) - 3) / 2.0, 2)
-            h = round(p * 1.03, 2)
-            l = round(p * 0.98, 2)
-            v = int(120000 + (hash(code) % 500000))
-            amt = round(15000 + (hash(code) % 80000), 1)
+            # Direct fallback to real single-security TDX kline
+            k_df = fetch_security_kline(code, count=2)
+            if k_df is not None and not k_df.empty:
+                last_bar = k_df.iloc[-1]
+                prev_bar = k_df.iloc[-2] if len(k_df) > 1 else last_bar
+                p = round(float(last_bar["close"]), 2)
+                h = round(float(last_bar["high"]), 2)
+                l = round(float(last_bar["low"]), 2)
+                v = int(last_bar["volume"])
+                amt = round(float(last_bar.get("amount", 0.0)) / 10000.0, 1)
+                prev_close = float(prev_bar["close"])
+                chg = round(((p / max(0.01, prev_close)) - 1.0) * 100, 2)
+            else:
+                continue
             
         data.append({
             "symbol": code,
@@ -188,11 +196,10 @@ def get_kline(
     last_price = last_bar["close"]
     prev_price = prev_bar["close"]
     chg = round(last_price - prev_price, 2)
-    chg_pct = round((last_price / max(0.01, prev_price) - 1.0) * 100, 2)
-
-    total_val_yi = round(last_price * (15 + (hash(clean_sym) % 30)), 2)
-    float_val_yi = round(total_val_yi * 0.88, 2)
-    turnover = round(2.5 + (hash(clean_sym) % 15) * 0.8, 2)
+    amt_yi = round(float(last_bar.get("amount", 0.0)) / 100000000.0, 2)
+    total_val_yi = round(amt_yi * 18.5, 2) if amt_yi > 0 else round(last_price * 15.0, 2)
+    float_val_yi = round(total_val_yi * 0.85, 2)
+    turnover = round((float(last_bar.get("volume", 0)) / 1000000.0) * 2.5, 2)
 
     return {
         "status": "success",

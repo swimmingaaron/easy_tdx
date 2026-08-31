@@ -20,14 +20,24 @@ CACHE_TTL_SEC = 30.0
 PRIMARY_HOSTS = ["180.153.18.170", "119.147.212.81", "115.238.56.198", "124.71.187.122"]
 
 def _get_market(symbol: str) -> Market:
-    sym = symbol.strip().upper()
-    if sym.startswith(("60", "68")):
+    sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if sym.startswith(("60", "68", "99")):
         return Market.SH
-    elif sym.startswith(("00", "30")):
+    elif sym.startswith(("00", "30", "399")):
         return Market.SZ
-    elif sym.startswith(("4", "8", "9")):
+    elif sym.startswith(("4", "83", "87", "88", "92")):
+        return Market.BJ
+    elif sym.startswith("8"):
         return Market.BJ
     return Market.SZ
+
+def _is_index_symbol(clean_sym: str, market: Market) -> bool:
+    """Detect if symbol is an index (e.g. 999999, 399001, 399006, 000300)."""
+    if clean_sym in ("999999", "000300", "000016", "000010", "000688") or clean_sym.startswith("99"):
+        return True
+    if clean_sym.startswith("399") or clean_sym in ("399001", "399006", "399300", "399005", "899050"):
+        return True
+    return False
 
 def _get_or_create_client() -> TdxClient:
     global _TDX_CLIENT
@@ -62,13 +72,19 @@ def fetch_security_kline(
     """Fetch historical K-line bars via TDX binary socket connection, with caching."""
     if period is not None:
         category = period
-    """Fetch real market K-line bars for symbol from TDX server with fallback to realistic mock."""
+        
     clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "000001"
+        
     if isinstance(category, str):
         cat_map = {
             "DAY": KlineCategory.DAY,
-            "WEEK": KlineCategory.WEEK,
-            "MONTH": KlineCategory.MONTH,
+            "1M": KlineCategory.MIN_1,
+            "5M": KlineCategory.MIN_5,
+            "15M": KlineCategory.MIN_15,
+            "30M": KlineCategory.MIN_30,
+            "60M": KlineCategory.MIN_60,
             "MIN_1": KlineCategory.MIN_1,
             "MIN_5": KlineCategory.MIN_5,
             "MIN_15": KlineCategory.MIN_15,
@@ -90,7 +106,10 @@ def fetch_security_kline(
     try:
         client = _get_or_create_client()
         market = _get_market(clean_sym)
-        df = client.get_security_bars(market, clean_sym, category, 0, count)
+        if _is_index_symbol(clean_sym, market):
+            df = client.get_index_bars(market, clean_sym, category, 0, count)
+        else:
+            df = client.get_security_bars(market, clean_sym, category, 0, count)
         
         if df is not None and not df.empty and len(df) > 0:
             res_df = pd.DataFrame()

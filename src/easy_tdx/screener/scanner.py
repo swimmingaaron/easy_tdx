@@ -76,10 +76,11 @@ def scan_market_strategy(
                     "price": close_price,
                     "trigger_price": trigger_price,
                     "volume": vol,
-                    "amount_wan": amt_wan,
                     "days_ago": days_ago,
+                    "trigger_days_ago": days_ago,
                     "status_label": status_label,
                     "signal_date": signal_date or "最新交易日",
+                    "trigger_date": signal_date or "最新交易日",
                 })
         except Exception as e:
             logger.debug(f"Strategy {strategy_name} scan error on {sym}: {e}")
