@@ -1,6 +1,7 @@
 """Real-Time Market Overview & Dashboard Summary Engine natively powered by easy_tdx TDX Socket Client."""
 from __future__ import annotations
 import logging
+import threading
 import time
 import datetime
 from typing import Any
@@ -11,6 +12,68 @@ logger = logging.getLogger(__name__)
 
 _OVERVIEW_CACHE: tuple[float, dict[str, Any]] | None = None
 CACHE_TTL_SEC = 10.0
+
+# ── MAC client singleton (for board/industry ranking APIs) ────────────
+_MAC_CLIENT = None
+_MAC_LOCK = threading.Lock()
+
+
+def _get_or_create_mac_client():
+    """Get or create a singleton MacClient for board/industry sector APIs."""
+    global _MAC_CLIENT
+    with _MAC_LOCK:
+        if _MAC_CLIENT is not None:
+            return _MAC_CLIENT
+        from easy_tdx.mac.client import MacClient
+        try:
+            _MAC_CLIENT = MacClient.from_best_host()
+            _MAC_CLIENT.connect()
+            logger.info("MAC client connected for industry ranking")
+        except Exception as e:
+            logger.warning(f"MacClient.from_best_host() failed, trying default: {e}")
+            _MAC_CLIENT = MacClient()
+            try:
+                _MAC_CLIENT.connect()
+            except Exception:
+                pass
+        return _MAC_CLIENT
+
+
+def _fetch_industry_ranking_live() -> list[dict[str, Any]]:
+    """Fetch top-10 industry sector rankings from native TDX MAC protocol.
+
+    Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=10)`` which returns
+    real-time change_pct, amount (turnover), and main_net_amount (net capital
+    inflow) for each industry sector.
+    """
+    from easy_tdx.mac.enums import BoardType
+    try:
+        mac = _get_or_create_mac_client()
+        df = mac.get_board_ranking(BoardType.HY, top_n=10, sort_by="change_pct", ascending=False)
+        if df is not None and not df.empty:
+            industries: list[dict[str, Any]] = []
+            for _, row in df.iterrows():
+                chg_val = float(row.get("change_pct", 0.0))
+                net_inflow = float(row.get("main_net_amount", 0.0))
+                inflow_yi = round(net_inflow / 100000000.0, 1)
+                chg_str = f"+{chg_val:.2f}%" if chg_val >= 0 else f"{chg_val:.2f}%"
+                inflow_str = f"+{inflow_yi} 亿" if inflow_yi >= 0 else f"{inflow_yi} 亿"
+                industries.append({
+                    "name": str(row.get("name", "")),
+                    "chg": chg_str,
+                    "inflow": inflow_str,
+                    "change_pct": chg_val,
+                    "amount_yi": round(float(row.get("amount", 0.0)) / 100000000.0, 1),
+                    "net_inflow_yi": inflow_yi,
+                    "up_count": int(row.get("up_count", 0)),
+                    "down_count": int(row.get("down_count", 0)),
+                    "member_count": int(row.get("member_count", 0)),
+                })
+            return industries
+    except Exception as e:
+        logger.warning(f"Failed to fetch TDX MAC board ranking: {e}")
+    return []
+
 
 def fetch_realtime_market_summary() -> dict[str, Any]:
     """Fetch real-time comprehensive market breadth, sentiment, turnover directly from native TDX socket."""
@@ -80,14 +143,12 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
         advice = "市场恐慌杀跌，耐心等待企稳反转"
 
     # 4. Accurate Distribution breakdown
-    down_rem = down_count
     d_m7 = max(1, int(dt_count * 1.5))
     d_5_7 = max(2, int(down_count * 0.05))
     d_3_5 = max(5, int(down_count * 0.12))
     d_1_3 = max(10, int(down_count * 0.38))
     d_0_1 = max(10, down_count - (d_m7 + d_5_7 + d_3_5 + d_1_3))
 
-    u_rem = up_count
     u_p7 = zt_count
     u_5_7 = max(2, int(up_count * 0.06))
     u_3_5 = max(5, int(up_count * 0.14))
@@ -109,14 +170,8 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"Failed to fetch real 999999 K-line: {e}")
 
-    # Leading sectors
-    leading_industries = [
-        {"name": "半导体芯片", "chg": "+2.85%", "inflow": "+18.4 亿"},
-        {"name": "通信设备 / CPO", "chg": "+2.12%", "inflow": "+15.2 亿"},
-        {"name": "人形机器人", "chg": "+1.95%", "inflow": "+12.8 亿"},
-        {"name": "固态电池", "chg": "+1.68%", "inflow": "+9.6 亿"},
-        {"name": "汽车零部件", "chg": "+1.35%", "inflow": "+8.2 亿"},
-    ]
+    # 6. Leading industry sectors from native TDX MAC board ranking
+    leading_industries = _fetch_industry_ranking_live()
 
     result = {
         "status": "success",
