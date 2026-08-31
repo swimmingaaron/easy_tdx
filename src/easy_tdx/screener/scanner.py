@@ -69,14 +69,15 @@ def generate_mock_kline(symbol: str, n_bars: int = 240) -> pd.DataFrame:
     })
 
 def scan_market_strategy(strategy_name: str, symbols: list[str] | None = None) -> list[dict[str, Any]]:
-    """Scan market symbols against strategy and return matched stocks."""
+    """Scan market symbols against strategy using real TDX data and return matched stocks."""
+    from easy_tdx.market_data import fetch_security_kline
     st = get_strategy(strategy_name)
     if not symbols:
         symbols = [s["code"] for s in COMMON_STOCKS]
         
     matched = []
     for sym in symbols:
-        df = generate_mock_kline(sym, n_bars=120)
+        df = fetch_security_kline(sym, count=120)
         try:
             sig_df = st.generate_signals(df)
             last_bar = sig_df.iloc[-1]

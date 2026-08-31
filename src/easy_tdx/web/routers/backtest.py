@@ -768,7 +768,8 @@ def _now() -> float:
 from fastapi import Query
 from easy_tdx.stock_lookup import get_stock_name
 from easy_tdx.strategies.registry import get_strategy
-from easy_tdx.screener.scanner import generate_mock_kline
+from easy_tdx.market_data import fetch_security_kline
+from easy_tdx.models import KlineCategory
 
 
 @router.get("/api/backtest/run")
@@ -785,24 +786,47 @@ async def api_run_backtest_unified(
     execution: str = Query("next_open", description="Execution mode: next_open / next_close")
 ) -> dict[str, Any]:
     """Unified backtest execution endpoint returning bars, metrics, equity curve, trades and grade."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "000001"
     stock_name = get_stock_name(clean_sym)
     
-    # 1. Fetch or generate K-line bars
+    # 1. Fetch real market K-line bars from TDX
     n_bars = 240 if category == "DAY" else 120
-    df = generate_mock_kline(clean_sym, n_bars=n_bars)
+    cat = KlineCategory.DAY
+    if category == "WEEK":
+        cat = KlineCategory.WEEK
+    elif category == "MONTH":
+        cat = KlineCategory.MONTH
+    elif category == "MIN_60":
+        cat = KlineCategory.MIN_60
+    elif category == "MIN_30":
+        cat = KlineCategory.MIN_30
+    elif category == "MIN_15":
+        cat = KlineCategory.MIN_15
+    elif category == "MIN_5":
+        cat = KlineCategory.MIN_5
+    elif category == "MIN_1":
+        cat = KlineCategory.MIN_1
+
+    df = fetch_security_kline(clean_sym, count=n_bars, category=cat)
     
     # Filter by date if supplied
-    if start_date and end_date:
-        pass # mock kline is continuous
+    if start_date and end_date and "datetime" in df.columns:
+        dt_col = df["datetime"].astype(str)
+        mask = (dt_col >= start_date) & (dt_col <= end_date)
+        if mask.sum() >= 10:
+            df = df[mask].reset_index(drop=True)
         
     # 2. Generate signals
     try:
         st = get_strategy(strategy)
         sig_df = st.generate_signals(df)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Strategy {strategy} failed on {clean_sym}: {e}")
         sig_df = df.copy()
         sig_df["buy_signal"] = False
+        sig_df["sell_signal"] = False
         sig_df["sell_signal"] = False
         
     # 3. Simulate execution

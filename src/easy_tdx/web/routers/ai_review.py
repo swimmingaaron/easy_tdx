@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from easy_tdx.ai.market_reviewer import market_reviewer
 from easy_tdx.ai.strategy_agent import strategy_agent
 from easy_tdx.ai.agents.decision_agent import decision_agent
-from easy_tdx.screener.scanner import generate_mock_kline
+from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -27,9 +27,11 @@ def get_daily_review():
 
 @router.get("/stock_diagnosis/{symbol}")
 def get_stock_diagnosis(symbol: str):
-    """Get 4D Multi-Agent Quant Diagnosis for a stock."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
-    df = generate_mock_kline(clean_sym, n_bars=60)
+    """Get 4D Multi-Agent Quant Diagnosis for a stock using real TDX data."""
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "000001"
+    df = fetch_security_kline(clean_sym, count=60)
     res = decision_agent.analyze(clean_sym, df)
     return {
         "status": "success",
@@ -39,9 +41,11 @@ def get_stock_diagnosis(symbol: str):
 
 @router.get("/strategy_match/{symbol}")
 def get_stock_strategy_matching(symbol: str):
-    """Evaluate a stock against the 15 daily_stock_analysis strategies."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
-    df = generate_mock_kline(clean_sym, n_bars=60)
+    """Evaluate a stock against the 15 daily_stock_analysis strategies using real TDX data."""
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "000001"
+    df = fetch_security_kline(clean_sym, count=60)
     stock_name = get_stock_name(clean_sym)
     matches = strategy_agent.evaluate_stock_strategies(clean_sym, df)
     return {
@@ -56,7 +60,7 @@ def get_stock_strategy_matching(symbol: str):
 @router.post("/chat")
 def api_ai_chat(req: AIChatRequest):
     """Context-aware AI Quant Research Chat Assistant."""
-    sym = (req.symbol or "000001").strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    sym = (req.symbol or "000001").strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
     stock_name = get_stock_name(sym)
     q = req.message.strip()
     

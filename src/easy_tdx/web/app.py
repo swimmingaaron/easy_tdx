@@ -64,25 +64,26 @@ def _resolve_web_dist_dir() -> Path | None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """管理 TDX 连接生命周期：启动时连接，关闭时断开。"""
+    import asyncio
     from easy_tdx.client import AsyncTdxClient
 
     # --- 标准 TDX 客户端 ---
-    host = app.state.tdx_host
-    port = app.state.tdx_port
-    timeout = app.state.tdx_timeout
+    host = app.state.tdx_host or "119.147.212.81"
+    port = app.state.tdx_port or 7709
+    timeout = 3.0
 
     client = AsyncTdxClient(host=host, port=port, timeout=timeout)
     try:
-        await client.connect()
+        await asyncio.wait_for(client.connect(), timeout=3.0)
         logger.info("TDX client connected to %s:%s", host, port)
-    except Exception:
-        logger.warning("TDX client connection failed — endpoints will return 503")
+    except Exception as e:
+        logger.warning("TDX client initial connection skipped: %s", e)
 
     app.state.tdx_client = client
 
-    # --- MAC 协议客户端 ---
+    # --- MAC 协议客户端（可选） ---
     mac_client = None
-    enable_mac = getattr(app.state, "enable_mac", True)
+    enable_mac = getattr(app.state, "enable_mac", False)
     if enable_mac:
         try:
             from easy_tdx.mac.client import AsyncMacClient
