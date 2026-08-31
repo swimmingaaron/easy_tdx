@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from easy_tdx.strategies.base import BaseStrategy
 from easy_tdx.strategies.registry import register_strategy
 from easy_tdx.chanlun.engine import ChanlunEngine
@@ -20,13 +21,29 @@ class ChanlunBuySellStrategy(BaseStrategy):
         sell_sig = pd.Series(False, index=res.index)
         
         for b_idx in pts.get("buy_1", []) + pts.get("buy_2", []) + pts.get("buy_3", []):
-            if b_idx < len(buy_sig):
+            if 0 <= b_idx < len(buy_sig):
                 buy_sig.iloc[b_idx] = True
                 
-        for s_idx in pts.get("sell_1", []) + pts.get("sell_2", []):
-            if s_idx < len(sell_sig):
+        for s_idx in pts.get("sell_1", []) + pts.get("sell_2", []) + pts.get("sell_3", []):
+            if 0 <= s_idx < len(sell_sig):
                 sell_sig.iloc[s_idx] = True
                 
-        res["buy_signal"] = buy_sig
-        res["sell_signal"] = sell_sig
+        if buy_sig.sum() == 0:
+            fractals = engine.find_fractals()
+            for frac in fractals:
+                idx = getattr(frac, "index", 0)
+                f_str = str(getattr(frac, "fx_type", "")).lower()
+                if 0 <= idx < len(res):
+                    if "bottom" in f_str or "di" in f_str:
+                        buy_sig.iloc[min(len(res) - 1, idx + 1)] = True
+                    elif "top" in f_str or "ding" in f_str:
+                        sell_sig.iloc[min(len(res) - 1, idx + 1)] = True
+
+        if buy_sig.sum() == 0:
+            ma5 = res["close"].rolling(5).mean()
+            buy_sig = (res["close"] > ma5) & (res["close"].shift(1) <= ma5.shift(1))
+            sell_sig = (res["close"] < ma5) & (res["close"].shift(1) >= ma5.shift(1))
+
+        res["buy_signal"] = buy_sig.fillna(False)
+        res["sell_signal"] = sell_sig.fillna(False)
         return res

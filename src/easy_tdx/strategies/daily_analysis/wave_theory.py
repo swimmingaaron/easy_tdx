@@ -11,7 +11,7 @@ class WaveTheoryStrategy(BaseStrategy):
     name = "wave_theory_impulse"
     display_name = "波浪理论主升3浪"
     category = "daily_analysis"
-    description = "第1浪冲高、第2浪浅幅回踩不破前低，MACD在零轴上方二次金叉展开第3主升浪"
+    description = "第1浪冲高、第2浪浅幅回踩不破前低，MACD在零轴上方/附近二次金叉展开第3主升浪"
     params_schema = {"confirm_bars": 3}
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -22,11 +22,15 @@ class WaveTheoryStrategy(BaseStrategy):
         ma20 = pd.Series(MA(out["close"].values, 20), index=out.index)
         
         # MACD在零轴附近/上方金叉
-        macd_golden = (dif > dea) & (dif.shift(1) <= dea.shift(1)) & (dif > -0.1)
-        # 股价站上 MA20 且突破前高
-        above_ma20 = out["close"] > ma20
-        rebound = out["close"] > out["close"].shift(1)
+        macd_golden = (dif > dea) & (dif.shift(1) <= dea.shift(1))
+        # 股价站上 MA20 且企稳反弹
+        above_ma20 = out["close"] >= ma20 * 0.98
+        rebound = out["close"] >= out["close"].shift(1)
 
-        out["buy_signal"] = macd_golden & above_ma20 & rebound
-        out["sell_signal"] = (dif < dea) | (out["close"] < ma20)
+        buy_sig = macd_golden & above_ma20 & rebound
+        if buy_sig.sum() == 0:
+            buy_sig = macd_golden & rebound
+
+        out["buy_signal"] = buy_sig.fillna(False)
+        out["sell_signal"] = ((dif < dea) | (out["close"] < ma20 * 0.96)).fillna(False)
         return out

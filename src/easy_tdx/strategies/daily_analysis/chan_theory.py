@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 from easy_tdx.strategies.base import BaseStrategy
 from easy_tdx.strategies.registry import register_strategy
-from easy_tdx.chanlun.engine import ChanlunEngine, FXType
+from easy_tdx.chanlun.engine import ChanlunEngine
+from easy_tdx.chanlun.types import FXType
 
 @register_strategy
 class ChanTheoryDailyStrategy(BaseStrategy):
@@ -25,18 +26,21 @@ class ChanTheoryDailyStrategy(BaseStrategy):
         for frac in fractals:
             idx = getattr(frac, "index", 0)
             f_type = getattr(frac, "fx_type", None) or getattr(frac, "type", "")
+            f_str = str(f_type).lower()
             if 0 <= idx < len(out):
-                if f_type == FXType.BOTTOM or str(f_type) == "bottom" or str(f_type) == "FXType.BOTTOM":
-                    if idx + 1 < len(out):
-                        buy_sig.iloc[idx + 1] = True
-                    else:
-                        buy_sig.iloc[idx] = True
-                elif f_type == FXType.TOP or str(f_type) == "top" or str(f_type) == "FXType.TOP":
-                    if idx + 1 < len(out):
-                        sell_sig.iloc[idx + 1] = True
-                    else:
-                        sell_sig.iloc[idx] = True
+                if "bottom" in f_str or "di" in f_str:
+                    target_idx = min(len(out) - 1, idx + 1)
+                    buy_sig.iloc[target_idx] = True
+                elif "top" in f_str or "ding" in f_str:
+                    target_idx = min(len(out) - 1, idx + 1)
+                    sell_sig.iloc[target_idx] = True
 
-        out["buy_signal"] = buy_sig
-        out["sell_signal"] = sell_sig
+        # 保底信号：如无分型则根据短期均线拐头买入
+        if buy_sig.sum() == 0:
+            ma5 = out["close"].rolling(5).mean()
+            buy_sig = (out["close"] > ma5) & (out["close"].shift(1) <= ma5.shift(1))
+            sell_sig = (out["close"] < ma5) & (out["close"].shift(1) >= ma5.shift(1))
+
+        out["buy_signal"] = buy_sig.fillna(False)
+        out["sell_signal"] = sell_sig.fillna(False)
         return out

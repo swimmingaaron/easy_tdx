@@ -11,23 +11,24 @@ class DragonHeadStrategy(BaseStrategy):
     name = "dragon_head_momentum"
     display_name = "龙头战法接力"
     category = "daily_analysis"
-    description = "强势涨停板后缩量回踩 MA5 或强势接力突破，捕捉超额连板溢价"
-    params_schema = {"limit_up_pct": 9.5}
+    description = "强势涨停或大阳突破后缩量回踩 MA5 或强势接力突破，捕捉超额连板溢价"
+    params_schema = {"surge_pct": 3.5}
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
-        pct = (out["close"] - out["close"].shift(1)) / out["close"].shift(1) * 100
-        is_limit_up = pct >= float(self.params.get("limit_up_pct", 9.5))
+        pct = (out["close"] - out["close"].shift(1)) / np.maximum(out["close"].shift(1), 1e-4) * 100
+        is_surge = pct >= float(self.params.get("surge_pct", 3.5))
         
-        # 前1~2日曾涨停
-        had_limit_up = (is_limit_up.shift(1) == True) | (is_limit_up.shift(2) == True)
+        # 前1~2日曾大涨/涨停
+        had_surge = (is_surge.shift(1) == True) | (is_surge.shift(2) == True)
         ma5 = pd.Series(MA(out["close"].values, 5), index=out.index)
         ma5_vol = pd.Series(MA(out["volume"].values, 5), index=out.index)
         
-        # 缩量回踩 MA5 企稳，或接力连板突破
-        pullback_support = (out["low"] <= ma5 * 1.02) & (out["close"] >= ma5) & (out["volume"] < ma5_vol * 1.2)
-        relay_break = is_limit_up & (out["volume"] > ma5_vol)
+        # 缩量回踩 MA5 企稳，或接力突破
+        pullback_support = (out["low"] <= ma5 * 1.02) & (out["close"] >= ma5 * 0.99) & (out["volume"] <= ma5_vol * 1.3)
+        relay_break = is_surge & (out["volume"] >= ma5_vol * 0.9)
 
-        out["buy_signal"] = (had_limit_up & pullback_support) | relay_break
-        out["sell_signal"] = out["close"] < ma5 * 0.97
+        buy_sig = (had_surge & pullback_support) | relay_break
+        out["buy_signal"] = buy_sig.fillna(False)
+        out["sell_signal"] = (out["close"] < ma5 * 0.97).fillna(False)
         return out
