@@ -982,7 +982,7 @@
                         <div class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
                             <span class="text-[11px] text-slate-400 font-medium">选股范围:</span>
                             <select id="screener-universe-select" onchange="onScreenerParamsChange()" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="core" selected>⭐ 核心龙头池 (35只 · ~1秒)</option>
+                                <option value="core" selected>⭐ 核心龙头池 (159只 · ~2-3秒)</option>
                                 <option value="hs300">📈 沪深300指数池 (300只 · ~6秒)</option>
                                 <option value="zz500">🚀 中证500成长主力 (500只 · ~12秒)</option>
                                 <option value="zz1000">🔥 中证1000活跃小盘 (1000只 · ~25秒)</option>
@@ -4175,7 +4175,7 @@
             const uniSel = document.getElementById('screener-universe-select');
             const uni = uniSel ? uniSel.value : 'core';
             const hintMap = {
-                'core': '当前范围：⭐ 核心龙头池 (35只) · 秒级快速选股 (~1s)',
+                'core': '当前范围：⭐ 核心龙头池 (159只) · 秒级快速选股 (~2-3s)',
                 'hs300': '当前范围：📈 沪深300指数池 (300只) · 快速选股 (~6s)',
                 'zz500': '当前范围：🚀 中证500成长主力 (500只) · 深度选股 (~12s)',
                 'zz1000': '当前范围：🔥 中证1000活跃小盘 (1000只) · 活跃精选 (~25s)',
@@ -4237,7 +4237,7 @@
             }
 
             const uniMap = {
-                'core': '核心龙头池 (35只)',
+                'core': '核心龙头池 (159只)',
                 'hs300': '沪深300指数池 (300只)',
                 'zz500': '中证500成长主力 (500只)',
                 'zz1000': '中证1000活跃小盘 (1000只)'
