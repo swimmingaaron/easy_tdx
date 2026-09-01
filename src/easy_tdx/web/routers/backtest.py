@@ -1202,9 +1202,6 @@ async def api_run_optimize_unified(
     from easy_tdx.backtest.strategies.presets import STRATEGY_PRESETS
 
     clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
-    if not clean_sym:
-        clean_sym = "603986"
-    stock_name = get_stock_name(clean_sym)
 
     # 1. Parse param_grid from JSON body or query
     param_grid = {}
@@ -1223,6 +1220,10 @@ async def api_run_optimize_unified(
                 if "execution" in body: execution = str(body["execution"])
         except Exception:
             pass
+
+    if not clean_sym:
+        clean_sym = "603986"
+    stock_name = get_stock_name(clean_sym)
 
     # Fallback to preset grid if empty
     if not param_grid:
@@ -1321,9 +1322,6 @@ async def api_run_optimize_all_unified(
     from easy_tdx.backtest.strategies.presets import STRATEGY_PRESETS
 
     clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
-    if not clean_sym:
-        clean_sym = "603986"
-    stock_name = get_stock_name(clean_sym)
 
     if request.method == "POST":
         try:
@@ -1337,6 +1335,10 @@ async def api_run_optimize_all_unified(
                 if "commission" in body: commission = float(body["commission"])
         except Exception:
             pass
+
+    if not clean_sym:
+        clean_sym = "603986"
+    stock_name = get_stock_name(clean_sym)
 
     # 1. Fetch K-line bars
     n_bars = 240 if category in ("DAY", "WEEK", "MONTH") else 160

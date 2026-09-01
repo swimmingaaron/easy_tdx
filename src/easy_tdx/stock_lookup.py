@@ -20,6 +20,7 @@ COMMON_STOCKS = [
     {"code": "002230", "name": "科大讯飞", "market": "SZ", "pinyin": "KDXF"},
     {"code": "002345", "name": "潮宏基", "market": "SZ", "pinyin": "CHJ"},
     {"code": "002415", "name": "海康威视", "market": "SZ", "pinyin": "HKWS"},
+    {"code": "002421", "name": "达实智能", "market": "SZ", "pinyin": "DSZN"},
     {"code": "002475", "name": "立讯精密", "market": "SZ", "pinyin": "LXJM"},
     {"code": "002594", "name": "比亚迪", "market": "SZ", "pinyin": "BYD"},
     {"code": "300059", "name": "东方财富", "market": "SZ", "pinyin": "DFCF"},
@@ -83,7 +84,7 @@ def get_stock_name(symbol: str) -> str:
         return _SYMBOL_NAME_MAP[clean_sym]
     
     # Check board map
-    if clean_sym.startswith("88") or len(clean_sym) == 6:
+    if clean_sym.startswith("88") or clean_sym.startswith("BK") or clean_sym.startswith("HY"):
         _ensure_board_map()
         if clean_sym in _SYMBOL_NAME_MAP:
             return _SYMBOL_NAME_MAP[clean_sym]
