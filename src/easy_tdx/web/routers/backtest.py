@@ -1075,3 +1075,342 @@ async def api_run_backtest_unified(
     }
 
 
+# ── 参数网格寻优与 48 大策略一键寻优统一接口 ───────────────────────────────────────
+
+def _simulate_strategy_point(
+    df: pd.DataFrame,
+    strategy_name: str,
+    params: dict[str, Any],
+    initial_cash: float = 1_000_000.0,
+    commission_rate: float = 0.0003,
+    execution_mode: str = "next_open",
+) -> dict[str, Any] | None:
+    """在单组参数下快速评估单策略收益、回撤、胜率与夏普。"""
+    import numpy as np
+    from easy_tdx.strategies.registry import get_strategy
+    try:
+        st = get_strategy(strategy_name, **params)
+        sig_df = st.generate_signals(df)
+    except Exception:
+        return None
+
+    cash = initial_cash
+    shares = 0
+    trades = []
+    buy_records = []
+    equity_curve = []
+    n = len(sig_df)
+
+    for i in range(n):
+        row = sig_df.iloc[i]
+        price = float(row["close"])
+        buy = bool(row.get("buy_signal", False))
+        sell = bool(row.get("sell_signal", False))
+
+        if buy and shares == 0 and cash >= price * 100:
+            target_shares = int((cash * 0.95) // (price * 100)) * 100
+            if target_shares > 0:
+                cost = target_shares * price
+                comm = max(5.0, cost * commission_rate)
+                if cash >= cost + comm:
+                    cash -= (cost + comm)
+                    shares = target_shares
+                    buy_records.append({"price": price, "idx": i})
+        elif sell and shares > 0:
+            revenue = shares * price
+            comm = max(5.0, revenue * commission_rate)
+            tax = revenue * 0.0005
+            buy_price = buy_records[-1]["price"] if buy_records else price
+            pnl = (price - buy_price) * shares - comm - tax
+            pnl_pct = ((price / max(0.01, buy_price)) - 1.0) * 100
+            trades.append({"pnl": pnl, "pnl_pct": pnl_pct})
+            cash += (revenue - comm - tax)
+            shares = 0
+
+        cur_equity = cash + shares * price
+        equity_curve.append(cur_equity)
+
+    if not equity_curve:
+        return None
+
+    tot_ret = ((equity_curve[-1] / initial_cash) - 1.0) * 100
+    wins = [t for t in trades if t["pnl"] > 0]
+    win_rate = (len(wins) / len(trades)) * 100 if trades else 0.0
+    g_profit = sum(t["pnl"] for t in wins)
+    losses = [t for t in trades if t["pnl"] <= 0]
+    g_loss = abs(sum(t["pnl"] for t in losses))
+    pf = round(g_profit / g_loss, 2) if g_loss > 0 else (99.0 if g_profit > 0 else 1.0)
+
+    # Max Drawdown
+    peak = equity_curve[0]
+    max_dd = 0.0
+    for eq in equity_curve:
+        if eq > peak:
+            peak = eq
+        dd = (peak - eq) / peak if peak > 0 else 0.0
+        if dd > max_dd:
+            max_dd = dd
+
+    # Sharpe
+    eq_arr = np.array(equity_curve)
+    ret_arr = np.diff(eq_arr) / eq_arr[:-1] if len(eq_arr) > 1 else np.array([0.0])
+    std = float(np.std(ret_arr))
+    sharpe = (float(np.mean(ret_arr)) / std * np.sqrt(250)) if std > 1e-8 else 0.0
+
+    # Grade calculation
+    score = min(98.0, max(45.0, 70.0 + tot_ret * 0.8 - max_dd * 150.0 + (win_rate / 100.0 - 0.5) * 40))
+    if score >= 85:
+        g_letter = "S"
+    elif score >= 75:
+        g_letter = "A"
+    elif score >= 60:
+        g_letter = "B"
+    else:
+        g_letter = "C"
+
+    return {
+        "params": params,
+        "total_return": round(tot_ret, 2),
+        "sharpe": round(sharpe, 2),
+        "max_drawdown": round(max_dd * 100, 2),
+        "total_trades": len(trades),
+        "win_rate": round(win_rate, 1),
+        "profit_factor": pf,
+        "grade": g_letter,
+        "score": round(score, 1),
+    }
+
+
+@router.post("/api/backtest/optimize/unified")
+@router.get("/api/backtest/optimize/unified")
+async def api_run_optimize_unified(
+    request: Request,
+    symbol: str = Query("603986", description="Stock code"),
+    strategy: str = Query("zig_breakout", description="Strategy identifier"),
+    category: str = Query("DAY", description="K-line category"),
+    start_date: str = Query("", description="Start date"),
+    end_date: str = Query("", description="End date"),
+    initial_cash: float = Query(1000000.0, description="Initial cash"),
+    commission: float = Query(0.0003, description="Commission rate"),
+    execution: str = Query("next_open", description="Execution mode: next_open / next_close"),
+) -> dict[str, Any]:
+    """对选定策略的 1-2 个参数执行网格寻优，返回排序结果与 2D 热力图。"""
+    import itertools
+    from easy_tdx.stock_lookup import get_stock_name
+    from easy_tdx.market_data import fetch_security_kline
+    from easy_tdx.strategies.registry import STRATEGY_REGISTRY, list_all_strategies
+    from easy_tdx.backtest.strategies.presets import STRATEGY_PRESETS
+
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "603986"
+    stock_name = get_stock_name(clean_sym)
+
+    # 1. Parse param_grid from JSON body or query
+    param_grid = {}
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                param_grid = body.get("param_grid") or body.get("grid") or {}
+                if "symbol" in body: clean_sym = str(body["symbol"]).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+                if "strategy" in body: strategy = str(body["strategy"])
+                if "category" in body: category = str(body["category"])
+                if "start_date" in body: start_date = str(body["start_date"])
+                if "end_date" in body: end_date = str(body["end_date"])
+                if "initial_cash" in body: initial_cash = float(body["initial_cash"])
+                if "commission" in body: commission = float(body["commission"])
+                if "execution" in body: execution = str(body["execution"])
+        except Exception:
+            pass
+
+    # Fallback to preset grid if empty
+    if not param_grid:
+        param_grid = STRATEGY_PRESETS.get(strategy, {})
+        if not param_grid:
+            st_meta = next((s for s in list_all_strategies() if s["name"] == strategy), None)
+            if st_meta and st_meta.get("params"):
+                p0 = st_meta["params"][0]
+                def_v = p0.get("default", 10)
+                if isinstance(def_v, (int, float)):
+                    param_grid = {p0["name"]: [round(def_v * 0.7, 1), def_v, round(def_v * 1.3, 1), round(def_v * 1.6, 1)]}
+                else:
+                    param_grid = {p0["name"]: [def_v]}
+
+    # 2. Fetch K-line data
+    n_bars = 240 if category in ("DAY", "WEEK", "MONTH") else 160
+    df = fetch_security_kline(clean_sym, count=n_bars, period=category)
+
+    if start_date and end_date and "datetime" in df.columns:
+        dt_col = df["datetime"].astype(str)
+        mask = (dt_col >= start_date) & (dt_col <= end_date)
+        if mask.sum() >= 10:
+            df = df[mask].reset_index(drop=True)
+
+    # 3. Evaluate Cartesian product of param_grid
+    param_names = list(param_grid.keys())
+    value_lists = [param_grid[k] for k in param_names]
+    results = []
+
+    for combo in itertools.product(*value_lists):
+        p_dict = dict(zip(param_names, combo))
+        res = _simulate_strategy_point(df, strategy, p_dict, initial_cash, commission, execution)
+        if res is not None:
+            results.append(res)
+
+    results.sort(key=lambda x: x["total_return"], reverse=True)
+    best = results[0] if results else None
+
+    # 4. Build 2D heatmap if 2 params
+    heatmap = None
+    if len(param_names) == 2 and results:
+        x_name, y_name = param_names[0], param_names[1]
+        x_vals = sorted(list(set(param_grid[x_name])))
+        y_vals = sorted(list(set(param_grid[y_name])))
+        x_idx = {v: i for i, v in enumerate(x_vals)}
+        y_idx = {v: i for i, v in enumerate(y_vals)}
+        h_data = []
+        for r in results:
+            x_v = r["params"].get(x_name)
+            y_v = r["params"].get(y_name)
+            if x_v in x_idx and y_v in y_idx:
+                h_data.append([x_idx[x_v], y_idx[y_v], r["total_return"]])
+        heatmap = {
+            "x_name": x_name,
+            "y_name": y_name,
+            "x": x_vals,
+            "y": y_vals,
+            "data": h_data
+        }
+
+    st_cls = STRATEGY_REGISTRY.get(strategy)
+    st_label = getattr(st_cls, "display_name", strategy) if st_cls else strategy
+
+    return {
+        "status": "success",
+        "symbol": clean_sym,
+        "name": stock_name,
+        "display": f"{clean_sym} {stock_name}",
+        "strategy": strategy,
+        "strategy_label": st_label,
+        "param_names": param_names,
+        "results": results,
+        "best": best,
+        "heatmap": heatmap,
+        "grid_points": len(results)
+    }
+
+
+@router.post("/api/backtest/optimize-all/unified")
+@router.get("/api/backtest/optimize-all/unified")
+async def api_run_optimize_all_unified(
+    request: Request,
+    symbol: str = Query("603986", description="Stock code"),
+    category: str = Query("DAY", description="K-line category"),
+    start_date: str = Query("", description="Start date"),
+    end_date: str = Query("", description="End date"),
+    initial_cash: float = Query(1000000.0, description="Initial cash"),
+    commission: float = Query(0.0003, description="Commission rate"),
+    execution: str = Query("next_open", description="Execution mode"),
+) -> dict[str, Any]:
+    """一键对系统全部 48 个策略进行网格寻优，输出全策略全局收益与指标排名榜。"""
+    import itertools
+    from easy_tdx.stock_lookup import get_stock_name
+    from easy_tdx.market_data import fetch_security_kline
+    from easy_tdx.strategies.registry import STRATEGY_REGISTRY, list_all_strategies
+    from easy_tdx.backtest.strategies.presets import STRATEGY_PRESETS
+
+    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    if not clean_sym:
+        clean_sym = "603986"
+    stock_name = get_stock_name(clean_sym)
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                if "symbol" in body: clean_sym = str(body["symbol"]).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+                if "category" in body: category = str(body["category"])
+                if "start_date" in body: start_date = str(body["start_date"])
+                if "end_date" in body: end_date = str(body["end_date"])
+                if "initial_cash" in body: initial_cash = float(body["initial_cash"])
+                if "commission" in body: commission = float(body["commission"])
+        except Exception:
+            pass
+
+    # 1. Fetch K-line bars
+    n_bars = 240 if category in ("DAY", "WEEK", "MONTH") else 160
+    df = fetch_security_kline(clean_sym, count=n_bars, period=category)
+
+    if start_date and end_date and "datetime" in df.columns:
+        dt_col = df["datetime"].astype(str)
+        mask = (dt_col >= start_date) & (dt_col <= end_date)
+        if mask.sum() >= 10:
+            df = df[mask].reset_index(drop=True)
+
+    # 2. Iterate all 48 strategies
+    all_st = list_all_strategies()
+    ranking = []
+    total_grid_pts = 0
+
+    for s_meta in all_st:
+        s_name = s_meta["name"]
+        s_label = s_meta.get("display_name", s_name)
+        preset = STRATEGY_PRESETS.get(s_name, {})
+        if not preset:
+            params_schema = s_meta.get("params", [])
+            if params_schema:
+                p0 = params_schema[0]
+                val = p0.get("default", 10)
+                if isinstance(val, (int, float)):
+                    preset = {p0["name"]: [round(val * 0.8, 1), val, round(val * 1.2, 1)]}
+                else:
+                    preset = {p0["name"]: [val]}
+            else:
+                preset = {}
+
+        keys = list(preset.keys())
+        if not keys:
+            # Run with default params
+            res = _simulate_strategy_point(df, s_name, {}, initial_cash, commission, execution)
+            total_grid_pts += 1
+            if res is not None:
+                res["strategy"] = s_name
+                res["strategy_label"] = s_label
+                res["grid_points"] = 1
+                ranking.append(res)
+            continue
+
+        best_res = None
+        pts = 0
+        for combo in itertools.product(*preset.values()):
+            p_dict = dict(zip(keys, combo))
+            pts += 1
+            res = _simulate_strategy_point(df, s_name, p_dict, initial_cash, commission, execution)
+            if res is not None:
+                if best_res is None or res["total_return"] > best_res["total_return"]:
+                    best_res = res
+
+        total_grid_pts += pts
+        if best_res is not None:
+            best_res["strategy"] = s_name
+            best_res["strategy_label"] = s_label
+            best_res["grid_points"] = pts
+            ranking.append(best_res)
+
+    ranking.sort(key=lambda x: x["total_return"], reverse=True)
+    best = ranking[0] if ranking else None
+
+    return {
+        "status": "success",
+        "symbol": clean_sym,
+        "name": stock_name,
+        "display": f"{clean_sym} {stock_name}",
+        "ranking": ranking,
+        "best": best,
+        "total_strategies": len(ranking),
+        "total_grid_points": total_grid_pts
+    }
+
+
+

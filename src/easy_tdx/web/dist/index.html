@@ -259,6 +259,7 @@
         <nav class="flex flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
             <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
             <button onclick="switchTab('backtest')" id="tab-backtest" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i data-lucide="line-chart" class="w-3.5 h-3.5 inline mr-1"></i>单标的回测</button>
+            <button onclick="switchTab('optimize')" id="tab-optimize" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="sliders" class="w-3.5 h-3.5 inline mr-1"></i>参数寻优</button>
             <button onclick="switchTab('screener')" id="tab-screener" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="search" class="w-3.5 h-3.5 inline mr-1"></i>48大策略选股</button>
             <button onclick="switchTab('ladder')" id="tab-ladder" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="git-commit" class="w-3.5 h-3.5 inline mr-1"></i>连板天梯</button>
             <button onclick="switchTab('abnormal')" id="tab-abnormal" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="activity" class="w-3.5 h-3.5 inline mr-1"></i>异动雷达</button>
@@ -507,6 +508,271 @@
                                     <tr><th class="pb-2.5">交易日期</th><th class="pb-2.5">操作方向</th><th class="pb-2.5">成交价</th><th class="pb-2.5">数量</th><th class="pb-2.5">佣金/税费</th><th class="pb-2.5">单笔盈亏</th><th class="pb-2.5">盈亏幅度</th><th class="pb-2.5">持仓天数</th><th class="pb-2.5">触发原因</th></tr>
                                 </thead>
                                 <tbody id="bt-trades-table-body" class="divide-y divide-slate-800/60"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <!-- 1.5 Optimize View (Original easy_tdx 参数寻优 UI layout) -->
+        <section id="view-optimize" class="space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- Left Sidebar Config Panel (width ~320px / 3 cols on 12-col grid) -->
+                <aside class="lg:col-span-3 glass-card p-5 rounded-2xl space-y-5 border border-slate-800 shadow-xl">
+                    <!-- Market Data Section -->
+                    <div class="space-y-3 pb-4 border-b border-slate-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <i data-lucide="database" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i>行情数据
+                        </h4>
+                        <div class="space-y-1 relative">
+                            <label class="text-[11px] text-slate-400">代码 / 拼音 / 名称 (支持个股与行业板块)</label>
+                            <input type="text" id="opt-symbol" value="603986" placeholder="如 603986 / 兆易创新 / 881376" autocomplete="off" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none font-mono">
+                            <div id="opt-symbol-dropdown" class="dropdown-menu absolute top-full left-0 right-0 mt-1 rounded-xl max-h-60 overflow-y-auto hidden z-50 divide-y divide-slate-800/60"></div>
+                        </div>
+
+                        <!-- Industry Sector Quick Presets -->
+                        <div class="space-y-1 pt-0.5">
+                            <label class="text-[10px] text-slate-400">热门行业板块一键寻优：</label>
+                            <div class="flex flex-wrap gap-1">
+                                <button type="button" onclick="quickOptimize('881376')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">数字媒体</button>
+                                <button type="button" onclick="quickOptimize('881422')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">房产服务</button>
+                                <button type="button" onclick="quickOptimize('881373')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">影视院线</button>
+                                <button type="button" onclick="quickOptimize('881319')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">半导体</button>
+                                <button type="button" onclick="quickOptimize('881394')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">证券</button>
+                                <button type="button" onclick="quickOptimize('881386')" class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 transition">全国银行</button>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[11px] text-slate-400">回测K线周期</label>
+                            <select id="opt-category" onchange="updateOptimizeKlineHint()" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none">
+                                <option value="DAY" selected>日K (DAY)</option>
+                                <option value="WEEK">周K (WEEK)</option>
+                                <option value="MONTH">月K (MONTH)</option>
+                                <option value="60M">60分钟 (60M)</option>
+                                <option value="30M">30分钟 (30M)</option>
+                                <option value="15M">15分钟 (15M)</option>
+                                <option value="5M">5分钟 (5M)</option>
+                                <option value="1M">1分钟 (1M)</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="space-y-1">
+                                <label class="text-[11px] text-slate-400">开始日期</label>
+                                <input type="date" id="opt-start-date" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-cyan-400 focus:outline-none">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[11px] text-slate-400">结束日期 (当天)</label>
+                                <input type="date" id="opt-end-date" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-cyan-400 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Data hint badge -->
+                        <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[11px] font-mono text-emerald-400" id="opt-kline-stats-hint">
+                            已选标的：SH:603986 DAY 2025-09-01 ~ 2026-09-01 (240根)
+                        </div>
+                    </div>
+
+                    <!-- Strategy Section -->
+                    <div class="space-y-3 pb-4 border-b border-slate-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5 mr-1.5 text-indigo-400"></i>策略选择 (48大策略)
+                        </h4>
+                        <div class="space-y-1">
+                            <select id="opt-strategy-select" onchange="onOptimizeStrategyChange()" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-indigo-400 focus:outline-none">
+                            </select>
+                        </div>
+                        <div id="opt-strategy-desc" class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                        </div>
+                    </div>
+
+                    <!-- Optimize Parameters Section -->
+                    <div class="space-y-3 pb-4 border-b border-slate-800">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                                <i data-lucide="sliders" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i>寻优参数
+                            </h4>
+                            <span class="text-[10px] text-cyan-400 font-mono" id="opt-grid-points-badge">组合数: 20</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-relaxed">
+                            勾选 1-2 个参数寻优，填入包含逗号分隔取值范围。切换策略自动填入预设参数：
+                        </p>
+                        <div id="opt-params-container" class="space-y-3 max-h-56 overflow-y-auto pr-1">
+                            <!-- Dynamic parameter checkboxes + comma-separated value inputs -->
+                        </div>
+                    </div>
+
+                    <!-- Capital & Execution Section -->
+                    <div class="space-y-3 pb-4 border-b border-slate-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <i data-lucide="wallet" class="w-3.5 h-3.5 mr-1.5 text-emerald-400"></i>资金与成交
+                        </h4>
+                        <div class="space-y-1">
+                            <label class="text-[11px] text-slate-400">初始资金 (元)</label>
+                            <input type="number" id="opt-cash" value="1000000" step="10000" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-cyan-400 focus:outline-none">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[11px] text-slate-400">成交价模式</label>
+                            <select id="opt-execution" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none">
+                                <option value="next_open" selected>开盘价 (次日开盘)</option>
+                                <option value="next_close">收盘价 (当日收盘)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Concurrency Workers Section -->
+                    <div class="space-y-2 pb-4 border-b border-slate-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 mr-1.5 text-amber-400"></i>一键寻优并发
+                        </h4>
+                        <div class="flex items-center justify-between text-[11px] text-slate-400">
+                            <span>工作进程</span>
+                            <span class="text-[10px] text-slate-500 font-mono" id="opt-cpu-cores-hint">CPU 6核 · 推荐 8</span>
+                        </div>
+                        <select id="opt-workers" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-amber-400 focus:outline-none">
+                            <option value="0">串行（不并发）</option>
+                            <option value="4">4 进程</option>
+                            <option value="8" selected>8 进程 (推荐)</option>
+                            <option value="16">16 进程</option>
+                        </select>
+                        <p class="text-[10px] text-slate-500 leading-normal">
+                            寻优是 CPU 密集计算，多进程可显著提速（仅对「一键寻优所有策略」生效）。机器较弱时建议选用单行展开。
+                        </p>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="space-y-2 pt-1">
+                        <button id="btn-run-opt" onclick="runSingleStrategyOptimize()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-bold text-xs hover:opacity-90 shadow-lg flex items-center justify-center space-x-2 transition cursor-pointer">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span id="btn-run-opt-text">开始寻优</span>
+                        </button>
+                        <button id="btn-run-opt-all" onclick="runAllStrategiesOptimize()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-black font-bold text-xs hover:opacity-90 shadow-lg flex items-center justify-center space-x-2 transition cursor-pointer">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            <span id="btn-run-opt-all-text">一键寻优所有策略</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- Right Main Report Panel (9 cols) -->
+                <main class="lg:col-span-9 space-y-5">
+                    
+                    <!-- Quote Carousel (Investor Wisdom during optimization or idle) -->
+                    <div id="opt-quote-card" class="p-4 rounded-2xl bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 border border-slate-800 text-xs shadow-md flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="quote" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <p class="text-slate-300 font-serif italic" id="opt-quote-text">“风险来自于你不知道自己在做什么。”</p>
+                                <p class="text-[10px] text-cyan-400 mt-0.5" id="opt-quote-author">— 沃伦·巴菲特 (Warren Buffett)</p>
+                            </div>
+                        </div>
+                        <span id="opt-running-indicator" class="hidden px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 text-[11px] font-mono animate-pulse">
+                            ⚡ 并行计算中…
+                        </span>
+                    </div>
+
+                    <!-- Best Result Summary Card -->
+                    <div id="opt-best-summary-card" class="glass-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                            <div class="flex items-center space-x-2.5">
+                                <h3 class="text-sm font-bold text-white flex items-center">
+                                    <i data-lucide="trophy" class="w-4 h-4 mr-1.5 text-amber-400"></i>
+                                    <span id="opt-best-title">最优结果概览</span>
+                                </h3>
+                                <span id="opt-best-grade-badge" class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-800">S 级 · 98分</span>
+                            </div>
+                            <div class="text-xs font-mono text-slate-400" id="opt-best-meta-hint">
+                                标的：603986 兆易创新 · 寻优耗时：0.08s
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">总收益率</div>
+                                <div class="text-lg font-mono font-bold text-rose-500 mt-1" id="opt-best-return">+913.15%</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">夏普比率</div>
+                                <div class="text-lg font-mono font-bold text-cyan-400 mt-1" id="opt-best-sharpe">4.73</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">最大回撤</div>
+                                <div class="text-lg font-mono font-bold text-emerald-400 mt-1" id="opt-best-maxdd">-11.40%</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">交易胜率</div>
+                                <div class="text-lg font-mono font-bold text-white mt-1" id="opt-best-winrate">75.0%</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">盈亏比</div>
+                                <div class="text-lg font-mono font-bold text-white mt-1" id="opt-best-pf">10.46</div>
+                            </div>
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80">
+                                <div class="text-[11px] text-slate-400">交易笔数</div>
+                                <div class="text-lg font-mono font-bold text-white mt-1" id="opt-best-trades">12 笔</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 text-xs bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-slate-400">最优参数组合：</span>
+                            <code class="font-mono text-cyan-300 bg-slate-950 px-2 py-0.5 rounded text-[11px]" id="opt-best-params-code">{"zig_delta": 10, "confirm_pct": 1.0}</code>
+                            <button onclick="applyBestParamsToBacktest()" class="ml-auto px-3 py-1 rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-800 text-xs font-semibold transition cursor-pointer">
+                                带入单标的回测
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2D Parameter Heatmap Card (When 2 params selected) -->
+                    <div id="opt-heatmap-card" class="glass-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                            <div class="flex items-center space-x-2">
+                                <h3 class="text-sm font-bold text-white flex items-center">
+                                    <i data-lucide="grid" class="w-4 h-4 mr-1.5 text-cyan-400"></i>
+                                    <span id="opt-heatmap-title">参数热力图 (zig_delta × confirm_pct)</span>
+                                </h3>
+                                <span class="text-[11px] text-slate-400 font-sans">颜色越深绿，收益率越高</span>
+                            </div>
+                            <div class="text-xs font-mono text-slate-500">2D 参数空间分布</div>
+                        </div>
+                        <div id="opt-heatmap-chart" style="width: 100%; height: 320px;"></div>
+                    </div>
+
+                    <!-- Rankings Table Card -->
+                    <div id="opt-ranking-card" class="glass-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                            <div class="flex items-center space-x-2.5">
+                                <h3 class="text-sm font-bold text-white flex items-center">
+                                    <i data-lucide="list-ordered" class="w-4 h-4 mr-1.5 text-indigo-400"></i>
+                                    <span id="opt-ranking-table-title">网格点排名 (按总收益降序)</span>
+                                </h3>
+                                <span id="opt-ranking-count-badge" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-mono">20 个点</span>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="text-slate-400 border-b border-slate-800">
+                                    <tr>
+                                        <th class="pb-2.5 w-10">#</th>
+                                        <th class="pb-2.5 w-16">评级</th>
+                                        <th class="pb-2.5">策略 / 描述</th>
+                                        <th class="pb-2.5">参数配置</th>
+                                        <th class="pb-2.5 text-right">总收益</th>
+                                        <th class="pb-2.5 text-right">夏普</th>
+                                        <th class="pb-2.5 text-right">最大回撤</th>
+                                        <th class="pb-2.5 text-right">交易数</th>
+                                        <th class="pb-2.5 text-right">胜率</th>
+                                        <th class="pb-2.5 text-right">盈亏比</th>
+                                        <th class="pb-2.5 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opt-ranking-table-body" class="divide-y divide-slate-800/60">
+                                    <!-- Dynamic rows -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -961,7 +1227,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat'];
 
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
@@ -984,6 +1250,11 @@
                             setTimeout(() => { 
                                 initBacktestDates();
                                 resizeEcharts(); 
+                            }, 80);
+                        } else if (t === 'optimize') {
+                            setTimeout(() => {
+                                initOptimizeDates();
+                                if (window.optHeatmapChart) window.optHeatmapChart.resize();
                             }, 80);
                         } else if (t === 'aireview') {
                             setTimeout(() => { if (window.radarChart) window.radarChart.resize(); }, 80);
@@ -2962,6 +3233,582 @@
             }).join('');
         }
 
+        // ==================== Parameter Optimization (参数寻优) ==================== //
+        const INVESTOR_QUOTES = [
+            { text: "“风险来自于你不知道自己在做什么。”", author: "— 沃伦·巴菲特 (Warren Buffett)" },
+            { text: "“重要的不是你的判断是对还是错，而是在你正确时能获取多大利润，错误时能承受多小损失。”", author: "— 乔治·索罗斯 (George Soros)" },
+            { text: "“我们寻找的是那些统计上有明显偏差、但普通人难以察觉的微小规律，依靠数千次交易积少成多。”", author: "— 詹姆斯·西蒙斯 (James Simons)" },
+            { text: "“不做研究就投资，就好比打扑克牌却从不看牌面一样。”", author: "— 彼得·林奇 (Peter Lynch)" },
+            { text: "“在市场上，顺势而为者生存。市场永远是对的，错误的只有投资者的预期。”", author: "— 杰西·利弗莫尔 (Jesse Livermore)" },
+            { text: "“如果我知道自己会在哪里死去，我就永远不会去那个地方。”", author: "— 查理·芒格 (Charlie Munger)" }
+        ];
+
+        let quoteIndex = 0;
+        let quoteInterval = null;
+        window.CURRENT_OPT_BEST = null;
+        window.optHeatmapChart = null;
+
+        function startQuoteCarousel() {
+            if (quoteInterval) clearInterval(quoteInterval);
+            quoteInterval = setInterval(() => {
+                quoteIndex = (quoteIndex + 1) % INVESTOR_QUOTES.length;
+                const q = INVESTOR_QUOTES[quoteIndex];
+                const textEl = document.getElementById('opt-quote-text');
+                const authEl = document.getElementById('opt-quote-author');
+                if (textEl) textEl.innerText = q.text;
+                if (authEl) authEl.innerText = q.author;
+            }, 3500);
+        }
+
+        function stopQuoteCarousel() {
+            if (quoteInterval) {
+                clearInterval(quoteInterval);
+                quoteInterval = null;
+            }
+        }
+
+        function initOptimizeDates() {
+            const startInput = document.getElementById('opt-start-date');
+            const endInput = document.getElementById('opt-end-date');
+            if (startInput && endInput) {
+                const todayStr = getTodayDateStr();
+                endInput.value = todayStr;
+                const past = new Date();
+                past.setFullYear(past.getFullYear() - 1);
+                const pyyyy = past.getFullYear();
+                const pmm = String(past.getMonth() + 1).padStart(2, '0');
+                const pdd = String(past.getDate()).padStart(2, '0');
+                startInput.value = `${pyyyy}-${pmm}-${pdd}`;
+                updateOptimizeKlineHint();
+            }
+        }
+
+        function updateOptimizeKlineHint() {
+            const sym = (document.getElementById('opt-symbol')?.value || '603986').trim().toUpperCase();
+            const cat = document.getElementById('opt-category')?.value || 'DAY';
+            const sDate = document.getElementById('opt-start-date')?.value || '';
+            const eDate = document.getElementById('opt-end-date')?.value || '';
+            const hint = document.getElementById('opt-kline-stats-hint');
+            if (hint) {
+                const mkt = (sym.startsWith('6') || sym.startsWith('9') || sym.startsWith('88')) ? 'SH' : 'SZ';
+                hint.innerText = `已选标的：${mkt}:${sym} ${cat} ${sDate} ~ ${eDate} (240根)`;
+            }
+        }
+
+        function quickOptimize(symCode) {
+            const symInput = document.getElementById('opt-symbol');
+            if (symInput) symInput.value = symCode;
+            updateOptimizeKlineHint();
+            runSingleStrategyOptimize();
+        }
+
+        function initOptimizeView() {
+            initOptimizeDates();
+            setupStockAutocomplete('opt-symbol', 'opt-symbol-dropdown', () => updateOptimizeKlineHint());
+            const optSel = document.getElementById('opt-strategy-select');
+            if (optSel && window.ALL_STRATEGIES && window.ALL_STRATEGIES.length > 0) {
+                const optHtml = window.ALL_STRATEGIES.map(s => `<option value="${s.name}" ${s.name==='zig_breakout'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
+                optSel.innerHTML = optHtml;
+            }
+            onOptimizeStrategyChange();
+        }
+
+        const OPT_DEFAULT_PRESETS = {
+            "zig_breakout": { "zig_delta": [10, 15, 20, 25, 30], "confirm_pct": [1.0, 2.0, 3.0, 5.0] },
+            "ma_cross": { "fast": [5, 10, 20], "slow": [20, 30, 60] },
+            "bollinger_breakout": { "period": [10, 20, 30], "std_mult": [1.5, 2.0, 2.5] },
+            "macd_cross": { "fast": [8, 12, 16], "slow": [21, 26, 30] },
+            "kdj_golden": { "n": [9, 14, 18], "m1": [3, 5] },
+            "bias_reversal": { "period": [6, 12, 24], "buy_threshold": [-6.0, -8.0, -10.0] },
+            "dmi_trend": { "n": [7, 14, 21], "adx_buy": [20, 25, 30] },
+            "cci_breakout": { "period": [14, 20, 28], "buy_threshold": [100, 120] }
+        };
+
+        function onOptimizeStrategyChange() {
+            const sel = document.getElementById('opt-strategy-select');
+            if (!sel) return;
+            const stName = sel.value || 'zig_breakout';
+            const list = window.ALL_STRATEGIES || [];
+            const st = list.find(s => s.name === stName) || list[0];
+            const descEl = document.getElementById('opt-strategy-desc');
+            const container = document.getElementById('opt-params-container');
+            if (!container) return;
+
+            if (st) {
+                if (descEl) descEl.innerText = st.description || `${st.display_name}：基于通达信量价核心指标构建的量化战法。`;
+                const params = st.params || [];
+                const preset = OPT_DEFAULT_PRESETS[stName] || {};
+                
+                if (params.length === 0) {
+                    container.innerHTML = `<div class="text-[11px] text-slate-500 py-2 italic">该策略使用自适应指标计算，无需外部参数网格。</div>`;
+                    calcOptimizeGridPoints();
+                    return;
+                }
+
+                container.innerHTML = params.map((p, idx) => {
+                    let isChecked = false;
+                    let defaultVals = [];
+                    if (preset[p.name]) {
+                        isChecked = true;
+                        defaultVals = preset[p.name];
+                    } else if (idx < 2) {
+                        isChecked = true;
+                        const def = p.default !== undefined ? Number(p.default) : 10;
+                        if (!isNaN(def)) {
+                            defaultVals = [Math.round(def * 0.7 * 10) / 10, def, Math.round(def * 1.3 * 10) / 10];
+                        } else {
+                            defaultVals = [p.default];
+                        }
+                    } else {
+                        defaultVals = [p.default || 10];
+                    }
+
+                    const valStr = Array.isArray(defaultVals) ? defaultVals.join(', ') : String(defaultVals);
+                    return `
+                        <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5 opt-param-row" data-param-name="${p.name}">
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center space-x-2 text-[11px] text-slate-300 font-medium cursor-pointer">
+                                    <input type="checkbox" id="opt-chk-${p.name}" class="opt-param-chk rounded border-slate-700 text-cyan-500 focus:ring-0 focus:outline-none" ${isChecked ? 'checked' : ''} onchange="onOptimizeCheckboxChange('${p.name}')">
+                                    <span>${p.label || p.name}</span>
+                                    <span class="text-[10px] text-slate-500 font-mono">(${p.name})</span>
+                                </label>
+                                <span class="text-[10px] text-slate-400 font-mono" id="opt-cnt-${p.name}">取值: ${defaultVals.length}个</span>
+                            </div>
+                            <input type="text" id="opt-val-${p.name}" value="${valStr}" oninput="calcOptimizeGridPoints()" placeholder="逗号分隔，如: 10, 15, 20" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-cyan-300 font-mono focus:border-cyan-400 focus:outline-none">
+                            ${p.description ? `<p class="text-[10px] text-slate-500 leading-tight">${p.description}</p>` : ''}
+                        </div>
+                    `;
+                }).join('');
+                calcOptimizeGridPoints();
+            }
+        }
+
+        function onOptimizeCheckboxChange(changedParam) {
+            const chks = Array.from(document.querySelectorAll('.opt-param-chk:checked'));
+            if (chks.length > 2) {
+                showToast('参数提示', '热力图推荐勾选 1-2 个参数寻优以获得最佳可视化矩阵');
+            }
+            calcOptimizeGridPoints();
+        }
+
+        function calcOptimizeGridPoints() {
+            const rows = document.querySelectorAll('.opt-param-row');
+            let total = 1;
+            let checkedCount = 0;
+
+            rows.forEach(r => {
+                const pName = r.getAttribute('data-param-name');
+                const chk = document.getElementById(`opt-chk-${pName}`);
+                const valInput = document.getElementById(`opt-val-${pName}`);
+                const cntBadge = document.getElementById(`opt-cnt-${pName}`);
+                if (chk && chk.checked && valInput) {
+                    checkedCount++;
+                    const vals = valInput.value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    total *= Math.max(1, vals.length);
+                    if (cntBadge) cntBadge.innerText = `取值: ${vals.length}个`;
+                    valInput.disabled = false;
+                    valInput.classList.remove('opacity-40');
+                } else if (valInput) {
+                    if (cntBadge) cntBadge.innerText = `已排除`;
+                    valInput.disabled = true;
+                    valInput.classList.add('opacity-40');
+                }
+            });
+
+            if (checkedCount === 0) total = 0;
+            const badge = document.getElementById('opt-grid-points-badge');
+            if (badge) {
+                badge.innerText = `网格组合数: ${total}${total > 200 ? ' (超限!)' : ''}`;
+                badge.className = total > 200 ? 'text-[10px] text-rose-400 font-mono font-bold animate-pulse' : 'text-[10px] text-cyan-400 font-mono';
+            }
+            return total;
+        }
+
+        async function runSingleStrategyOptimize() {
+            const sym = (document.getElementById('opt-symbol')?.value || '603986').trim();
+            const cat = document.getElementById('opt-category')?.value || 'DAY';
+            const sDate = document.getElementById('opt-start-date')?.value || '';
+            const eDate = document.getElementById('opt-end-date')?.value || '';
+            const stName = document.getElementById('opt-strategy-select')?.value || 'zig_breakout';
+            const cash = Number(document.getElementById('opt-cash')?.value || 1000000);
+            const exec = document.getElementById('opt-execution')?.value || 'next_open';
+
+            const paramGrid = {};
+            document.querySelectorAll('.opt-param-row').forEach(r => {
+                const pName = r.getAttribute('data-param-name');
+                const chk = document.getElementById(`opt-chk-${pName}`);
+                const valInput = document.getElementById(`opt-val-${pName}`);
+                if (chk && chk.checked && valInput) {
+                    const vals = valInput.value.split(',').map(s => {
+                        const num = Number(s.trim());
+                        return isNaN(num) ? s.trim() : num;
+                    }).filter(s => String(s).length > 0);
+                    if (vals.length > 0) paramGrid[pName] = vals;
+                }
+            });
+
+            const btn = document.getElementById('btn-run-opt');
+            const btnText = document.getElementById('btn-run-opt-text');
+            const indicator = document.getElementById('opt-running-indicator');
+            const tbody = document.getElementById('opt-ranking-table-body');
+
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerText = '寻优计算中…';
+            if (indicator) indicator.classList.remove('hidden');
+            startQuoteCarousel();
+
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对标的 [${sym}] 执行 [${stName}] 参数网格寻优，请稍候…</td></tr>`;
+                lucide.createIcons();
+            }
+
+            try {
+                const payload = {
+                    symbol: sym,
+                    strategy: stName,
+                    category: cat,
+                    start_date: sDate,
+                    end_date: eDate,
+                    initial_cash: cash,
+                    execution: exec,
+                    param_grid: paramGrid
+                };
+
+                const resp = await fetch('/api/backtest/optimize/unified', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    renderOptimizeResults(data);
+                } else {
+                    const err = await resp.json().catch(() => ({}));
+                    showToast('寻优错误', err.detail || '参数寻优执行失败');
+                }
+            } catch (e) {
+                console.error('Optimize failed:', e);
+                showToast('网络异常', '无法连接寻优服务');
+            } finally {
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = '开始寻优';
+                if (indicator) indicator.classList.add('hidden');
+                stopQuoteCarousel();
+            }
+        }
+
+        async function runAllStrategiesOptimize() {
+            const sym = (document.getElementById('opt-symbol')?.value || '603986').trim();
+            const cat = document.getElementById('opt-category')?.value || 'DAY';
+            const sDate = document.getElementById('opt-start-date')?.value || '';
+            const eDate = document.getElementById('opt-end-date')?.value || '';
+            const cash = Number(document.getElementById('opt-cash')?.value || 1000000);
+            const exec = document.getElementById('opt-execution')?.value || 'next_open';
+
+            const btn = document.getElementById('btn-run-opt-all');
+            const btnText = document.getElementById('btn-run-opt-all-text');
+            const indicator = document.getElementById('opt-running-indicator');
+            const tbody = document.getElementById('opt-ranking-table-body');
+
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerText = '48大策略全局寻优中…';
+            if (indicator) indicator.classList.remove('hidden');
+            startQuoteCarousel();
+
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>正在并行计算全市场 48 大量化战法对标的 [${sym}] 的最优参数分布与全局收益榜，请稍候…</td></tr>`;
+                lucide.createIcons();
+            }
+
+            try {
+                const payload = {
+                    symbol: sym,
+                    category: cat,
+                    start_date: sDate,
+                    end_date: eDate,
+                    initial_cash: cash,
+                    execution: exec
+                };
+
+                const resp = await fetch('/api/backtest/optimize-all/unified', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    renderOptimizeAllResults(data);
+                } else {
+                    const err = await resp.json().catch(() => ({}));
+                    showToast('寻优错误', err.detail || '一键寻优所有策略失败');
+                }
+            } catch (e) {
+                console.error('Optimize all failed:', e);
+                showToast('网络异常', '无法连接一键寻优服务');
+            } finally {
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = '一键寻优所有策略';
+                if (indicator) indicator.classList.add('hidden');
+                stopQuoteCarousel();
+            }
+        }
+
+        function renderOptimizeResults(data) {
+            const best = data.best;
+            window.CURRENT_OPT_BEST = best ? { strategy: data.strategy, params: best.params } : null;
+
+            if (best) {
+                document.getElementById('opt-best-title').innerText = `最优结果概览：${data.strategy_label || data.strategy}`;
+                document.getElementById('opt-best-grade-badge').innerText = `${best.grade} 级 · ${best.score}分`;
+                document.getElementById('opt-best-meta-hint').innerText = `标的：${data.symbol} ${data.name || ''} · 网格点数：${data.grid_points}个`;
+                
+                const retEl = document.getElementById('opt-best-return');
+                const isUp = best.total_return >= 0;
+                retEl.innerText = `${isUp ? '+' : ''}${best.total_return.toFixed(2)}%`;
+                retEl.className = `text-lg font-mono font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'} mt-1`;
+
+                document.getElementById('opt-best-sharpe').innerText = best.sharpe.toFixed(2);
+                document.getElementById('opt-best-maxdd').innerText = `-${best.max_drawdown.toFixed(2)}%`;
+                document.getElementById('opt-best-winrate').innerText = `${best.win_rate.toFixed(1)}%`;
+                document.getElementById('opt-best-pf').innerText = best.profit_factor.toFixed(2);
+                document.getElementById('opt-best-trades').innerText = `${best.total_trades} 笔`;
+                document.getElementById('opt-best-params-code').innerText = JSON.stringify(best.params);
+            }
+
+            const heatmapCard = document.getElementById('opt-heatmap-card');
+            if (data.heatmap && data.heatmap.x && data.heatmap.x.length > 1 && data.heatmap.y && data.heatmap.y.length > 1) {
+                heatmapCard.classList.remove('hidden');
+                document.getElementById('opt-heatmap-title').innerText = `参数热力图 (${data.heatmap.x_name} × ${data.heatmap.y_name})`;
+                renderOptimizeHeatmap(data.heatmap);
+            } else {
+                heatmapCard.classList.add('hidden');
+            }
+
+            document.getElementById('opt-ranking-table-title').innerText = `网格点排名 (${data.strategy_label || data.strategy})`;
+            document.getElementById('opt-ranking-count-badge').innerText = `${data.results.length} 个点`;
+            const tbody = document.getElementById('opt-ranking-table-body');
+            if (!tbody) return;
+
+            if (data.results.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="py-6 text-center text-slate-400 text-xs">无有效网格点结果</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = data.results.map((r, idx) => {
+                const isUp = r.total_return >= 0;
+                const retStr = `${isUp ? '+' : ''}${r.total_return.toFixed(2)}%`;
+                const retCls = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                const pJson = JSON.stringify(r.params).replace(/"/g, '');
+                const gradeBadgeCls = r.grade === 'S' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                                      r.grade === 'A' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
+                                      r.grade === 'B' ? 'bg-blue-950 text-blue-300 border-blue-800' : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 font-bold ${idx === 0 ? 'text-amber-400' : 'text-slate-400'}">${idx + 1}</td>
+                        <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${gradeBadgeCls}">${r.grade}</span></td>
+                        <td class="py-2.5 text-slate-200 font-sans">${data.strategy_label || data.strategy}</td>
+                        <td class="py-2.5"><code class="px-1.5 py-0.5 rounded bg-slate-900 text-cyan-300 text-[11px] font-mono">${pJson}</code></td>
+                        <td class="py-2.5 text-right ${retCls}">${retStr}</td>
+                        <td class="py-2.5 text-right text-cyan-400 font-semibold">${r.sharpe.toFixed(2)}</td>
+                        <td class="py-2.5 text-right text-emerald-400">-${r.max_drawdown.toFixed(2)}%</td>
+                        <td class="py-2.5 text-right text-slate-300">${r.total_trades}</td>
+                        <td class="py-2.5 text-right text-white font-medium">${r.win_rate.toFixed(1)}%</td>
+                        <td class="py-2.5 text-right text-slate-300">${r.profit_factor.toFixed(2)}</td>
+                        <td class="py-2.5 text-center">
+                            <button onclick='loadOptimizeBacktest("${data.strategy}", ${JSON.stringify(r.params)})' class="px-2 py-1 rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-800 text-[10px] font-semibold transition cursor-pointer">重测</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function renderOptimizeAllResults(data) {
+            const best = data.best;
+            window.CURRENT_OPT_BEST = best ? { strategy: best.strategy, params: best.params } : null;
+
+            if (best) {
+                document.getElementById('opt-best-title').innerText = `48大策略全局冠军：${best.strategy_label || best.strategy}`;
+                document.getElementById('opt-best-grade-badge').innerText = `${best.grade} 级 · ${best.score}分`;
+                document.getElementById('opt-best-meta-hint').innerText = `标的：${data.symbol} ${data.name || ''} · 覆盖策略：${data.total_strategies}个 · 寻优网格总点数：${data.total_grid_points}个`;
+
+                const retEl = document.getElementById('opt-best-return');
+                const isUp = best.total_return >= 0;
+                retEl.innerText = `${isUp ? '+' : ''}${best.total_return.toFixed(2)}%`;
+                retEl.className = `text-lg font-mono font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'} mt-1`;
+
+                document.getElementById('opt-best-sharpe').innerText = best.sharpe.toFixed(2);
+                document.getElementById('opt-best-maxdd').innerText = `-${best.max_drawdown.toFixed(2)}%`;
+                document.getElementById('opt-best-winrate').innerText = `${best.win_rate.toFixed(1)}%`;
+                document.getElementById('opt-best-pf').innerText = best.profit_factor.toFixed(2);
+                document.getElementById('opt-best-trades').innerText = `${best.total_trades} 笔`;
+                document.getElementById('opt-best-params-code').innerText = JSON.stringify(best.params);
+            }
+
+            document.getElementById('opt-heatmap-card').classList.add('hidden');
+
+            document.getElementById('opt-ranking-table-title').innerText = `48大策略全局寻优排名榜 (按最优总收益降序)`;
+            document.getElementById('opt-ranking-count-badge').innerText = `${data.ranking.length} 个策略`;
+            const tbody = document.getElementById('opt-ranking-table-body');
+            if (!tbody) return;
+
+            tbody.innerHTML = data.ranking.map((r, idx) => {
+                const isUp = r.total_return >= 0;
+                const retStr = `${isUp ? '+' : ''}${r.total_return.toFixed(2)}%`;
+                const retCls = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                const pJson = JSON.stringify(r.params).replace(/"/g, '');
+                const gradeBadgeCls = r.grade === 'S' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                                      r.grade === 'A' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
+                                      r.grade === 'B' ? 'bg-blue-950 text-blue-300 border-blue-800' : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 font-bold ${idx < 3 ? 'text-amber-400 text-sm' : 'text-slate-400'}">${idx + 1}</td>
+                        <td class="py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${gradeBadgeCls}">${r.grade}</span></td>
+                        <td class="py-2.5 font-sans font-medium text-white">
+                            <div>${r.strategy_label || r.strategy}</div>
+                            <div class="text-[10px] text-slate-500 font-mono">${r.strategy} (${r.grid_points || 1}点)</div>
+                        </td>
+                        <td class="py-2.5"><code class="px-1.5 py-0.5 rounded bg-slate-900 text-cyan-300 text-[11px] font-mono">${pJson}</code></td>
+                        <td class="py-2.5 text-right ${retCls}">${retStr}</td>
+                        <td class="py-2.5 text-right text-cyan-400 font-semibold">${r.sharpe.toFixed(2)}</td>
+                        <td class="py-2.5 text-right text-emerald-400">-${r.max_drawdown.toFixed(2)}%</td>
+                        <td class="py-2.5 text-right text-slate-300">${r.total_trades}</td>
+                        <td class="py-2.5 text-right text-white font-medium">${r.win_rate.toFixed(1)}%</td>
+                        <td class="py-2.5 text-right text-slate-300">${r.profit_factor.toFixed(2)}</td>
+                        <td class="py-2.5 text-center">
+                            <button onclick='loadOptimizeBacktest("${r.strategy}", ${JSON.stringify(r.params)})' class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-semibold transition cursor-pointer">载入回测</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function renderOptimizeHeatmap(heatmapData) {
+            const dom = document.getElementById('opt-heatmap-chart');
+            if (!dom) return;
+            if (!window.optHeatmapChart) {
+                window.optHeatmapChart = echarts.init(dom);
+            }
+
+            const xCategories = heatmapData.x.map(String);
+            const yCategories = heatmapData.y.map(String);
+            const values = heatmapData.data.map(item => item[2]);
+            const minVal = Math.min(...values, -5);
+            const maxVal = Math.max(...values, 20);
+
+            const option = {
+                tooltip: {
+                    position: 'top',
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    borderColor: '#334155',
+                    textStyle: { color: '#f8fafc', fontSize: 11 },
+                    formatter: function (params) {
+                        return `${heatmapData.x_name}: <b>${xCategories[params.data[0]]}</b><br/>` +
+                               `${heatmapData.y_name}: <b>${yCategories[params.data[1]]}</b><br/>` +
+                               `总收益率: <b style="color:${params.data[2] >= 0 ? '#f43f5e' : '#10b981'}">${params.data[2] >= 0 ? '+' : ''}${params.data[2]}%</b>`;
+                    }
+                },
+                grid: {
+                    top: '8%',
+                    bottom: '22%',
+                    left: '10%',
+                    right: '6%'
+                },
+                xAxis: {
+                    type: 'category',
+                    data: xCategories,
+                    name: heatmapData.x_name,
+                    nameLocation: 'middle',
+                    nameGap: 24,
+                    nameTextStyle: { color: '#94a3b8', fontSize: 11 },
+                    splitArea: { show: true },
+                    axisLabel: { color: '#cbd5e1', fontSize: 10 }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: yCategories,
+                    name: heatmapData.y_name,
+                    nameLocation: 'middle',
+                    nameGap: 30,
+                    nameTextStyle: { color: '#94a3b8', fontSize: 11 },
+                    splitArea: { show: true },
+                    axisLabel: { color: '#cbd5e1', fontSize: 10 }
+                },
+                visualMap: {
+                    min: minVal,
+                    max: maxVal,
+                    calculable: true,
+                    orient: 'horizontal',
+                    left: 'center',
+                    bottom: '0%',
+                    textStyle: { color: '#94a3b8', fontSize: 10 },
+                    inRange: {
+                        color: ['#0f766e', '#0284c7', '#3b82f6', '#8b5cf6', '#f43f5e', '#ef4444']
+                    },
+                    formatter: function(val) { return val.toFixed(1) + '%'; }
+                },
+                series: [{
+                    name: '总收益率',
+                    type: 'heatmap',
+                    data: heatmapData.data,
+                    label: {
+                        show: true,
+                        formatter: function(params) {
+                            return (params.data[2] >= 0 ? '+' : '') + params.data[2].toFixed(1) + '%';
+                        },
+                        fontSize: 10,
+                        color: '#ffffff'
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }]
+            };
+
+            window.optHeatmapChart.setOption(option, true);
+        }
+
+        function loadOptimizeBacktest(strategyName, params) {
+            const sym = (document.getElementById('opt-symbol')?.value || '603986').trim();
+            const btSym = document.getElementById('bt-symbol');
+            if (btSym) btSym.value = sym;
+
+            const btSel = document.getElementById('bt-strategy-select');
+            if (btSel) {
+                btSel.value = strategyName;
+                renderStrategyParams(strategyName);
+            }
+
+            switchTab('backtest');
+
+            if (params) {
+                setTimeout(() => {
+                    Object.keys(params).forEach(k => {
+                        const input = document.getElementById(`param-${k}`);
+                        if (input) input.value = params[k];
+                    });
+                    runBacktest();
+                    showToast('已载入回测', `已将「${strategyName}」寻优参数导入并开始执行回测！`);
+                }, 100);
+            }
+        }
+
+        function applyBestParamsToBacktest() {
+            if (window.CURRENT_OPT_BEST) {
+                loadOptimizeBacktest(window.CURRENT_OPT_BEST.strategy, window.CURRENT_OPT_BEST.params);
+            } else {
+                showToast('提示', '请先执行参数寻优生成最优配置');
+            }
+        }
+
         // ==================== Screener, AI Review, Diagnostics ==================== //
         async function populateInitialData() {
             // Apply saved theme
@@ -3024,7 +3871,10 @@
                     const optHtml = strategies.map(s => `<option value="${s.name}" ${s.name==='zig_breakout'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
                     document.getElementById('screener-strategy-select').innerHTML = optHtml;
                     document.getElementById('bt-strategy-select').innerHTML = optHtml;
+                    const optSel = document.getElementById('opt-strategy-select');
+                    if (optSel) optSel.innerHTML = optHtml;
                     renderStrategyParams('zig_breakout');
+                    initOptimizeView();
                     setTimeout(() => runScreenerScan(), 100);
                 }
             } catch (e) {
