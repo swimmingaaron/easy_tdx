@@ -115,10 +115,19 @@ if __name__ == "__main__":
         threading.Timer(1.2, _open_browser, args=[url]).start()
     
     import uvicorn
+    import copy
+    from uvicorn.config import LOGGING_CONFIG
     from easy_tdx.web.app import _create_app
     app = _create_app(host=args.tdx_host, port=args.tdx_port)
     
+    # Configure unified timestamps for backend access and server logs
+    log_config = copy.deepcopy(LOGGING_CONFIG)
+    log_config["formatters"]["access"]["fmt"] = '[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    log_config["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+    log_config["formatters"]["default"]["fmt"] = '[%(asctime)s] %(levelprefix)s %(message)s'
+    log_config["formatters"]["default"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+    
     if args.reload:
-        uvicorn.run("easy_tdx.web.app:_create_app", host=host, port=port, factory=True, reload=True)
+        uvicorn.run("easy_tdx.web.app:_create_app", host=host, port=port, factory=True, reload=True, log_config=log_config)
     else:
-        uvicorn.run(app, host=host, port=port)
+        uvicorn.run(app, host=host, port=port, log_config=log_config)

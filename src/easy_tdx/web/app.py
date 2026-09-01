@@ -64,6 +64,26 @@ def _resolve_web_dist_dir() -> Path | None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """管理 TDX 连接生命周期：启动时连接，关闭时断开。"""
+    # Configure unified timestamps on uvicorn logger handlers
+    try:
+        import uvicorn.logging
+        access_fmt = uvicorn.logging.AccessFormatter(
+            fmt='[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        default_fmt = uvicorn.logging.DefaultFormatter(
+            fmt='[%(asctime)s] %(levelprefix)s %(message)s',
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        for h in logging.getLogger("uvicorn.access").handlers:
+            h.setFormatter(access_fmt)
+        for h in logging.getLogger("uvicorn.error").handlers:
+            h.setFormatter(default_fmt)
+        for h in logging.getLogger("uvicorn").handlers:
+            h.setFormatter(default_fmt)
+    except Exception:
+        pass
+
     import asyncio
     from easy_tdx.client import AsyncTdxClient
 

@@ -218,6 +218,7 @@ def _build_market_summary() -> dict[str, Any]:
         "date": today_str,
         "update_time": update_time_str,
         "refresh_interval_ms": 15000,
+        "is_trading_time": is_trading_time(),
         "sh_index": {
             "name": "上证指数",
             "close": sh_index_close,
@@ -252,8 +253,26 @@ def _build_market_summary() -> dict[str, Any]:
     }
 
 
+def is_trading_time() -> bool:
+    """Check if current time is within A-share trading session.
+    
+    Trading hours (Monday-Friday):
+      09:15:00 ~ 11:30:30 (Morning call auction & trading)
+      13:00:00 ~ 15:05:00 (Afternoon trading & closing auction)
+    """
+    now = datetime.datetime.now()
+    if now.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    t = now.time()
+    m_start = datetime.time(9, 15, 0)
+    m_end = datetime.time(11, 30, 30)
+    a_start = datetime.time(13, 0, 0)
+    a_end = datetime.time(15, 5, 0)
+    return (m_start <= t <= m_end) or (a_start <= t <= a_end)
+
+
 def _start_bg_overview_worker():
-    """Start 15s daemon background worker to continuously refresh market summary."""
+    """Start 15s daemon background worker to continuously refresh market summary during trading hours."""
     global _BG_THREAD_STARTED
     if _BG_THREAD_STARTED:
         return
@@ -262,17 +281,22 @@ def _start_bg_overview_worker():
     def _worker():
         while True:
             try:
-                data = _build_market_summary()
-                with _CACHE_LOCK:
-                    global _OVERVIEW_CACHE
-                    _OVERVIEW_CACHE = (time.time(), data)
+                if is_trading_time():
+                    data = _build_market_summary()
+                    with _CACHE_LOCK:
+                        global _OVERVIEW_CACHE
+                        _OVERVIEW_CACHE = (time.time(), data)
+                    time.sleep(15.0)
+                else:
+                    # Outside trading hours: idle check every 30s
+                    time.sleep(30.0)
             except Exception as e:
                 logger.debug(f"Background market overview update error: {e}")
-            time.sleep(15.0)
+                time.sleep(15.0)
             
     t = threading.Thread(target=_worker, daemon=True, name="MarketOverview15sDaemon")
     t.start()
-    logger.info("Market overview 15s background worker started successfully.")
+    logger.info("Market overview 15s background worker started successfully (trading-session gated).")
 
 
 def fetch_realtime_market_summary() -> dict[str, Any]:
