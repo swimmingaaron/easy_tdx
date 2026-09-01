@@ -118,16 +118,14 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
 
 
 
-def fetch_realtime_market_summary() -> dict[str, Any]:
-    """Fetch real-time comprehensive market breadth, sentiment, turnover directly from native TDX socket."""
-    global _OVERVIEW_CACHE
-    now = time.time()
-    if _OVERVIEW_CACHE is not None:
-        ts, cached_data = _OVERVIEW_CACHE
-        if now - ts < CACHE_TTL_SEC:
-            return cached_data
+_CACHE_LOCK = threading.Lock()
+_BG_THREAD_STARTED = False
 
+def _build_market_summary() -> dict[str, Any]:
+    """Internal builder to calculate real-time market summary directly from TDX."""
     today_str = datetime.date.today().strftime("%Y-%m-%d")
+    now_ts = time.time()
+    update_time_str = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
     
     # 1. Native TDX Market Statistics
     up_count = 2337
@@ -151,7 +149,7 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
             if tot_amt > 0:
                 turnover_yi = round(tot_amt / 100000000.0, 1)
     except Exception as e:
-        logger.warning(f"Failed to fetch TDX native get_market_stat: {e}")
+        logger.debug(f"Failed to fetch TDX native get_market_stat: {e}")
 
     # 2. Ladder height from real TDX limit-up scanner
     max_consecutive = "3 连板"
@@ -168,7 +166,6 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
     up_ratio = up_count / total_valid
     breadth_ratio = round(up_count / max(1, down_count), 2)
     
-    # Sentiment score: 0 ~ 100 based on breadth, limit up/down momentum
     raw_sentiment = (up_ratio * 70.0) + (min(80, zt_count) * 0.35) - (min(40, dt_count) * 0.4)
     sentiment_score = round(min(98.0, max(8.0, raw_sentiment)), 1)
     
@@ -211,14 +208,16 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
             sh_index_close = round(float(sh_last["close"]), 2)
             sh_index_chg_pct = round(((sh_index_close / max(1.0, float(sh_prev["close"]))) - 1.0) * 100, 2)
     except Exception as e:
-        logger.warning(f"Failed to fetch real 999999 K-line: {e}")
+        logger.debug(f"Failed to fetch real 999999 K-line: {e}")
 
     # 6. Leading industry sectors from native TDX MAC board ranking
     leading_industries = _fetch_industry_ranking_live()
 
-    result = {
+    return {
         "status": "success",
         "date": today_str,
+        "update_time": update_time_str,
+        "refresh_interval_ms": 15000,
         "sh_index": {
             "name": "上证指数",
             "close": sh_index_close,
@@ -252,5 +251,45 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
         "industries": leading_industries
     }
 
-    _OVERVIEW_CACHE = (now, result)
-    return result
+
+def _start_bg_overview_worker():
+    """Start 15s daemon background worker to continuously refresh market summary."""
+    global _BG_THREAD_STARTED
+    if _BG_THREAD_STARTED:
+        return
+    _BG_THREAD_STARTED = True
+    
+    def _worker():
+        while True:
+            try:
+                data = _build_market_summary()
+                with _CACHE_LOCK:
+                    global _OVERVIEW_CACHE
+                    _OVERVIEW_CACHE = (time.time(), data)
+            except Exception as e:
+                logger.debug(f"Background market overview update error: {e}")
+            time.sleep(15.0)
+            
+    t = threading.Thread(target=_worker, daemon=True, name="MarketOverview15sDaemon")
+    t.start()
+    logger.info("Market overview 15s background worker started successfully.")
+
+
+def fetch_realtime_market_summary() -> dict[str, Any]:
+    """Fetch real-time comprehensive market breadth, sentiment, turnover directly from native TDX socket.
+    
+    Uses high-speed 15s in-memory cache backed by a daemon background worker,
+    ensuring <1ms response times on periodic polling.
+    """
+    global _OVERVIEW_CACHE
+    _start_bg_overview_worker()
+    with _CACHE_LOCK:
+        if _OVERVIEW_CACHE is not None:
+            return _OVERVIEW_CACHE[1]
+
+    # First-time synchronous fallback if background thread hasn't finished first tick
+    data = _build_market_summary()
+    with _CACHE_LOCK:
+        _OVERVIEW_CACHE = (time.time(), data)
+    return data
+

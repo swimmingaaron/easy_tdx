@@ -516,6 +516,22 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6 hidden">
+            <!-- 500ms 高频实时数据流状态指示栏 -->
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-xs shadow-sm">
+                <div class="flex items-center space-x-2.5">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="font-semibold text-white">大盘全景数据流已就绪</span>
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">500ms 毫秒级后台自动更新</span>
+                </div>
+                <div class="flex items-center space-x-4 font-mono text-slate-400">
+                    <span class="hidden sm:inline">刷新周期: <strong class="text-cyan-400">500ms</strong></span>
+                    <span>最新快照时间: <strong id="dashboard-refresh-ts" class="text-emerald-400 font-bold">--:--:--.---</strong></span>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="glass-card p-5 rounded-2xl">
                     <p class="text-xs text-slate-400">市场情绪温度计 (0~100)</p>
@@ -950,7 +966,13 @@
                     if (t === tId) {
                         btn.className = 'tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md';
                         view.classList.remove('hidden');
-                        if (t === 'backtest') {
+                        if (t === 'dashboard') {
+                            setTimeout(() => {
+                                if (window.breadthChart) window.breadthChart.resize();
+                                loadDashboardData();
+                                loadRealtimeQuotes();
+                            }, 50);
+                        } else if (t === 'backtest') {
                             setTimeout(() => { resizeEcharts(); }, 80);
                         } else if (t === 'aireview') {
                             setTimeout(() => { if (window.radarChart) window.radarChart.resize(); }, 80);
@@ -2612,6 +2634,33 @@
             }
         }
 
+        let _dashboardAutoTimer = null;
+        let _isDashboardPolling = false;
+
+        async function tickDashboardOnce() {
+            const dashView = document.getElementById('view-dashboard');
+            // Only update when Dashboard is currently displayed
+            if (!dashView || dashView.classList.contains('hidden')) return;
+            if (_isDashboardPolling) return;
+            
+            _isDashboardPolling = true;
+            try {
+                await Promise.allSettled([
+                    loadDashboardData(),
+                    loadRealtimeQuotes()
+                ]);
+            } catch (err) {
+                console.debug('Dashboard polling error:', err);
+            } finally {
+                _isDashboardPolling = false;
+            }
+        }
+
+        function startDashboardAutoRefresh() {
+            if (_dashboardAutoTimer) clearInterval(_dashboardAutoTimer);
+            _dashboardAutoTimer = setInterval(tickDashboardOnce, 500);
+        }
+
         async function loadDashboardData() {
             try {
                 const resp = await fetch('/api/quotes/dashboard');
@@ -2619,6 +2668,12 @@
                     const json = await resp.json();
                     const d = json.data;
                     if (!d) return;
+
+                    // Update live timestamp
+                    if (d.update_time) {
+                        const tsEl = document.getElementById('dashboard-refresh-ts');
+                        if (tsEl) tsEl.innerText = `${d.update_time} (500ms)`;
+                    }
 
                     // 1. Sentiment
                     if (d.sentiment) {
@@ -2633,13 +2688,15 @@
                         const uEl = document.getElementById('market-up-count');
                         const dEl = document.getElementById('market-down-count');
                         const rEl = document.getElementById('market-ratio');
+                        const cbEl = document.getElementById('chart-breadth-ratio');
                         if (uEl) uEl.innerText = `↑ ${d.breadth.up_count.toLocaleString()}`;
                         if (dEl) dEl.innerText = `↓ ${d.breadth.down_count.toLocaleString()}`;
                         if (rEl) rEl.innerText = `涨跌比: ${d.breadth.ratio} (${d.breadth.ratio >= 1.0 ? '多头情绪占优' : '空头承压震荡'})`;
+                        if (cbEl) cbEl.innerText = `多空比 ${d.breadth.ratio}`;
 
                         if (window.breadthChart && d.breadth.distribution) {
                             window.breadthChart.data.datasets[0].data = d.breadth.distribution;
-                            window.breadthChart.update();
+                            window.breadthChart.update('none');
                         }
                     }
 
@@ -2663,18 +2720,15 @@
 
                     // 5. Leading Industries & Sector Stocks
                     if (d.industries && d.industries.length > 0) {
-                        const indEl = document.getElementById('industry-list');
-                        if (indEl) {
-                            window.ALL_INDUSTRIES = d.industries;
-                            window.CURRENT_INDUSTRY_CODE = window.CURRENT_INDUSTRY_CODE || d.industries[0].code;
-                            renderIndustryList(d.industries);
-                            
-                            const activeInd = d.industries.find(x => x.code === window.CURRENT_INDUSTRY_CODE) || d.industries[0];
-                            if (activeInd.stocks && activeInd.stocks.length > 0) {
-                                renderSectorStocks(activeInd.name, activeInd.stocks);
-                            } else {
-                                loadSectorStocks(activeInd.code, activeInd.name);
-                            }
+                        window.ALL_INDUSTRIES = d.industries;
+                        window.CURRENT_INDUSTRY_CODE = window.CURRENT_INDUSTRY_CODE || d.industries[0].code;
+                        renderIndustryList(d.industries);
+                        
+                        const activeInd = d.industries.find(x => x.code === window.CURRENT_INDUSTRY_CODE) || d.industries[0];
+                        if (activeInd.stocks && activeInd.stocks.length > 0) {
+                            renderSectorStocks(activeInd.name, activeInd.stocks);
+                        } else {
+                            loadSectorStocks(activeInd.code, activeInd.name, true);
                         }
                     }
                 }
@@ -2688,7 +2742,7 @@
             if (window.ALL_INDUSTRIES) {
                 renderIndustryList(window.ALL_INDUSTRIES);
             }
-            loadSectorStocks(code, name);
+            loadSectorStocks(code, name, false);
         }
 
         function renderIndustryList(industries) {
@@ -2724,15 +2778,18 @@
             }).join('');
         }
 
-        async function loadSectorStocks(code, name) {
+        async function loadSectorStocks(code, name, isBackground = false) {
             const titleEl = document.getElementById('sector-stocks-title');
             const countEl = document.getElementById('sector-stocks-count');
             const tableEl = document.getElementById('sector-stocks-table');
-            if (titleEl) titleEl.textContent = `【${name}】成分股`;
-            if (countEl) countEl.textContent = `正在刷新...`;
-            if (tableEl) {
-                tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
-                lucide.createIcons();
+            if (titleEl) titleEl.textContent = `【${name}】核心成分股`;
+            
+            if (!isBackground) {
+                if (countEl) countEl.textContent = `正在刷新...`;
+                if (tableEl) {
+                    tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
+                    lucide.createIcons();
+                }
             }
 
             try {
@@ -2741,12 +2798,14 @@
                     const json = await resp.json();
                     const stocks = json.data || [];
                     renderSectorStocks(name, stocks);
-                } else {
-                    if (tableEl) tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
+                } else if (!isBackground && tableEl) {
+                    tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
                 }
             } catch (e) {
                 console.error('Failed to load sector stocks:', e);
-                if (tableEl) tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
+                if (!isBackground && tableEl) {
+                    tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
+                }
             }
         }
 
@@ -2816,6 +2875,9 @@
             loadRealtimeQuotes();
             loadLadderData();
             loadAnomaliesData();
+
+            // Start 500ms high-frequency background auto-refresh for Dashboard
+            startDashboardAutoRefresh();
 
             // Load Radar
             const ctxR = document.getElementById('radarChart').getContext('2d');

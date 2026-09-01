@@ -1,6 +1,8 @@
 """Quotes API Endpoints for easy_tdx."""
 from __future__ import annotations
 from typing import Any
+import threading
+import time
 import math
 import numpy as np
 import pandas as pd
@@ -46,9 +48,21 @@ def _get_board_tag(sym: str) -> dict[str, str]:
         return {"label": "北", "color": "#06b6d4"}
     return {"label": "主", "color": "#3b82f6"}
 
+_REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
+_REALTIME_QUOTES_LOCK = threading.Lock()
+REALTIME_TTL = 0.5
+
 @router.get("/realtime")
 def get_realtime_quotes():
-    """Get live pool quotes with stock name and metrics directly from TDX."""
+    """Get live pool quotes with stock name and metrics directly from TDX with 500ms caching."""
+    global _REALTIME_QUOTES_CACHE
+    now = time.time()
+    with _REALTIME_QUOTES_LOCK:
+        if _REALTIME_QUOTES_CACHE is not None:
+            ts, cached = _REALTIME_QUOTES_CACHE
+            if now - ts < REALTIME_TTL:
+                return {"status": "success", "count": len(cached), "data": cached}
+
     pool_stocks = COMMON_STOCKS[:12]
     symbols = [s["code"] for s in pool_stocks]
     real_quotes = fetch_realtime_pool_quotes(symbols)
@@ -99,6 +113,9 @@ def get_realtime_quotes():
             "turnover_wan": amt,
             "status": "多头排列" if chg > 1.5 else ("放量突破" if chg > 0 else "缩量回踩")
         })
+        
+    with _REALTIME_QUOTES_LOCK:
+        _REALTIME_QUOTES_CACHE = (now, data)
         
     return {
         "status": "success",
