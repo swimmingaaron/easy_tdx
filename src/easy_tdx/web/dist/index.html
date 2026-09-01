@@ -245,6 +245,58 @@
         .quote-progress-active {
             animation: quoteProgressAnim 3000ms linear infinite;
         }
+
+        /* 优雅舒适的 K 线样本指示卡片 (解决原深绿底+荧光绿字刺眼问题) */
+        .kline-stats-badge {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: rgba(30, 41, 59, 0.45);
+            border: 1px solid rgba(71, 85, 105, 0.45);
+            color: #cbd5e1;
+            line-height: 1.5;
+            transition: all 0.2s ease;
+        }
+        .kline-stats-badge .badge-tag {
+            color: #38bdf8;
+            font-weight: 700;
+        }
+        .kline-stats-badge .badge-range {
+            color: #94a3b8;
+            font-size: 10.5px;
+        }
+        .kline-stats-badge .badge-count {
+            background: rgba(51, 65, 85, 0.6);
+            color: #e2e8f0;
+            border: 1px solid rgba(100, 116, 139, 0.4);
+            padding: 1.5px 7px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        html.light .kline-stats-badge {
+            background: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #334155 !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light .kline-stats-badge .badge-tag {
+            color: #0284c7 !important;
+        }
+        html.light .kline-stats-badge .badge-range {
+            color: #64748b !important;
+        }
+        html.light .kline-stats-badge .badge-count {
+            background: #e2e8f0 !important;
+            border-color: #cbd5e1 !important;
+            color: #1e293b !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
@@ -354,8 +406,9 @@
                         </div>
 
                         <!-- Data hint badge -->
-                        <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[11px] font-mono text-emerald-400" id="bt-kline-stats-hint">
-                            SH:603986 DAY
+                        <div class="kline-stats-badge" id="bt-kline-stats-hint">
+                            <span><span class="badge-tag">SH:603986 DAY</span> <span class="badge-range">2025-09-01 ~ 2026-09-01</span></span>
+                            <span class="badge-count">240根</span>
                         </div>
                     </div>
 
@@ -578,8 +631,9 @@
                         </div>
 
                         <!-- Data hint badge -->
-                        <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[11px] font-mono text-emerald-400" id="opt-kline-stats-hint">
-                            已选标的：SH:603986 DAY 2025-09-01 ~ 2026-09-01 (240根)
+                        <div class="kline-stats-badge" id="opt-kline-stats-hint">
+                            <span>已选标的：<span class="badge-tag">SH:603986 DAY</span> <span class="badge-range">2025-09-01 ~ 2026-09-01</span></span>
+                            <span class="badge-count">240根</span>
                         </div>
                     </div>
 
@@ -2754,7 +2808,10 @@
             const hintEl = document.getElementById('bt-kline-stats-hint');
             if (hintEl && (!hintEl.innerText || hintEl.innerText.includes('2026-08-31') || hintEl.innerText.trim() === 'SH:600660 DAY' || hintEl.innerText.trim() === 'SH:603986 DAY')) {
                 const sym = document.getElementById('bt-symbol')?.value?.trim() || '603986';
-                hintEl.innerText = `${sym.startsWith('6')?'SH':'SZ'}:${sym} DAY ${startEl ? startEl.value : startStr} ~ ${endEl ? endEl.value : todayStr}`;
+                const mkt = (sym.startsWith('6') || sym.startsWith('9') || sym.startsWith('88')) ? 'SH' : 'SZ';
+                const sVal = startEl ? startEl.value : startStr;
+                const eVal = endEl ? endEl.value : todayStr;
+                hintEl.innerHTML = `<span><span class="badge-tag">${mkt}:${sym} DAY</span> <span class="badge-range">${sVal} ~ ${eVal}</span></span><span class="badge-count">240根</span>`;
             }
         }
 
@@ -2801,7 +2858,8 @@
 
                     // Update Top statuses
                     document.getElementById('bt-top-status-desc').innerText = `当前标的：${displaySymbol} · 策略：${stDisplayName}`;
-                    document.getElementById('bt-kline-stats-hint').innerText = `${json.symbol.startsWith('6')?'SH':'SZ'}:${sym} ${category} ${startDate} ~ ${endDate} (${(d.bars || []).length}根)`;
+                    const mkt = (json.symbol.startsWith('6') || json.symbol.startsWith('9') || json.symbol.startsWith('88')) ? 'SH' : 'SZ';
+                    document.getElementById('bt-kline-stats-hint').innerHTML = `<span><span class="badge-tag">${mkt}:${sym} ${category}</span> <span class="badge-range">${startDate} ~ ${endDate}</span></span><span class="badge-count">${(d.bars || []).length}根</span>`;
 
                     const m = d.performance || d.metrics || {};
                     const totalRet = Number(m.total_return_pct ?? 0);
@@ -3441,7 +3499,7 @@
             const hint = document.getElementById('opt-kline-stats-hint');
             if (hint) {
                 const mkt = (sym.startsWith('6') || sym.startsWith('9') || sym.startsWith('88')) ? 'SH' : 'SZ';
-                hint.innerText = `已选标的：${mkt}:${sym} ${cat} ${sDate} ~ ${eDate} (240根)`;
+                hint.innerHTML = `<span>已选标的：<span class="badge-tag">${mkt}:${sym} ${cat}</span> <span class="badge-range">${sDate} ~ ${eDate}</span></span><span class="badge-count">240根</span>`;
             }
         }
 
