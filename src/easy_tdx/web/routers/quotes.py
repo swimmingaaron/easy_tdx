@@ -50,11 +50,11 @@ def _get_board_tag(sym: str) -> dict[str, str]:
 
 _REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
 _REALTIME_QUOTES_LOCK = threading.Lock()
-REALTIME_TTL = 0.5
+REALTIME_TTL = 15.0
 
 @router.get("/realtime")
 def get_realtime_quotes():
-    """Get live pool quotes with stock name and metrics directly from TDX with 500ms caching."""
+    """Get live pool quotes with stock name and metrics directly from TDX with 15s caching."""
     global _REALTIME_QUOTES_CACHE
     now = time.time()
     with _REALTIME_QUOTES_LOCK:

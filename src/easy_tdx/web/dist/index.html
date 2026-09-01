@@ -516,7 +516,7 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6 hidden">
-            <!-- 500ms 高频实时数据流状态指示栏 -->
+            <!-- 15s 实时数据流状态指示栏 -->
             <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-xs shadow-sm">
                 <div class="flex items-center space-x-2.5">
                     <span class="relative flex h-2.5 w-2.5">
@@ -524,10 +524,10 @@
                         <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
                     <span class="font-semibold text-white">大盘全景数据流已就绪</span>
-                    <span class="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">500ms 毫秒级后台自动更新</span>
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">15s 自动刷新</span>
                 </div>
                 <div class="flex items-center space-x-4 font-mono text-slate-400">
-                    <span class="hidden sm:inline">刷新周期: <strong class="text-cyan-400">500ms</strong></span>
+                    <span class="hidden sm:inline">刷新周期: <strong class="text-cyan-400">15s</strong></span>
                     <span>最新快照时间: <strong id="dashboard-refresh-ts" class="text-emerald-400 font-bold">--:--:--.---</strong></span>
                 </div>
             </div>
@@ -2658,7 +2658,7 @@
 
         function startDashboardAutoRefresh() {
             if (_dashboardAutoTimer) clearInterval(_dashboardAutoTimer);
-            _dashboardAutoTimer = setInterval(tickDashboardOnce, 500);
+            _dashboardAutoTimer = setInterval(tickDashboardOnce, 15000);
         }
 
         async function loadDashboardData() {
@@ -2672,7 +2672,7 @@
                     // Update live timestamp
                     if (d.update_time) {
                         const tsEl = document.getElementById('dashboard-refresh-ts');
-                        if (tsEl) tsEl.innerText = `${d.update_time} (500ms)`;
+                        if (tsEl) tsEl.innerText = `${d.update_time} (15s)`;
                     }
 
                     // 1. Sentiment
