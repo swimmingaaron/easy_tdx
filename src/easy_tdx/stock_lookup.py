@@ -38,6 +38,7 @@ COMMON_STOCKS = [
     {"code": "601888", "name": "中国中免", "market": "SH", "pinyin": "ZGZM"},
     {"code": "601899", "name": "紫金矿业", "market": "SH", "pinyin": "ZJKY"},
     {"code": "603259", "name": "药明康德", "market": "SH", "pinyin": "YMKD"},
+    {"code": "603986", "name": "兆易创新", "market": "SH", "pinyin": "ZYCX"},
     {"code": "688981", "name": "中芯国际", "market": "SH", "pinyin": "ZXGJ"},
 ]
 
