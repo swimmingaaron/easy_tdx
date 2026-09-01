@@ -265,3 +265,19 @@ def get_dashboard_summary():
         "status": "success",
         "data": data
     }
+
+@router.get("/board_stocks")
+def get_board_stocks(
+    board_code: str = Query(..., description="Board/Sector code, e.g. 881106"),
+    count: int = Query(30, ge=1, le=100, description="Max constituent stocks to return")
+):
+    """Get real-time constituent stocks for an industry/concept board."""
+    from easy_tdx.market_overview import fetch_board_members
+    stocks = fetch_board_members(board_code, count=count)
+    return {
+        "status": "success",
+        "board_code": board_code,
+        "count": len(stocks),
+        "data": stocks
+    }
+

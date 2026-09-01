@@ -70,10 +70,52 @@ def _fetch_industry_ranking_live() -> list[dict[str, Any]]:
                     "down_count": int(row.get("down_count", 0)),
                     "member_count": int(row.get("member_count", 0)),
                 })
+            if industries:
+                # Preload constituent stocks for the leading industry
+                try:
+                    industries[0]["stocks"] = fetch_board_members(industries[0]["code"], count=25)
+                except Exception:
+                    pass
             return industries
     except Exception as e:
         logger.warning(f"Failed to fetch TDX MAC board ranking: {e}")
     return []
+
+
+def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]]:
+    """Fetch constituent stocks with real-time prices, change percentages, and amounts for a sector board."""
+    from easy_tdx.stock_lookup import get_stock_name
+    stocks: list[dict[str, Any]] = []
+    try:
+        mac = _get_or_create_mac_client()
+        df = mac.get_board_members(str(board_code), count=count)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                code = str(row.get("code", ""))
+                raw_name = str(row.get("name", ""))
+                name = raw_name if raw_name and not raw_name.startswith("?") else get_stock_name(code)
+                c = round(float(row.get("close", 0.0)), 2)
+                pc = float(row.get("pre_close", 0.0))
+                if pc > 0:
+                    chg_pct = round((c - pc) / pc * 100.0, 2)
+                else:
+                    chg_pct = round(float(row.get("change_pct", 0.0)), 2)
+                chg_str = f"+{chg_pct:.2f}%" if chg_pct >= 0 else f"{chg_pct:.2f}%"
+                amt_yi = round(float(row.get("amount", 0.0)) / 100000000.0, 2)
+                stocks.append({
+                    "code": code,
+                    "name": name,
+                    "price": c,
+                    "change_pct": chg_pct,
+                    "chg": chg_str,
+                    "amount_yi": amt_yi,
+                    "vol": int(row.get("vol", 0)),
+                })
+            stocks.sort(key=lambda x: -x["change_pct"])
+    except Exception as e:
+        logger.warning(f"Failed to fetch board members for {board_code}: {e}")
+    return stocks
+
 
 
 def fetch_realtime_market_summary() -> dict[str, Any]:

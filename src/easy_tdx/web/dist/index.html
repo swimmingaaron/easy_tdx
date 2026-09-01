@@ -228,6 +228,16 @@
             border-color: rgba(245, 158, 11, 0.4) !important;
             color: #d97706 !important;
         }
+        html.light #sector-stocks-table tr td span.text-white {
+            color: #0f172a !important;
+        }
+        html.light #sector-stocks-table thead {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+        }
+        html.light #sector-stocks-table tbody tr:hover {
+            background-color: rgba(226, 232, 240, 0.6) !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
@@ -536,13 +546,56 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="glass-card p-5 rounded-2xl lg:col-span-2">
-                    <h4 class="text-sm font-semibold text-slate-200 mb-4 flex items-center"><i data-lucide="bar-chart-2" class="w-4 h-4 mr-2 text-cyan-400"></i>全市场涨跌幅分布直方图</h4>
-                    <div class="h-64"><canvas id="breadthChart"></canvas></div>
+                <!-- 1. 全市场涨跌幅分布直方图 占 1/3 区域 (lg:col-span-1) -->
+                <div class="glass-card p-5 rounded-2xl lg:col-span-1 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-sm font-semibold text-slate-200 flex items-center"><i data-lucide="bar-chart-2" class="w-4 h-4 mr-2 text-cyan-400"></i>全市场涨跌幅分布直方图</h4>
+                        <span id="chart-breadth-ratio" class="text-[11px] font-mono text-slate-400"></span>
+                    </div>
+                    <div class="h-64 w-full"><canvas id="breadthChart"></canvas></div>
                 </div>
-                <div class="glass-card p-5 rounded-2xl">
-                    <h4 class="text-sm font-semibold text-slate-200 mb-4 flex items-center"><i data-lucide="layers" class="w-4 h-4 mr-2 text-indigo-400"></i>行业主线轮动榜</h4>
-                    <div class="space-y-3 overflow-y-auto max-h-64 pr-1" id="industry-list"></div>
+
+                <!-- 2. 行业主线与板块成分股 占 2/3 区域 (lg:col-span-2), 其中1半显示板块信息, 另一半显示板块成分股信息 -->
+                <div class="glass-card p-5 rounded-2xl lg:col-span-2 flex flex-col">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 h-full">
+                        <!-- 板块信息 (占 1/2 of 2/3) -->
+                        <div class="flex flex-col border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0 md:pr-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-sm font-semibold text-slate-200 flex items-center">
+                                    <i data-lucide="layers" class="w-4 h-4 mr-2 text-indigo-400"></i>行业主线轮动榜
+                                </h4>
+                                <span class="text-[11px] text-slate-400">点击板块切成分股</span>
+                            </div>
+                            <div class="space-y-2 overflow-y-auto max-h-64 pr-1 flex-1" id="industry-list"></div>
+                        </div>
+
+                        <!-- 板块成分股信息 (占 1/2 of 2/3) -->
+                        <div class="flex flex-col md:pl-1">
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-sm font-semibold text-slate-200 flex items-center">
+                                    <i data-lucide="list-tree" class="w-4 h-4 mr-2 text-amber-400"></i>
+                                    <span id="sector-stocks-title">板块成分股</span>
+                                </h4>
+                                <span id="sector-stocks-count" class="text-[11px] font-mono text-cyan-400">点击左侧板块查看</span>
+                            </div>
+                            <div class="overflow-y-auto max-h-64 pr-1 flex-1">
+                                <table class="w-full text-left text-xs font-mono">
+                                    <thead class="text-slate-400 border-b border-slate-800 pb-1.5 sticky top-0 bg-slate-900/95 backdrop-blur z-10">
+                                        <tr>
+                                            <th class="pb-2 font-medium">代码</th>
+                                            <th class="pb-2 font-medium">名称</th>
+                                            <th class="pb-2 font-medium text-right">最新价</th>
+                                            <th class="pb-2 font-medium text-right">涨跌幅</th>
+                                            <th class="pb-2 font-medium text-center">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sector-stocks-table" class="divide-y divide-slate-800/40">
+                                        <tr><td colspan="5" class="py-8 text-center text-slate-500">正在载入板块成分股...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2608,34 +2661,125 @@
                         if (diffEl) diffEl.innerText = `较昨日放量 ${d.turnover.diff_yesterday}`;
                     }
 
-                    // 5. Leading Industries
+                    // 5. Leading Industries & Sector Stocks
                     if (d.industries && d.industries.length > 0) {
                         const indEl = document.getElementById('industry-list');
                         if (indEl) {
-                            indEl.innerHTML = d.industries.map(ind => `
-                                <div class="bg-slate-800/60 hover:bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/50 space-y-1.5 transition group">
-                                    <div class="flex justify-between items-center">
-                                        <div class="flex items-center space-x-1.5 cursor-pointer" onclick="openKlineModal('${ind.code || ''}', '${ind.name}')">
-                                            <span class="text-xs font-semibold text-white group-hover:text-cyan-400 transition">${ind.name}</span>
-                                            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/80">${ind.code || 'HY'}</span>
-                                        </div>
-                                        <span class="text-xs ${Number(ind.change_pct || 0) >= 0 ? 'text-rose-500' : 'text-emerald-400'} font-mono font-bold">${ind.chg}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center text-[11px]">
-                                        <span class="text-slate-400 font-mono">净流入: <strong class="text-cyan-400">${ind.inflow}</strong></span>
-                                        <div class="flex items-center space-x-1">
-                                            <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[11px] font-medium transition" title="查看行业K线">K线</button>
-                                            <button onclick="quickBacktest('${ind.code || ''}')" class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-800 text-[11px] font-medium transition" title="对该行业一键执行量化回测">回测</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('');
+                            window.ALL_INDUSTRIES = d.industries;
+                            window.CURRENT_INDUSTRY_CODE = window.CURRENT_INDUSTRY_CODE || d.industries[0].code;
+                            renderIndustryList(d.industries);
+                            
+                            const activeInd = d.industries.find(x => x.code === window.CURRENT_INDUSTRY_CODE) || d.industries[0];
+                            if (activeInd.stocks && activeInd.stocks.length > 0) {
+                                renderSectorStocks(activeInd.name, activeInd.stocks);
+                            } else {
+                                loadSectorStocks(activeInd.code, activeInd.name);
+                            }
                         }
                     }
                 }
             } catch (e) {
                 console.error('Failed to load dashboard data:', e);
             }
+        }
+
+        function selectIndustry(code, name) {
+            window.CURRENT_INDUSTRY_CODE = code;
+            if (window.ALL_INDUSTRIES) {
+                renderIndustryList(window.ALL_INDUSTRIES);
+            }
+            loadSectorStocks(code, name);
+        }
+
+        function renderIndustryList(industries) {
+            const indEl = document.getElementById('industry-list');
+            if (!indEl) return;
+            indEl.innerHTML = industries.map((ind, idx) => {
+                const isActive = (ind.code === window.CURRENT_INDUSTRY_CODE) || (!window.CURRENT_INDUSTRY_CODE && idx === 0);
+                const activeClass = isActive 
+                    ? 'border-cyan-500/80 bg-cyan-950/40 shadow-sm' 
+                    : 'border-slate-700/50 bg-slate-800/60 hover:bg-slate-800/90';
+                const isUp = Number(ind.change_pct || 0) >= 0;
+                const chgColor = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+
+                return `
+                <div onclick="selectIndustry('${ind.code || ''}', '${ind.name}')" 
+                     class="${activeClass} p-2.5 rounded-xl border space-y-1.5 transition group cursor-pointer">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold ${isActive ? 'text-cyan-400 font-bold' : 'text-white group-hover:text-cyan-400'} transition">${ind.name}</span>
+                            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded ${isActive ? 'bg-cyan-950 text-cyan-300 border border-cyan-700' : 'bg-indigo-950 text-indigo-300 border border-indigo-800/80'}">${ind.code || 'HY'}</span>
+                        </div>
+                        <span class="text-xs ${chgColor} font-mono">${ind.chg}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px]">
+                        <span class="text-slate-400 font-mono">净流入: <strong class="text-cyan-400">${ind.inflow}</strong></span>
+                        <div class="flex items-center space-x-1" onclick="event.stopPropagation()">
+                            <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[11px] font-medium transition cursor-pointer" title="查看行业K线">K线</button>
+                            <button onclick="quickBacktest('${ind.code || ''}')" class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-800 text-[11px] font-medium transition cursor-pointer" title="对该行业一键执行量化回测">回测</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        async function loadSectorStocks(code, name) {
+            const titleEl = document.getElementById('sector-stocks-title');
+            const countEl = document.getElementById('sector-stocks-count');
+            const tableEl = document.getElementById('sector-stocks-table');
+            if (titleEl) titleEl.textContent = `【${name}】成分股`;
+            if (countEl) countEl.textContent = `正在刷新...`;
+            if (tableEl) {
+                tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
+                lucide.createIcons();
+            }
+
+            try {
+                const resp = await fetch(`/api/quotes/board_stocks?board_code=${encodeURIComponent(code)}&count=30`);
+                if (resp.ok) {
+                    const json = await resp.json();
+                    const stocks = json.data || [];
+                    renderSectorStocks(name, stocks);
+                } else {
+                    if (tableEl) tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
+                }
+            } catch (e) {
+                console.error('Failed to load sector stocks:', e);
+                if (tableEl) tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
+            }
+        }
+
+        function renderSectorStocks(name, stocks) {
+            const titleEl = document.getElementById('sector-stocks-title');
+            const countEl = document.getElementById('sector-stocks-count');
+            const tableEl = document.getElementById('sector-stocks-table');
+            if (titleEl) titleEl.textContent = `【${name}】核心成分股`;
+            if (countEl) countEl.textContent = `共 ${stocks.length} 只标的`;
+            if (!tableEl) return;
+
+            if (stocks.length === 0) {
+                tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs">该板块暂无成分股数据</td></tr>`;
+                return;
+            }
+
+            tableEl.innerHTML = stocks.map(s => {
+                const chg = Number(s.change_pct || 0);
+                const isUp = chg >= 0;
+                const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                const chgStr = `${isUp ? '+' : ''}${chg.toFixed(2)}%`;
+                return `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-cyan-400 font-bold">${s.code}</span></td>
+                    <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[80px] inline-block align-middle">${s.name}</span></td>
+                    <td class="py-2 text-right font-mono text-white font-semibold">¥${Number(s.price).toFixed(2)}</td>
+                    <td class="py-2 text-right font-mono ${chgClass}">${chgStr}</td>
+                    <td class="py-2 text-center">
+                        <button onclick="openKlineModal('${s.code}', '${s.name}')" class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-medium transition cursor-pointer">K线</button>
+                    </td>
+                </tr>
+            `;
+            }).join('');
         }
 
         // ==================== Screener, AI Review, Diagnostics ==================== //
@@ -2652,7 +2796,19 @@
                         labels: ['<-7%', '-7%~-5%', '-5%~-3%', '-3%~-1%', '-1%~0%', '0%~1%', '1%~3%', '3%~5%', '5%~7%', '>7%'],
                         datasets: [{ data: [35, 95, 260, 580, 780, 920, 1280, 750, 240, 60], backgroundColor: ctx => ctx.dataIndex >= 5 ? '#ef4444' : '#10b981', borderRadius: 4 }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: {
+                                ticks: { font: { size: 9 }, maxRotation: 45, minRotation: 0, autoSkip: false }
+                            },
+                            y: {
+                                ticks: { font: { size: 9 } }
+                            }
+                        }
+                    }
                 });
             }
 
