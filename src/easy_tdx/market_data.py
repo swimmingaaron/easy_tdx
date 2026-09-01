@@ -12,7 +12,7 @@ from easy_tdx.models import Market, KlineCategory
 logger = logging.getLogger(__name__)
 
 # Global thread-safe client instance
-_CLIENT_LOCK = threading.Lock()
+_CLIENT_LOCK = threading.RLock()
 _TDX_CLIENT: TdxClient | None = None
 _CACHE: dict[str, tuple[float, pd.DataFrame]] = {}
 CACHE_TTL_SEC = 30.0
@@ -213,13 +213,14 @@ def fetch_security_kline(
             
     # 3. Try fetching real data from standard TDX client
     try:
-        client = _get_or_create_client()
-        market = _get_market(clean_sym)
-        fetch_cnt = count * 2 if is_120m else count
-        if _is_index_symbol(clean_sym, market):
-            df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)
-        else:
-            df = client.get_security_bars(market, clean_sym, category, 0, fetch_cnt)
+        with _CLIENT_LOCK:
+            client = _get_or_create_client()
+            market = _get_market(clean_sym)
+            fetch_cnt = count * 2 if is_120m else count
+            if _is_index_symbol(clean_sym, market):
+                df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)
+            else:
+                df = client.get_security_bars(market, clean_sym, category, 0, fetch_cnt)
         
         if df is not None and not df.empty and len(df) > 0:
             res_df = pd.DataFrame()
