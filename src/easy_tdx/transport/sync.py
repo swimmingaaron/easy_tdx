@@ -241,9 +241,13 @@ class TdxConnection:
 
     def _heartbeat_loop(self) -> None:
         """心跳循环：在后台线程中运行。"""
-        assert self._stop_event is not None
+        stop_ev = self._stop_event
+        if stop_ev is None:
+            return
         interval = self._heartbeat_interval
-        while not self._stop_event.wait(timeout=interval):
+        while not stop_ev.wait(timeout=interval):
+            if self._sock is None:
+                return
             if time.monotonic() - self._last_active <= interval:
                 continue
             with self._lock:

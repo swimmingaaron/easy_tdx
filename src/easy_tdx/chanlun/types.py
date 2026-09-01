@@ -65,6 +65,8 @@ class FXType(str, Enum):
 
     DING = "ding"  # 顶分型
     DI = "di"  # 底分型
+    TOP = "ding"
+    BOTTOM = "di"
 
 
 @dataclass

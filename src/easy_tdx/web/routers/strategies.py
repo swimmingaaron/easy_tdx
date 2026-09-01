@@ -92,3 +92,22 @@ async def delete_saved_strategy(strategy_id: str) -> dict[str, str]:
     if not store.delete(strategy_id):
         raise ValueError(f"策略 '{strategy_id}' 不存在")
     return {"deleted": strategy_id}
+
+
+# ── Registered 48 Strategies listing ────────────────────────────────────────
+
+from easy_tdx.strategies.registry import list_all_strategies
+
+
+@router.get("/api/strategies/")
+@router.get("/api/strategies/list")
+async def list_all_registered_strategies() -> dict[str, Any]:
+    """List all registered strategies from strategies library."""
+    all_st = list_all_strategies()
+    return {
+        "status": "success",
+        "count": len(all_st),
+        "strategies": all_st,
+        "data": all_st
+    }
+

@@ -678,5 +678,19 @@ def ZIG(S, X=35):  # 之字转向指标（未来函数）：S为价格序列，X
     return RD(z)
 
 
+def CROSS(S1, S2):  # S1 上穿 S2
+    """两条线交叉判定：S1 上穿 S2"""
+    a1 = np.asarray(S1, dtype=float) if not isinstance(S1, (int, float)) else np.array(S1, dtype=float)
+    a2 = np.asarray(S2, dtype=float) if not isinstance(S2, (int, float)) else np.array(S2, dtype=float)
+    if a1.ndim == 0 and a2.ndim > 0:
+        a1 = np.full_like(a2, a1, dtype=float)
+    elif a2.ndim == 0 and a1.ndim > 0:
+        a2 = np.full_like(a1, a2, dtype=float)
+    res = np.zeros(len(a1), dtype=bool)
+    if len(a1) > 1:
+        res[1:] = (a1[1:] > a2[1:]) & (a1[:-1] <= a2[:-1])
+    return res
+
+
 # 望大家能提交更多指标和函数  https://github.com/mpquant/MyTT
 

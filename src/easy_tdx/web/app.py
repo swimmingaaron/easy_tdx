@@ -64,25 +64,46 @@ def _resolve_web_dist_dir() -> Path | None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """管理 TDX 连接生命周期：启动时连接，关闭时断开。"""
+    # Configure unified timestamps on uvicorn logger handlers
+    try:
+        import uvicorn.logging
+        access_fmt = uvicorn.logging.AccessFormatter(
+            fmt='[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        default_fmt = uvicorn.logging.DefaultFormatter(
+            fmt='[%(asctime)s] %(levelprefix)s %(message)s',
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        for h in logging.getLogger("uvicorn.access").handlers:
+            h.setFormatter(access_fmt)
+        for h in logging.getLogger("uvicorn.error").handlers:
+            h.setFormatter(default_fmt)
+        for h in logging.getLogger("uvicorn").handlers:
+            h.setFormatter(default_fmt)
+    except Exception:
+        pass
+
+    import asyncio
     from easy_tdx.client import AsyncTdxClient
 
     # --- 标准 TDX 客户端 ---
-    host = app.state.tdx_host
-    port = app.state.tdx_port
-    timeout = app.state.tdx_timeout
+    host = app.state.tdx_host or "119.147.212.81"
+    port = app.state.tdx_port or 7709
+    timeout = 3.0
 
     client = AsyncTdxClient(host=host, port=port, timeout=timeout)
     try:
-        await client.connect()
+        await asyncio.wait_for(client.connect(), timeout=3.0)
         logger.info("TDX client connected to %s:%s", host, port)
-    except Exception:
-        logger.warning("TDX client connection failed — endpoints will return 503")
+    except Exception as e:
+        logger.warning("TDX client initial connection skipped: %s", e)
 
     app.state.tdx_client = client
 
-    # --- MAC 协议客户端 ---
+    # --- MAC 协议客户端（可选） ---
     mac_client = None
-    enable_mac = getattr(app.state, "enable_mac", True)
+    enable_mac = getattr(app.state, "enable_mac", False)
     if enable_mac:
         try:
             from easy_tdx.mac.client import AsyncMacClient
@@ -214,6 +235,31 @@ def _create_app(
     from easy_tdx.web.routers.server import router as server_router
     from easy_tdx.web.routers.sina import router as sina_router
     from easy_tdx.web.routers.strategies import router as strategies_router
+    from easy_tdx.web.routers.stocks import router as stocks_router
+    from easy_tdx.web.routers.screener import router as screener_router
+    from easy_tdx.web.routers.ai_review import router as ai_review_router
+    from easy_tdx.web.routers.monitor import router as monitor_router
+    from easy_tdx.web.routers.quotes import router as quotes_router
+
+    # Health check
+    @app.get("/api/health")
+    async def health_check():
+        return {"status": "ok", "app": "easy-tdx", "version": "1.20.10"}
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        from starlette.responses import Response
+        return Response(status_code=204)
+
+    # Mount unified and v1 routers
+    app.include_router(stocks_router)
+    app.include_router(screener_router)
+    app.include_router(ai_review_router)
+    app.include_router(monitor_router)
+    app.include_router(quotes_router)
+    app.include_router(backtest_router)
+    app.include_router(strategies_router)
+    app.include_router(server_router)
 
     app.include_router(market_router, prefix="/api/v1")
     app.include_router(bars_router, prefix="/api/v1")
@@ -221,24 +267,17 @@ def _create_app(
     app.include_router(block_router, prefix="/api/v1")
     app.include_router(chanlun_router, prefix="/api/v1")
     app.include_router(realtime_router, prefix="/api/v1")
-    # MAC 协议路由
     app.include_router(board_mac_router, prefix="/api/v1")
     app.include_router(mac_data_router, prefix="/api/v1")
     app.include_router(mac_quotes_router, prefix="/api/v1")
-    # 扩展市场路由
     app.include_router(ex_market_router, prefix="/api/v1")
-    # 技术指标路由
     app.include_router(indicator_router, prefix="/api/v1")
-    # 公告检索路由（巨潮资讯网，独立数据源）
     app.include_router(announcement_router, prefix="/api/v1")
-    # 新浪财报三表路由（独立数据源）
     app.include_router(sina_router, prefix="/api/v1")
-    # 回测路由（纯计算，不依赖行情连接 lifespan）
     app.include_router(backtest_router, prefix="/api/v1")
-    # 策略库路由（SQLite 持久化，纯数据 CRUD）
     app.include_router(strategies_router, prefix="/api/v1")
-    # 服务器设置路由（列出/测速/切换 TDX host）
     app.include_router(server_router, prefix="/api/v1")
+
 
     # --- 前端 dist 托管（生产/打包态同源服务，开发态可缺省） ---
     # 必须在所有 API 路由注册之后：StaticFiles(html=True) 挂在 "/" 会吞掉
