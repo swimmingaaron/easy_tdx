@@ -238,6 +238,13 @@
         html.light #sector-stocks-table tbody tr:hover {
             background-color: rgba(226, 232, 240, 0.6) !important;
         }
+        @keyframes quoteProgressAnim {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+        .quote-progress-active {
+            animation: quoteProgressAnim 3000ms linear infinite;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
@@ -1205,6 +1212,45 @@
             <div class="flex justify-between items-center border-t border-slate-800 pt-3 text-xs text-slate-400">
                 <span>支持热重连切换，即刻生效无需重启服务</span>
                 <button onclick="closeServerModal()" class="px-4 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 投资大师名言警句轮播弹窗 (QuoteCarousel Modal) -->
+    <div id="quote-carousel-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="relative max-w-[580px] w-full bg-[#151924] border border-slate-700/80 rounded-2xl p-8 sm:p-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <!-- 顶部动态橙色循环进度条 -->
+            <div class="absolute top-0 left-0 right-0 h-[3px] bg-slate-800/80 overflow-hidden">
+                <div id="quote-progress-bar" class="h-full w-full bg-gradient-to-r from-amber-500 to-orange-600 origin-left"></div>
+            </div>
+
+            <!-- 右上角小关闭按钮 (可提前手动关闭弹窗) -->
+            <button onclick="closeQuoteModal()" class="absolute top-3 right-3 text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition cursor-pointer" title="关闭弹窗继续在后台等待">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+
+            <!-- 巨大的复古引号装饰 (Georgia字体，低透明度琥珀金) -->
+            <div class="absolute top-3 left-6 text-6xl font-serif leading-none text-amber-500/25 select-none pointer-events-none">“</div>
+
+            <!-- 名言内容区 -->
+            <div class="relative z-10 pt-4">
+                <blockquote id="modal-quote-text" class="text-xl sm:text-2xl font-medium text-slate-100 leading-relaxed tracking-wide min-h-[72px] flex items-center transition-all duration-300 font-sans">
+                    截断亏损，让利润奔跑。
+                </blockquote>
+                <div class="text-right mt-4">
+                    <footer id="modal-quote-author" class="text-amber-500 font-bold text-sm sm:text-base tracking-wider transition-all duration-300">
+                        — 杰西·利弗莫尔
+                    </footer>
+                </div>
+            </div>
+
+            <!-- 虚线分隔线 -->
+            <div class="border-t border-dashed border-slate-700/60 my-6"></div>
+
+            <!-- 底部提示语与微动呼吸小圆点 -->
+            <div class="flex items-center justify-center space-x-2 text-xs text-slate-400 font-sans">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span id="modal-quote-hint">后台寻优进行中，大师智慧伴你等待...</span>
             </div>
         </div>
     </div>
@@ -3234,30 +3280,107 @@
         }
 
         // ==================== Parameter Optimization (参数寻优) ==================== //
-        const INVESTOR_QUOTES = [
-            { text: "“风险来自于你不知道自己在做什么。”", author: "— 沃伦·巴菲特 (Warren Buffett)" },
-            { text: "“重要的不是你的判断是对还是错，而是在你正确时能获取多大利润，错误时能承受多小损失。”", author: "— 乔治·索罗斯 (George Soros)" },
-            { text: "“我们寻找的是那些统计上有明显偏差、但普通人难以察觉的微小规律，依靠数千次交易积少成多。”", author: "— 詹姆斯·西蒙斯 (James Simons)" },
-            { text: "“不做研究就投资，就好比打扑克牌却从不看牌面一样。”", author: "— 彼得·林奇 (Peter Lynch)" },
-            { text: "“在市场上，顺势而为者生存。市场永远是对的，错误的只有投资者的预期。”", author: "— 杰西·利弗莫尔 (Jesse Livermore)" },
-            { text: "“如果我知道自己会在哪里死去，我就永远不会去那个地方。”", author: "— 查理·芒格 (Charlie Munger)" }
+        // ==================== Parameter Optimization (参数寻优) ==================== //
+        const INVESTMENT_QUOTES = [
+            { text: "截断亏损，让利润奔跑。", author: "杰西·利弗莫尔" },
+            { text: "别人贪婪时我恐惧，别人恐惧时我贪婪。", author: "沃伦·巴菲特" },
+            { text: "重要的不是对错，而是对的时候赚了多少、错的时候亏了多少。", author: "乔治·索罗斯" },
+            { text: "我们寻找的是那些统计上有明显偏差、但普通人难以察觉的微小规律，依靠数千次交易积少成多。", author: "詹姆斯·西蒙斯" },
+            { text: "投资的第一条规则是不要赔钱；第二条是永远不要忘记第一条。", author: "沃伦·巴菲特" },
+            { text: "价格是你付出的，价值是你得到的。", author: "沃伦·巴菲特" },
+            { text: "只有退潮时，你才知道谁在裸泳。", author: "沃伦·巴菲特" },
+            { text: "风险来自你不知道自己在做什么。", author: "沃伦·巴菲特" },
+            { text: "以合理的价格买入一家好公司，远胜过以好价格买入一家平庸的公司。", author: "沃伦·巴菲特" },
+            { text: "没有人愿意慢慢变富，但慢慢变富才是最稳的路。", author: "沃伦·巴菲特" },
+            { text: "我只想知道将来我会死在什么地方，这样我就永远不去那儿了。", author: "查理·芒格" },
+            { text: "反过来想，总是反过来想。", author: "查理·芒格" },
+            { text: "投资中减少错误的最好办法，是避免做出愚蠢的决定。", author: "查理·芒格" },
+            { text: "市场短期是一台投票机，长期是一台称重机。", author: "本杰明·格雷厄姆" },
+            { text: "买入股票要有安全边际。", author: "本杰明·格雷厄姆" },
+            { text: "投资者的主要问题——甚至是他最大的敌人——很可能就是他自己。", author: "本杰明·格雷厄姆" },
+            { text: "价格波动对你而言应该是一个朋友，而不是敌人。", author: "本杰明·格雷厄姆" },
+            { text: "投资你了解的东西。", author: "彼得·林奇" },
+            { text: "在股票市场，最能让你赚钱的是耐心。", author: "彼得·林奇" },
+            { text: "只要公司基本面没有变坏，股价下跌就是买入机会。", author: "彼得·林奇" },
+            { text: "知道你持有什么，以及为什么持有它。", author: "彼得·林奇" },
+            { text: "市场总是处于不确定性和流动之中，赌注正确的人才能赢。", author: "乔治·索罗斯" },
+            { text: "我富有只是因为我知道自己什么时候错了。", author: "乔治·索罗斯" },
+            { text: "我只管等待，直到钱躺在墙角，我所要做的只是走过去把它捡起来。", author: "吉姆·罗杰斯" },
+            { text: "不要在赔钱的项目上加码。", author: "吉姆·罗杰斯" },
+            { text: "华尔街没有新鲜事，因为人性从未改变。", author: "杰西·利弗莫尔" },
+            { text: "赚大钱的诀窍不在于买进卖出，而在于等待。", author: "杰西·利弗莫尔" },
+            { text: "我的财富来自坐着不动，而不是思考。", author: "杰西·利弗莫尔" },
+            { text: "永远不要试图去抓住下跌的刀。", author: "杰西·利弗莫尔" },
+            { text: "投资中最重要的不是'买好的'，而是'买得好'。", author: "霍华德·马克斯" },
+            { text: "你不能预测，但你可以准备。", author: "霍华德·马克斯" },
+            { text: "不要在草垛里找针，买下整个草垛。", author: "约翰·博格尔" },
+            { text: "在悲观中买入，在乐观中卖出。", author: "约翰·邓普顿" },
+            { text: "牛市生于悲观，长于怀疑，成于乐观，死于狂热。", author: "约翰·邓普顿" },
+            { text: "反脆弱：从不确定性中获益。", author: "纳西姆·塔勒布" },
+            { text: "痛苦 + 反思 = 进步。", author: "瑞·达利欧" },
+            { text: "不要相信你所想的，要去验证它。", author: "瑞·达利欧" },
+            { text: "损失一定要小，利润一定要大，这才是投机。", author: "保罗·都铎·琼斯" },
+            { text: "成功的交易有三个要素：纪律、纪律，还是纪律。", author: "保罗·都铎·琼斯" },
+            { text: "市场保持非理性的时间，可能比你保持不破产的时间更长。", author: "约翰·梅纳德·凯恩斯" },
+            { text: "市场永远是对的，错的只能是投资者自己。", author: "威廉·江恩" },
+            { text: "安全边际是投资中最重要的概念。", author: "塞斯·卡拉曼" },
+            { text: "在所有人都恐慌抛售时，正是黄金机会。", author: "马克·墨比乌斯" }
         ];
 
+        let quoteQueue = [];
         let quoteIndex = 0;
         let quoteInterval = null;
         window.CURRENT_OPT_BEST = null;
         window.optHeatmapChart = null;
 
+        function shuffleQuotes(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function displayCurrentQuote(q) {
+            if (!q) return;
+            const modalText = document.getElementById('modal-quote-text');
+            const modalAuth = document.getElementById('modal-quote-author');
+            const cardText = document.getElementById('opt-quote-text');
+            const cardAuth = document.getElementById('opt-quote-author');
+
+            if (modalText && modalAuth) {
+                modalText.style.opacity = '0';
+                modalAuth.style.opacity = '0';
+                setTimeout(() => {
+                    modalText.innerText = q.text;
+                    modalAuth.innerText = `— ${q.author}`;
+                    modalText.style.opacity = '1';
+                    modalAuth.style.opacity = '1';
+                }, 180);
+            }
+
+            if (cardText) cardText.innerText = `“${q.text}”`;
+            if (cardAuth) cardAuth.innerText = `— ${q.author}`;
+        }
+
+        function advanceQuote() {
+            if (quoteQueue.length === 0) {
+                quoteQueue = shuffleQuotes(INVESTMENT_QUOTES);
+            }
+            quoteIndex = (quoteIndex + 1) % quoteQueue.length;
+            if (quoteIndex === 0) {
+                quoteQueue = shuffleQuotes(INVESTMENT_QUOTES);
+            }
+            displayCurrentQuote(quoteQueue[quoteIndex]);
+        }
+
         function startQuoteCarousel() {
+            if (quoteQueue.length === 0) {
+                quoteQueue = shuffleQuotes(INVESTMENT_QUOTES);
+            }
             if (quoteInterval) clearInterval(quoteInterval);
-            quoteInterval = setInterval(() => {
-                quoteIndex = (quoteIndex + 1) % INVESTOR_QUOTES.length;
-                const q = INVESTOR_QUOTES[quoteIndex];
-                const textEl = document.getElementById('opt-quote-text');
-                const authEl = document.getElementById('opt-quote-author');
-                if (textEl) textEl.innerText = q.text;
-                if (authEl) authEl.innerText = q.author;
-            }, 3500);
+            quoteInterval = setInterval(advanceQuote, 3000);
         }
 
         function stopQuoteCarousel() {
@@ -3265,6 +3388,33 @@
                 clearInterval(quoteInterval);
                 quoteInterval = null;
             }
+        }
+
+        function openQuoteModal(hintText = '后台寻优进行中，大师智慧伴你等待...') {
+            const modal = document.getElementById('quote-carousel-modal');
+            if (!modal) return;
+            const hintEl = document.getElementById('modal-quote-hint');
+            if (hintEl) hintEl.innerText = hintText;
+
+            const bar = document.getElementById('quote-progress-bar');
+            if (bar) bar.classList.add('quote-progress-active');
+
+            quoteQueue = shuffleQuotes(INVESTMENT_QUOTES);
+            quoteIndex = 0;
+            displayCurrentQuote(quoteQueue[0]);
+
+            modal.classList.remove('hidden');
+            startQuoteCarousel();
+            lucide.createIcons();
+        }
+
+        function closeQuoteModal() {
+            const modal = document.getElementById('quote-carousel-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            const bar = document.getElementById('quote-progress-bar');
+            if (bar) bar.classList.remove('quote-progress-active');
+            stopQuoteCarousel();
         }
 
         function initOptimizeDates() {
@@ -3455,7 +3605,9 @@
             if (btn) btn.disabled = true;
             if (btnText) btnText.innerText = '寻优计算中…';
             if (indicator) indicator.classList.remove('hidden');
-            startQuoteCarousel();
+            
+            // 弹出大师名言警句轮播弹窗 (对齐 original easy_tdx)
+            openQuoteModal('单策略参数网格寻优中，大师智慧伴你等待...');
 
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对标的 [${sym}] 执行 [${stName}] 参数网格寻优，请稍候…</td></tr>`;
@@ -3474,11 +3626,14 @@
                     param_grid: paramGrid
                 };
 
-                const resp = await fetch('/api/backtest/optimize/unified', {
+                const fetchPromise = fetch('/api/backtest/optimize/unified', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                const minWaitPromise = new Promise(resolve => setTimeout(resolve, 2500));
+
+                const [resp] = await Promise.all([fetchPromise, minWaitPromise]);
 
                 if (resp.ok) {
                     const data = await resp.json();
@@ -3494,7 +3649,7 @@
                 if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = '开始寻优';
                 if (indicator) indicator.classList.add('hidden');
-                stopQuoteCarousel();
+                closeQuoteModal();
             }
         }
 
@@ -3514,7 +3669,9 @@
             if (btn) btn.disabled = true;
             if (btnText) btnText.innerText = '48大策略全局寻优中…';
             if (indicator) indicator.classList.remove('hidden');
-            startQuoteCarousel();
+
+            // 弹出大师名言警句轮播弹窗 (对齐 original easy_tdx)
+            openQuoteModal('后台寻优进行中，大师智慧伴你等待...');
 
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>正在并行计算全市场 48 大量化战法对标的 [${sym}] 的最优参数分布与全局收益榜，请稍候…</td></tr>`;
@@ -3531,11 +3688,14 @@
                     execution: exec
                 };
 
-                const resp = await fetch('/api/backtest/optimize-all/unified', {
+                const fetchPromise = fetch('/api/backtest/optimize-all/unified', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                const minWaitPromise = new Promise(resolve => setTimeout(resolve, 3600));
+
+                const [resp] = await Promise.all([fetchPromise, minWaitPromise]);
 
                 if (resp.ok) {
                     const data = await resp.json();
@@ -3551,7 +3711,7 @@
                 if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = '一键寻优所有策略';
                 if (indicator) indicator.classList.add('hidden');
-                stopQuoteCarousel();
+                closeQuoteModal();
             }
         }
 
