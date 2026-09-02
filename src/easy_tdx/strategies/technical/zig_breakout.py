@@ -24,16 +24,16 @@ class ZigBreakoutStrategy(BaseStrategy):
         "信号全为整仓 BUY/SELL，逻辑清晰、无分仓复杂度。"
     )
     params_list = [
-        Param("zig_delta", float, default=15.0, min_value=1.0, max_value=50.0, step=1.0, label="ZIG 转向阈值(%)", description="价格反转触发 ZIG 转向的百分比阈值"),
+        Param("zig_delta", float, default=10.0, min_value=1.0, max_value=50.0, step=1.0, label="ZIG 转向阈值(%)", description="价格反转触发 ZIG 转向的百分比阈值"),
         Param("confirm_pct", float, default=1.0, min_value=0.5, max_value=15.0, step=0.5, label="突破确认幅度(%)", description="收盘价需超过前高多少百分比才触发回补买入（防止假突破）"),
         Param("hhv_period", int, default=20, min_value=5, max_value=60, step=1, label="前高统计周期", description="卖出时记录最近 N 日最高价作为突破参考位"),
         Param("stop_loss_pct", float, default=3.0, min_value=0.0, max_value=20.0, step=0.5, label="硬止损比例(%)", description="买入后跌破买入价该百分比强制平仓止损（0 为关闭，防假波谷套牢）"),
     ]
-    params_schema = {"zig_delta": 15.0, "confirm_pct": 1.0, "hhv_period": 20, "stop_loss_pct": 3.0}
+    params_schema = {"zig_delta": 10.0, "confirm_pct": 1.0, "hhv_period": 20, "stop_loss_pct": 3.0}
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         res = df.copy()
-        z_delta = float(self.params.get("zig_delta", 15.0))
+        z_delta = float(self.params.get("zig_delta", 10.0))
         conf_pct = float(self.params.get("confirm_pct", 1.0))
         hhv_p = int(self.params.get("hhv_period", 20))
         sl_pct = float(self.params.get("stop_loss_pct", 3.0))
