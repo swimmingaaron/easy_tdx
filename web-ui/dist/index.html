@@ -1253,6 +1253,7 @@
                         <button onclick="setKpSubIndicator('rsi')" id="kp-sub-rsi" class="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white">RSI</button>
                         <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white">KDJ</button>
                         <button onclick="setKpSubIndicator('boll')" id="kp-sub-boll" class="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white">BOLL</button>
+                        <button onclick="toggleKpZigStrategy()" id="kp-sub-zig" class="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer" title="ZIG 转向与右侧突破买卖点 (默认执行)">ZIG策略</button>
                     </div>
                     <div class="flex items-center space-x-1.5 text-xs text-slate-400 font-sans ml-2">
                         <span>量比</span>
@@ -1626,6 +1627,12 @@
                     ? 'px-2.5 py-1 rounded text-xs font-semibold bg-purple-950 text-purple-400 border border-purple-800' 
                     : 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white';
             }
+            // ZIG strategy defaults to active
+            isZigActive = true;
+            const zigEl = document.getElementById('kp-sub-zig');
+            if (zigEl) {
+                zigEl.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer';
+            }
 
             // Wait 50ms for layout to settle before init/resize ECharts and loading data
             setTimeout(() => {
@@ -1658,6 +1665,208 @@
             document.getElementById('kp-btn-6m').className = m === 6 ? 'px-2 py-0.5 rounded-md text-slate-200 font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' : 'px-2 py-0.5 rounded-md text-slate-400 hover:text-white';
             document.getElementById('kp-btn-12m').className = m === 12 ? 'px-2 py-0.5 rounded-md text-slate-200 font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' : 'px-2 py-0.5 rounded-md text-slate-400 hover:text-white';
             loadKlinePreviewData();
+        }
+
+        // --- ZIG Strategy Pure-JS Core (100% matched with easy_tdx.MyTT.ZIG & ZigBreakoutStrategy) ---
+        let isZigActive = true;
+        function toggleKpZigStrategy() {
+            isZigActive = !isZigActive;
+            const zigEl = document.getElementById('kp-sub-zig');
+            if (zigEl) {
+                zigEl.className = isZigActive 
+                    ? 'px-2.5 py-1 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer' 
+                    : 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white transition cursor-pointer';
+            }
+            if (currentKpData) {
+                renderKpChart(currentKpData);
+            }
+        }
+
+        function calcZigZag(prices, percent = 10.0) {
+            const n = prices.length;
+            if (n === 0) return [];
+            if (n === 1) return [prices[0]];
+            const x = (percent > 1.0 ? percent / 100.0 : percent);
+            
+            let peer_i = 0;
+            let candidate_i = null;
+            const peers = [0];
+            let state = 0; // 0: start, 1: rise, 2: fall
+            
+            for (let scan_i = 1; scan_i < n; scan_i++) {
+                if (scan_i === n - 1) {
+                    if (candidate_i === null) {
+                        peers.push(scan_i);
+                    } else {
+                        if (state === 1) {
+                            if (prices[scan_i] >= prices[candidate_i]) {
+                                peers.push(scan_i);
+                            } else {
+                                peers.push(candidate_i);
+                                if (candidate_i !== scan_i) peers.push(scan_i);
+                            }
+                        } else if (state === 2) {
+                            if (prices[scan_i] <= prices[candidate_i]) {
+                                peers.push(scan_i);
+                            } else {
+                                peers.push(candidate_i);
+                                if (candidate_i !== scan_i) peers.push(scan_i);
+                            }
+                        } else {
+                            peers.push(scan_i);
+                        }
+                    }
+                    break;
+                }
+                
+                if (state === 0) {
+                    if (prices[peer_i] !== 0) {
+                        if (prices[scan_i] >= prices[peer_i] * (1.0 + x)) {
+                            candidate_i = scan_i;
+                            state = 1;
+                        } else if (prices[scan_i] <= prices[peer_i] * (1.0 - x)) {
+                            candidate_i = scan_i;
+                            state = 2;
+                        }
+                    }
+                } else if (state === 1) {
+                    if (prices[scan_i] >= prices[candidate_i]) {
+                        candidate_i = scan_i;
+                    } else if (prices[candidate_i] !== 0 && prices[scan_i] <= prices[candidate_i] * (1.0 - x)) {
+                        peer_i = candidate_i;
+                        peers.push(peer_i);
+                        state = 2;
+                        candidate_i = scan_i;
+                    }
+                } else if (state === 2) {
+                    if (prices[scan_i] <= prices[candidate_i]) {
+                        candidate_i = scan_i;
+                    } else if (prices[candidate_i] !== 0 && prices[scan_i] >= prices[candidate_i] * (1.0 + x)) {
+                        peer_i = candidate_i;
+                        peers.push(peer_i);
+                        state = 1;
+                        candidate_i = scan_i;
+                    }
+                }
+            }
+            
+            const clean_peers = [];
+            for (const p of peers) {
+                if (clean_peers.length === 0 || p !== clean_peers[clean_peers.length - 1]) {
+                    clean_peers.push(p);
+                }
+            }
+            if (clean_peers[clean_peers.length - 1] !== n - 1) {
+                clean_peers.push(n - 1);
+            }
+            
+            const z = new Array(n).fill(0);
+            for (let i = 0; i < clean_peers.length - 1; i++) {
+                const p_start = clean_peers[i];
+                const p_end = clean_peers[i + 1];
+                const v_start = prices[p_start];
+                const v_end = prices[p_end];
+                const span = p_end - p_start;
+                for (let k = p_start; k <= p_end; k++) {
+                    z[k] = span === 0 ? v_start : v_start + (v_end - v_start) * (k - p_start) / span;
+                }
+            }
+            return z;
+        }
+
+        function calcZigSignals(bars, zigDelta = 10.0, stopLossPct = 5.0, confirmPct = 1.0, hhvPeriod = 20) {
+            if (!bars || bars.length < 2) return { zigArr: [], trades: [], buySignals: [], sellSignals: [], inPos: false, buyPrice: 0 };
+            
+            const closes = bars.map(b => Number(b.close || 0));
+            const highs = bars.map(b => Number(b.high || b.close || 0));
+            const zigArr = calcZigZag(closes, zigDelta);
+            
+            const n = bars.length;
+            const trades = [];
+            const buySignals = new Array(n).fill(false);
+            const sellSignals = new Array(n).fill(false);
+            let inPos = false;
+            let buyPrice = 0.0;
+            let buyDate = '';
+            let breakoutLevel = 0.0;
+            
+            function getHHV(idx, p) {
+                const start = Math.max(0, idx - p + 1);
+                let maxVal = -Infinity;
+                for (let k = start; k <= idx; k++) {
+                    if (highs[k] > maxVal) maxVal = highs[k];
+                }
+                return maxVal;
+            }
+            
+            for (let i = 1; i < n; i++) {
+                const curC = closes[i];
+                const curZ = zigArr[i];
+                const prevZ = zigArr[i - 1];
+                const dt = bars[i].datetime;
+                
+                if (inPos) {
+                    const isStopLoss = (stopLossPct > 0) && (curC < buyPrice * (1.0 - stopLossPct / 100.0));
+                    if (curZ < prevZ || isStopLoss) {
+                        breakoutLevel = getHHV(i, hhvPeriod);
+                        sellSignals[i] = true;
+                        const pnlPct = buyPrice > 0 ? ((curC - buyPrice) / buyPrice * 100) : 0;
+                        trades.push({
+                            type: 'SELL',
+                            datetime: dt,
+                            price: curC,
+                            buyPrice: buyPrice,
+                            pnlPct: pnlPct,
+                            reason: isStopLoss ? '止损平仓' : '见顶卖出'
+                        });
+                        inPos = false;
+                        buyPrice = 0.0;
+                    }
+                } else {
+                    let triggeredBuy = false;
+                    let buyReason = '';
+                    if (curZ > prevZ) {
+                        breakoutLevel = 0.0;
+                        triggeredBuy = true;
+                        buyReason = '波谷启动';
+                    } else if (breakoutLevel > 0) {
+                        const threshold = breakoutLevel * (1.0 + confirmPct / 100.0);
+                        if (curC >= threshold) {
+                            breakoutLevel = 0.0;
+                            triggeredBuy = true;
+                            buyReason = '突破回补';
+                        }
+                    }
+                    if (triggeredBuy) {
+                        buySignals[i] = true;
+                        inPos = true;
+                        buyPrice = curC;
+                        buyDate = dt;
+                        trades.push({
+                            type: 'BUY',
+                            datetime: dt,
+                            price: curC,
+                            reason: buyReason
+                        });
+                    }
+                }
+            }
+            
+            for (let i = 0; i < n; i++) {
+                bars[i].zig = zigArr[i];
+                bars[i].zig_buy = buySignals[i];
+                bars[i].zig_sell = sellSignals[i];
+            }
+            
+            return {
+                zigArr,
+                trades,
+                buySignals,
+                sellSignals,
+                inPos,
+                buyPrice,
+                buyDate
+            };
         }
 
         let isBollActive = false;
@@ -1805,6 +2014,7 @@
                     <span style="color:#F97316">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
                     <span style="color:#8B5CF6">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
+                    ${isZigActive && bar.zig ? `<span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}${bar.zig_buy ? ' <strong class="text-rose-400 font-bold">[买点]</strong>' : (bar.zig_sell ? ' <strong class="text-amber-400 font-bold">[卖点]</strong>' : '')}</span>` : ''}
                 </div>
             `;
         }
@@ -1824,7 +2034,10 @@
             // Check if Volume Ratio is toggled
             const showVolRatio = document.getElementById('kp-vol-ratio-toggle')?.checked ?? true;
 
-            // Mark point for extreme peak
+            // ZIG Strategy Calculation & Signals
+            const zigResult = calcZigSignals(bars, 10.0, 5.0, 1.0, 20);
+
+            // Mark point for extreme peak & ZIG buy/sell markers
             let maxHighVal = -Infinity;
             let maxHighIdx = -1;
             bars.forEach((b, i) => {
@@ -1844,6 +2057,98 @@
                     itemStyle: { color: '#3f2e00', borderColor: '#eab308', borderWidth: 1 },
                     label: { show: true, formatter: '极', color: '#facc15', fontSize: 9, fontWeight: 'bold' }
                 });
+            }
+
+            // Mark ZIG Buy & Sell Points
+            if (isZigActive && zigResult.trades && zigResult.trades.length > 0) {
+                zigResult.trades.forEach(t => {
+                    const isBuy = (t.type === 'BUY');
+                    if (isBuy) {
+                        markPointData.push({
+                            name: 'ZIG买点',
+                            coord: [t.datetime, t.price],
+                            value: '买',
+                            symbol: 'pin',
+                            symbolSize: 25,
+                            symbolOffset: [0, 12],
+                            itemStyle: {
+                                color: '#ef4444',
+                                borderColor: '#991b1b',
+                                borderWidth: 1.5,
+                                shadowBlur: 6,
+                                shadowColor: 'rgba(239, 68, 68, 0.6)'
+                            },
+                            label: {
+                                show: true,
+                                formatter: '买',
+                                color: '#ffffff',
+                                fontWeight: 'bold',
+                                fontSize: 10
+                            }
+                        });
+                    } else {
+                        const isProf = t.pnlPct >= 0;
+                        markPointData.push({
+                            name: 'ZIG卖点',
+                            coord: [t.datetime, t.price],
+                            value: '卖',
+                            symbol: 'pin',
+                            symbolSize: 25,
+                            symbolOffset: [0, -12],
+                            itemStyle: {
+                                color: isProf ? '#eab308' : '#10b981',
+                                borderColor: isProf ? '#854d0e' : '#065f46',
+                                borderWidth: 1.5,
+                                shadowBlur: 6,
+                                shadowColor: isProf ? 'rgba(234, 179, 8, 0.6)' : 'rgba(16, 185, 129, 0.6)'
+                            },
+                            label: {
+                                show: true,
+                                formatter: '卖',
+                                color: isProf ? '#000000' : '#ffffff',
+                                fontWeight: 'bold',
+                                fontSize: 10
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Main chart overlay: ZIG line
+            const zigSeries = [];
+            if (isZigActive && zigResult.zigArr && zigResult.zigArr.length > 0) {
+                zigSeries.push({
+                    name: 'ZIG(10%)',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: zigResult.zigArr.map(v => (v != null && !isNaN(v)) ? Number(v.toFixed(2)) : '-'),
+                    showSymbol: false,
+                    lineStyle: { width: 1.6, color: '#06b6d4', type: 'solid' },
+                    itemStyle: { color: '#06b6d4' },
+                    z: 5
+                });
+            }
+
+            // Update Header Status Tag with ZIG info
+            const tagEl = document.getElementById('kp-status-tag');
+            if (tagEl) {
+                if (isZigActive) {
+                    if (zigResult.inPos) {
+                        const lastBuy = zigResult.buyPrice;
+                        const lastClose = bars[bars.length - 1]?.close || lastBuy;
+                        const pnl = lastBuy > 0 ? ((lastClose - lastBuy) / lastBuy * 100) : 0;
+                        const sign = pnl >= 0 ? '+' : '';
+                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition';
+                        tagEl.innerText = `ZIG持仓 (${sign}${pnl.toFixed(1)}%)`;
+                    } else {
+                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+                        tagEl.innerText = `ZIG空仓等待`;
+                    }
+                } else {
+                    tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800';
+                    tagEl.innerText = '强势上攻';
+                }
             }
 
             // Main chart overlay: BOLL (draw on gridIndex 0, yAxisIndex 0)
@@ -2068,6 +2373,8 @@
                                 <div>
                                     <span style="color: ${textColor};">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${volHands}手</span>
                                 </div>
+                                ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(239,68,68,0.3);">⚡ ZIG 触发买点信号</div>' : ''}
+                                ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(234,179,8,0.3);">⚡ ZIG 触发卖点信号</div>' : ''}
                             </div>
                         `;
                     }
@@ -2130,6 +2437,7 @@
                     { name: 'MA20', type: 'line', data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
                     { name: 'MA60', type: 'line', data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
                     ...bollSeries,
+                    ...zigSeries,
                     ...subSeries
                 ]
             };

@@ -9,8 +9,7 @@ import pandas as pd
 from fastapi import APIRouter, Query
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
-from easy_tdx.models import KlineCategory
-from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL
+from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -164,6 +163,65 @@ def get_kline(
     rsi12 = RSI(c, 12)
     k_val, d_val, j_val = KDJ(c, h, l)
     boll_up, boll_mid, boll_low = BOLL(c, 20, 2)
+    
+    # ZIG Indicator & Strategy Signals (10.0% turning threshold)
+    zig_val = ZIG(c, 10.0)
+    hhv20 = HHV(h, 20)
+    n_len = len(df)
+    buy_signals = [False] * n_len
+    sell_signals = [False] * n_len
+    zig_trades = []
+    in_pos = False
+    buy_price = 0.0
+    breakout_level = 0.0
+    stop_loss_pct = 5.0
+    confirm_pct = 1.0
+
+    for i in range(1, n_len):
+        cur_c_flt = float(c[i])
+        cur_z_flt = float(zig_val[i]) if i < len(zig_val) else cur_c_flt
+        prev_z_flt = float(zig_val[i - 1]) if i - 1 < len(zig_val) else cur_c_flt
+        dt_str = str(df["datetime"].iloc[i])
+
+        if in_pos:
+            is_stop_loss = (stop_loss_pct > 0) and (cur_c_flt < buy_price * (1.0 - stop_loss_pct / 100.0))
+            if cur_z_flt < prev_z_flt or is_stop_loss:
+                breakout_level = float(hhv20[i]) if i < len(hhv20) else cur_c_flt
+                sell_signals[i] = True
+                pnl_pct = round(((cur_c_flt - buy_price) / buy_price) * 100, 2) if buy_price > 0 else 0.0
+                zig_trades.append({
+                    "action": "SELL",
+                    "datetime": dt_str,
+                    "price": round(cur_c_flt, 2),
+                    "pnl_pct": pnl_pct,
+                    "reason": "止损平仓" if is_stop_loss else "见顶卖出"
+                })
+                in_pos = False
+                buy_price = 0.0
+        else:
+            triggered_buy = False
+            b_reason = ""
+            if cur_z_flt > prev_z_flt:
+                breakout_level = 0.0
+                triggered_buy = True
+                b_reason = "波谷启动"
+            elif breakout_level > 0:
+                threshold = breakout_level * (1.0 + confirm_pct / 100.0)
+                if cur_c_flt >= threshold:
+                    breakout_level = 0.0
+                    triggered_buy = True
+                    b_reason = "突破回补"
+
+            if triggered_buy:
+                buy_signals[i] = True
+                in_pos = True
+                buy_price = cur_c_flt
+                zig_trades.append({
+                    "action": "BUY",
+                    "datetime": dt_str,
+                    "price": round(cur_c_flt, 2),
+                    "reason": b_reason
+                })
 
     bars_data = []
     for i in range(len(df)):
@@ -206,6 +264,9 @@ def get_kline(
             "boll_up": safe_float(boll_up[i]),
             "boll_mid": safe_float(boll_mid[i]),
             "boll_low": safe_float(boll_low[i]),
+            "zig": safe_float(zig_val[i]) if i < len(zig_val) else cur_c,
+            "zig_buy": buy_signals[i],
+            "zig_sell": sell_signals[i],
         })
 
     last_bar = bars_data[-1]
@@ -248,6 +309,12 @@ def get_kline(
             "ma60": last_bar["ma60"],
             "vol_ratio": last_bar["vol_ratio"],
             "datetime": last_bar["datetime"]
+        },
+        "zig_summary": {
+            "in_position": in_pos,
+            "buy_price": round(buy_price, 2) if in_pos else None,
+            "trades_count": len(zig_trades),
+            "trades": zig_trades
         },
         "data": bars_data
     }
