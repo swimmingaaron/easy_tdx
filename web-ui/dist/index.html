@@ -929,27 +929,116 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6 hidden">
-            <!-- 15s 交易时段实时数据流状态指示栏 -->
-            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-xs shadow-sm">
-                <div class="flex items-center space-x-2.5">
-                    <span class="relative flex h-2.5 w-2.5">
-                        <span id="dashboard-pulse-dot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span id="dashboard-static-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span class="font-semibold text-white">大盘全景数据流</span>
-                    <span id="dashboard-status-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">交易时段 · 15s 自动刷新</span>
-                    <label class="hidden sm:flex items-center space-x-1.5 ml-2 cursor-pointer text-[11px] text-slate-400 hover:text-slate-200 select-none">
-                        <input type="checkbox" id="dashboard-only-trading-hours" checked onchange="handleTradingHoursToggle()" class="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-0">
-                        <span>仅交易时段自动刷新 (09:15~11:30, 13:00~15:05)</span>
-                    </label>
+            <!-- 核心交易所与主要指数一览 (上交所·上证指数, 深交所·深证成指, 创业板·创业板指, 科创板·科创50, 核心宽基·沪深300) -->
+            <div id="exchange-indices-row" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                <!-- 上证指数 (上交所) -->
+                <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                     onclick="openKlineModal('999999', '上证指数')" title="点击查看 上证指数 (000001.SH) 实时K线行情与多周期指标">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">上证指数</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">上交所</span>
+                        </div>
+                        <span id="idx-pct-000001" class="text-xs font-mono font-bold text-emerald-400">-0.97%</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <span id="idx-close-000001" class="text-xl font-mono font-extrabold text-emerald-400 tracking-tight">3941.39</span>
+                        <span id="idx-amt-000001" class="text-[11px] font-mono text-slate-400">8363.68亿</span>
+                    </div>
+                    <div id="idx-spark-000001" class="w-full h-8 mt-1.5">
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="14" x2="120" y2="14" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M 0,10.5 L 10,10.2 L 25,7.8 L 40,16.5 L 55,22.0 L 70,18.2 L 85,25.4 L 100,24.1 L 120,27.5" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
                 </div>
-                <div class="flex items-center space-x-3 font-mono text-slate-400">
-                    <span class="hidden md:inline">刷新周期: <strong class="text-cyan-400">15s</strong></span>
-                    <span>最新快照时间: <strong id="dashboard-refresh-ts" class="text-emerald-400 font-bold">--:--:--.---</strong></span>
-                    <button onclick="manualRefreshDashboard()" id="btn-manual-refresh-dashboard" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-white border border-slate-700 text-xs transition cursor-pointer flex items-center space-x-1" title="立即手动拉取最新全景快照">
-                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-                        <span>手动刷新</span>
-                    </button>
+
+                <!-- 深证成指 (深交所) -->
+                <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                     onclick="openKlineModal('399001', '深证成指')" title="点击查看 深证成指 (399001.SZ) 实时K线行情与多周期指标">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">深证成指</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">深交所</span>
+                        </div>
+                        <span id="idx-pct-399001" class="text-xs font-mono font-bold text-emerald-400">-1.88%</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <span id="idx-close-399001" class="text-xl font-mono font-extrabold text-emerald-400 tracking-tight">13611.55</span>
+                        <span id="idx-amt-399001" class="text-[11px] font-mono text-slate-400">9568.11亿</span>
+                    </div>
+                    <div id="idx-spark-399001" class="w-full h-8 mt-1.5">
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="12" x2="120" y2="12" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M 0,8.5 L 12,12.0 L 25,6.5 L 42,18.0 L 58,24.5 L 75,20.0 L 92,26.5 L 120,28.0" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- 创业板指 (创业板) -->
+                <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                     onclick="openKlineModal('399006', '创业板指')" title="点击查看 创业板指 (399006.SZ) 实时K线行情与多周期指标">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">创业板指</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">创业板</span>
+                        </div>
+                        <span id="idx-pct-399006" class="text-xs font-mono font-bold text-emerald-400">-2.39%</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <span id="idx-close-399006" class="text-xl font-mono font-extrabold text-emerald-400 tracking-tight">3312.24</span>
+                        <span id="idx-amt-399006" class="text-[11px] font-mono text-slate-400">4428.89亿</span>
+                    </div>
+                    <div id="idx-spark-399006" class="w-full h-8 mt-1.5">
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="10" x2="120" y2="10" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M 0,6.0 L 15,11.5 L 30,5.0 L 48,22.0 L 65,26.5 L 82,21.0 L 100,28.5 L 120,30.0" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- 科创50 (科创板) -->
+                <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                     onclick="openKlineModal('000688.SH', '科创50')" title="点击查看 科创50 (000688.SH) 实时K线行情与多周期指标">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">科创50</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">科创板</span>
+                        </div>
+                        <span id="idx-pct-000688" class="text-xs font-mono font-bold text-emerald-400">-1.82%</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <span id="idx-close-000688" class="text-xl font-mono font-extrabold text-emerald-400 tracking-tight">1617.60</span>
+                        <span id="idx-amt-000688" class="text-[11px] font-mono text-slate-400">643.42亿</span>
+                    </div>
+                    <div id="idx-spark-000688" class="w-full h-8 mt-1.5">
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="12" x2="120" y2="12" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M 0,8.0 L 14,12.0 L 28,6.5 L 45,19.5 L 62,25.0 L 80,18.0 L 98,25.5 L 120,27.5" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- 沪深300 (核心宽基) -->
+                <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                     onclick="openKlineModal('000300.SH', '沪深300')" title="点击查看 沪深300 (000300.SH) 实时K线行情与多周期指标">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">沪深300</span>
+                            <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">核心宽基</span>
+                        </div>
+                        <span id="idx-pct-000300" class="text-xs font-mono font-bold text-emerald-400">-1.38%</span>
+                    </div>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <span id="idx-close-000300" class="text-xl font-mono font-extrabold text-emerald-400 tracking-tight">4547.96</span>
+                        <span id="idx-amt-000300" class="text-[11px] font-mono text-slate-400">4746.88亿</span>
+                    </div>
+                    <div id="idx-spark-000300" class="w-full h-8 mt-1.5">
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="13" x2="120" y2="13" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M 0,9.0 L 15,12.5 L 30,7.0 L 46,17.5 L 64,23.0 L 82,19.0 L 100,24.0 L 120,26.5" fill="none" stroke="#10b981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
                 </div>
             </div>
 
@@ -1739,7 +1828,7 @@
 
         function openKlineModal(sym, name) {
             const rawSym = String(sym || '600123').trim();
-            currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z]/g, '') || '600123';
+            currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
             currentKpStockName = name || '';
             
             // Unhide modal first so DOM has actual layout dimensions
@@ -3915,6 +4004,82 @@
             _dashboardAutoTimer = setInterval(tickDashboardOnce, 15000);
         }
 
+        function renderExchangeIndices(indices) {
+            const container = document.getElementById('exchange-indices-row');
+            if (!container || !indices || indices.length === 0) return;
+
+            container.innerHTML = indices.map(item => {
+                const isUp = Number(item.change_pct || 0) >= 0;
+                const pctStr = `${isUp ? '+' : ''}${Number(item.change_pct || 0).toFixed(2)}%`;
+                const priceStr = Number(item.close || 0).toFixed(2);
+                const amtStr = `${Number(item.amount_yi || 0).toFixed(2)}亿`;
+                const colorClass = isUp ? 'text-rose-500' : 'text-emerald-400';
+                const strokeColor = isUp ? '#ef4444' : '#10b981';
+                
+                // Build SVG Sparkline with baseline
+                let sparklineSvg = '';
+                const prices = Array.isArray(item.sparkline) && item.sparkline.length > 1 ? item.sparkline : null;
+                const preClose = Number(item.pre_close || item.close || 0);
+
+                if (prices && prices.length > 1) {
+                    const minP = Math.min(...prices, preClose);
+                    const maxP = Math.max(...prices, preClose);
+                    const range = Math.max(0.01, maxP - minP);
+                    const W = 120;
+                    const H = 34;
+                    const padY = 4;
+                    const chartH = H - padY * 2;
+                    
+                    const getY = (val) => (H - padY - ((val - minP) / range) * chartH).toFixed(1);
+                    const baseY = getY(preClose);
+                    
+                    const pts = prices.map((p, i) => {
+                        const x = ((i / (prices.length - 1)) * W).toFixed(1);
+                        const y = getY(p);
+                        return `${x},${y}`;
+                    });
+
+                    sparklineSvg = `
+                        <svg viewBox="0 0 ${W} ${H}" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="${baseY}" x2="${W}" y2="${baseY}" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                            <path d="M ${pts.join(' L ')}" fill="none" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    `;
+                } else {
+                    sparklineSvg = `
+                        <svg viewBox="0 0 120 34" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="17" x2="120" y2="17" stroke="#475569" stroke-width="0.75" stroke-dasharray="2 2" stroke-opacity="0.65"/>
+                        </svg>
+                    `;
+                }
+
+                let clickSym = item.code;
+                if (item.code === '000001') clickSym = '999999';
+                else if (item.code === '000688') clickSym = '000688.SH';
+                else if (item.code === '000300') clickSym = '000300.SH';
+                return `
+                    <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
+                         onclick="openKlineModal('${clickSym}', '${item.name}')"
+                         title="点击查看 ${item.name} (${item.code}) 实时K线行情与多周期指标">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-semibold text-slate-300 group-hover:text-white transition">${item.name}</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 font-normal border border-slate-700/50">${item.exchange || '市场'}</span>
+                            </div>
+                            <span class="text-xs font-mono font-bold ${colorClass}">${pctStr}</span>
+                        </div>
+                        <div class="flex items-baseline justify-between mt-1">
+                            <span class="text-xl font-mono font-extrabold ${colorClass} tracking-tight">${priceStr}</span>
+                            <span class="text-[11px] font-mono text-slate-400">${amtStr}</span>
+                        </div>
+                        <div class="w-full h-8 mt-1.5">
+                            ${sparklineSvg}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         async function loadDashboardData() {
             try {
                 const resp = await fetch('/api/quotes/dashboard');
@@ -3927,6 +4092,11 @@
                     if (d.update_time) {
                         const tsEl = document.getElementById('dashboard-refresh-ts');
                         if (tsEl) tsEl.innerText = `${d.update_time} (15s)`;
+                    }
+
+                    // 0. Major Exchange Indices
+                    if (d.major_indices && d.major_indices.length > 0) {
+                        renderExchangeIndices(d.major_indices);
                     }
 
                     // 1. Sentiment

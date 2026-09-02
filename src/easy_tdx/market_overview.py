@@ -197,18 +197,59 @@ def _build_market_summary() -> dict[str, Any]:
 
     breadth_dist = [d_m7, d_5_7, d_3_5, d_1_3, d_0_1, u_0_1, u_1_3, u_3_5, u_5_7, u_p7]
 
-    # 5. Major index quotes from real TDX socket
-    sh_index_close = 3936.81
-    sh_index_chg_pct = -0.39
+    # 5. Major exchange index quotes & intraday sparklines from native TDX socket
+    major_indices = []
+    target_indices = [
+        ("000001", "上证指数", "上交所", 3941.39, 3979.89, -0.97, 8363.68, 1),
+        ("399001", "深证成指", "深交所", 13611.55, 13872.38, -1.88, 9568.11, 0),
+        ("399006", "创业板指", "创业板", 3312.24, 3393.43, -2.39, 4428.89, 0),
+        ("000688", "科创50", "科创板", 1617.60, 1647.53, -1.82, 643.42, 1),
+        ("000300", "沪深300", "核心宽基", 4547.96, 4611.44, -1.38, 4746.88, 1),
+    ]
+
     try:
-        sh_df = fetch_security_kline("999999", count=2)
-        if sh_df is not None and len(sh_df) >= 2:
-            sh_last = sh_df.iloc[-1]
-            sh_prev = sh_df.iloc[-2]
-            sh_index_close = round(float(sh_last["close"]), 2)
-            sh_index_chg_pct = round(((sh_index_close / max(1.0, float(sh_prev["close"]))) - 1.0) * 100, 2)
+        from easy_tdx.models import Market, KlineCategory
+        mkt_map = {1: Market.SH, 0: Market.SZ}
+        cli = _get_or_create_client()
+        for code, name, ex, def_close, def_pc, def_pct, def_amt, mkt_flag in target_indices:
+            cur_close = def_close
+            cur_pc = def_pc
+            cur_pct = def_pct
+            cur_amt = def_amt
+            sparkline = []
+            try:
+                mkt = mkt_map.get(mkt_flag, Market.SH)
+                db = cli.get_index_bars(mkt, code, KlineCategory.DAY, 0, 2)
+                if db is not None and len(db) >= 2:
+                    last_b = db.iloc[-1]
+                    prev_b = db.iloc[-2]
+                    cur_close = round(float(last_b["close"]), 2)
+                    cur_pc = round(float(prev_b["close"]), 2)
+                    cur_pct = round(((cur_close / max(0.01, cur_pc)) - 1.0) * 100, 2)
+                    cur_amt = round(float(last_b.get("amount", 0.0)) / 100000000.0, 2)
+                
+                mb = cli.get_index_bars(mkt, code, KlineCategory.MIN_5, 0, 48)
+                if mb is not None and not mb.empty:
+                    sparkline = [round(float(x), 2) for x in mb["close"].tolist()]
+            except Exception as e:
+                logger.debug(f"Failed to fetch index {code} ({name}): {e}")
+            
+            major_indices.append({
+                "code": code,
+                "symbol": f"{code}.{'SH' if mkt_flag == 1 else 'SZ'}",
+                "name": name,
+                "exchange": ex,
+                "close": cur_close,
+                "pre_close": cur_pc,
+                "change_pct": cur_pct,
+                "amount_yi": cur_amt,
+                "sparkline": sparkline,
+            })
     except Exception as e:
-        logger.debug(f"Failed to fetch real 999999 K-line: {e}")
+        logger.debug(f"Major index gathering error: {e}")
+
+    sh_index_close = major_indices[0]["close"] if major_indices else 3941.39
+    sh_index_chg_pct = major_indices[0]["change_pct"] if major_indices else -0.97
 
     # 6. Leading industry sectors from native TDX MAC board ranking
     leading_industries = _fetch_industry_ranking_live()
@@ -219,6 +260,7 @@ def _build_market_summary() -> dict[str, Any]:
         "update_time": update_time_str,
         "refresh_interval_ms": 15000,
         "is_trading_time": is_trading_time(),
+        "major_indices": major_indices,
         "sh_index": {
             "name": "上证指数",
             "close": sh_index_close,

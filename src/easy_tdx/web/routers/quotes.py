@@ -26,24 +26,51 @@ def safe_float(val: Any, default: float | None = None) -> float | None:
         return default
 
 def _get_market_suffix(sym: str) -> tuple[str, str]:
-    if sym.startswith("88"):
-        return "HY", f"{sym}.HY"
-    elif sym.startswith(("60", "68", "99")):
-        return "SH", f"{sym}.SH"
-    elif sym.startswith(("00", "30", "399")):
-        return "SZ", f"{sym}.SZ"
-    elif sym.startswith(("4", "83", "87", "92")):
-        return "BJ", f"{sym}.BJ"
-    return "SZ", f"{sym}.SZ"
+    raw_upper = sym.strip().upper()
+    if raw_upper.endswith(".SH") or raw_upper.endswith("SH") or raw_upper.startswith("SH"):
+        clean = raw_upper.replace(".SH", "").replace("SH", "").replace(".", "")
+        return "SH", f"{clean}.SH"
+    if raw_upper.endswith(".SZ") or raw_upper.endswith("SZ") or raw_upper.startswith("SZ"):
+        clean = raw_upper.replace(".SZ", "").replace("SZ", "").replace(".", "")
+        return "SZ", f"{clean}.SZ"
+    if raw_upper.endswith(".BJ") or raw_upper.endswith("BJ") or raw_upper.startswith("BJ"):
+        clean = raw_upper.replace(".BJ", "").replace("BJ", "").replace(".", "")
+        return "BJ", f"{clean}.BJ"
+    if raw_upper.endswith(".HY") or raw_upper.endswith("HY") or raw_upper.startswith("HY"):
+        clean = raw_upper.replace(".HY", "").replace("HY", "").replace(".", "")
+        return "HY", f"{clean}.HY"
+
+    clean_sym = raw_upper.replace(".", "")
+    if clean_sym in ("999999", "999998", "999997", "000688"):
+        return "SH", f"{clean_sym}.SH"
+    if clean_sym.startswith("88"):
+        return "HY", f"{clean_sym}.HY"
+    elif clean_sym.startswith(("60", "68", "99")):
+        return "SH", f"{clean_sym}.SH"
+    elif clean_sym.startswith(("00", "30", "399")):
+        return "SZ", f"{clean_sym}.SZ"
+    elif clean_sym.startswith(("4", "83", "87", "92")):
+        return "BJ", f"{clean_sym}.BJ"
+    return "SZ", f"{clean_sym}.SZ"
 
 def _get_board_tag(sym: str) -> dict[str, str]:
-    if sym.startswith("88"):
-        return {"label": "板", "color": "#ec4899"}
-    elif sym.startswith(("300", "301")):
-        return {"label": "创", "color": "#f97316"}
-    elif sym.startswith("688"):
+    raw_upper = sym.strip().upper()
+    clean = raw_upper.replace(".SH", "").replace("SH", "").replace(".SZ", "").replace("SZ", "").replace(".BJ", "").replace("BJ", "").replace(".", "")
+    if clean in ("000688", "999688"):
         return {"label": "科", "color": "#a855f7"}
-    elif sym.startswith(("4", "8", "9")):
+    if clean in ("999999", "000001", "000300", "399300", "399001"):
+        return {"label": "指", "color": "#3b82f6"}
+    if clean == "399006":
+        return {"label": "创", "color": "#f97316"}
+    if clean == "899050":
+        return {"label": "北", "color": "#06b6d4"}
+    if clean.startswith("88"):
+        return {"label": "板", "color": "#ec4899"}
+    elif clean.startswith(("300", "301")):
+        return {"label": "创", "color": "#f97316"}
+    elif clean.startswith("688"):
+        return {"label": "科", "color": "#a855f7"}
+    elif clean.startswith(("4", "8", "9")):
         return {"label": "北", "color": "#06b6d4"}
     return {"label": "主", "color": "#3b82f6"}
 
@@ -143,16 +170,18 @@ def get_kline(
     months: int = Query(6, description="Months range")
 ):
     """Get rich real-time K-line bars directly from TDX feed, moving averages, and technical indicators."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    raw_sym = symbol.strip()
+    clean_sym = raw_sym.upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
     if not clean_sym:
         clean_sym = "000001"
+        raw_sym = "000001"
         
     n_bars = max(30, min(500, count if count != 120 else (months * 22 if months else 120)))
     
-    df = fetch_security_kline(clean_sym, count=n_bars, period=period)
-    stock_name = get_stock_name(clean_sym)
-    mkt, full_sym = _get_market_suffix(clean_sym)
-    board = _get_board_tag(clean_sym)
+    df = fetch_security_kline(raw_sym, count=n_bars, period=period)
+    mkt, full_sym = _get_market_suffix(raw_sym)
+    stock_name = get_stock_name(full_sym)
+    board = _get_board_tag(full_sym)
 
     c = df["close"].values
     h = df["high"].values

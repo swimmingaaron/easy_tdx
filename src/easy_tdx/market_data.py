@@ -20,7 +20,19 @@ CACHE_TTL_SEC = 30.0
 PRIMARY_HOSTS = ["180.153.18.170", "119.147.212.81", "115.238.56.198", "124.71.187.122"]
 
 def _get_market(symbol: str) -> Market:
-    sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    raw_upper = symbol.strip().upper().replace(".", "")
+    # Explicit exchange prefix or suffix
+    if raw_upper.startswith("SH") or raw_upper.endswith("SH"):
+        return Market.SH
+    if raw_upper.startswith("SZ") or raw_upper.endswith("SZ"):
+        return Market.SZ
+    if raw_upper.startswith("BJ") or raw_upper.endswith("BJ"):
+        return Market.BJ
+        
+    sym = raw_upper.replace("SH", "").replace("SZ", "").replace("BJ", "")
+    # Specific standard Shanghai index codes without explicit exchange suffix
+    if sym in ("999999", "999998", "999997", "000688"):
+        return Market.SH
     if sym.startswith(("60", "68", "99")):
         return Market.SH
     elif sym.startswith(("00", "30", "399")):
@@ -40,10 +52,12 @@ def _is_board_symbol(clean_sym: str) -> bool:
     return False
 
 def _is_index_symbol(clean_sym: str, market: Market) -> bool:
-    """Detect if symbol is a standard index (e.g. 999999, 399001, 399006, 000300)."""
-    if clean_sym in ("999999", "000300", "000016", "000010", "000688") or clean_sym.startswith("99"):
+    """Detect if symbol is a standard index."""
+    if market == Market.SH and (clean_sym in ("999999", "000300", "000016", "000010", "000688", "000001") or clean_sym.startswith("99")):
         return True
-    if clean_sym.startswith("399") or clean_sym in ("399001", "399006", "399300", "399005", "899050"):
+    if market == Market.SZ and (clean_sym.startswith("399") or clean_sym in ("399001", "399006", "399300", "399005")):
+        return True
+    if market == Market.BJ and clean_sym in ("899050",):
         return True
     return False
 
@@ -136,8 +150,9 @@ def fetch_security_kline(
             }
             category = cat_map.get(c_upper, KlineCategory.DAY)
 
+    market = _get_market(symbol)
     cache_suffix = "120M" if is_120m else (category.value if hasattr(category, 'value') else category)
-    cache_key = f"{clean_sym}_{cache_suffix}_{count}"
+    cache_key = f"{market.value}_{clean_sym}_{cache_suffix}_{count}"
     now = time.time()
     
     # Check cache
@@ -215,7 +230,7 @@ def fetch_security_kline(
     try:
         with _CLIENT_LOCK:
             client = _get_or_create_client()
-            market = _get_market(clean_sym)
+            market = _get_market(symbol)
             fetch_cnt = count * 2 if is_120m else count
             if _is_index_symbol(clean_sym, market):
                 df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)

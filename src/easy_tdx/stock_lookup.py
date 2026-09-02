@@ -43,8 +43,28 @@ COMMON_STOCKS = [
     {"code": "688981", "name": "中芯国际", "market": "SH", "pinyin": "ZXGJ"},
 ]
 
+COMMON_INDICES = [
+    {"code": "999999", "name": "上证指数", "market": "SH", "pinyin": "SZZS"},
+    {"code": "000001.SH", "name": "上证指数", "market": "SH", "pinyin": "SZZS"},
+    {"code": "SH000001", "name": "上证指数", "market": "SH", "pinyin": "SZZS"},
+    {"code": "399001", "name": "深证成指", "market": "SZ", "pinyin": "SZCZ"},
+    {"code": "399001.SZ", "name": "深证成指", "market": "SZ", "pinyin": "SZCZ"},
+    {"code": "399006", "name": "创业板指", "market": "SZ", "pinyin": "CYBZ"},
+    {"code": "399006.SZ", "name": "创业板指", "market": "SZ", "pinyin": "CYBZ"},
+    {"code": "000688.SH", "name": "科创50", "market": "SH", "pinyin": "KC50"},
+    {"code": "SH000688", "name": "科创50", "market": "SH", "pinyin": "KC50"},
+    {"code": "000688SH", "name": "科创50", "market": "SH", "pinyin": "KC50"},
+    {"code": "999688", "name": "科创50", "market": "SH", "pinyin": "KC50"},
+    {"code": "000300.SH", "name": "沪深300", "market": "SH", "pinyin": "HS300"},
+    {"code": "SH000300", "name": "沪深300", "market": "SH", "pinyin": "HS300"},
+    {"code": "399300", "name": "沪深300", "market": "SZ", "pinyin": "HS300"},
+    {"code": "399300.SZ", "name": "沪深300", "market": "SZ", "pinyin": "HS300"},
+    {"code": "899050", "name": "北证50", "market": "BJ", "pinyin": "BZ50"},
+    {"code": "899050.BJ", "name": "北证50", "market": "BJ", "pinyin": "BZ50"},
+]
+
 # Fast in-memory map: symbol -> name
-_SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS}
+_SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS + COMMON_INDICES}
 _BOARD_MAP: dict[str, dict[str, Any]] = {}
 _BOARD_MAP_LOADED = False
 
@@ -79,7 +99,17 @@ def _ensure_board_map():
 
 def get_stock_name(symbol: str) -> str:
     """Resolve Chinese stock or board name from symbol, with fallback."""
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(":", "")
+    raw_sym = symbol.strip().upper().replace(":", "")
+    if raw_sym in _SYMBOL_NAME_MAP:
+        return _SYMBOL_NAME_MAP[raw_sym]
+
+    clean_sym = raw_sym.replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(".", "")
+    if ("SH" in raw_sym) and f"{clean_sym}.SH" in _SYMBOL_NAME_MAP:
+        return _SYMBOL_NAME_MAP[f"{clean_sym}.SH"]
+    if ("SZ" in raw_sym) and f"{clean_sym}.SZ" in _SYMBOL_NAME_MAP:
+        return _SYMBOL_NAME_MAP[f"{clean_sym}.SZ"]
+    if raw_sym == "000688":
+        return "科创50"
     if clean_sym in _SYMBOL_NAME_MAP:
         return _SYMBOL_NAME_MAP[clean_sym]
     

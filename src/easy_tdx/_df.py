@@ -189,8 +189,9 @@ def _merge_bar_datetime(df: pd.DataFrame, daily_plus: bool) -> pd.DataFrame:
         + "-"
         + df["day"].astype(str).str.zfill(2)
     )
+    target_col = "date" if daily_plus else "datetime"
     if daily_plus:
-        df.insert(0, "date", pd.to_datetime(date_str))
+        df.insert(0, target_col, pd.to_datetime(date_str, errors="coerce"))
     else:
         full_str = (
             date_str
@@ -199,8 +200,9 @@ def _merge_bar_datetime(df: pd.DataFrame, daily_plus: bool) -> pd.DataFrame:
             + ":"
             + df["minute"].astype(str).str.zfill(2)
         )
-        df.insert(0, "datetime", pd.to_datetime(full_str))
+        df.insert(0, target_col, pd.to_datetime(full_str, errors="coerce"))
     df.drop(columns=["year", "month", "day", "hour", "minute"], inplace=True)
+    df.dropna(subset=[target_col], inplace=True)
     return df
 
 
