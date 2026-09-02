@@ -123,6 +123,7 @@
             background-color: #f1f5f9 !important;
         }
         html.light .bg-slate-900, 
+        html.light .bg-slate-900\/95,
         html.light .bg-slate-900\/90, 
         html.light .bg-slate-900\/80, 
         html.light .bg-slate-900\/70, 
@@ -237,6 +238,61 @@
         }
         html.light #sector-stocks-table tbody tr:hover {
             background-color: rgba(226, 232, 240, 0.6) !important;
+        }
+
+        /* ==================== 自选监控搜索下拉弹层背景与文字颜色优化 ==================== */
+        #watchlist-search-dropdown {
+            background: rgba(15, 23, 42, 0.98) !important;
+            border-color: #334155 !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+        }
+        #watchlist-search-dropdown .watchlist-item {
+            border-color: rgba(51, 65, 85, 0.5) !important;
+        }
+        #watchlist-search-dropdown .watchlist-item:hover {
+            background-color: rgba(30, 41, 59, 0.9) !important;
+        }
+        #watchlist-search-dropdown .stock-code {
+            color: #22d3ee !important;
+        }
+        #watchlist-search-dropdown .stock-name {
+            color: #f8fafc !important;
+        }
+        #watchlist-search-dropdown .stock-market {
+            color: #94a3b8 !important;
+            background-color: rgba(30, 41, 59, 0.7) !important;
+        }
+
+        /* 亮色模式高质感适配 (彻底解决暗黑底+黑字看不清问题) */
+        html.light #watchlist-search-dropdown {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light #watchlist-search-dropdown .watchlist-item {
+            border-color: #f1f5f9 !important;
+        }
+        html.light #watchlist-search-dropdown .watchlist-item:hover {
+            background-color: #f0f9ff !important;
+        }
+        html.light #watchlist-search-dropdown .stock-code {
+            color: #0284c7 !important;
+        }
+        html.light #watchlist-search-dropdown .stock-name {
+            color: #0f172a !important;
+        }
+        html.light #watchlist-search-dropdown .stock-market {
+            color: #64748b !important;
+            background-color: #f1f5f9 !important;
+        }
+        html.light #watchlist-add-input {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        }
+        html.light #watchlist-add-input::placeholder {
+            color: #94a3b8 !important;
         }
         @keyframes quoteProgressAnim {
             from { transform: scaleX(0); }
@@ -937,15 +993,63 @@
                 </div>
             </div>
 
-            <div class="glass-card p-5 rounded-2xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="text-sm font-semibold text-slate-200 flex items-center"><i data-lucide="list" class="w-4 h-4 mr-2 text-emerald-400"></i>easy_tdx 原生直连实时行情池</h4>
-                    <span class="text-xs text-slate-400 font-mono">点击股票代码或名称可即刻唤起 K线图</span>
+            <!-- Watchlist Real-Time Monitoring Pool (自选监控实时行情池) -->
+            <div class="glass-card p-5 rounded-2xl space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
+                    <div class="flex items-center space-x-3">
+                        <h4 class="text-sm font-semibold text-slate-200 flex items-center">
+                            <i data-lucide="star" class="w-4 h-4 mr-2 text-amber-400"></i>
+                            <span>自选监控实时行情池</span>
+                            <span class="text-xs text-slate-400 font-normal ml-2 font-mono">easy_tdx 原生直连</span>
+                        </h4>
+                        <span id="watchlist-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-950/80 text-amber-400 border border-amber-800/80">
+                            12 只标的
+                        </span>
+                    </div>
+                    
+                    <!-- Watchlist Actions: Search/Add Stock & Control Buttons -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative flex items-center">
+                            <div class="relative">
+                                <input type="text" id="watchlist-add-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)" 
+                                       class="bg-slate-900/90 border border-slate-700/80 rounded-lg pl-3 pr-8 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-56 sm:w-64 font-mono transition"
+                                       oninput="handleWatchlistSearchInput(this.value)"
+                                       onkeydown="if(event.key==='Enter') addWatchlistStock()">
+                                <button onclick="addWatchlistStock()" title="快速添加" class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 p-1">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <!-- Autocomplete Dropdown -->
+                            <div id="watchlist-search-dropdown" class="absolute left-0 top-full mt-1.5 w-full rounded-xl shadow-2xl hidden z-50 max-h-56 overflow-y-auto border backdrop-blur-md"></div>
+                        </div>
+
+                        <button onclick="addWatchlistStock()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 hover:bg-emerald-900 transition flex items-center space-x-1 cursor-pointer">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                            <span>添加自选</span>
+                        </button>
+                        <button onclick="resetWatchlistToDefault()" title="恢复默认精选监控股票池" class="px-2.5 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition cursor-pointer">
+                            恢复默认
+                        </button>
+                        <button onclick="loadRealtimeQuotes()" title="立即刷新自选行情" class="p-1.5 rounded-lg text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
                 </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
-                            <tr><th class="pb-3">股票代码</th><th class="pb-3">股票名称</th><th class="pb-3">最新价</th><th class="pb-3">涨跌幅</th><th class="pb-3">最高</th><th class="pb-3">最低</th><th class="pb-3">成交额(万)</th><th class="pb-3">形态特征</th><th class="pb-3">操作</th></tr>
+                            <tr>
+                                <th class="pb-3">股票代码</th>
+                                <th class="pb-3">股票名称</th>
+                                <th class="pb-3">最新价</th>
+                                <th class="pb-3">涨跌幅</th>
+                                <th class="pb-3">最高</th>
+                                <th class="pb-3">最低</th>
+                                <th class="pb-3">成交额(万)</th>
+                                <th class="pb-3">形态特征</th>
+                                <th class="pb-3 text-right pr-2">自选操作</th>
+                            </tr>
                         </thead>
                         <tbody id="realtime-quotes-table" class="divide-y divide-slate-800/60 font-mono"></tbody>
                     </table>
@@ -3277,30 +3381,238 @@
             runBacktest();
         }
 
+        // ==================== Custom Watchlist Monitoring Pool ==================== //
+        const DEFAULT_WATCHLIST_SYMBOLS = ['000001', '600000', '002415', '601318', '300750', '600519', '002594', '601899', '300059', '600036', '000858', '881287'];
+        const WATCHLIST_STORAGE_KEY = 'easy_tdx_custom_watchlist';
+
+        function getWatchlistSymbols() {
+            try {
+                const raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+                if (raw) {
+                    const arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) return arr;
+                }
+            } catch (e) {}
+            return [...DEFAULT_WATCHLIST_SYMBOLS];
+        }
+
+        function saveWatchlistSymbols(symbols) {
+            try {
+                localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(symbols));
+            } catch (e) {}
+        }
+
+        let watchlistSearchTimer = null;
+        async function handleWatchlistSearchInput(val) {
+            const dropdown = document.getElementById('watchlist-search-dropdown');
+            if (!dropdown) return;
+            const q = (val || '').trim();
+            if (!q) {
+                dropdown.innerHTML = '';
+                dropdown.classList.add('hidden');
+                return;
+            }
+            if (watchlistSearchTimer) clearTimeout(watchlistSearchTimer);
+            watchlistSearchTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`);
+                    if (!resp.ok) return;
+                    const json = await resp.json();
+                    const results = json.data || [];
+                    if (results.length === 0) {
+                        dropdown.innerHTML = `<div class="px-3 py-2 text-xs text-slate-400">无匹配标的</div>`;
+                        dropdown.classList.remove('hidden');
+                        return;
+                    }
+                    dropdown.innerHTML = results.slice(0, 8).map(s => `
+                        <div onclick="selectWatchlistSearchResult('${s.code}', '${s.name}')" 
+                             class="watchlist-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition border-b last:border-b-0">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="stock-code font-mono font-bold">${s.code}</span>
+                                <span class="stock-name font-sans font-medium">${s.name}</span>
+                            </div>
+                            <span class="stock-market text-[10px] font-mono px-1.5 py-0.5 rounded font-medium">${s.market || ''}</span>
+                        </div>
+                    `).join('');
+                    dropdown.classList.remove('hidden');
+                } catch (e) {
+                    console.error('Watchlist search error:', e);
+                }
+            }, 200);
+        }
+
+        function selectWatchlistSearchResult(code, name) {
+            const input = document.getElementById('watchlist-add-input');
+            if (input) input.value = code;
+            const dropdown = document.getElementById('watchlist-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            addWatchlistStock(code, name);
+        }
+
+        // Close search dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('watchlist-search-dropdown');
+            const input = document.getElementById('watchlist-add-input');
+            if (dropdown && !dropdown.contains(e.target) && e.target !== input) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        async function addWatchlistStock(explicitCode, explicitName) {
+            const input = document.getElementById('watchlist-add-input');
+            const rawVal = explicitCode || (input ? input.value.trim() : '');
+            if (!rawVal) {
+                showToast('提示', '请输入股票代码或名称');
+                return;
+            }
+
+            let codeToAdd = rawVal;
+            let nameToAdd = explicitName || '';
+
+            // If not a 6-digit code, try searching for the stock
+            if (!/^\d{6}$/.test(rawVal)) {
+                try {
+                    const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(rawVal)}`);
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        const list = json.data || [];
+                        if (list.length > 0) {
+                            codeToAdd = list[0].code;
+                            nameToAdd = list[0].name;
+                        } else {
+                            showToast('未找到标的', `未能识别「${rawVal}」，请输入正确的股票代码或名称`);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Search stock error:', e);
+                }
+            }
+
+            const symbols = getWatchlistSymbols();
+            if (symbols.includes(codeToAdd)) {
+                showToast('提示', `股票「${codeToAdd} ${nameToAdd}」已在自选监控池中`);
+                if (input) input.value = '';
+                const dropdown = document.getElementById('watchlist-search-dropdown');
+                if (dropdown) dropdown.classList.add('hidden');
+                return;
+            }
+
+            symbols.unshift(codeToAdd); // Add to top
+            saveWatchlistSymbols(symbols);
+            if (input) input.value = '';
+            const dropdown = document.getElementById('watchlist-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+
+            showToast('添加成功', `已将「${codeToAdd} ${nameToAdd}」加入自选监控池`);
+            loadRealtimeQuotes();
+        }
+
+        function removeWatchlistStock(code, name) {
+            const symbols = getWatchlistSymbols();
+            const updated = symbols.filter(s => s !== code);
+            saveWatchlistSymbols(updated);
+            showToast('已移除', `已从自选监控池移除「${code} ${name || ''}」`);
+            loadRealtimeQuotes();
+        }
+
+        function resetWatchlistToDefault() {
+            saveWatchlistSymbols([...DEFAULT_WATCHLIST_SYMBOLS]);
+            showToast('恢复默认', '已重置为系统默认自选监控池');
+            loadRealtimeQuotes();
+        }
+
         async function loadRealtimeQuotes() {
             try {
-                const resp = await fetch('/api/quotes/realtime');
+                const symbols = getWatchlistSymbols();
+                const countBadge = document.getElementById('watchlist-count-badge');
+                if (countBadge) countBadge.innerText = `${symbols.length} 只标的`;
+
+                const tableEl = document.getElementById('realtime-quotes-table');
+                if (!tableEl) return;
+
+                if (symbols.length === 0) {
+                    tableEl.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="py-10 text-center text-slate-400 font-sans">
+                                <div class="flex flex-col items-center justify-center space-y-2">
+                                    <i data-lucide="inbox" class="w-8 h-8 text-slate-500 stroke-1"></i>
+                                    <p class="text-xs">当前自选监控池为空，请在上方输入代码/名称添加，或点击「恢复默认」</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    if (window.lucide) lucide.createIcons();
+                    return;
+                }
+
+                const resp = await fetch(`/api/quotes/realtime?symbols=${encodeURIComponent(symbols.join(','))}`);
+                let quotes = [];
                 if (resp.ok) {
                     const json = await resp.json();
-                    const quotes = json.data || [];
-                    if (quotes.length > 0) {
-                        document.getElementById('realtime-quotes-table').innerHTML = quotes.map(q => `
-                            <tr class="hover:bg-slate-800/40 transition">
-                                <td class="py-3 font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
-                                <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
-                                <td class="py-3 font-bold text-white font-mono">¥${Number(q.price).toFixed(2)}</td>
-                                <td class="py-3 font-bold font-mono ${Number(q.change_pct) >= 0 ? 'text-rose-500' : 'text-emerald-400'}">${Number(q.change_pct) >= 0 ? '+' : ''}${Number(q.change_pct).toFixed(2)}%</td>
-                                <td class="py-3 text-slate-300 font-mono">¥${Number(q.high).toFixed(2)}</td>
-                                <td class="py-3 text-slate-300 font-mono">¥${Number(q.low).toFixed(2)}</td>
-                                <td class="py-3 text-slate-400 font-mono">${Number(q.turnover_wan).toLocaleString()}</td>
-                                <td class="py-3 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
-                                <td class="py-3 flex items-center space-x-2">
-                                    <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900">K线</button>
-                                    <button onclick="quickBacktest('${q.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900">回测</button>
-                                </td>
-                            </tr>
-                        `).join('');
-                    }
+                    quotes = json.data || [];
+                }
+
+                // Map quotes by code
+                const quoteMap = {};
+                quotes.forEach(q => { quoteMap[q.code] = q; });
+
+                // Check for any missing symbols in the user's custom watchlist
+                const missing = symbols.filter(s => !quoteMap[s]);
+                if (missing.length > 0) {
+                    const extraPromises = missing.map(async (code) => {
+                        try {
+                            const r = await fetch(`/api/quotes/kline?symbol=${encodeURIComponent(code)}&count=2`);
+                            if (r.ok) {
+                                const kj = await r.json();
+                                const q = kj.quote || {};
+                                return {
+                                    code: code,
+                                    name: kj.name || code,
+                                    price: q.price || q.close || 0,
+                                    change_pct: q.change_pct || 0,
+                                    high: q.high || 0,
+                                    low: q.low || 0,
+                                    turnover_wan: q.amount ? Math.round(q.amount / 10000) : 0,
+                                    status: (q.change_pct > 1.5) ? '多头排列' : ((q.change_pct > 0) ? '放量突破' : '缩量回踩')
+                                };
+                            }
+                        } catch (err) {}
+                        return null;
+                    });
+                    const extraResults = await Promise.all(extraPromises);
+                    extraResults.forEach(item => {
+                        if (item) quoteMap[item.code] = item;
+                    });
+                }
+
+                // Build ordered list strictly following user's watchlist symbols
+                const orderedQuotes = symbols.map(s => quoteMap[s]).filter(Boolean);
+
+                if (orderedQuotes.length > 0) {
+                    tableEl.innerHTML = orderedQuotes.map(q => `
+                        <tr class="hover:bg-slate-800/40 transition group">
+                            <td class="py-3 font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
+                            <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
+                            <td class="py-3 font-bold text-white font-mono">¥${Number(q.price).toFixed(2)}</td>
+                            <td class="py-3 font-bold font-mono ${Number(q.change_pct) >= 0 ? 'text-rose-500' : 'text-emerald-400'}">${Number(q.change_pct) >= 0 ? '+' : ''}${Number(q.change_pct).toFixed(2)}%</td>
+                            <td class="py-3 text-slate-300 font-mono">¥${Number(q.high).toFixed(2)}</td>
+                            <td class="py-3 text-slate-300 font-mono">¥${Number(q.low).toFixed(2)}</td>
+                            <td class="py-3 text-slate-400 font-mono">${Number(q.turnover_wan).toLocaleString()}</td>
+                            <td class="py-3 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
+                            <td class="py-3 pr-2 text-right">
+                                <div class="flex items-center justify-end space-x-1.5">
+                                    <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                    <button onclick="quickBacktest('${q.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer">回测</button>
+                                    <button onclick="removeWatchlistStock('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-rose-950/70 text-rose-400 border border-rose-800/80 text-xs hover:bg-rose-900 transition flex items-center space-x-0.5 cursor-pointer" title="移出自选池">
+                                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                        <span>删除</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                    if (window.lucide) lucide.createIcons();
                 }
             } catch (e) {
                 console.error('Failed to load realtime quotes:', e);

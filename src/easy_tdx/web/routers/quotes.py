@@ -52,25 +52,37 @@ _REALTIME_QUOTES_LOCK = threading.Lock()
 REALTIME_TTL = 15.0
 
 @router.get("/realtime")
-def get_realtime_quotes():
-    """Get live pool quotes with stock name and metrics directly from TDX with 15s caching."""
+def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-separated stock symbols for custom watchlist")):
+    """Get live pool quotes with stock name and metrics directly from TDX with caching."""
     global _REALTIME_QUOTES_CACHE
     now = time.time()
-    with _REALTIME_QUOTES_LOCK:
-        if _REALTIME_QUOTES_CACHE is not None:
-            ts, cached = _REALTIME_QUOTES_CACHE
-            if now - ts < REALTIME_TTL:
-                return {"status": "success", "count": len(cached), "data": cached}
+    
+    clean_syms: list[str] = []
+    if symbols:
+        raw_list = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "") 
+                    for s in symbols.split(",") if s.strip()]
+        seen = set()
+        for s in raw_list:
+            if s and s not in seen:
+                seen.add(s)
+                clean_syms.append(s)
+    
+    # If no symbols provided, check default cache
+    if not clean_syms:
+        with _REALTIME_QUOTES_LOCK:
+            if _REALTIME_QUOTES_CACHE is not None:
+                ts, cached = _REALTIME_QUOTES_CACHE
+                if now - ts < REALTIME_TTL:
+                    return {"status": "success", "count": len(cached), "data": cached}
+        pool_stocks = COMMON_STOCKS[:12]
+        clean_syms = [s["code"] for s in pool_stocks]
 
-    pool_stocks = COMMON_STOCKS[:12]
-    symbols = [s["code"] for s in pool_stocks]
-    real_quotes = fetch_realtime_pool_quotes(symbols)
+    real_quotes = fetch_realtime_pool_quotes(clean_syms)
     quote_map = {q["code"]: q for q in real_quotes}
     data = []
     
-    for s in pool_stocks:
-        code = s["code"]
-        name = s["name"]
+    for code in clean_syms:
+        name = get_stock_name(code)
         mkt, full_sym = _get_market_suffix(code)
         
         if code in quote_map:
@@ -95,7 +107,7 @@ def get_realtime_quotes():
                 prev_close = float(prev_bar["close"])
                 chg = round(((p / max(0.01, prev_close)) - 1.0) * 100, 2)
             else:
-                continue
+                p, h, l, v, amt, chg = 0.0, 0.0, 0.0, 0, 0.0, 0.0
             
         data.append({
             "symbol": code,
@@ -113,8 +125,9 @@ def get_realtime_quotes():
             "status": "多头排列" if chg > 1.5 else ("放量突破" if chg > 0 else "缩量回踩")
         })
         
-    with _REALTIME_QUOTES_LOCK:
-        _REALTIME_QUOTES_CACHE = (now, data)
+    if not symbols:
+        with _REALTIME_QUOTES_LOCK:
+            _REALTIME_QUOTES_CACHE = (now, data)
         
     return {
         "status": "success",
