@@ -294,6 +294,49 @@
         html.light #watchlist-add-input::placeholder {
             color: #94a3b8 !important;
         }
+
+        /* K线弹窗加入/移出自选按钮响应样式 */
+        #kp-watchlist-btn.is-in-watchlist {
+            background-color: rgba(69, 26, 3, 0.8) !important;
+            color: #fbbf24 !important;
+            border-color: rgba(146, 64, 14, 0.8) !important;
+        }
+        #kp-watchlist-btn.is-in-watchlist:hover {
+            background-color: rgba(76, 5, 25, 0.85) !important;
+            color: #fb7185 !important;
+            border-color: rgba(159, 18, 57, 0.85) !important;
+        }
+        #kp-watchlist-btn.not-in-watchlist {
+            background-color: rgba(30, 41, 59, 0.9) !important;
+            color: #cbd5e1 !important;
+            border-color: rgba(51, 65, 85, 0.8) !important;
+        }
+        #kp-watchlist-btn.not-in-watchlist:hover {
+            background-color: rgba(69, 26, 3, 0.8) !important;
+            color: #fbbf24 !important;
+            border-color: rgba(146, 64, 14, 0.8) !important;
+        }
+
+        html.light #kp-watchlist-btn.is-in-watchlist {
+            background-color: #fefce8 !important;
+            color: #b45309 !important;
+            border-color: #fde047 !important;
+        }
+        html.light #kp-watchlist-btn.is-in-watchlist:hover {
+            background-color: #fff1f2 !important;
+            color: #e11d48 !important;
+            border-color: #fecdd3 !important;
+        }
+        html.light #kp-watchlist-btn.not-in-watchlist {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #kp-watchlist-btn.not-in-watchlist:hover {
+            background-color: #fefce8 !important;
+            color: #b45309 !important;
+            border-color: #fde047 !important;
+        }
         @keyframes quoteProgressAnim {
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
@@ -1048,7 +1091,7 @@
                                 <th class="pb-3">最低</th>
                                 <th class="pb-3">成交额(万)</th>
                                 <th class="pb-3">形态特征</th>
-                                <th class="pb-3 text-right pr-2">自选操作</th>
+                                <th class="pb-3 text-right pr-2">操作</th>
                             </tr>
                         </thead>
                         <tbody id="realtime-quotes-table" class="divide-y divide-slate-800/60 font-mono"></tbody>
@@ -1339,8 +1382,10 @@
 
                 <!-- Right Action Icons -->
                 <div class="flex items-center space-x-2 text-slate-400 text-xs">
-                    <button class="p-1.5 rounded-lg hover:text-amber-400 hover:bg-slate-800 transition" title="收藏"><i data-lucide="star" class="w-4 h-4"></i></button>
-                    <button class="p-1.5 rounded-lg hover:text-cyan-400 hover:bg-slate-800 transition" title="异动监控"><i data-lucide="radio" class="w-4 h-4"></i></button>
+                    <button id="kp-watchlist-btn" onclick="toggleKpWatchlist()" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer not-in-watchlist" title="加入或移出自选监控池">
+                        <i id="kp-watchlist-icon" data-lucide="star" class="w-3.5 h-3.5"></i>
+                        <span id="kp-watchlist-text">加入自选</span>
+                    </button>
                     <button onclick="openBacktestWithSymbol()" class="flex items-center space-x-1 px-2.5 py-1 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800 hover:bg-cyan-900 transition text-xs">
                         <i data-lucide="play" class="w-3 h-3"></i>
                         <span>回测</span>
@@ -1674,6 +1719,7 @@
         let currentKpPeriod = 'DAY';
         let currentKpSub = 'vol';
         let currentKpData = null;
+        let currentKpStockName = '';
 
         function setKpPeriod(p) {
             currentKpPeriod = p;
@@ -1694,6 +1740,7 @@
         function openKlineModal(sym, name) {
             const rawSym = String(sym || '600123').trim();
             currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z]/g, '') || '600123';
+            currentKpStockName = name || '';
             
             // Unhide modal first so DOM has actual layout dimensions
             const modal = document.getElementById('kline-preview-modal');
@@ -1703,8 +1750,11 @@
             // Render temporary name while fetching
             if (name) {
                 document.getElementById('kp-stock-name').innerText = name;
+                document.getElementById('kp-stock-name-inline').innerText = name;
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
+            document.getElementById('kp-full-symbol-inline').innerText = currentKpSymbol;
+            updateKpWatchlistButton();
 
             // Reset period buttons state if needed
             const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
@@ -2035,10 +2085,12 @@
 
                     const fullSym = json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`;
                     const sName = json.name || currentKpSymbol;
+                    currentKpStockName = sName;
                     if (document.getElementById('kp-full-symbol')) document.getElementById('kp-full-symbol').innerText = fullSym;
                     if (document.getElementById('kp-stock-name')) document.getElementById('kp-stock-name').innerText = sName;
                     if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
                     if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
+                    updateKpWatchlistButton();
                     
                     const bars = json.data || [];
                     if (bars.length > 0) {
@@ -3520,6 +3572,51 @@
             saveWatchlistSymbols([...DEFAULT_WATCHLIST_SYMBOLS]);
             showToast('恢复默认', '已重置为系统默认自选监控池');
             loadRealtimeQuotes();
+            updateKpWatchlistButton();
+        }
+
+        function updateKpWatchlistButton() {
+            const btn = document.getElementById('kp-watchlist-btn');
+            const icon = document.getElementById('kp-watchlist-icon');
+            const text = document.getElementById('kp-watchlist-text');
+            if (!btn) return;
+
+            const code = String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+            const symbols = getWatchlistSymbols();
+            const inWatchlist = symbols.includes(code);
+
+            btn.classList.remove('is-in-watchlist', 'not-in-watchlist');
+            if (inWatchlist) {
+                btn.classList.add('is-in-watchlist');
+                btn.title = '已在自选池中，点击移出';
+                if (text) text.innerText = '从自选删除';
+                if (icon) {
+                    icon.className = 'w-3.5 h-3.5 fill-current text-current';
+                }
+            } else {
+                btn.classList.add('not-in-watchlist');
+                btn.title = '点击加入自选监控池';
+                if (text) text.innerText = '加入自选';
+                if (icon) {
+                    icon.className = 'w-3.5 h-3.5 text-current';
+                }
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function toggleKpWatchlist() {
+            const code = String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+            if (!code) return;
+            const symbols = getWatchlistSymbols();
+            const inWatchlist = symbols.includes(code);
+            const sName = currentKpStockName || document.getElementById('kp-stock-name')?.innerText || code;
+
+            if (inWatchlist) {
+                removeWatchlistStock(code, sName);
+            } else {
+                addWatchlistStock(code, sName);
+            }
+            updateKpWatchlistButton();
         }
 
         async function loadRealtimeQuotes() {
@@ -3604,10 +3701,6 @@
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
                                     <button onclick="quickBacktest('${q.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer">回测</button>
-                                    <button onclick="removeWatchlistStock('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-rose-950/70 text-rose-400 border border-rose-800/80 text-xs hover:bg-rose-900 transition flex items-center space-x-0.5 cursor-pointer" title="移出自选池">
-                                        <i data-lucide="trash-2" class="w-3 h-3"></i>
-                                        <span>删除</span>
-                                    </button>
                                 </div>
                             </td>
                         </tr>
