@@ -432,7 +432,7 @@
                 <span id="theme-toggle-text" class="hidden sm:inline font-medium">暗色</span>
             </button>
 
-            <button onclick="toggleTTS()" id="tts-btn" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 transition"><i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-400"></i><span id="tts-text">语音: 开</span></button>
+            <button onclick="toggleTTS()" id="tts-btn" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 transition cursor-pointer" title="点击开关语音播报"><i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i><span id="tts-text">语音: 关</span></button>
             
             <!-- Clickable Server Status Badge -->
             <button onclick="openServerModal()" id="top-server-badge" class="flex items-center space-x-2 text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/90 px-3 py-1.5 rounded-lg font-mono transition shadow-sm cursor-pointer group" title="点击查看所有服务器、测速与切换">
@@ -1613,8 +1613,36 @@
 
     <script>
         lucide.createIcons();
-        let ttsEnabled = true;
-        function toggleTTS() { ttsEnabled = !ttsEnabled; document.getElementById('tts-text').innerText = ttsEnabled ? '语音: 开' : '语音: 关'; }
+        let ttsEnabled = false;
+        try {
+            const savedTTS = localStorage.getItem('tts_enabled');
+            if (savedTTS !== null) {
+                ttsEnabled = savedTTS === 'true';
+            } else {
+                ttsEnabled = false;
+            }
+        } catch(e) {
+            ttsEnabled = false;
+        }
+
+        function updateTTSUI() {
+            const textEl = document.getElementById('tts-text');
+            const btnEl = document.getElementById('tts-btn');
+            if (textEl) textEl.innerText = ttsEnabled ? '语音: 开' : '语音: 关';
+            if (btnEl) {
+                btnEl.innerHTML = `<i data-lucide="${ttsEnabled ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5 ${ttsEnabled ? 'text-cyan-400' : 'text-slate-400'}"></i><span id="tts-text">${ttsEnabled ? '语音: 开' : '语音: 关'}</span>`;
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+        updateTTSUI();
+
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            try { localStorage.setItem('tts_enabled', ttsEnabled); } catch(e) {}
+            updateTTSUI();
+            showToast('语音播报', ttsEnabled ? '语音播报已开启' : '语音播报已关闭');
+        }
+
         function speak(text) { if (!ttsEnabled || !('speechSynthesis' in window)) return; const utt = new SpeechSynthesisUtterance(text); utt.lang = 'zh-CN'; window.speechSynthesis.speak(utt); }
         function showToast(title, msg) {
             const c = document.getElementById('toast-container');
@@ -3525,22 +3553,60 @@
         // ==================== Custom Watchlist Monitoring Pool ==================== //
         const DEFAULT_WATCHLIST_SYMBOLS = ['000001', '600000', '002415', '601318', '300750', '600519', '002594', '601899', '300059', '600036', '000858', '881287'];
         const WATCHLIST_STORAGE_KEY = 'easy_tdx_custom_watchlist';
+        let _cachedWatchlistSymbols = null;
 
         function getWatchlistSymbols() {
+            if (_cachedWatchlistSymbols && Array.isArray(_cachedWatchlistSymbols) && _cachedWatchlistSymbols.length > 0) {
+                return [..._cachedWatchlistSymbols];
+            }
             try {
                 const raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
                 if (raw) {
                     const arr = JSON.parse(raw);
-                    if (Array.isArray(arr)) return arr;
+                    if (Array.isArray(arr) && arr.length > 0) {
+                        _cachedWatchlistSymbols = [...arr];
+                        return arr;
+                    }
                 }
             } catch (e) {}
             return [...DEFAULT_WATCHLIST_SYMBOLS];
         }
 
-        function saveWatchlistSymbols(symbols) {
+        async function syncWatchlistFromBackend() {
+            try {
+                const resp = await fetch('/api/quotes/watchlist');
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                        _cachedWatchlistSymbols = [...json.data];
+                        try { localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(json.data)); } catch(e) {}
+                        const countBadge = document.getElementById('watchlist-count-badge');
+                        if (countBadge) countBadge.innerText = `${json.data.length} 只标的`;
+                        updateKpWatchlistButton();
+                        return json.data;
+                    }
+                }
+            } catch (e) {
+                console.debug('Failed to sync watchlist from backend:', e);
+            }
+            return getWatchlistSymbols();
+        }
+
+        async function saveWatchlistSymbols(symbols) {
+            _cachedWatchlistSymbols = [...symbols];
             try {
                 localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(symbols));
             } catch (e) {}
+            // Permanently persist to backend file
+            try {
+                await fetch('/api/quotes/watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbols: symbols })
+                });
+            } catch (e) {
+                console.debug('Failed to persist watchlist to backend:', e);
+            }
         }
 
         let watchlistSearchTimer = null;
@@ -3657,8 +3723,19 @@
             loadRealtimeQuotes();
         }
 
-        function resetWatchlistToDefault() {
-            saveWatchlistSymbols([...DEFAULT_WATCHLIST_SYMBOLS]);
+        async function resetWatchlistToDefault() {
+            try {
+                const resp = await fetch('/api/quotes/watchlist/reset', { method: 'POST' });
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json.data) {
+                        _cachedWatchlistSymbols = [...json.data];
+                        try { localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(json.data)); } catch(e) {}
+                    }
+                }
+            } catch (e) {
+                await saveWatchlistSymbols([...DEFAULT_WATCHLIST_SYMBOLS]);
+            }
             showToast('恢复默认', '已重置为系统默认自选监控池');
             loadRealtimeQuotes();
             updateKpWatchlistButton();
@@ -4988,6 +5065,7 @@
             // Initialize backtest dates (end date defaults to today)
             initBacktestDates(true);
 
+            await syncWatchlistFromBackend();
             loadDashboardData();
             loadRealtimeQuotes();
             loadLadderData();

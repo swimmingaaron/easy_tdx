@@ -74,9 +74,53 @@ def _get_board_tag(sym: str) -> dict[str, str]:
         return {"label": "北", "color": "#06b6d4"}
     return {"label": "主", "color": "#3b82f6"}
 
+from pydantic import BaseModel
+
+class WatchlistUpdateRequest(BaseModel):
+    symbols: list[str]
+
 _REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
 _REALTIME_QUOTES_LOCK = threading.Lock()
 REALTIME_TTL = 15.0
+
+@router.get("/watchlist")
+def get_watchlist():
+    """Get permanently saved watchlist symbols."""
+    from easy_tdx.watchlist_store import load_watchlist
+    symbols = load_watchlist()
+    return {
+        "status": "success",
+        "count": len(symbols),
+        "data": symbols
+    }
+
+@router.post("/watchlist")
+def update_watchlist(req: WatchlistUpdateRequest):
+    """Permanently persist watchlist symbols."""
+    from easy_tdx.watchlist_store import save_watchlist
+    symbols = save_watchlist(req.symbols)
+    global _REALTIME_QUOTES_CACHE
+    with _REALTIME_QUOTES_LOCK:
+        _REALTIME_QUOTES_CACHE = None
+    return {
+        "status": "success",
+        "count": len(symbols),
+        "data": symbols
+    }
+
+@router.post("/watchlist/reset")
+def reset_watchlist_endpoint():
+    """Reset watchlist to defaults."""
+    from easy_tdx.watchlist_store import reset_watchlist
+    symbols = reset_watchlist()
+    global _REALTIME_QUOTES_CACHE
+    with _REALTIME_QUOTES_LOCK:
+        _REALTIME_QUOTES_CACHE = None
+    return {
+        "status": "success",
+        "count": len(symbols),
+        "data": symbols
+    }
 
 @router.get("/realtime")
 def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-separated stock symbols for custom watchlist")):
@@ -94,15 +138,15 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
                 seen.add(s)
                 clean_syms.append(s)
     
-    # If no symbols provided, check default cache
+    # If no symbols provided, check default cache and load persistent watchlist
     if not clean_syms:
+        from easy_tdx.watchlist_store import load_watchlist
+        clean_syms = load_watchlist()
         with _REALTIME_QUOTES_LOCK:
             if _REALTIME_QUOTES_CACHE is not None:
                 ts, cached = _REALTIME_QUOTES_CACHE
                 if now - ts < REALTIME_TTL:
                     return {"status": "success", "count": len(cached), "data": cached}
-        pool_stocks = COMMON_STOCKS[:12]
-        clean_syms = [s["code"] for s in pool_stocks]
 
     real_quotes = fetch_realtime_pool_quotes(clean_syms)
     quote_map = {q["code"]: q for q in real_quotes}
