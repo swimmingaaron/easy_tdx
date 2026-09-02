@@ -2114,21 +2114,6 @@
                 });
             }
 
-            // Main chart overlay: ZIG line
-            const zigSeries = [];
-            if (isZigActive && zigResult.zigArr && zigResult.zigArr.length > 0) {
-                zigSeries.push({
-                    name: 'ZIG(10%)',
-                    type: 'line',
-                    xAxisIndex: 0,
-                    yAxisIndex: 0,
-                    data: zigResult.zigArr.map(v => (v != null && !isNaN(v)) ? Number(v.toFixed(2)) : '-'),
-                    showSymbol: false,
-                    lineStyle: { width: 1.6, color: '#06b6d4', type: 'solid' },
-                    itemStyle: { color: '#06b6d4' },
-                    z: 5
-                });
-            }
 
             // Update Header Status Tag with ZIG info
             const tagEl = document.getElementById('kp-status-tag');
@@ -2437,7 +2422,6 @@
                     { name: 'MA20', type: 'line', data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
                     { name: 'MA60', type: 'line', data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
                     ...bollSeries,
-                    ...zigSeries,
                     ...subSeries
                 ]
             };
