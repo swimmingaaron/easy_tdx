@@ -2590,11 +2590,11 @@
                         lineStyle: { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)', type: 'dashed' },
                         label: { backgroundColor: axisPointerBg }
                     },
-                    backgroundColor: tooltipBg,
-                    borderColor: tooltipBorder,
-                    borderWidth: 1,
-                    padding: [8, 12],
-                    extraCssText: isDark ? 'box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); border-radius: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);' : 'box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); border-radius: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);',
+                    backgroundColor: 'transparent',
+                    borderColor: 'transparent',
+                    borderWidth: 0,
+                    padding: 0,
+                    extraCssText: 'box-shadow: none; border: none; background: transparent; pointer-events: none;',
                     formatter: (params) => {
                         const p0 = params[0];
                         if (!p0) return '';
@@ -2624,32 +2624,34 @@
 
                         // Format Volume: 手 (1手 = 100股)
                         const volHands = Math.round(Number(bar.volume || 0) / 100);
+                        const labelClr = isDark ? '#94a3b8' : '#334155';
+                        const txtShadow = isDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);' : 'text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 6px rgba(255,255,255,0.9);';
 
                         return `
-                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 190px;">
-                                <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 1px solid ${tooltipDivider}; font-size: 13px;">
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.45; color: ${tooltipTextColor}; min-width: 175px; background: transparent; pointer-events: none; ${txtShadow}">
+                                <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px dashed ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}; font-size: 13px;">
                                     ${stockName} (${stockCode}) ${formatDatetimeWithWeekday(bar.datetime)}
                                 </div>
-                                <div style="margin-bottom: 2px;">
-                                    <span style="color: ${textColor};">开盘: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${Number(bar.open).toFixed(2)}</span>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">开盘: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.open).toFixed(2)}</span>
                                 </div>
-                                <div style="margin-bottom: 2px;">
-                                    <span style="color: ${textColor};">收盘: </span><span style="color: ${chgColor}; font-weight: 700;">${Number(bar.close).toFixed(2)}&nbsp;&nbsp;(${chgSign}${chgPct.toFixed(2)}%)</span>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">收盘: </span><span style="color: ${chgColor}; font-weight: 700;">${Number(bar.close).toFixed(2)}&nbsp;&nbsp;(${chgSign}${chgPct.toFixed(2)}%)</span>
                                 </div>
-                                <div style="margin-bottom: 2px;">
-                                    <span style="color: ${textColor};">最高: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${Number(bar.high).toFixed(2)}</span>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">最高: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.high).toFixed(2)}</span>
                                 </div>
-                                <div style="margin-bottom: 2px;">
-                                    <span style="color: ${textColor};">最低: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${Number(bar.low).toFixed(2)}</span>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">最低: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.low).toFixed(2)}</span>
                                 </div>
-                                <div style="margin-bottom: 2px;">
-                                    <span style="color: ${textColor};">成交额: </span><span style="color: ${tooltipTitleColor}; font-weight: 700;">${amtStr}</span>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">成交额: </span><span style="color: ${tooltipTitleColor}; font-weight: 700;">${amtStr}</span>
                                 </div>
                                 <div>
-                                    <span style="color: ${textColor};">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${volHands}手</span>
+                                    <span style="color: ${labelClr}; font-weight: 500;">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${volHands}手</span>
                                 </div>
-                                ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(239,68,68,0.3);">⚡ ZIG 触发买点信号</div>' : ''}
-                                ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(234,179,8,0.3);">⚡ ZIG 触发卖点信号</div>' : ''}
+                                ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(239,68,68,0.4);">⚡ ZIG 触发买点信号</div>' : ''}
+                                ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(234,179,8,0.4);">⚡ ZIG 触发卖点信号</div>' : ''}
                             </div>
                         `;
                     }
