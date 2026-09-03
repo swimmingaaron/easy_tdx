@@ -245,6 +245,12 @@
         }
 
         /* ==================== 行业板块列表 护眼与质感配色体系 ==================== */
+        .industry-grid-layout {
+            display: grid;
+            grid-template-columns: 24px minmax(72px, 1.1fr) 52px minmax(56px, 0.9fr) minmax(64px, 1fr) minmax(64px, 1fr) minmax(64px, 1fr) 80px;
+            gap: 6px;
+            align-items: center;
+        }
         .industry-table-header {
             background-color: rgba(30, 41, 59, 0.75);
             color: #94a3b8;
@@ -1293,31 +1299,44 @@
                                 </div>
                             </div>
 
-                            <!-- 一行一个板块 表头 (增加独立 代码 列，采用护眼专用类 industry-table-header) -->
-                            <div class="industry-table-header grid grid-cols-12 gap-1 px-2.5 py-1.5 text-[11px] font-medium select-none rounded-t-lg">
-                                <div class="col-span-1 flex items-center">
-                                    <span>#</span>
-                                </div>
-                                <div class="col-span-3 flex items-center">
-                                    <span>板块名称</span>
-                                </div>
-                                <div class="col-span-2 flex items-center">
-                                    <span>代码</span>
-                                </div>
-                                <div class="col-span-2 text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('change_pct')" title="点击按涨跌幅排序">
-                                    <span>涨跌幅</span>
-                                    <span id="industry-th-sort-icon" class="text-[10px] text-rose-400 font-bold">↓</span>
-                                </div>
-                                <div class="col-span-2 text-right cursor-pointer hover:text-cyan-400" onclick="toggleIndustrySort('net_inflow_yi')" title="点击按主力净流入排序">
-                                    <span>净流入</span>
-                                </div>
-                                <div class="col-span-2 text-center">
-                                    <span>操作</span>
+                            <!-- 一行一个板块 表头与列表容器 (包裹在水平可滚动容器内，支持极窄屏自适应，8列无损呈现) -->
+                            <div class="overflow-x-auto flex-1 flex flex-col">
+                                <div class="min-w-[440px] flex flex-col flex-1">
+                                    <div class="industry-table-header industry-grid-layout px-2 py-1.5 text-[11px] font-medium select-none rounded-t-lg">
+                                        <div class="flex items-center">
+                                            <span>#</span>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <span>板块名称</span>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <span>代码</span>
+                                        </div>
+                                        <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('change_pct')" title="点击按涨跌幅排序">
+                                            <span>涨跌幅</span>
+                                            <span id="industry-th-sort-chg" class="text-[10px] text-rose-400 font-bold">↓</span>
+                                        </div>
+                                        <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('net_inflow_yi')" title="点击按当日主力净流入排序">
+                                            <span>当日净流入</span>
+                                            <span id="industry-th-sort-1d" class="text-[10px] font-bold"></span>
+                                        </div>
+                                        <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('net_inflow_3d_yi')" title="点击按3日主力净流入排序">
+                                            <span>3日净流入</span>
+                                            <span id="industry-th-sort-3d" class="text-[10px] font-bold"></span>
+                                        </div>
+                                        <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('net_inflow_5d_yi')" title="点击按5日主力净流入排序">
+                                            <span>5日净流入</span>
+                                            <span id="industry-th-sort-5d" class="text-[10px] font-bold"></span>
+                                        </div>
+                                        <div class="text-center">
+                                            <span>操作</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 一行一个板块 列表容器 (单行高度紧凑，max-h-[380px] 平滑滚动浏览全部板块) -->
+                                    <div class="overflow-y-auto max-h-[380px] pr-1 flex-1 font-mono" id="industry-list"></div>
                                 </div>
                             </div>
-
-                            <!-- 一行一个板块 列表容器 (单行高度紧凑，max-h-[380px] 平滑滚动浏览全部板块) -->
-                            <div class="overflow-y-auto max-h-[380px] pr-1 flex-1 font-mono" id="industry-list"></div>
                         </div>
 
                         <!-- 板块成分股信息 (占 1/2 of 2/3) -->
@@ -1329,19 +1348,30 @@
                                 </h4>
                                 <span id="sector-stocks-count" class="text-[11px] font-mono text-cyan-400">点击左侧板块查看</span>
                             </div>
-                            <div class="overflow-y-auto max-h-[380px] pr-1 flex-1">
-                                <table class="w-full text-left text-xs font-mono">
+                            <div class="overflow-x-auto overflow-y-auto max-h-[380px] pr-1 flex-1">
+                                <table class="w-full min-w-[490px] text-left text-xs font-mono">
                                     <thead class="text-slate-400 border-b border-slate-800 pb-1.5 sticky top-0 bg-slate-900/95 backdrop-blur z-10">
                                         <tr>
                                             <th class="pb-2 font-medium">代码</th>
                                             <th class="pb-2 font-medium">名称</th>
-                                            <th class="pb-2 font-medium text-right">最新价</th>
-                                            <th class="pb-2 font-medium text-right">涨跌幅</th>
+                                            <th class="pb-2 font-medium text-right cursor-pointer hover:text-cyan-400" onclick="toggleSectorStocksSort('price')" title="点击按最新价排序">最新价</th>
+                                            <th class="pb-2 font-medium text-right cursor-pointer hover:text-cyan-400" onclick="toggleSectorStocksSort('change_pct')" title="点击按涨跌幅排序">
+                                                涨跌幅 <span id="sector-th-sort-chg" class="text-[10px] text-rose-400 font-bold">↓</span>
+                                            </th>
+                                            <th class="pb-2 font-medium text-right cursor-pointer hover:text-cyan-400" onclick="toggleSectorStocksSort('main_net_amount')" title="点击按当日主力净流入排序">
+                                                当日净流入 <span id="sector-th-sort-1d" class="text-[10px] font-bold"></span>
+                                            </th>
+                                            <th class="pb-2 font-medium text-right cursor-pointer hover:text-cyan-400" onclick="toggleSectorStocksSort('main_net_3d')" title="点击按3日主力净流入排序">
+                                                3日净流入 <span id="sector-th-sort-3d" class="text-[10px] font-bold"></span>
+                                            </th>
+                                            <th class="pb-2 font-medium text-right cursor-pointer hover:text-cyan-400" onclick="toggleSectorStocksSort('main_net_5d')" title="点击按5日主力净流入排序">
+                                                5日净流入 <span id="sector-th-sort-5d" class="text-[10px] font-bold"></span>
+                                            </th>
                                             <th class="pb-2 font-medium text-center">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="sector-stocks-table" class="divide-y divide-slate-800/40">
-                                        <tr><td colspan="5" class="py-8 text-center text-slate-500">正在载入板块成分股...</td></tr>
+                                        <tr><td colspan="8" class="py-8 text-center text-slate-500">正在载入板块成分股...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1404,7 +1434,10 @@
                                 <th class="pb-3">最高</th>
                                 <th class="pb-3">最低</th>
                                 <th class="pb-3">成交额(万)</th>
-                                <th class="pb-3">形态特征</th>
+                                <th class="pb-3 text-right">当日净流入</th>
+                                <th class="pb-3 text-right">3日净流入</th>
+                                <th class="pb-3 text-right">5日净流入</th>
+                                <th class="pb-3 pl-4">形态特征</th>
                                 <th class="pb-3 text-right pr-2">操作</th>
                             </tr>
                         </thead>
@@ -5578,7 +5611,7 @@
                 if (symbols.length === 0) {
                     tableEl.innerHTML = `
                         <tr>
-                            <td colspan="9" class="py-10 text-center text-slate-400 font-sans">
+                            <td colspan="12" class="py-10 text-center text-slate-400 font-sans">
                                 <div class="flex flex-col items-center justify-center space-y-2">
                                     <i data-lucide="inbox" class="w-8 h-8 text-slate-500 stroke-1"></i>
                                     <p class="text-xs">当前自选监控池为空，请在上方输入代码/名称添加，或点击「恢复默认」</p>
@@ -5634,7 +5667,20 @@
                 const orderedQuotes = symbols.map(s => quoteMap[s]).filter(Boolean);
 
                 if (orderedQuotes.length > 0) {
-                    tableEl.innerHTML = orderedQuotes.map(q => `
+                    tableEl.innerHTML = orderedQuotes.map(q => {
+                        const m1 = Number(q.main_net_amount || 0);
+                        const m3 = Number(q.main_net_3d || 0);
+                        const m5 = Number(q.main_net_5d || 0);
+
+                        const inflow1dStr = formatStockInflowMoney(m1, q.inflow_1d_str);
+                        const inflow3dStr = formatStockInflowMoney(m3, q.inflow_3d_str);
+                        const inflow5dStr = formatStockInflowMoney(m5, q.inflow_5d_str);
+
+                        const inflow1dColor = getStockInflowColor(m1);
+                        const inflow3dColor = getStockInflowColor(m3);
+                        const inflow5dColor = getStockInflowColor(m5);
+
+                        return `
                         <tr class="hover:bg-slate-800/40 transition group">
                             <td class="py-3 font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
                             <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
@@ -5643,7 +5689,10 @@
                             <td class="py-3 text-slate-300 font-mono">¥${Number(q.high).toFixed(2)}</td>
                             <td class="py-3 text-slate-300 font-mono">¥${Number(q.low).toFixed(2)}</td>
                             <td class="py-3 text-slate-400 font-mono">${Number(q.turnover_wan).toLocaleString()}</td>
-                            <td class="py-3 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
+                            <td class="py-3 text-right font-mono font-semibold ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
+                            <td class="py-3 text-right font-mono font-semibold ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
+                            <td class="py-3 text-right font-mono font-semibold ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
+                            <td class="py-3 pl-4 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
                             <td class="py-3 pr-2 text-right">
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
@@ -5651,7 +5700,8 @@
                                 </div>
                             </td>
                         </tr>
-                    `).join('');
+                    `;
+                    }).join('');
                     if (window.lucide) lucide.createIcons();
                 }
             } catch (e) {
@@ -6015,7 +6065,9 @@
                         
                         const activeInd = d.industries.find(x => x.code === window.CURRENT_INDUSTRY_CODE) || d.industries[0];
                         if (activeInd.stocks && activeInd.stocks.length > 0) {
-                            renderSectorStocks(activeInd.name, activeInd.stocks);
+                            window.CURRENT_SECTOR_STOCKS_DATA = activeInd.stocks;
+                            window.CURRENT_SECTOR_NAME = activeInd.name;
+                            applySectorStocksSortAndRender();
                         } else {
                             loadSectorStocks(activeInd.code, activeInd.name, true);
                         }
@@ -6026,7 +6078,7 @@
             }
         }
 
-        let currentIndustrySortField = 'change_pct'; // 'change_pct' or 'net_inflow_yi'
+        let currentIndustrySortField = 'change_pct'; // 'change_pct', 'net_inflow_yi', 'net_inflow_3d_yi', 'net_inflow_5d_yi'
         let currentIndustrySortAsc = false; // false = 降序 (高到低), true = 升序 (低到高)
         let currentIndustrySearchKeyword = '';
 
@@ -6050,30 +6102,43 @@
         function updateIndustrySortUI() {
             const lbl = document.getElementById('industry-sort-label');
             const arrow = document.getElementById('industry-sort-arrow');
-            const thIcon = document.getElementById('industry-th-sort-icon');
+            const sortIcons = {
+                'change_pct': document.getElementById('industry-th-sort-chg'),
+                'net_inflow_yi': document.getElementById('industry-th-sort-1d'),
+                'net_inflow_3d_yi': document.getElementById('industry-th-sort-3d'),
+                'net_inflow_5d_yi': document.getElementById('industry-th-sort-5d')
+            };
 
             const arrowChar = currentIndustrySortAsc ? '↑' : '↓';
             const arrowColor = currentIndustrySortAsc ? 'text-emerald-400' : 'text-rose-400';
 
+            // Reset all industry th sort icons
+            Object.keys(sortIcons).forEach(k => {
+                const el = sortIcons[k];
+                if (el) {
+                    el.innerText = '';
+                    el.className = 'text-[10px] font-bold';
+                }
+            });
+
+            const activeTh = sortIcons[currentIndustrySortField];
+            if (activeTh) {
+                activeTh.innerText = arrowChar;
+                activeTh.className = `text-[10px] font-bold ${arrowColor}`;
+            }
+
             if (currentIndustrySortField === 'change_pct') {
                 if (lbl) lbl.innerText = currentIndustrySortAsc ? '涨幅升序' : '涨幅降序';
-                if (arrow) {
-                    arrow.innerText = arrowChar;
-                    arrow.className = `font-bold ${arrowColor}`;
-                }
-                if (thIcon) {
-                    thIcon.innerText = arrowChar;
-                    thIcon.className = `text-[10px] font-bold ${arrowColor}`;
-                }
             } else if (currentIndustrySortField === 'net_inflow_yi') {
-                if (lbl) lbl.innerText = currentIndustrySortAsc ? '流入升序' : '流入降序';
-                if (arrow) {
-                    arrow.innerText = arrowChar;
-                    arrow.className = 'font-bold text-cyan-400';
-                }
-                if (thIcon) {
-                    thIcon.innerText = '';
-                }
+                if (lbl) lbl.innerText = currentIndustrySortAsc ? '当日流入升序' : '当日流入降序';
+            } else if (currentIndustrySortField === 'net_inflow_3d_yi') {
+                if (lbl) lbl.innerText = currentIndustrySortAsc ? '3日流入升序' : '3日流入降序';
+            } else if (currentIndustrySortField === 'net_inflow_5d_yi') {
+                if (lbl) lbl.innerText = currentIndustrySortAsc ? '5日流入升序' : '5日流入降序';
+            }
+            if (arrow) {
+                arrow.innerText = arrowChar;
+                arrow.className = `font-bold ${arrowColor}`;
             }
         }
 
@@ -6129,7 +6194,7 @@
                 return;
             }
 
-            // 4. 一行一个板块 单行紧凑高密度呈现 (含独立 代码 列与护眼配色)
+            // 4. 一行一个板块 单行紧凑高密度呈现 (含独立代码、当日/3日/5日净流入 与护眼配色)
             indEl.innerHTML = list.map((ind, idx) => {
                 const isActive = (ind.code === window.CURRENT_INDUSTRY_CODE) || (!window.CURRENT_INDUSTRY_CODE && idx === 0);
                 const activeClass = isActive ? 'is-active' : '';
@@ -6139,9 +6204,28 @@
                 const chgColor = isUp ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold';
                 const chgFormatted = ind.chg || (isUp ? `+${chgVal.toFixed(2)}%` : `${chgVal.toFixed(2)}%`);
 
-                const inflowVal = Number(ind.net_inflow_yi ?? 0);
-                const inflowColor = inflowVal > 0 ? 'text-cyan-500 dark:text-cyan-400 font-semibold' : (inflowVal < 0 ? 'text-emerald-500/90 font-medium' : 'text-slate-400');
-                const inflowFormatted = ind.inflow || (inflowVal >= 0 ? `+${inflowVal.toFixed(1)}亿` : `${inflowVal.toFixed(1)}亿`);
+                const fmtInflow = (vYi, str) => {
+                    if (str) return str;
+                    const v = Number(vYi ?? 0);
+                    return v >= 0 ? `+${v.toFixed(1)}亿` : `${v.toFixed(1)}亿`;
+                };
+
+                const getInflowColor = (vYi) => {
+                    const v = Number(vYi ?? 0);
+                    return v > 0 ? 'text-cyan-500 dark:text-cyan-400 font-semibold' : (v < 0 ? 'text-emerald-500/90 font-medium' : 'text-slate-400');
+                };
+
+                const inflow1dVal = Number(ind.net_inflow_yi ?? 0);
+                const inflow1dFormatted = fmtInflow(inflow1dVal, ind.inflow_1d_str || ind.inflow);
+                const inflow1dColor = getInflowColor(inflow1dVal);
+
+                const inflow3dVal = Number(ind.net_inflow_3d_yi ?? 0);
+                const inflow3dFormatted = fmtInflow(inflow3dVal, ind.inflow_3d_str);
+                const inflow3dColor = getInflowColor(inflow3dVal);
+
+                const inflow5dVal = Number(ind.net_inflow_5d_yi ?? 0);
+                const inflow5dFormatted = fmtInflow(inflow5dVal, ind.inflow_5d_str);
+                const inflow5dColor = getInflowColor(inflow5dVal);
 
                 let rankBadgeClass = 'text-slate-400';
                 if (idx === 0) rankBadgeClass = 'text-amber-500 font-bold';
@@ -6150,35 +6234,118 @@
 
                 return `
                 <div onclick="selectIndustry('${ind.code || ''}', '${ind.name}')" 
-                     class="${activeClass} industry-row grid grid-cols-12 gap-1 items-center px-2.5 py-1.5 text-xs select-none group cursor-pointer">
-                    <!-- 1. 序号 (col-span-1) -->
-                    <div class="col-span-1 flex items-center justify-start">
+                     class="${activeClass} industry-row industry-grid-layout px-2 py-1.5 text-xs select-none group cursor-pointer">
+                    <!-- 1. 序号 -->
+                    <div class="flex items-center justify-start">
                         <span class="text-[10px] w-4 text-left font-mono shrink-0 ${rankBadgeClass}">${idx + 1}</span>
                     </div>
-                    <!-- 2. 板块名称 (col-span-3) -->
-                    <div class="col-span-3 flex items-center overflow-hidden pr-1">
-                        <span class="font-medium truncate ind-name" title="${ind.name} (${ind.code})">${ind.name}</span>
+                    <!-- 2. 板块名称 -->
+                    <div class="flex items-center overflow-hidden pr-1">
+                        <span class="font-medium truncate ind-name text-xs" title="${ind.name} (${ind.code})">${ind.name}</span>
                     </div>
-                    <!-- 3. 代码 (col-span-2) 独立一列！ -->
-                    <div class="col-span-2 flex items-center">
+                    <!-- 3. 代码 -->
+                    <div class="flex items-center">
                         <span class="text-[10px] font-mono ind-code px-1 py-0.2 rounded">${ind.code || 'HY'}</span>
                     </div>
-                    <!-- 4. 涨跌幅 (col-span-2) -->
-                    <div class="col-span-2 text-right">
+                    <!-- 4. 涨跌幅 -->
+                    <div class="text-right">
                         <span class="text-xs font-mono ${chgColor}">${chgFormatted}</span>
                     </div>
-                    <!-- 5. 主力净流入 (col-span-2) -->
-                    <div class="col-span-2 text-right">
-                        <span class="text-[11px] font-mono ${inflowColor}">${inflowFormatted}</span>
+                    <!-- 5. 当日净流入 -->
+                    <div class="text-right" title="当日主力净流入: ${inflow1dFormatted}">
+                        <span class="text-[11px] font-mono ${inflow1dColor}">${inflow1dFormatted}</span>
                     </div>
-                    <!-- 6. 操作 (col-span-2) -->
-                    <div class="col-span-2 flex items-center justify-center space-x-1" onclick="event.stopPropagation()">
-                        <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="btn-kline px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer" title="查看${ind.name}K线">K线</button>
-                        <button onclick="quickBacktest('${ind.code || ''}')" class="btn-bt px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer" title="对${ind.name}执行回测">回测</button>
+                    <!-- 6. 3日净流入 -->
+                    <div class="text-right" title="3日主力净流入: ${inflow3dFormatted}">
+                        <span class="text-[11px] font-mono ${inflow3dColor}">${inflow3dFormatted}</span>
+                    </div>
+                    <!-- 7. 5日净流入 -->
+                    <div class="text-right" title="5日主力净流入: ${inflow5dFormatted}">
+                        <span class="text-[11px] font-mono ${inflow5dColor}">${inflow5dFormatted}</span>
+                    </div>
+                    <!-- 8. 操作 -->
+                    <div class="flex items-center justify-center space-x-1 whitespace-nowrap" onclick="event.stopPropagation()">
+                        <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="btn-kline px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="查看${ind.name}K线">K线</button>
+                        <button onclick="quickBacktest('${ind.code || ''}')" class="btn-bt px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="对${ind.name}执行回测">回测</button>
                     </div>
                 </div>
                 `;
             }).join('');
+        }
+
+        // ==================== 核心成分股 多维排序与格式化 ==================== //
+        let currentSectorStocksSortField = 'change_pct';
+        let currentSectorStocksSortAsc = false;
+
+        function toggleSectorStocksSort(field) {
+            if (!window.CURRENT_SECTOR_STOCKS_DATA || window.CURRENT_SECTOR_STOCKS_DATA.length === 0) return;
+            if (currentSectorStocksSortField === field) {
+                currentSectorStocksSortAsc = !currentSectorStocksSortAsc;
+            } else {
+                currentSectorStocksSortField = field;
+                currentSectorStocksSortAsc = false;
+            }
+            applySectorStocksSortAndRender();
+        }
+
+        function updateSectorStocksSortUI() {
+            const sortIcons = {
+                'price': document.getElementById('sector-th-sort-price'),
+                'change_pct': document.getElementById('sector-th-sort-chg'),
+                'main_net_amount': document.getElementById('sector-th-sort-1d'),
+                'main_net_3d': document.getElementById('sector-th-sort-3d'),
+                'main_net_5d': document.getElementById('sector-th-sort-5d')
+            };
+            const arrowChar = currentSectorStocksSortAsc ? '↑' : '↓';
+            const arrowColor = currentSectorStocksSortAsc ? 'text-emerald-400' : 'text-rose-400';
+
+            Object.keys(sortIcons).forEach(k => {
+                const el = sortIcons[k];
+                if (el) {
+                    el.innerText = '';
+                    el.className = 'text-[10px] font-bold';
+                }
+            });
+            const activeTh = sortIcons[currentSectorStocksSortField];
+            if (activeTh) {
+                activeTh.innerText = arrowChar;
+                activeTh.className = `text-[10px] font-bold ${arrowColor}`;
+            }
+        }
+
+        function formatStockInflowMoney(val, str) {
+            if (str && str !== '+0元' && str !== '0元') {
+                return str;
+            }
+            const v = Number(val || 0);
+            if (v === 0) return '0.0万';
+            const absV = Math.abs(v);
+            const sign = v > 0 ? '+' : '-';
+            if (absV >= 100000000) {
+                return `${sign}${(absV / 100000000).toFixed(1)}亿`;
+            } else if (absV >= 10000) {
+                return `${sign}${(absV / 10000).toFixed(0)}万`;
+            }
+            return `${sign}${absV.toFixed(0)}元`;
+        }
+
+        function getStockInflowColor(val) {
+            const v = Number(val || 0);
+            if (v > 0) return 'text-cyan-500 dark:text-cyan-400 font-semibold';
+            if (v < 0) return 'text-emerald-500/90 font-medium';
+            return 'text-slate-400';
+        }
+
+        function applySectorStocksSortAndRender() {
+            const name = window.CURRENT_SECTOR_NAME || '板块';
+            let stocks = window.CURRENT_SECTOR_STOCKS_DATA ? [...window.CURRENT_SECTOR_STOCKS_DATA] : [];
+            stocks.sort((a, b) => {
+                let valA = Number(a[currentSectorStocksSortField] || 0);
+                let valB = Number(b[currentSectorStocksSortField] || 0);
+                return currentSectorStocksSortAsc ? valA - valB : valB - valA;
+            });
+            renderSectorStocks(name, stocks);
+            updateSectorStocksSortUI();
         }
 
         async function loadSectorStocks(code, name, isBackground = false) {
@@ -6190,7 +6357,7 @@
             if (!isBackground) {
                 if (countEl) countEl.textContent = `正在刷新...`;
                 if (tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
                     lucide.createIcons();
                 }
             }
@@ -6200,14 +6367,16 @@
                 if (resp.ok) {
                     const json = await resp.json();
                     const stocks = json.data || [];
-                    renderSectorStocks(name, stocks);
+                    window.CURRENT_SECTOR_STOCKS_DATA = stocks;
+                    window.CURRENT_SECTOR_NAME = name;
+                    applySectorStocksSortAndRender();
                 } else if (!isBackground && tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
                 }
             } catch (e) {
                 console.error('Failed to load sector stocks:', e);
                 if (!isBackground && tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
                 }
             }
         }
@@ -6221,7 +6390,7 @@
             if (!tableEl) return;
 
             if (stocks.length === 0) {
-                tableEl.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs">该板块暂无成分股数据</td></tr>`;
+                tableEl.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 text-xs">该板块暂无成分股数据</td></tr>`;
                 return;
             }
 
@@ -6230,12 +6399,28 @@
                 const isUp = chg >= 0;
                 const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
                 const chgStr = `${isUp ? '+' : ''}${chg.toFixed(2)}%`;
+
+                const m1 = Number(s.main_net_amount || 0);
+                const m3 = Number(s.main_net_3d || 0);
+                const m5 = Number(s.main_net_5d || 0);
+
+                const inflow1dStr = formatStockInflowMoney(m1, s.inflow_1d_str);
+                const inflow3dStr = formatStockInflowMoney(m3, s.inflow_3d_str);
+                const inflow5dStr = formatStockInflowMoney(m5, s.inflow_5d_str);
+
+                const inflow1dColor = getStockInflowColor(m1);
+                const inflow3dColor = getStockInflowColor(m3);
+                const inflow5dColor = getStockInflowColor(m5);
+
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-cyan-400 font-bold">${s.code}</span></td>
-                    <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[80px] inline-block align-middle">${s.name}</span></td>
+                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-cyan-400 font-bold cursor-pointer">${s.code}</span></td>
+                    <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-white font-semibold">¥${Number(s.price).toFixed(2)}</td>
                     <td class="py-2 text-right font-mono ${chgClass}">${chgStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-2 text-center">
                         <button onclick="openKlineModal('${s.code}', '${s.name}')" class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-medium transition cursor-pointer">K线</button>
                     </td>

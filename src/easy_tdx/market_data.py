@@ -306,14 +306,71 @@ def _generate_fallback_bars(symbol: str, n_bars: int = 120) -> pd.DataFrame:
         "amount": [round(volumes[i] * close_prices[i], 2) for i in range(n_bars)]
     })
 
+def _fmt_pool_money(v: float) -> str:
+    if abs(v) >= 100000000.0:
+        return f"{v / 100000000.0:+.1f}亿"
+    elif abs(v) >= 10000.0:
+        return f"{v / 10000.0:+.0f}万"
+    else:
+        return f"{v:+.0f}元"
+
 def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[str, Any]]:
-    """Fetch real-time snapshot quotes from TDX server."""
+    """Fetch real-time snapshot quotes with 1d/3d/5d net capital inflows from TDX server."""
     if not symbols:
         symbols = ["600660", "300223", "000001", "600123", "002345", "300142", "601216", "002415", "300750", "600519"]
         
-    pairs = [(_get_market(s), s) for s in symbols]
     quotes_list = []
     
+    # 1. First try native TDX MAC protocol for full quote metrics + 1d/3d/5d capital flow
+    try:
+        from easy_tdx.market_overview import _get_or_create_mac_client
+        from easy_tdx.codec.bitmap import FieldBit, PresetField
+        mac = _get_or_create_mac_client()
+        fields = (
+            PresetField.BASIC
+            + FieldBit.AMOUNT
+            + FieldBit.MAIN_NET_AMOUNT
+            + FieldBit.MAIN_NET_3D_AMOUNT
+            + FieldBit.MAIN_NET_5D_AMOUNT
+        )
+        mac_pairs = [(int(_get_market(s).value), s) for s in symbols]
+        df = mac.get_stock_quotes(mac_pairs, fields=fields)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                code = str(row.get("code", ""))
+                price = float(row.get("close") or 0.0)
+                pre_close = float(row.get("pre_close") or price)
+                chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
+                amt = float(row.get("amount") or 0.0)
+                m1 = float(row.get("main_net_amount") or 0.0)
+                m3 = float(row.get("main_net_3d_amount") or 0.0)
+                m5 = float(row.get("main_net_5d_amount") or 0.0)
+                
+                quotes_list.append({
+                    "symbol": code,
+                    "code": code,
+                    "price": round(price, 2),
+                    "pre_close": round(pre_close, 2),
+                    "open": round(float(row.get("open") or price), 2),
+                    "high": round(float(row.get("high") or price), 2),
+                    "low": round(float(row.get("low") or price), 2),
+                    "volume": int(row.get("vol") or 0),
+                    "turnover_wan": round(amt / 10000.0, 1),
+                    "change_pct": chg_pct,
+                    "main_net_amount": m1,
+                    "main_net_3d": m3,
+                    "main_net_5d": m5,
+                    "inflow_1d_str": _fmt_pool_money(m1),
+                    "inflow_3d_str": _fmt_pool_money(m3),
+                    "inflow_5d_str": _fmt_pool_money(m5),
+                })
+            if quotes_list:
+                return quotes_list
+    except Exception as e:
+        logger.debug(f"MacClient realtime pool quotes failed, falling back to standard socket: {e}")
+
+    # 2. Fallback to standard TDX socket client
+    pairs = [(_get_market(s), s) for s in symbols]
     try:
         client = _get_or_create_client()
         raw_quotes = client.get_security_quotes(pairs)
@@ -335,6 +392,12 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
                     "volume": int(row.get("vol") or 0),
                     "turnover_wan": round(float(row.get("amount") or 0.0) / 10000.0, 1),
                     "change_pct": chg_pct,
+                    "main_net_amount": 0.0,
+                    "main_net_3d": 0.0,
+                    "main_net_5d": 0.0,
+                    "inflow_1d_str": "0.0万",
+                    "inflow_3d_str": "0.0万",
+                    "inflow_5d_str": "0.0万",
                 })
     except Exception as e:
         logger.warning(f"Failed to fetch realtime quotes from TDX: {e}")

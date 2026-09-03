@@ -43,7 +43,7 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
     """Fetch all industry sector rankings from native TDX MAC protocol.
 
     Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=200)`` which returns
-    real-time change_pct, amount (turnover), and main_net_amount (net capital
+    real-time change_pct, amount (turnover), and 1d/3d/5d main_net_amount (net capital
     inflow) for each industry sector.
     """
     from easy_tdx.mac.enums import BoardType
@@ -56,8 +56,18 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
                 chg_val = float(row.get("change_pct", 0.0))
                 net_inflow = float(row.get("main_net_amount", 0.0))
                 inflow_yi = round(net_inflow / 100000000.0, 1)
+
+                net_inflow_3d = float(row.get("main_net_3d", 0.0))
+                inflow_3d_yi = round(net_inflow_3d / 100000000.0, 1)
+
+                net_inflow_5d = float(row.get("main_net_5d", 0.0))
+                inflow_5d_yi = round(net_inflow_5d / 100000000.0, 1)
+
                 chg_str = f"+{chg_val:.2f}%" if chg_val >= 0 else f"{chg_val:.2f}%"
-                inflow_str = f"+{inflow_yi} 亿" if inflow_yi >= 0 else f"{inflow_yi} 亿"
+                inflow_str = f"{inflow_yi:+.1f}亿" if abs(inflow_yi) > 0 else f"{inflow_yi:.1f}亿"
+                inflow_3d_str = f"{inflow_3d_yi:+.1f}亿" if abs(inflow_3d_yi) > 0 else f"{inflow_3d_yi:.1f}亿"
+                inflow_5d_str = f"{inflow_5d_yi:+.1f}亿" if abs(inflow_5d_yi) > 0 else f"{inflow_5d_yi:.1f}亿"
+
                 industries.append({
                     "code": str(row.get("code", "")),
                     "name": str(row.get("name", "")),
@@ -66,6 +76,11 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
                     "change_pct": chg_val,
                     "amount_yi": round(float(row.get("amount", 0.0)) / 100000000.0, 1),
                     "net_inflow_yi": inflow_yi,
+                    "net_inflow_3d_yi": inflow_3d_yi,
+                    "net_inflow_5d_yi": inflow_5d_yi,
+                    "inflow_1d_str": inflow_str,
+                    "inflow_3d_str": inflow_3d_str,
+                    "inflow_5d_str": inflow_5d_str,
                     "up_count": int(row.get("up_count", 0)),
                     "down_count": int(row.get("down_count", 0)),
                     "member_count": int(row.get("member_count", 0)),
@@ -83,12 +98,20 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
 
 
 def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]]:
-    """Fetch constituent stocks with real-time prices, change percentages, and amounts for a sector board."""
+    """Fetch constituent stocks with real-time prices, change percentages, amounts, and 1d/3d/5d net capital inflows."""
     from easy_tdx.stock_lookup import get_stock_name
+    from easy_tdx.codec.bitmap import FieldBit, PresetField
     stocks: list[dict[str, Any]] = []
     try:
         mac = _get_or_create_mac_client()
-        df = mac.get_board_members(str(board_code), count=count)
+        fields = (
+            PresetField.BASIC
+            + FieldBit.AMOUNT
+            + FieldBit.MAIN_NET_AMOUNT
+            + FieldBit.MAIN_NET_3D_AMOUNT
+            + FieldBit.MAIN_NET_5D_AMOUNT
+        )
+        df = mac.get_board_members(str(board_code), count=count, fields=fields)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
                 code = str(row.get("code", ""))
@@ -102,6 +125,19 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
                     chg_pct = round(float(row.get("change_pct", 0.0)), 2)
                 chg_str = f"+{chg_pct:.2f}%" if chg_pct >= 0 else f"{chg_pct:.2f}%"
                 amt_yi = round(float(row.get("amount", 0.0)) / 100000000.0, 2)
+
+                m1 = float(row.get("main_net_amount", 0.0))
+                m3 = float(row.get("main_net_3d_amount", 0.0))
+                m5 = float(row.get("main_net_5d_amount", 0.0))
+
+                def _fmt_money(v: float) -> str:
+                    if abs(v) >= 100000000.0:
+                        return f"{v / 100000000.0:+.1f}亿"
+                    elif abs(v) >= 10000.0:
+                        return f"{v / 10000.0:+.0f}万"
+                    else:
+                        return f"{v:+.0f}元"
+
                 stocks.append({
                     "code": code,
                     "name": name,
@@ -109,6 +145,12 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
                     "change_pct": chg_pct,
                     "chg": chg_str,
                     "amount_yi": amt_yi,
+                    "main_net_amount": m1,
+                    "main_net_3d": m3,
+                    "main_net_5d": m5,
+                    "inflow_1d_str": _fmt_money(m1),
+                    "inflow_3d_str": _fmt_money(m3),
+                    "inflow_5d_str": _fmt_money(m5),
                     "vol": int(row.get("vol", 0)),
                 })
             stocks.sort(key=lambda x: -x["change_pct"])
