@@ -39,17 +39,17 @@ def _get_or_create_mac_client():
         return _MAC_CLIENT
 
 
-def _fetch_industry_ranking_live() -> list[dict[str, Any]]:
-    """Fetch top-10 industry sector rankings from native TDX MAC protocol.
+def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
+    """Fetch all industry sector rankings from native TDX MAC protocol.
 
-    Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=10)`` which returns
+    Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=200)`` which returns
     real-time change_pct, amount (turnover), and main_net_amount (net capital
     inflow) for each industry sector.
     """
     from easy_tdx.mac.enums import BoardType
     try:
         mac = _get_or_create_mac_client()
-        df = mac.get_board_ranking(BoardType.HY, top_n=10, sort_by="change_pct", ascending=False)
+        df = mac.get_board_ranking(BoardType.HY, top_n=top_n, sort_by="change_pct", ascending=False)
         if df is not None and not df.empty:
             industries: list[dict[str, Any]] = []
             for _, row in df.iterrows():

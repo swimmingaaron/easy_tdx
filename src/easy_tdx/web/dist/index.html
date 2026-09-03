@@ -244,6 +244,123 @@
             background-color: rgba(226, 232, 240, 0.6) !important;
         }
 
+        /* ==================== 行业板块列表 护眼与质感配色体系 ==================== */
+        .industry-table-header {
+            background-color: rgba(30, 41, 59, 0.75);
+            color: #94a3b8;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+        }
+        .industry-row {
+            background-color: transparent;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.35);
+            border-left: 3px solid transparent;
+            transition: all 0.15s ease;
+        }
+        .industry-row:hover {
+            background-color: rgba(30, 41, 59, 0.55);
+        }
+        .industry-row.is-active {
+            background-color: rgba(8, 51, 68, 0.45) !important;
+            border-left: 3px solid #06b6d4 !important;
+        }
+        .industry-row .ind-name {
+            color: #e2e8f0;
+        }
+        .industry-row.is-active .ind-name {
+            color: #38bdf8 !important;
+            font-weight: 700;
+        }
+        .industry-row .ind-code {
+            color: #94a3b8;
+            background-color: rgba(30, 41, 59, 0.8);
+        }
+        .industry-row .btn-kline {
+            background-color: rgba(49, 46, 129, 0.6);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.5);
+        }
+        .industry-row .btn-kline:hover {
+            background-color: rgba(67, 56, 202, 0.85);
+            color: #ffffff;
+        }
+        .industry-row .btn-bt {
+            background-color: rgba(22, 78, 99, 0.6);
+            color: #67e8f9;
+            border: 1px solid rgba(6, 182, 212, 0.5);
+        }
+        .industry-row .btn-bt:hover {
+            background-color: rgba(14, 116, 144, 0.85);
+            color: #ffffff;
+        }
+
+        /* ── 亮色护眼模式 (Eye-Care Light Theme Palette) ── */
+        /* 采用温柔低饱和度柔光底、优雅青蓝与护眼墨石字，无刺眼暗斑，大幅提升长时间看盘舒适度 */
+        html.light .industry-table-header {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
+        html.light .industry-row {
+            background-color: #ffffff;
+            border-bottom: 1px solid #f1f5f9 !important;
+            border-left: 3px solid transparent;
+        }
+        html.light .industry-row:hover {
+            background-color: #f8fafc !important;
+        }
+        html.light .industry-row.is-active {
+            background-color: #f0f9ff !important;
+            border-left: 3px solid #0284c7 !important;
+        }
+        html.light .industry-row .ind-name {
+            color: #1e293b !important;
+            font-weight: 600;
+        }
+        html.light .industry-row.is-active .ind-name {
+            color: #0284c7 !important;
+            font-weight: 700;
+        }
+        html.light .industry-row .ind-code {
+            color: #64748b !important;
+            background-color: #f1f5f9 !important;
+        }
+        html.light .industry-row .btn-kline {
+            background-color: #f8fafc !important;
+            color: #4338ca !important;
+            border: 1px solid #c7d2fe !important;
+        }
+        html.light .industry-row .btn-kline:hover {
+            background-color: #e0e7ff !important;
+            color: #3730a3 !important;
+        }
+        html.light .industry-row .btn-bt {
+            background-color: #f0f9ff !important;
+            color: #0369a1 !important;
+            border: 1px solid #bae6fd !important;
+        }
+        html.light .industry-row .btn-bt:hover {
+            background-color: #e0e7ff !important;
+            color: #0284c7 !important;
+        }
+        html.light #industry-search-input {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #industry-search-input::placeholder {
+            color: #94a3b8 !important;
+        }
+        html.light #industry-sort-btn {
+            background-color: #ffffff !important;
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #industry-total-badge {
+            background-color: #e0e7ff !important;
+            color: #4338ca !important;
+            border-color: #c7d2fe !important;
+        }
+
         /* ==================== 自选监控搜索下拉弹层背景与文字颜色优化 ==================== */
         #watchlist-search-dropdown {
             background: rgba(15, 23, 42, 0.98) !important;
@@ -1153,13 +1270,54 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 h-full">
                         <!-- 板块信息 (占 1/2 of 2/3) -->
                         <div class="flex flex-col border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0 md:pr-4">
-                            <div class="flex justify-between items-center mb-3">
-                                <h4 class="text-sm font-semibold text-slate-200 flex items-center">
-                                    <i data-lucide="layers" class="w-4 h-4 mr-2 text-indigo-400"></i>行业主线轮动榜
-                                </h4>
-                                <span class="text-[11px] text-slate-400">点击板块切成分股</span>
+                            <!-- 顶部标题与筛选排序工具栏 -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                                <div class="flex items-center space-x-2">
+                                    <h4 class="text-sm font-semibold text-slate-200 flex items-center">
+                                        <i data-lucide="layers" class="w-4 h-4 mr-1.5 text-indigo-400"></i>行业板块
+                                    </h4>
+                                    <span id="industry-total-badge" class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-950/80 text-indigo-300 border border-indigo-800/70" title="全部行业板块数量">全部 128</span>
+                                </div>
+
+                                <div class="flex items-center space-x-1.5">
+                                    <!-- 板块搜索框 -->
+                                    <div class="relative">
+                                        <input type="text" id="industry-search-input" oninput="onIndustrySearch(this.value)" placeholder="搜索板块/代码..." class="w-24 sm:w-28 bg-slate-900/90 border border-slate-700/80 rounded-lg px-2 py-0.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-sans">
+                                    </div>
+
+                                    <!-- 排序切换按钮 (涨幅排序) -->
+                                    <button type="button" id="industry-sort-btn" onclick="toggleIndustrySort('change_pct')" class="px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 flex items-center space-x-1 transition cursor-pointer" title="点击按涨跌幅切换排序 (降序/升序)">
+                                        <span id="industry-sort-label">涨幅降序</span>
+                                        <span id="industry-sort-arrow" class="text-rose-400 font-bold">↓</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="space-y-2 overflow-y-auto max-h-64 pr-1 flex-1" id="industry-list"></div>
+
+                            <!-- 一行一个板块 表头 (增加独立 代码 列，采用护眼专用类 industry-table-header) -->
+                            <div class="industry-table-header grid grid-cols-12 gap-1 px-2.5 py-1.5 text-[11px] font-medium select-none rounded-t-lg">
+                                <div class="col-span-1 flex items-center">
+                                    <span>#</span>
+                                </div>
+                                <div class="col-span-3 flex items-center">
+                                    <span>板块名称</span>
+                                </div>
+                                <div class="col-span-2 flex items-center">
+                                    <span>代码</span>
+                                </div>
+                                <div class="col-span-2 text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5" onclick="toggleIndustrySort('change_pct')" title="点击按涨跌幅排序">
+                                    <span>涨跌幅</span>
+                                    <span id="industry-th-sort-icon" class="text-[10px] text-rose-400 font-bold">↓</span>
+                                </div>
+                                <div class="col-span-2 text-right cursor-pointer hover:text-cyan-400" onclick="toggleIndustrySort('net_inflow_yi')" title="点击按主力净流入排序">
+                                    <span>净流入</span>
+                                </div>
+                                <div class="col-span-2 text-center">
+                                    <span>操作</span>
+                                </div>
+                            </div>
+
+                            <!-- 一行一个板块 列表容器 (单行高度紧凑，max-h-[380px] 平滑滚动浏览全部板块) -->
+                            <div class="overflow-y-auto max-h-[380px] pr-1 flex-1 font-mono" id="industry-list"></div>
                         </div>
 
                         <!-- 板块成分股信息 (占 1/2 of 2/3) -->
@@ -1171,7 +1329,7 @@
                                 </h4>
                                 <span id="sector-stocks-count" class="text-[11px] font-mono text-cyan-400">点击左侧板块查看</span>
                             </div>
-                            <div class="overflow-y-auto max-h-64 pr-1 flex-1">
+                            <div class="overflow-y-auto max-h-[380px] pr-1 flex-1">
                                 <table class="w-full text-left text-xs font-mono">
                                     <thead class="text-slate-400 border-b border-slate-800 pb-1.5 sticky top-0 bg-slate-900/95 backdrop-blur z-10">
                                         <tr>
@@ -5868,6 +6026,64 @@
             }
         }
 
+        let currentIndustrySortField = 'change_pct'; // 'change_pct' or 'net_inflow_yi'
+        let currentIndustrySortAsc = false; // false = 降序 (高到低), true = 升序 (低到高)
+        let currentIndustrySearchKeyword = '';
+
+        function toggleIndustrySort(field) {
+            if (field) {
+                if (currentIndustrySortField === field) {
+                    currentIndustrySortAsc = !currentIndustrySortAsc;
+                } else {
+                    currentIndustrySortField = field;
+                    currentIndustrySortAsc = false;
+                }
+            } else {
+                currentIndustrySortAsc = !currentIndustrySortAsc;
+            }
+            updateIndustrySortUI();
+            if (window.ALL_INDUSTRIES) {
+                renderIndustryList(window.ALL_INDUSTRIES);
+            }
+        }
+
+        function updateIndustrySortUI() {
+            const lbl = document.getElementById('industry-sort-label');
+            const arrow = document.getElementById('industry-sort-arrow');
+            const thIcon = document.getElementById('industry-th-sort-icon');
+
+            const arrowChar = currentIndustrySortAsc ? '↑' : '↓';
+            const arrowColor = currentIndustrySortAsc ? 'text-emerald-400' : 'text-rose-400';
+
+            if (currentIndustrySortField === 'change_pct') {
+                if (lbl) lbl.innerText = currentIndustrySortAsc ? '涨幅升序' : '涨幅降序';
+                if (arrow) {
+                    arrow.innerText = arrowChar;
+                    arrow.className = `font-bold ${arrowColor}`;
+                }
+                if (thIcon) {
+                    thIcon.innerText = arrowChar;
+                    thIcon.className = `text-[10px] font-bold ${arrowColor}`;
+                }
+            } else if (currentIndustrySortField === 'net_inflow_yi') {
+                if (lbl) lbl.innerText = currentIndustrySortAsc ? '流入升序' : '流入降序';
+                if (arrow) {
+                    arrow.innerText = arrowChar;
+                    arrow.className = 'font-bold text-cyan-400';
+                }
+                if (thIcon) {
+                    thIcon.innerText = '';
+                }
+            }
+        }
+
+        function onIndustrySearch(kw) {
+            currentIndustrySearchKeyword = (kw || '').trim().toLowerCase();
+            if (window.ALL_INDUSTRIES) {
+                renderIndustryList(window.ALL_INDUSTRIES);
+            }
+        }
+
         function selectIndustry(code, name) {
             window.CURRENT_INDUSTRY_CODE = code;
             if (window.ALL_INDUSTRIES) {
@@ -5876,36 +6092,92 @@
             loadSectorStocks(code, name, false);
         }
 
-        function renderIndustryList(industries) {
+        function renderIndustryList(rawIndustries) {
             const indEl = document.getElementById('industry-list');
-            if (!indEl) return;
-            indEl.innerHTML = industries.map((ind, idx) => {
+            if (!indEl || !rawIndustries) return;
+
+            // 1. 关键字实时过滤 (支持按名称或代码模糊搜索)
+            let list = [...rawIndustries];
+            if (currentIndustrySearchKeyword) {
+                list = list.filter(item => 
+                    (item.name && item.name.toLowerCase().includes(currentIndustrySearchKeyword)) ||
+                    (item.code && item.code.toLowerCase().includes(currentIndustrySearchKeyword))
+                );
+            }
+
+            // 2. 涨幅 / 资金多维排序
+            list.sort((a, b) => {
+                let valA = a[currentIndustrySortField];
+                let valB = b[currentIndustrySortField];
+                if (valA === undefined || valA === null) valA = 0;
+                if (valB === undefined || valB === null) valB = 0;
+                valA = Number(valA);
+                valB = Number(valB);
+                return currentIndustrySortAsc ? valA - valB : valB - valA;
+            });
+
+            // 3. 更新总数徽章
+            const badgeEl = document.getElementById('industry-total-badge');
+            if (badgeEl) {
+                badgeEl.innerText = (list.length === rawIndustries.length) 
+                    ? `全部 ${rawIndustries.length}` 
+                    : `${list.length}/${rawIndustries.length}`;
+            }
+
+            if (list.length === 0) {
+                indEl.innerHTML = `<div class="py-8 text-center text-slate-500 text-xs">未找到匹配的板块</div>`;
+                return;
+            }
+
+            // 4. 一行一个板块 单行紧凑高密度呈现 (含独立 代码 列与护眼配色)
+            indEl.innerHTML = list.map((ind, idx) => {
                 const isActive = (ind.code === window.CURRENT_INDUSTRY_CODE) || (!window.CURRENT_INDUSTRY_CODE && idx === 0);
-                const activeClass = isActive 
-                    ? 'border-cyan-500/80 bg-cyan-950/40 shadow-sm' 
-                    : 'border-slate-700/50 bg-slate-800/60 hover:bg-slate-800/90';
-                const isUp = Number(ind.change_pct || 0) >= 0;
-                const chgColor = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                const activeClass = isActive ? 'is-active' : '';
+                
+                const chgVal = Number(ind.change_pct ?? 0);
+                const isUp = chgVal >= 0;
+                const chgColor = isUp ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold';
+                const chgFormatted = ind.chg || (isUp ? `+${chgVal.toFixed(2)}%` : `${chgVal.toFixed(2)}%`);
+
+                const inflowVal = Number(ind.net_inflow_yi ?? 0);
+                const inflowColor = inflowVal > 0 ? 'text-cyan-500 dark:text-cyan-400 font-semibold' : (inflowVal < 0 ? 'text-emerald-500/90 font-medium' : 'text-slate-400');
+                const inflowFormatted = ind.inflow || (inflowVal >= 0 ? `+${inflowVal.toFixed(1)}亿` : `${inflowVal.toFixed(1)}亿`);
+
+                let rankBadgeClass = 'text-slate-400';
+                if (idx === 0) rankBadgeClass = 'text-amber-500 font-bold';
+                else if (idx === 1) rankBadgeClass = 'text-slate-500 font-bold';
+                else if (idx === 2) rankBadgeClass = 'text-amber-700 font-bold';
 
                 return `
                 <div onclick="selectIndustry('${ind.code || ''}', '${ind.name}')" 
-                     class="${activeClass} p-2.5 rounded-xl border space-y-1.5 transition group cursor-pointer">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center space-x-1.5">
-                            <span class="text-xs font-semibold ${isActive ? 'text-cyan-400 font-bold' : 'text-white group-hover:text-cyan-400'} transition">${ind.name}</span>
-                            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded ${isActive ? 'bg-cyan-950 text-cyan-300 border border-cyan-700' : 'bg-indigo-950 text-indigo-300 border border-indigo-800/80'}">${ind.code || 'HY'}</span>
-                        </div>
-                        <span class="text-xs ${chgColor} font-mono">${ind.chg}</span>
+                     class="${activeClass} industry-row grid grid-cols-12 gap-1 items-center px-2.5 py-1.5 text-xs select-none group cursor-pointer">
+                    <!-- 1. 序号 (col-span-1) -->
+                    <div class="col-span-1 flex items-center justify-start">
+                        <span class="text-[10px] w-4 text-left font-mono shrink-0 ${rankBadgeClass}">${idx + 1}</span>
                     </div>
-                    <div class="flex justify-between items-center text-[11px]">
-                        <span class="text-slate-400 font-mono">净流入: <strong class="text-cyan-400">${ind.inflow}</strong></span>
-                        <div class="flex items-center space-x-1" onclick="event.stopPropagation()">
-                            <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[11px] font-medium transition cursor-pointer" title="查看行业K线">K线</button>
-                            <button onclick="quickBacktest('${ind.code || ''}')" class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 hover:bg-cyan-900 border border-cyan-800 text-[11px] font-medium transition cursor-pointer" title="对该行业一键执行量化回测">回测</button>
-                        </div>
+                    <!-- 2. 板块名称 (col-span-3) -->
+                    <div class="col-span-3 flex items-center overflow-hidden pr-1">
+                        <span class="font-medium truncate ind-name" title="${ind.name} (${ind.code})">${ind.name}</span>
+                    </div>
+                    <!-- 3. 代码 (col-span-2) 独立一列！ -->
+                    <div class="col-span-2 flex items-center">
+                        <span class="text-[10px] font-mono ind-code px-1 py-0.2 rounded">${ind.code || 'HY'}</span>
+                    </div>
+                    <!-- 4. 涨跌幅 (col-span-2) -->
+                    <div class="col-span-2 text-right">
+                        <span class="text-xs font-mono ${chgColor}">${chgFormatted}</span>
+                    </div>
+                    <!-- 5. 主力净流入 (col-span-2) -->
+                    <div class="col-span-2 text-right">
+                        <span class="text-[11px] font-mono ${inflowColor}">${inflowFormatted}</span>
+                    </div>
+                    <!-- 6. 操作 (col-span-2) -->
+                    <div class="col-span-2 flex items-center justify-center space-x-1" onclick="event.stopPropagation()">
+                        <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="btn-kline px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer" title="查看${ind.name}K线">K线</button>
+                        <button onclick="quickBacktest('${ind.code || ''}')" class="btn-bt px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer" title="对${ind.name}执行回测">回测</button>
                     </div>
                 </div>
-            `;
+                `;
             }).join('');
         }
 
