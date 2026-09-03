@@ -341,6 +341,43 @@
             color: #b45309 !important;
             border-color: #fde047 !important;
         }
+
+        /* ==================== K线窗口鼠标右键快捷菜单样式 ==================== */
+        #kp-context-menu {
+            border: 1px solid rgba(51, 65, 85, 0.85) !important;
+            background: rgba(15, 23, 42, 0.97) !important;
+            box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.7), 0 10px 15px -5px rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        #kp-context-menu button {
+            transition: all 0.12s ease;
+        }
+        html.light #kp-context-menu {
+            border: 1px solid #cbd5e1 !important;
+            background: rgba(255, 255, 255, 0.98) !important;
+            color: #1e293b !important;
+            box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.16), 0 10px 15px -5px rgba(0, 0, 0, 0.08) !important;
+        }
+        html.light #kp-context-menu .text-white {
+            color: #0f172a !important;
+        }
+        html.light #kp-context-menu button:hover {
+            background-color: #f1f5f9 !important;
+        }
+        html.light #kp-context-menu .border-slate-800 {
+            border-color: #e2e8f0 !important;
+        }
+        html.light #kp-context-menu .bg-slate-800\/80,
+        html.light #kp-context-menu .bg-slate-800\/60 {
+            background-color: #e2e8f0 !important;
+        }
+        html.light #kp-context-menu .text-slate-200 {
+            color: #1e293b !important;
+        }
+        html.light #kp-context-menu .text-slate-400 {
+            color: #64748b !important;
+        }
         @keyframes quoteProgressAnim {
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
@@ -1444,8 +1481,8 @@
                     <button onclick="toggleTheme()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="切换亮色/暗色模式">
                         <i id="kp-theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
                     </button>
-                    <button onclick="refreshKpData()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="刷新数据">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    <button id="kp-refresh-btn" onclick="refreshKpData(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="重新加载本标的数据 (右键亦可选择重新加载)">
+                        <i id="kp-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                     </button>
                     <button onclick="closeKlineModal()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="关闭 (ESC)">
                         <i data-lucide="x" class="w-4 h-4"></i>
@@ -1654,6 +1691,59 @@
             <!-- Row 4: Modal ECharts Canvas Container (Expands flexibly to fill available screen height) -->
             <div id="echarts-preview-modal-container" class="w-full flex-1 min-h-[300px] h-full"></div>
         </div>
+    </div>
+
+    <!-- K-Line Modal Right-Click Context Menu (鼠标右键快捷菜单) -->
+    <div id="kp-context-menu" class="fixed z-[9999] hidden rounded-xl py-1.5 min-w-[210px] text-xs font-sans select-none animate-in fade-in zoom-in-95 duration-100">
+        <div class="px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[10px]">
+            <span id="kp-context-stock-title" class="font-bold text-cyan-400 font-mono truncate max-w-[140px]">K线快捷操作</span>
+            <span class="text-slate-400 font-mono">ESC</span>
+        </div>
+        
+        <button type="button" onclick="handleKpContextAction('reload')" class="w-full text-left px-3 py-2 hover:bg-cyan-950/80 hover:text-cyan-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span class="font-bold text-white">重新加载</span>
+                <span class="text-[10px] text-cyan-400 font-mono">仅本页</span>
+            </div>
+        </button>
+        
+        <button type="button" onclick="handleKpContextAction('reset-zoom')" class="w-full text-left px-3 py-2 hover:bg-slate-800 hover:text-white flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-slate-400"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span class="text-slate-200">重置图表缩放</span>
+                <span class="text-[10px] text-slate-400 font-mono">自适应</span>
+            </div>
+        </button>
+        
+        <div class="h-[1px] bg-slate-800/80 my-1"></div>
+        
+        <button type="button" onclick="handleKpContextAction('toggle-watchlist')" class="w-full text-left px-3 py-2 hover:bg-slate-800 hover:text-amber-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="star" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span id="kp-context-watchlist-label" class="text-slate-200">加入/移出自选</span>
+        </button>
+        
+        <button type="button" onclick="handleKpContextAction('toggle-profile')" class="w-full text-left px-3 py-2 hover:bg-slate-800 hover:text-indigo-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+            <span class="text-slate-200">展开/收起 资料财务</span>
+        </button>
+
+        <button type="button" onclick="handleKpContextAction('backtest')" class="w-full text-left px-3 py-2 hover:bg-slate-800 hover:text-cyan-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span class="text-slate-200">一键量化回测</span>
+        </button>
+
+        <button type="button" onclick="handleKpContextAction('copy-symbol')" class="w-full text-left px-3 py-2 hover:bg-slate-800 hover:text-white flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="copy" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span class="text-slate-200">复制股票代码</span>
+        </button>
+
+        <div class="h-[1px] bg-slate-800/80 my-1"></div>
+
+        <button type="button" onclick="handleKpContextAction('close')" class="w-full text-left px-3 py-2 hover:bg-rose-950/60 hover:text-rose-400 flex items-center space-x-2.5 cursor-pointer text-slate-400">
+            <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400"></i>
+            <span>关闭K线窗口</span>
+        </button>
     </div>
 
     <!-- easy_tdx Server Management & Speed Test Modal -->
@@ -2224,15 +2314,33 @@
                 }
                 loadKlinePreviewData();
             }, 60);
+
+            // Ensure context menu is initialized
+            initKpContextMenu();
         }
 
         function closeKlineModal() {
+            hideKpContextMenu();
             document.getElementById('kline-preview-modal').classList.add('hidden');
         }
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !document.getElementById('kline-preview-modal').classList.contains('hidden')) {
-                closeKlineModal();
+            const modal = document.getElementById('kline-preview-modal');
+            const isModalOpen = modal && !modal.classList.contains('hidden');
+
+            if (isModalOpen) {
+                if (e.key === 'Escape') {
+                    const menu = document.getElementById('kp-context-menu');
+                    if (menu && !menu.classList.contains('hidden')) {
+                        hideKpContextMenu();
+                        return;
+                    }
+                    closeKlineModal();
+                } else if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+                    // When K-line modal is active, F5 or Ctrl+R refreshes modal data only without full page reload
+                    e.preventDefault();
+                    refreshKpData(true);
+                }
             }
         });
 
@@ -2469,8 +2577,144 @@
             }
         }
 
-        function refreshKpData() {
-            loadKlinePreviewData();
+        let _kpContextMenuInitialized = false;
+
+        function initKpContextMenu() {
+            if (_kpContextMenuInitialized) return;
+            const modal = document.getElementById('kline-preview-modal');
+            const menu = document.getElementById('kp-context-menu');
+            if (!modal || !menu) return;
+
+            _kpContextMenuInitialized = true;
+
+            // Intercept right-click anywhere within K-line modal
+            modal.addEventListener('contextmenu', (e) => {
+                if (modal.classList.contains('hidden')) return;
+                
+                // Allow text selection context menu only inside editable inputs if any
+                if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                showKpContextMenu(e.clientX, e.clientY);
+            });
+
+            // Close context menu on click anywhere outside or on document scroll
+            document.addEventListener('click', (e) => {
+                if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target)) {
+                    hideKpContextMenu();
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                hideKpContextMenu();
+            });
+        }
+
+        function showKpContextMenu(clientX, clientY) {
+            const menu = document.getElementById('kp-context-menu');
+            if (!menu) return;
+
+            // Update header title
+            const titleEl = document.getElementById('kp-context-stock-title');
+            if (titleEl) {
+                titleEl.innerText = `${currentKpStockName || currentKpSymbol} (${currentKpSymbol})`;
+            }
+
+            // Update Watchlist label
+            const wlLabel = document.getElementById('kp-context-watchlist-label');
+            if (wlLabel) {
+                const code = String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+                const inWatch = getWatchlistSymbols().includes(code);
+                wlLabel.innerText = inWatch ? '移出自选监控' : '加入自选监控';
+            }
+
+            menu.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+
+            // Calculate bounding box so menu never renders offscreen
+            const menuW = 215;
+            const menuH = 265;
+            let left = clientX;
+            let top = clientY;
+
+            if (left + menuW > window.innerWidth) {
+                left = Math.max(10, window.innerWidth - menuW - 12);
+            }
+            if (top + menuH > window.innerHeight) {
+                top = Math.max(10, window.innerHeight - menuH - 12);
+            }
+
+            menu.style.left = `${left}px`;
+            menu.style.top = `${top}px`;
+        }
+
+        function hideKpContextMenu() {
+            const menu = document.getElementById('kp-context-menu');
+            if (menu) menu.classList.add('hidden');
+        }
+
+        function handleKpContextAction(action) {
+            hideKpContextMenu();
+
+            if (action === 'reload') {
+                refreshKpData(true);
+            } else if (action === 'reset-zoom') {
+                if (kpEchart && currentKpData) {
+                    renderKpChart(currentKpData);
+                    showToast('图表重置', `已自适应重置【${currentKpStockName || currentKpSymbol}】K线时间轴与缩放`);
+                }
+            } else if (action === 'toggle-watchlist') {
+                toggleKpWatchlist();
+            } else if (action === 'toggle-profile') {
+                toggleKpProfilePanel();
+            } else if (action === 'backtest') {
+                openBacktestWithSymbol();
+            } else if (action === 'copy-symbol') {
+                const copyText = `${currentKpSymbol} ${currentKpStockName || ''}`.trim();
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(copyText).then(() => {
+                        showToast('复制成功', `已复制「${copyText}」`);
+                    }).catch(() => {
+                        showToast('标的信息', copyText);
+                    });
+                } else {
+                    showToast('标的信息', copyText);
+                }
+            } else if (action === 'close') {
+                closeKlineModal();
+            }
+        }
+
+        async function refreshKpData(showFeedback = false) {
+            const icon = document.getElementById('kp-refresh-icon');
+            if (icon) icon.classList.add('animate-spin');
+
+            try {
+                // Simultaneously refresh both K-line historical data and full stock profile/financials
+                await Promise.allSettled([
+                    loadKlinePreviewData(),
+                    loadStockProfile(currentKpSymbol)
+                ]);
+
+                if (kpEchart) {
+                    kpEchart.resize();
+                }
+
+                if (showFeedback) {
+                    showToast('重新加载', `已刷新【${currentKpStockName || currentKpSymbol}】最新K线行情与公司财务资料`);
+                }
+            } catch (err) {
+                console.error('refreshKpData error:', err);
+                if (showFeedback) {
+                    showToast('刷新异常', '数据重新加载失败，请检查网络连接');
+                }
+            } finally {
+                if (icon) {
+                    setTimeout(() => icon.classList.remove('animate-spin'), 400);
+                }
+            }
         }
 
         function openBacktestWithSymbol() {
@@ -5829,6 +6073,7 @@
             initECharts();
             populateInitialData();
             restoreInitialTab();
+            initKpContextMenu();
         });
     </script>
 </body>
