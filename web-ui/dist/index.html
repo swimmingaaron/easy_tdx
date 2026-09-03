@@ -174,9 +174,11 @@
             background-color: rgba(241, 245, 249, 0.7) !important;
         }
         html.light #kline-preview-modal > div {
-            background: #ffffff !important;
-            border-color: #e2e8f0 !important;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+            background: rgba(255, 255, 255, 0.88) !important;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-color: rgba(226, 232, 240, 0.8) !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
         }
         html.light #server-switch-modal > div {
             background: #ffffff !important;
@@ -1399,8 +1401,8 @@
     </main>
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
-    <div id="kline-preview-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex items-center justify-center p-0 sm:p-2 md:p-3">
-        <div class="glass-card bg-[#0b0f19]/98 border-0 sm:border sm:border-slate-700/80 rounded-none sm:rounded-2xl max-w-[1260px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden">
+    <div id="kline-preview-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-0 sm:p-2 md:p-3">
+        <div class="glass-card bg-[#0b0f19]/85 border-0 sm:border sm:border-slate-700/60 rounded-none sm:rounded-2xl max-w-[1260px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl">
             
             <!-- Row 1: Stock Symbol, Name, Live Price, Cap & Action Buttons -->
             <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5 flex-wrap shrink-0">
@@ -2242,6 +2244,29 @@
             }
         }
 
+        function formatDatetimeWithWeekday(dtStr) {
+            if (!dtStr) return '';
+            const str = String(dtStr).trim();
+            const parts = str.split(' ');
+            const datePart = parts[0];
+            if (!datePart || !datePart.includes('-')) return str;
+
+            const ymd = datePart.split('-');
+            if (ymd.length < 3) return str;
+            const year = parseInt(ymd[0], 10);
+            const month = parseInt(ymd[1], 10) - 1;
+            const day = parseInt(ymd[2], 10);
+
+            const dt = new Date(year, month, day);
+            if (isNaN(dt.getTime())) return str;
+
+            const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const weekday = weekdays[dt.getDay()];
+
+            const timePart = parts.slice(1).join(' ');
+            return timePart ? `${datePart} ${weekday} ${timePart}` : `${datePart} ${weekday}`;
+        }
+
         function updateKpBarDetails(bar, prev) {
             const el = document.getElementById('kp-bar-details');
             if (!el || !bar) return;
@@ -2255,7 +2280,7 @@
 
             el.innerHTML = `
                 <div class="flex items-center space-x-2 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
-                    <span style="color:#8E8E96">${bar.datetime}</span>
+                    <span style="color:#8E8E96">${formatDatetimeWithWeekday(bar.datetime)}</span>
                     <span style="color:#8E8E96">开</span>
                     <span style="color:${openClr}; font-weight:600;">${Number(bar.open).toFixed(2)}</span>
                     <span style="color:#8E8E96">高</span>
@@ -2545,9 +2570,9 @@
             const axisColor = isDark ? '#334155' : '#cbd5e1';
             const textColor = '#64748b';
             const axisPointerBg = isDark ? '#1e293b' : '#475569';
-            const tooltipBg = isDark ? '#181b22' : '#ffffff';
-            const tooltipBorder = isDark ? '#2a2e39' : '#e2e8f0';
-            const tooltipTextColor = isDark ? '#d1d5db' : '#334155';
+            const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.78)';
+            const tooltipBorder = isDark ? 'rgba(71, 85, 105, 0.5)' : 'rgba(203, 213, 225, 0.7)';
+            const tooltipTextColor = isDark ? '#cbd5e1' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
             const tooltipDivider = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
@@ -2569,7 +2594,7 @@
                     borderColor: tooltipBorder,
                     borderWidth: 1,
                     padding: [8, 12],
-                    extraCssText: isDark ? 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7); border-radius: 6px;' : 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); border-radius: 6px;',
+                    extraCssText: isDark ? 'box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); border-radius: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);' : 'box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08); border-radius: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);',
                     formatter: (params) => {
                         const p0 = params[0];
                         if (!p0) return '';
@@ -2603,7 +2628,7 @@
                         return `
                             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 190px;">
                                 <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 1px solid ${tooltipDivider}; font-size: 13px;">
-                                    ${stockName} (${stockCode}) ${bar.datetime}
+                                    ${stockName} (${stockCode}) ${formatDatetimeWithWeekday(bar.datetime)}
                                 </div>
                                 <div style="margin-bottom: 2px;">
                                     <span style="color: ${textColor};">开盘: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${Number(bar.open).toFixed(2)}</span>
@@ -2640,7 +2665,7 @@
                         boundaryGap: true,
                         axisLine: { lineStyle: { color: axisColor } },
                         axisLabel: { color: textColor, fontSize: labelFontSize },
-                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg, formatter: p => formatDatetimeWithWeekday(p.value) } },
                         splitLine: { show: false }
                     },
                     {
