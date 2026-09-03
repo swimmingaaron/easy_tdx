@@ -90,8 +90,6 @@ def get_stock_full_profile(code: str) -> Dict[str, Any]:
                 ind = jb.get("sshy", "") or jb.get("sszjhhy", "")
                 business_text = jb.get("gsjj", "") or jb.get("jyfw", "") or ""
                 business_clean = " ".join(business_text.strip().split())
-                if len(business_clean) > 180:
-                    business_clean = business_clean[:180] + "..."
 
                 result["company_info"] = {
                     "org_name": jb.get("gsmc", ""),
@@ -126,75 +124,104 @@ def get_stock_full_profile(code: str) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Failed to fetch concept boards for {clean_code}: {e}")
 
-    # 4. Sina Financial Reports (Revenue, Net Profit, YoY, QoQ)
+    # 4. Main Financial Reports (Revenue, Net Profit, Deducted Profit, YoY, QoQ)
+    reports: List[Dict[str, Any]] = []
     try:
-        sc = SinaClient(timeout=4.0)
-        df_lrb = sc.get_financial_report(clean_code, report_type="lrb")
-        if df_lrb is not None and not df_lrb.empty:
-            reports: List[Dict[str, Any]] = []
-            max_reports = min(4, len(df_lrb))
-            for i in range(max_reports):
-                r = df_lrb.iloc[i]
-                period = str(r.get("报告期", ""))
+        url_fin = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
+        req_fin = urllib.request.Request(url_fin, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req_fin, timeout=4) as resp_fin:
+            raw_fin = resp_fin.read().decode("utf-8")
+            data_fin = json.loads(raw_fin).get("data", [])
+            for d in data_fin[:4]:
+                rep_date = str(d.get("REPORT_DATE", ""))[:10]
+                rep_title = d.get("REPORT_DATE_NAME") or rep_date
                 
-                period_title = period
-                if "-03-31" in period:
-                    period_title = f"{period[:4]}一季报"
-                elif "-06-30" in period:
-                    period_title = f"{period[:4]}中报"
-                elif "-09-30" in period:
-                    period_title = f"{period[:4]}三季报"
-                elif "-12-31" in period:
-                    period_title = f"{period[:4]}年报"
-
-                # Revenue column
-                rev_col = [c for c in df_lrb.columns if "营业总收入" in c and not c.endswith("_同比")]
-                rev_val = float(r[rev_col[0]]) if rev_col and r[rev_col[0]] is not None else 0.0
+                # Revenue
+                rev_val = float(d.get("TOTALOPERATEREVE") or 0.0)
+                rev_yoy = float(d["TOTALOPERATEREVETZ"]) if d.get("TOTALOPERATEREVETZ") is not None else None
                 
-                rev_yoy_col = [c for c in df_lrb.columns if "营业总收入_同比" in c]
-                rev_yoy = float(r[rev_yoy_col[0]]) * 100 if rev_yoy_col and r[rev_yoy_col[0]] is not None else None
+                # Net Profit
+                np_val = float(d.get("PARENTNETPROFIT") or 0.0)
+                np_yoy = float(d["PARENTNETPROFITTZ"]) if d.get("PARENTNETPROFITTZ") is not None else None
                 
-                # Net Profit column
-                np_col = [c for c in df_lrb.columns if "归属于母公司" in c and not c.endswith("_同比")]
-                if not np_col:
-                    np_col = [c for c in df_lrb.columns if "净利润" in c and not c.endswith("_同比")]
-                np_val = float(r[np_col[0]]) if np_col and r[np_col[0]] is not None else 0.0
+                # Deducted Net Profit (扣非利润)
+                kf_val = float(d.get("KCFJCXSYJLR") or 0.0)
+                kf_yoy = float(d["KCFJCXSYJLRTZ"]) if d.get("KCFJCXSYJLRTZ") is not None else None
                 
-                np_yoy_col = [c for c in df_lrb.columns if "归属于母公司" in c and c.endswith("_同比")]
-                if not np_yoy_col:
-                    np_yoy_col = [c for c in df_lrb.columns if "净利润_同比" in c]
-                np_yoy = float(r[np_yoy_col[0]]) * 100 if np_yoy_col and r[np_yoy_col[0]] is not None else None
-                
-                # QoQ (compared with previous report in list, i.e. index i+1)
-                rev_qoq = None
-                np_qoq = None
-                if i + 1 < len(df_lrb):
-                    prev_r = df_lrb.iloc[i + 1]
-                    prev_rev = float(prev_r[rev_col[0]]) if rev_col and prev_r[rev_col[0]] is not None else None
-                    if prev_rev and prev_rev > 0:
-                        rev_qoq = round(((rev_val - prev_rev) / prev_rev) * 100, 2)
-                    
-                    prev_np = float(prev_r[np_col[0]]) if np_col and prev_r[np_col[0]] is not None else None
-                    if prev_np and prev_np != 0:
-                        np_qoq = round(((np_val - prev_np) / abs(prev_np)) * 100, 2)
-
                 reports.append({
-                    "period": period,
-                    "period_title": period_title,
+                    "period": rep_date,
+                    "period_title": rep_title,
                     "revenue": rev_val,
                     "revenue_yi": round(rev_val / 100000000.0, 2) if rev_val >= 100000000 else round(rev_val / 10000.0, 2),
                     "revenue_unit": "亿" if rev_val >= 100000000 else "万",
                     "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
-                    "revenue_qoq": rev_qoq,
                     "net_profit": np_val,
-                    "net_profit_wan": round(np_val / 10000.0, 2),
-                    "net_profit_yi": round(np_val / 100000000.0, 2),
+                    "net_profit_wan": round(np_val / 10000.0, 2) if abs(np_val) < 100000000 else None,
+                    "net_profit_yi": round(np_val / 100000000.0, 2) if abs(np_val) >= 100000000 else None,
                     "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
-                    "net_profit_qoq": np_qoq,
+                    "deduct_net_profit": kf_val,
+                    "deduct_net_profit_wan": round(kf_val / 10000.0, 2) if abs(kf_val) < 100000000 else None,
+                    "deduct_net_profit_yi": round(kf_val / 100000000.0, 2) if abs(kf_val) >= 100000000 else None,
+                    "deduct_net_profit_yoy": round(kf_yoy, 2) if kf_yoy is not None else None,
                 })
-            result["financials"] = reports
+            
+            # Calculate QoQ
+            for i in range(len(reports)):
+                if i + 1 < len(reports):
+                    prev = reports[i + 1]
+                    if prev["revenue"] > 0:
+                        reports[i]["revenue_qoq"] = round(((reports[i]["revenue"] - prev["revenue"]) / prev["revenue"]) * 100, 2)
+                    if prev["net_profit"] != 0:
+                        reports[i]["net_profit_qoq"] = round(((reports[i]["net_profit"] - prev["net_profit"]) / abs(prev["net_profit"])) * 100, 2)
+                    if prev["deduct_net_profit"] != 0:
+                        reports[i]["deduct_net_profit_qoq"] = round(((reports[i]["deduct_net_profit"] - prev["deduct_net_profit"]) / abs(prev["deduct_net_profit"])) * 100, 2)
     except Exception as e:
-        logger.debug(f"Failed to fetch Sina financial reports for {clean_code}: {e}")
+        logger.debug(f"Failed to fetch EastMoney ZYZB financials for {clean_code}: {e}")
+
+    # Fallback to Sina if EastMoney returns empty
+    if not reports:
+        try:
+            sc = SinaClient(timeout=4.0)
+            df_lrb = sc.get_financial_report(clean_code, report_type="lrb")
+            if df_lrb is not None and not df_lrb.empty:
+                max_reports = min(4, len(df_lrb))
+                for i in range(max_reports):
+                    r = df_lrb.iloc[i]
+                    period = str(r.get("报告期", ""))
+                    period_title = period
+                    if "-03-31" in period: period_title = f"{period[:4]}一季报"
+                    elif "-06-30" in period: period_title = f"{period[:4]}中报"
+                    elif "-09-30" in period: period_title = f"{period[:4]}三季报"
+                    elif "-12-31" in period: period_title = f"{period[:4]}年报"
+
+                    rev_col = [c for c in df_lrb.columns if "营业总收入" in c and not c.endswith("_同比")]
+                    rev_val = float(r[rev_col[0]]) if rev_col and r[rev_col[0]] is not None else 0.0
+                    rev_yoy_col = [c for c in df_lrb.columns if "营业总收入_同比" in c]
+                    rev_yoy = float(r[rev_yoy_col[0]]) * 100 if rev_yoy_col and r[rev_yoy_col[0]] is not None else None
+                    
+                    np_col = [c for c in df_lrb.columns if "归属于母公司" in c and not c.endswith("_同比")]
+                    if not np_col: np_col = [c for c in df_lrb.columns if "净利润" in c and not c.endswith("_同比")]
+                    np_val = float(r[np_col[0]]) if np_col and r[np_col[0]] is not None else 0.0
+                    np_yoy_col = [c for c in df_lrb.columns if "归属于母公司" in c and c.endswith("_同比")]
+                    if not np_yoy_col: np_yoy_col = [c for c in df_lrb.columns if "净利润_同比" in c]
+                    np_yoy = float(r[np_yoy_col[0]]) * 100 if np_yoy_col and r[np_yoy_col[0]] is not None else None
+                    
+                    reports.append({
+                        "period": period,
+                        "period_title": period_title,
+                        "revenue": rev_val,
+                        "revenue_yi": round(rev_val / 100000000.0, 2) if rev_val >= 100000000 else round(rev_val / 10000.0, 2),
+                        "revenue_unit": "亿" if rev_val >= 100000000 else "万",
+                        "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
+                        "net_profit": np_val,
+                        "net_profit_wan": round(np_val / 10000.0, 2) if abs(np_val) < 100000000 else None,
+                        "net_profit_yi": round(np_val / 100000000.0, 2) if abs(np_val) >= 100000000 else None,
+                        "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
+                    })
+        except Exception as e:
+            logger.debug(f"Failed to fetch Sina financial fallback for {clean_code}: {e}")
+
+    result["financials"] = reports
 
     # 5. Shareholder Counts History (Recent 4 Quarters, QoQ changes)
     result["shareholder_history"] = []

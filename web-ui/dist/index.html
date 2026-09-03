@@ -1556,13 +1556,13 @@
                             </span>
                             <span id="kp-ipo-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
                         </div>
-                        <div class="mt-1.5 space-y-1 text-[11px]">
-                            <div class="truncate text-slate-200 font-semibold text-xs" id="kp-org-name" title="">--</div>
+                        <div class="mt-1 space-y-1 text-[11px]">
+                            <div class="truncate text-slate-200 font-bold text-xs" id="kp-org-name" title="">--</div>
                             <div class="flex items-center space-x-2 text-[10px] text-slate-400">
                                 <span>法人: <strong id="kp-legal-person" class="text-slate-300 font-normal">--</strong></span>
                                 <span>地域: <strong id="kp-province" class="text-slate-300 font-normal">--</strong></span>
                             </div>
-                            <div class="text-[10px] text-slate-400 line-clamp-2 leading-relaxed" id="kp-main-business" title="">--</div>
+                            <div class="text-[10px] text-slate-300/90 max-h-16 overflow-y-auto pr-1 leading-relaxed select-text border-t border-slate-800/40 pt-1" id="kp-main-business" title="鼠标滚轮上下滚动可查看完整业务介绍">--</div>
                         </div>
                     </div>
 
@@ -1575,21 +1575,21 @@
                             </span>
                             <span class="text-[10px] text-slate-400" id="kp-sector-count">0个板块</span>
                         </div>
-                        <div id="kp-sectors-container" class="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto no-scrollbar">
+                        <div id="kp-sectors-container" class="flex flex-wrap gap-1 mt-1 max-h-16 overflow-y-auto no-scrollbar">
                             <span class="text-xs text-slate-500">加载中...</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 4. 2-Column Grid: Left 1/2 Financial YoY/QoQ, Right 1/2 Shareholder Count 4-Quarter QoQ -->
+                <!-- 4. 2-Column Grid: Left 1/2 Financial YoY/QoQ + Deducted Profit, Right 1/2 Shareholder Count 4-Quarter QoQ -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
                     
-                    <!-- Left 1/2: 财务指标（营收与归母净利润 同比·环比） -->
+                    <!-- Left 1/2: 财务指标（营收与净利、扣非利润 同比·环比） -->
                     <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
                         <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
                             <span class="text-xs font-bold text-rose-400 flex items-center space-x-1">
                                 <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-                                <span>财务指标（营收与利润 同比·环比）</span>
+                                <span>财务指标（营收、净利润、扣非利润）</span>
                             </span>
                             <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
                         </div>
@@ -1601,14 +1601,15 @@
                                         <th class="py-1 px-1 font-medium text-right">营业总收入</th>
                                         <th class="py-1 px-1 font-medium text-right">营收同比</th>
                                         <th class="py-1 px-1 font-medium text-right">营收环比</th>
-                                        <th class="py-1 px-1 font-medium text-right">归母净利润</th>
-                                        <th class="py-1 px-1 font-medium text-right">利润同比</th>
-                                        <th class="py-1 px-1 font-medium text-right">利润环比</th>
+                                        <th class="py-1 px-1 font-medium text-right">归母净利</th>
+                                        <th class="py-1 px-1 font-medium text-right">净利同比</th>
+                                        <th class="py-1 px-1 font-medium text-right">扣非净利</th>
+                                        <th class="py-1 px-1 font-medium text-right">扣非同比</th>
                                     </tr>
                                 </thead>
                                 <tbody id="kp-financials-tbody" class="divide-y divide-slate-800/40 font-mono">
                                     <tr>
-                                        <td colspan="7" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
+                                        <td colspan="8" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2084,6 +2085,7 @@
 
                             const revStr = f.revenue_yi ? `${f.revenue_yi} 亿` : (f.revenue_wan ? `${f.revenue_wan} 万` : '--');
                             const npStr = f.net_profit_wan ? `${f.net_profit_wan} 万` : (f.net_profit_yi ? `${f.net_profit_yi} 亿` : '--');
+                            const deductStr = f.deduct_net_profit_wan ? `${f.deduct_net_profit_wan} 万` : (f.deduct_net_profit_yi ? `${f.deduct_net_profit_yi} 亿` : '--');
 
                             return `
                                 <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">
@@ -2093,7 +2095,8 @@
                                     <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.revenue_qoq)}</td>
                                     <td class="py-1.5 px-1 text-right font-bold text-amber-400">${npStr}</td>
                                     <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.net_profit_yoy)}</td>
-                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.net_profit_qoq)}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-indigo-300">${deductStr}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.deduct_net_profit_yoy)}</td>
                                 </tr>
                             `;
                         }).join('');
