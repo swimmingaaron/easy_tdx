@@ -1516,10 +1516,10 @@
 
             <!-- Row 3.5: Collapsible Stock Profile, Shareholders & Financials Panel -->
             <div id="kp-profile-panel" class="hidden bg-slate-900/95 rounded-xl border border-slate-800 p-2 sm:p-3 space-y-2 overflow-y-auto max-h-[300px] sm:max-h-[340px] transition duration-200 shadow-xl shrink-0">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
                     
-                    <!-- 1. 股东与股本 -->
-                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                    <!-- 1. 股东与股本 (1 col) -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between md:col-span-1">
                         <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
                             <span class="text-xs font-bold text-cyan-400 flex items-center space-x-1">
                                 <i data-lucide="users" class="w-3.5 h-3.5"></i>
@@ -1547,27 +1547,8 @@
                         </div>
                     </div>
 
-                    <!-- 2. 公司档案与主营业务 -->
-                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
-                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
-                            <span class="text-xs font-bold text-amber-400 flex items-center space-x-1">
-                                <i data-lucide="building" class="w-3.5 h-3.5"></i>
-                                <span>公司档案</span>
-                            </span>
-                            <span id="kp-ipo-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
-                        </div>
-                        <div class="mt-1 space-y-1 text-[11px]">
-                            <div class="truncate text-slate-200 font-bold text-xs" id="kp-org-name" title="">--</div>
-                            <div class="flex items-center space-x-2 text-[10px] text-slate-400">
-                                <span>法人: <strong id="kp-legal-person" class="text-slate-300 font-normal">--</strong></span>
-                                <span>地域: <strong id="kp-province" class="text-slate-300 font-normal">--</strong></span>
-                            </div>
-                            <div class="text-[10px] text-slate-300/90 max-h-16 overflow-y-auto pr-1 leading-relaxed select-text border-t border-slate-800/40 pt-1" id="kp-main-business" title="鼠标滚轮上下滚动可查看完整业务介绍">--</div>
-                        </div>
-                    </div>
-
-                    <!-- 3. 所属板块与概念题材 -->
-                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col sm:col-span-2 justify-between">
+                    <!-- 2. 所属板块与概念题材 (1 col) -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between md:col-span-1">
                         <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
                             <span class="text-xs font-bold text-indigo-400 flex items-center space-x-1">
                                 <i data-lucide="tags" class="w-3.5 h-3.5"></i>
@@ -1577,6 +1558,27 @@
                         </div>
                         <div id="kp-sectors-container" class="flex flex-wrap gap-1 mt-1 max-h-16 overflow-y-auto no-scrollbar">
                             <span class="text-xs text-slate-500">加载中...</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. 公司档案与主营业务 (2 cols: 占据50%面积，可视化更优) -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between md:col-span-2">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-amber-400 flex items-center space-x-1">
+                                <i data-lucide="building" class="w-3.5 h-3.5"></i>
+                                <span>公司档案与主营业务</span>
+                            </span>
+                            <span id="kp-ipo-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
+                        </div>
+                        <div class="mt-1 space-y-1 text-[11px]">
+                            <div class="flex items-center justify-between">
+                                <div class="truncate text-slate-200 font-bold text-xs" id="kp-org-name" title="">--</div>
+                                <div class="flex items-center space-x-2 text-[10px] text-slate-400 shrink-0 ml-2">
+                                    <span>法人: <strong id="kp-legal-person" class="text-slate-300 font-normal">--</strong></span>
+                                    <span>地域: <strong id="kp-province" class="text-slate-300 font-normal">--</strong></span>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-300/90 max-h-16 overflow-y-auto pr-1 leading-relaxed select-text border-t border-slate-800/40 pt-1" id="kp-main-business" title="鼠标滚轮上下滚动可查看完整业务介绍">--</div>
                         </div>
                     </div>
                 </div>
