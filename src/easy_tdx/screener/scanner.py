@@ -60,6 +60,66 @@ def _save_cache(strategy_name: str, universe: str, matches: list[dict[str, Any]]
     except Exception as e:
         logger.warning(f"Failed to save screener cache: {e}")
 
+def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
+    """Enrich screener matches in-place with real-time 1d/3d/5d net capital inflows from TDX MAC."""
+    if not stocks:
+        return
+    try:
+        from easy_tdx.market_data import _get_market, _fmt_pool_money
+        from easy_tdx.market_overview import _get_or_create_mac_client
+        from easy_tdx.codec.bitmap import FieldBit, PresetField
+        
+        mac = _get_or_create_mac_client()
+        fields = (
+            PresetField.BASIC
+            + FieldBit.AMOUNT
+            + FieldBit.MAIN_NET_AMOUNT
+            + FieldBit.MAIN_NET_3D_AMOUNT
+            + FieldBit.MAIN_NET_5D_AMOUNT
+        )
+        
+        symbols = [s.get("code") or s.get("symbol") for s in stocks if s.get("code") or s.get("symbol")]
+        batch_size = 80
+        inflow_map: dict[str, tuple[float, float, float]] = {}
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i:i+batch_size]
+            pairs = [(int(_get_market(code).value), code) for code in batch]
+            df = mac.get_stock_quotes(pairs, fields=fields)
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    c = str(row.get("code", ""))
+                    m1 = float(row.get("main_net_amount") or 0.0)
+                    m3 = float(row.get("main_net_3d_amount") or 0.0)
+                    m5 = float(row.get("main_net_5d_amount") or 0.0)
+                    inflow_map[c] = (m1, m3, m5)
+                    
+        for s in stocks:
+            c = s.get("code") or s.get("symbol", "")
+            if c in inflow_map:
+                m1, m3, m5 = inflow_map[c]
+                s["main_net_amount"] = m1
+                s["main_net_3d"] = m3
+                s["main_net_5d"] = m5
+                s["inflow_1d_str"] = _fmt_pool_money(m1)
+                s["inflow_3d_str"] = _fmt_pool_money(m3)
+                s["inflow_5d_str"] = _fmt_pool_money(m5)
+            else:
+                s.setdefault("main_net_amount", 0.0)
+                s.setdefault("main_net_3d", 0.0)
+                s.setdefault("main_net_5d", 0.0)
+                s.setdefault("inflow_1d_str", "0.0万")
+                s.setdefault("inflow_3d_str", "0.0万")
+                s.setdefault("inflow_5d_str", "0.0万")
+    except Exception as e:
+        logger.debug(f"Failed to enrich screener stocks with inflows: {e}")
+        for s in stocks:
+            s.setdefault("main_net_amount", 0.0)
+            s.setdefault("main_net_3d", 0.0)
+            s.setdefault("main_net_5d", 0.0)
+            s.setdefault("inflow_1d_str", "0.0万")
+            s.setdefault("inflow_3d_str", "0.0万")
+            s.setdefault("inflow_5d_str", "0.0万")
+
 def scan_market_strategy(
     strategy_name: str, 
     symbols: list[str] | None = None,
@@ -86,6 +146,7 @@ def scan_market_strategy(
     if not symbols and use_cache:
         cached = _load_cache(strategy_name, universe)
         if cached is not None:
+            enrich_stocks_with_inflows(cached)
             if progress_callback:
                 progress_callback(len(cached), len(cached), len(cached), 100.0)
             return cached
@@ -181,6 +242,8 @@ def scan_market_strategy(
     # Sort matches: most recent signals first (days_ago ascending), then by volume descending
     matched.sort(key=lambda x: (x.get("days_ago", 999), -x.get("volume", 0)))
     
+    enrich_stocks_with_inflows(matched)
+
     # Save to disk cache if full universe scan completed without abortion
     if (stop_event is None or not stop_event.is_set()) and not symbols:
         _save_cache(strategy_name, universe, matched)

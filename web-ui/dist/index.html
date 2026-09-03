@@ -1371,7 +1371,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="sector-stocks-table" class="divide-y divide-slate-800/40">
-                                        <tr><td colspan="8" class="py-8 text-center text-slate-500">正在载入板块成分股...</td></tr>
+                                        <tr><td colspan="11" class="py-8 text-center text-slate-500">正在载入板块成分股...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1524,21 +1524,37 @@
 
                 <!-- Results Table -->
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
+                    <table class="w-full text-left text-sm min-w-[1100px]">
+                        <colgroup>
+                            <col style="width: 8%;">
+                            <col style="width: 9%;">
+                            <col style="width: 14%;">
+                            <col style="width: 7%;">
+                            <col style="width: 8%;">
+                            <col style="width: 9%;">
+                            <col style="width: 9%;">
+                            <col style="width: 9%;">
+                            <col style="width: 9%;">
+                            <col style="width: 9%;">
+                            <col style="width: 9%;">
+                        </colgroup>
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
                             <tr>
-                                <th class="pb-3">股票代码</th>
-                                <th class="pb-3">股票名称</th>
-                                <th class="pb-3">触发战法</th>
-                                <th class="pb-3">最新价</th>
-                                <th class="pb-3">信号日涨跌</th>
-                                <th class="pb-3">成交额(万)</th>
-                                <th class="pb-3">触发日期 / 状态</th>
-                                <th class="pb-3">操作</th>
+                                <th class="pb-3 pl-3">股票代码</th>
+                                <th class="pb-3 px-2">股票名称</th>
+                                <th class="pb-3 px-2">触发战法</th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('price')" title="点击按最新价排序">最新价<span id="screener-sort-price" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('chg')" title="点击按信号日涨跌排序">信号日涨跌<span id="screener-sort-chg" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('amount')" title="点击按成交额排序">成交额(万)<span id="screener-sort-amount" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('net_1d')" title="点击按当日净流入排序">当日净流入<span id="screener-sort-net_1d" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('net_3d')" title="点击按3日净流入排序">3日净流入<span id="screener-sort-net_3d" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('net_5d')" title="点击按5日净流入排序">5日净流入<span id="screener-sort-net_5d" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-3 text-center cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('date')" title="点击按触发日期排序">触发日期 / 状态<span id="screener-sort-date" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 pr-3 text-right">操作</th>
                             </tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
-                            <tr><td colspan="8" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
+                            <tr><td colspan="11" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1994,7 +2010,7 @@
                                 </thead>
                                 <tbody id="kp-financials-tbody" class="divide-y divide-slate-800/40 font-mono">
                                     <tr>
-                                        <td colspan="8" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
+                                        <td colspan="11" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -6357,7 +6373,7 @@
             if (!isBackground) {
                 if (countEl) countEl.textContent = `正在刷新...`;
                 if (tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-500 text-xs"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin inline mr-1.5 text-cyan-400"></i>正在读取【${name}】成分股真实行情...</td></tr>`;
                     lucide.createIcons();
                 }
             }
@@ -6371,12 +6387,12 @@
                     window.CURRENT_SECTOR_NAME = name;
                     applySectorStocksSortAndRender();
                 } else if (!isBackground && tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="11" class="py-6 text-center text-slate-500 text-xs">暂未获取到成分股</td></tr>`;
                 }
             } catch (e) {
                 console.error('Failed to load sector stocks:', e);
                 if (!isBackground && tableEl) {
-                    tableEl.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
+                    tableEl.innerHTML = `<tr><td colspan="11" class="py-6 text-center text-rose-400 text-xs">加载成分股异常</td></tr>`;
                 }
             }
         }
@@ -6390,7 +6406,7 @@
             if (!tableEl) return;
 
             if (stocks.length === 0) {
-                tableEl.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 text-xs">该板块暂无成分股数据</td></tr>`;
+                tableEl.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-slate-500 text-xs">该板块暂无成分股数据</td></tr>`;
                 return;
             }
 
@@ -7219,11 +7235,69 @@
             }
         }
 
-        function renderScreenerTable(matches, strategyName, universeDesc) {
+        let screenerSortCol = null;
+        let screenerSortAsc = false;
+
+        function updateScreenerSortIcons() {
+            const cols = ['price', 'chg', 'amount', 'net_1d', 'net_3d', 'net_5d', 'date'];
+            cols.forEach(c => {
+                const el = document.getElementById(`screener-sort-${c}`);
+                if (!el) return;
+                if (screenerSortCol === c) {
+                    el.innerText = screenerSortAsc ? '↑' : '↓';
+                    el.className = 'ml-1 text-[10px] text-cyan-400 font-bold';
+                } else {
+                    el.innerText = '';
+                    el.className = 'ml-1 text-[10px] text-slate-500';
+                }
+            });
+        }
+
+        function sortScreenerTable(col) {
+            if (!window._lastScreenerMatches || window._lastScreenerMatches.length === 0) return;
+            if (screenerSortCol === col) {
+                screenerSortAsc = !screenerSortAsc;
+            } else {
+                screenerSortCol = col;
+                screenerSortAsc = false;
+            }
+            updateScreenerSortIcons();
+
+            const sorted = [...window._lastScreenerMatches].sort((a, b) => {
+                let va = 0, vb = 0;
+                if (col === 'price') {
+                    va = Number(a.price || 0);
+                    vb = Number(b.price || 0);
+                } else if (col === 'chg') {
+                    va = Number(a.signal_change_pct ?? a.change_pct ?? 0);
+                    vb = Number(b.signal_change_pct ?? b.change_pct ?? 0);
+                } else if (col === 'amount') {
+                    va = Number(a.amount_wan || 0);
+                    vb = Number(b.amount_wan || 0);
+                } else if (col === 'net_1d') {
+                    va = Number(a.main_net_amount || 0);
+                    vb = Number(b.main_net_amount || 0);
+                } else if (col === 'net_3d') {
+                    va = Number(a.main_net_3d || 0);
+                    vb = Number(b.main_net_3d || 0);
+                } else if (col === 'net_5d') {
+                    va = Number(a.main_net_5d || 0);
+                    vb = Number(b.main_net_5d || 0);
+                } else if (col === 'date') {
+                    va = String(a.signal_date || '');
+                    vb = String(b.signal_date || '');
+                    return screenerSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                }
+                return screenerSortAsc ? va - vb : vb - va;
+            });
+            renderScreenerTableRows(sorted, window._lastScreenerStrategy || '', window._lastScreenerUniverse || '');
+        }
+
+        function renderScreenerTableRows(matches, strategyName, universeDesc) {
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 return;
             }
 
@@ -7237,22 +7311,46 @@
                 const isToday = (m.status_label === '今日触发' || m.days_ago === 0);
                 const statusBadgeClass = isToday ? 'bg-rose-950 text-rose-400 border border-rose-800 font-bold' : 'bg-slate-800 text-slate-400 border border-slate-700';
 
+                const m1 = Number(m.main_net_amount || 0);
+                const m3 = Number(m.main_net_3d || 0);
+                const m5 = Number(m.main_net_5d || 0);
+
+                const inflow1dStr = formatStockInflowMoney(m1, m.inflow_1d_str);
+                const inflow3dStr = formatStockInflowMoney(m3, m.inflow_3d_str);
+                const inflow5dStr = formatStockInflowMoney(m5, m.inflow_5d_str);
+
+                const inflow1dColor = getStockInflowColor(m1);
+                const inflow3dColor = getStockInflowColor(m3);
+                const inflow5dColor = getStockInflowColor(m5);
+
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-3 font-semibold"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-cyan-400 font-mono">${m.symbol || m.code}</span></td>
-                    <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
-                    <td class="py-3 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span></td>
-                    <td class="py-3 font-bold text-white font-mono">¥${Number(m.price).toFixed(2)}</td>
-                    <td class="py-3 font-mono ${chgClass}">${chgStr}</td>
-                    <td class="py-3 text-slate-300 font-mono">${amt}</td>
-                    <td class="py-3 font-mono"><span class="px-2 py-0.5 rounded text-xs ${statusBadgeClass}">${m.signal_date} (${m.status_label || '信号'})</span></td>
-                    <td class="py-3 flex items-center space-x-2">
-                        <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
-                        <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer">载入回测</button>
+                    <td class="py-3 pl-3 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-cyan-400 font-mono">${m.symbol || m.code}</span></td>
+                    <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
+                    <td class="py-3 px-2 font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span></td>
+                    <td class="py-3 px-2 text-right font-bold text-white font-mono whitespace-nowrap">¥${Number(m.price).toFixed(2)}</td>
+                    <td class="py-3 px-2 text-right font-mono ${chgClass} whitespace-nowrap">${chgStr}</td>
+                    <td class="py-3 px-2 text-right text-slate-300 font-mono whitespace-nowrap">${amt}</td>
+                    <td class="py-3 px-2 text-right font-mono font-semibold ${inflow1dColor} whitespace-nowrap" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
+                    <td class="py-3 px-2 text-right font-mono font-semibold ${inflow3dColor} whitespace-nowrap" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
+                    <td class="py-3 px-2 text-right font-mono font-semibold ${inflow5dColor} whitespace-nowrap" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
+                    <td class="py-3 px-3 text-center font-mono whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs ${statusBadgeClass}">${m.signal_date} (${m.status_label || '信号'})</span></td>
+                    <td class="py-3 pr-3 text-right whitespace-nowrap">
+                        <div class="flex items-center justify-end space-x-1.5">
+                            <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>
+                            <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer whitespace-nowrap">载入回测</button>
+                        </div>
                     </td>
                 </tr>`;
             }).join('');
             lucide.createIcons();
+        }
+
+        function renderScreenerTable(matches, strategyName, universeDesc) {
+            window._lastScreenerMatches = matches;
+            window._lastScreenerStrategy = strategyName;
+            window._lastScreenerUniverse = universeDesc;
+            renderScreenerTableRows(matches, strategyName, universeDesc);
         }
 
         async function runScreenerScan() {
@@ -7289,7 +7387,7 @@
             if (btnText) btnText.innerText = '选股中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
             if (statusText) statusText.innerText = `正在对【${uniDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Carousel Modal
@@ -7315,11 +7413,11 @@
                     showToast('选股完成', `【${uniDesc}】共命中 ${matches.length} 只符合【${strategyName}】战法的强势标的 (耗时 ${elapsed}s)`);
                     speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                 } else {
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
                 }
             } catch (e) {
                 console.error('Screener scan error:', e);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
             } finally {
                 closeQuoteModal();
                 if (btn) btn.disabled = false;
@@ -7360,7 +7458,7 @@
             if (progLabel) progLabel.innerText = '全市场并发扫描初始化中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
             if (statusText) statusText.innerText = `全市场 5,200+ 只 A 股深度并发扫描中：【${strategyName}】`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Modal
@@ -7440,7 +7538,7 @@
                 closeQuoteModal();
                 if (progContainer) progContainer.classList.add('hidden');
                 if (cancelBtn) cancelBtn.classList.add('hidden');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-rose-400 text-xs">启动全市场任务失败: ${err.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">启动全市场任务失败: ${err.message}</td></tr>`;
             }
         }
 
