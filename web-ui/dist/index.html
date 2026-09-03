@@ -1427,7 +1427,7 @@
                     </div>
                 </div>
 
-                <!-- Right: Action Icons (Watchlist, Backtest, Theme, Refresh, Close) -->
+                <!-- Right: Action Icons (Watchlist, Backtest, Profile, Theme, Refresh, Close) -->
                 <div class="flex items-center space-x-1.5 text-xs shrink-0">
                     <button id="kp-watchlist-btn" onclick="toggleKpWatchlist()" class="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer not-in-watchlist" title="加入或移出自选监控池">
                         <i id="kp-watchlist-icon" data-lucide="star" class="w-3.5 h-3.5"></i>
@@ -1436,6 +1436,10 @@
                     <button onclick="openBacktestWithSymbol()" class="flex items-center space-x-1 px-2 py-1 rounded bg-cyan-950/80 text-cyan-400 border border-cyan-800 hover:bg-cyan-900 transition text-xs">
                         <i data-lucide="play" class="w-3 h-3"></i>
                         <span>回测</span>
+                    </button>
+                    <button id="kp-profile-toggle-btn" onclick="toggleKpProfilePanel()" class="flex items-center space-x-1 px-2 py-1 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 hover:bg-indigo-900 transition text-xs font-semibold cursor-pointer" title="展开/收起 股东人数、公司档案、所属板块及营收利润同比环比">
+                        <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-400"></i>
+                        <span>资料·财务</span>
                     </button>
                     <button onclick="toggleTheme()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="切换亮色/暗色模式">
                         <i id="kp-theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
@@ -1507,6 +1511,105 @@
                     <span style="color:#3B82F6">MA10:14.27</span>
                     <span style="color:#F97316">MA20:13.52</span>
                     <span style="color:#8B5CF6">MA60:12.85</span>
+                </div>
+            </div>
+
+            <!-- Row 3.5: Collapsible Stock Profile, Shareholders & Financials Panel -->
+            <div id="kp-profile-panel" class="hidden bg-slate-900/95 rounded-xl border border-slate-800 p-2 sm:p-3 space-y-2 overflow-y-auto max-h-[300px] sm:max-h-[340px] transition duration-200 shadow-xl shrink-0">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    
+                    <!-- 1. 股东与股本 -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-cyan-400 flex items-center space-x-1">
+                                <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                <span>股东与股本</span>
+                            </span>
+                            <span id="kp-updated-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1.5 mt-2 text-[11px]">
+                            <div>
+                                <div class="text-slate-400 text-[10px]">股东总户数</div>
+                                <div id="kp-holder-count" class="font-bold font-mono text-xs text-cyan-400">--</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-[10px]">户均持股量</div>
+                                <div id="kp-avg-shares" class="font-bold font-mono text-xs text-slate-200">--</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-[10px]">总/流通股本</div>
+                                <div id="kp-shares-cap" class="font-mono text-slate-300 text-[10px]">--</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-400 text-[10px]">每股净资产</div>
+                                <div id="kp-nav-per-share" class="font-mono text-slate-300 text-[10px]">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 公司档案与主营业务 -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-amber-400 flex items-center space-x-1">
+                                <i data-lucide="building" class="w-3.5 h-3.5"></i>
+                                <span>公司档案</span>
+                            </span>
+                            <span id="kp-ipo-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
+                        </div>
+                        <div class="mt-1.5 space-y-1 text-[11px]">
+                            <div class="truncate text-slate-200 font-semibold text-xs" id="kp-org-name" title="">--</div>
+                            <div class="flex items-center space-x-2 text-[10px] text-slate-400">
+                                <span>法人: <strong id="kp-legal-person" class="text-slate-300 font-normal">--</strong></span>
+                                <span>地域: <strong id="kp-province" class="text-slate-300 font-normal">--</strong></span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 line-clamp-2 leading-relaxed" id="kp-main-business" title="">--</div>
+                        </div>
+                    </div>
+
+                    <!-- 3. 所属板块与概念题材 -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col sm:col-span-2 justify-between">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-indigo-400 flex items-center space-x-1">
+                                <i data-lucide="tags" class="w-3.5 h-3.5"></i>
+                                <span>所属板块与题材</span>
+                            </span>
+                            <span class="text-[10px] text-slate-400" id="kp-sector-count">0个板块</span>
+                        </div>
+                        <div id="kp-sectors-container" class="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto no-scrollbar">
+                            <span class="text-xs text-slate-500">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. 营收与归母净利润 (同比 / 环比 财务报表) -->
+                <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
+                    <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                        <span class="text-xs font-bold text-rose-400 flex items-center space-x-1">
+                            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                            <span>财务指标（营收与归母净利润 同比·环比）</span>
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
+                    </div>
+                    <div class="overflow-x-auto no-scrollbar mt-1">
+                        <table class="w-full text-[11px] text-left">
+                            <thead class="text-slate-400 border-b border-slate-800/80 text-[10px]">
+                                <tr>
+                                    <th class="py-1 px-1.5 font-medium">报告期</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">营业总收入</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">营收同比</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">营收环比</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">归母净利润</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">利润同比</th>
+                                    <th class="py-1 px-1.5 font-medium text-right">利润环比</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kp-financials-tbody" class="divide-y divide-slate-800/40 font-mono">
+                                <tr>
+                                    <td colspan="7" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -1838,6 +1941,134 @@
             loadKlinePreviewData();
         }
 
+        let isKpProfileOpen = false;
+        function toggleKpProfilePanel() {
+            isKpProfileOpen = !isKpProfileOpen;
+            const panel = document.getElementById('kp-profile-panel');
+            const btn = document.getElementById('kp-profile-toggle-btn');
+            if (panel) {
+                panel.classList.toggle('hidden', !isKpProfileOpen);
+            }
+            if (btn) {
+                if (isKpProfileOpen) {
+                    btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500');
+                    btn.classList.remove('bg-indigo-950/80', 'text-indigo-300', 'border-indigo-700/60');
+                } else {
+                    btn.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-500');
+                    btn.classList.add('bg-indigo-950/80', 'text-indigo-300', 'border-indigo-700/60');
+                }
+            }
+            if (kpEchart) {
+                setTimeout(() => { kpEchart.resize(); }, 100);
+            }
+        }
+
+        async function loadStockProfile(symbol) {
+            try {
+                const cleanSym = String(symbol || '').replace(/[^0-9a-zA-Z]/g, '');
+                if (!cleanSym) return;
+
+                const tbody = document.getElementById('kp-financials-tbody');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="py-2 text-center text-slate-500 font-sans">正在加载 ${cleanSym} 最新财报数据...</td></tr>`;
+
+                const resp = await fetch(`/api/quotes/stock_profile?symbol=${cleanSym}`);
+                if (!resp.ok) return;
+                const json = await resp.json();
+                const d = json.data;
+                if (!d) return;
+
+                // 1. Shareholders
+                const sh = d.shareholders || {};
+                const holderCountEl = document.getElementById('kp-holder-count');
+                const avgSharesEl = document.getElementById('kp-avg-shares');
+                const sharesCapEl = document.getElementById('kp-shares-cap');
+                const navEl = document.getElementById('kp-nav-per-share');
+                const upDateEl = document.getElementById('kp-updated-date-badge');
+                const ipoDateEl = document.getElementById('kp-ipo-date-badge');
+
+                if (holderCountEl) holderCountEl.innerText = sh.holder_count ? `${Number(sh.holder_count).toLocaleString()} 户` : '--';
+                if (avgSharesEl) avgSharesEl.innerText = sh.avg_shares_per_holder ? `${(sh.avg_shares_per_holder / 10000).toFixed(2)} 万股` : '--';
+                if (sharesCapEl) sharesCapEl.innerText = `${sh.total_shares_yi || '--'}亿 / ${sh.float_shares_yi || '--'}亿`;
+                if (navEl) navEl.innerText = sh.nav_per_share ? `¥${sh.nav_per_share}` : '--';
+                if (upDateEl) upDateEl.innerText = sh.updated_date ? `披露: ${sh.updated_date}` : '';
+                if (ipoDateEl) ipoDateEl.innerText = sh.ipo_date ? `上市: ${sh.ipo_date}` : '';
+
+                // 2. Company Info
+                const comp = d.company_info || {};
+                const orgNameEl = document.getElementById('kp-org-name');
+                const legalEl = document.getElementById('kp-legal-person');
+                const provEl = document.getElementById('kp-province');
+                const mainBizEl = document.getElementById('kp-main-business');
+
+                if (orgNameEl) {
+                    orgNameEl.innerText = comp.org_name || '--';
+                    orgNameEl.title = comp.org_name || '';
+                }
+                if (legalEl) legalEl.innerText = comp.legal_person || '--';
+                if (provEl) provEl.innerText = comp.province || '--';
+                if (mainBizEl) {
+                    mainBizEl.innerText = comp.main_business || '暂无主营业务简介';
+                    mainBizEl.title = comp.main_business || '';
+                }
+
+                // 3. Sectors & Concepts
+                const sectors = Array.isArray(d.sectors) ? d.sectors : [];
+                const secContainer = document.getElementById('kp-sectors-container');
+                const secCountEl = document.getElementById('kp-sector-count');
+                if (secCountEl) secCountEl.innerText = `${sectors.length} 个板块/题材`;
+
+                if (secContainer) {
+                    if (sectors.length === 0) {
+                        secContainer.innerHTML = `<span class="text-xs text-slate-500 font-sans">暂无板块题材数据</span>`;
+                    } else {
+                        secContainer.innerHTML = sectors.map(s => {
+                            const isHy = s.type === '行业';
+                            const tagStyle = isHy
+                                ? 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60 font-semibold'
+                                : 'bg-slate-800/80 text-slate-300 border-slate-700/50';
+                            return `<span class="text-[10px] px-2 py-0.5 rounded-full border ${tagStyle}">${s.name}</span>`;
+                        }).join('');
+                    }
+                }
+
+                // 4. Financials Table (Revenue, Profit, YoY, QoQ)
+                const fins = Array.isArray(d.financials) ? d.financials : [];
+                if (tbody) {
+                    if (fins.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="py-2 text-center text-slate-500 font-sans">暂无财务报表数据</td></tr>`;
+                    } else {
+                        tbody.innerHTML = fins.map(f => {
+                            const formatChg = (val) => {
+                                if (val === null || val === undefined) return '<span class="text-slate-500">--</span>';
+                                const num = Number(val);
+                                const isPos = num > 0;
+                                const isZero = num === 0;
+                                const color = isPos ? 'text-rose-400 font-semibold' : (isZero ? 'text-slate-400' : 'text-emerald-400 font-semibold');
+                                return `<span class="${color}">${isPos ? '+' : ''}${num.toFixed(2)}%</span>`;
+                            };
+
+                            const revStr = f.revenue_yi ? `${f.revenue_yi} 亿` : (f.revenue_wan ? `${f.revenue_wan} 万` : '--');
+                            const npStr = f.net_profit_wan ? `${f.net_profit_wan} 万` : (f.net_profit_yi ? `${f.net_profit_yi} 亿` : '--');
+
+                            return `
+                                <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">
+                                    <td class="py-1.5 px-1.5 text-slate-300 font-sans font-medium">${f.period_title || f.period}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold text-cyan-400">${revStr}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.revenue_yoy)}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.revenue_qoq)}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold text-amber-400">${npStr}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.net_profit_yoy)}</td>
+                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.net_profit_qoq)}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch (err) {
+                console.error('loadStockProfile err:', err);
+            }
+        }
+
         function openKlineModal(sym, name) {
             const rawSym = String(sym || '600123').trim();
             currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
@@ -1892,6 +2123,9 @@
             // Reset modal scroll position to top
             const modalCard = modal.querySelector('.glass-card');
             if (modalCard) modalCard.scrollTop = 0;
+
+            // Load Stock Profile in parallel
+            loadStockProfile(currentKpSymbol);
 
             // Wait 50ms for layout to settle before init/resize ECharts and loading data
             setTimeout(() => {

@@ -451,3 +451,15 @@ def get_board_stocks(
         "data": stocks
     }
 
+@router.get("/stock_profile")
+def get_stock_profile(symbol: str = Query(..., description="Stock symbol, e.g. 688683")):
+    """Get full stock profile including shareholder counts, company information, belonging sectors, and quarterly revenue/profit YoY/QoQ."""
+    from easy_tdx.stock_profile import get_stock_full_profile
+    data = get_stock_full_profile(symbol)
+    return {
+        "status": "success",
+        "symbol": symbol,
+        "data": data
+    }
+
+
