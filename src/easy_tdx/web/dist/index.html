@@ -1581,35 +1581,70 @@
                     </div>
                 </div>
 
-                <!-- 4. 营收与归母净利润 (同比 / 环比 财务报表) -->
-                <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80">
-                    <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
-                        <span class="text-xs font-bold text-rose-400 flex items-center space-x-1">
-                            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
-                            <span>财务指标（营收与归母净利润 同比·环比）</span>
-                        </span>
-                        <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
+                <!-- 4. 2-Column Grid: Left 1/2 Financial YoY/QoQ, Right 1/2 Shareholder Count 4-Quarter QoQ -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                    
+                    <!-- Left 1/2: 财务指标（营收与归母净利润 同比·环比） -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-rose-400 flex items-center space-x-1">
+                                <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                                <span>财务指标（营收与利润 同比·环比）</span>
+                            </span>
+                            <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
+                        </div>
+                        <div class="overflow-x-auto no-scrollbar mt-1">
+                            <table class="w-full text-[11px] text-left">
+                                <thead class="text-slate-400 border-b border-slate-800/80 text-[10px]">
+                                    <tr>
+                                        <th class="py-1 px-1 font-medium">报告期</th>
+                                        <th class="py-1 px-1 font-medium text-right">营业总收入</th>
+                                        <th class="py-1 px-1 font-medium text-right">营收同比</th>
+                                        <th class="py-1 px-1 font-medium text-right">营收环比</th>
+                                        <th class="py-1 px-1 font-medium text-right">归母净利润</th>
+                                        <th class="py-1 px-1 font-medium text-right">利润同比</th>
+                                        <th class="py-1 px-1 font-medium text-right">利润环比</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kp-financials-tbody" class="divide-y divide-slate-800/40 font-mono">
+                                    <tr>
+                                        <td colspan="7" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="overflow-x-auto no-scrollbar mt-1">
-                        <table class="w-full text-[11px] text-left">
-                            <thead class="text-slate-400 border-b border-slate-800/80 text-[10px]">
-                                <tr>
-                                    <th class="py-1 px-1.5 font-medium">报告期</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">营业总收入</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">营收同比</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">营收环比</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">归母净利润</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">利润同比</th>
-                                    <th class="py-1 px-1.5 font-medium text-right">利润环比</th>
-                                </tr>
-                            </thead>
-                            <tbody id="kp-financials-tbody" class="divide-y divide-slate-800/40 font-mono">
-                                <tr>
-                                    <td colspan="7" class="py-2 text-center text-slate-500">正在获取最新财报数据...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                    <!-- Right 1/2: 最近4期 股东人数趋势（只统计环比） -->
+                    <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                        <div class="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                            <span class="text-xs font-bold text-cyan-400 flex items-center space-x-1">
+                                <i data-lucide="users-2" class="w-3.5 h-3.5"></i>
+                                <span>股东人数趋势（近4期 · 环比变动）</span>
+                            </span>
+                            <span class="text-[10px] text-slate-400 font-sans">筹码集中度监测</span>
+                        </div>
+                        <div class="overflow-x-auto no-scrollbar mt-1">
+                            <table class="w-full text-[11px] text-left">
+                                <thead class="text-slate-400 border-b border-slate-800/80 text-[10px]">
+                                    <tr>
+                                        <th class="py-1 px-1 font-medium">截止日期</th>
+                                        <th class="py-1 px-1 font-medium text-right">股东总户数</th>
+                                        <th class="py-1 px-1 font-medium text-right">户数环比</th>
+                                        <th class="py-1 px-1 font-medium text-right">户均持股(万股)</th>
+                                        <th class="py-1 px-1 font-medium text-right">持股环比</th>
+                                        <th class="py-1 px-1 font-medium text-right">筹码集中度</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kp-shareholders-tbody" class="divide-y divide-slate-800/40 font-mono">
+                                    <tr>
+                                        <td colspan="6" class="py-2 text-center text-slate-500">正在获取股东人数历史数据...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
+
                 </div>
             </div>
 
@@ -2052,13 +2087,55 @@
 
                             return `
                                 <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">
-                                    <td class="py-1.5 px-1.5 text-slate-300 font-sans font-medium">${f.period_title || f.period}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold text-cyan-400">${revStr}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.revenue_yoy)}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.revenue_qoq)}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold text-amber-400">${npStr}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.net_profit_yoy)}</td>
-                                    <td class="py-1.5 px-1.5 text-right font-bold">${formatChg(f.net_profit_qoq)}</td>
+                                    <td class="py-1.5 px-1 text-slate-300 font-sans font-medium">${f.period_title || f.period}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-cyan-400">${revStr}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.revenue_yoy)}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.revenue_qoq)}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-amber-400">${npStr}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.net_profit_yoy)}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold">${formatChg(f.net_profit_qoq)}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+
+                // 5. Shareholder History Table (Recent 4 Quarters, QoQ changes only)
+                const shTbody = document.getElementById('kp-shareholders-tbody');
+                const shList = Array.isArray(d.shareholder_history) ? d.shareholder_history : [];
+                if (shTbody) {
+                    if (shList.length === 0) {
+                        shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-slate-500 font-sans">暂无股东人数历史变动数据</td></tr>`;
+                    } else {
+                        shTbody.innerHTML = shList.map(item => {
+                            const formatHolderQoq = (val) => {
+                                if (val === null || val === undefined) return '<span class="text-slate-500">--</span>';
+                                const num = Number(val);
+                                const isDown = num < 0;
+                                const color = isDown ? 'text-rose-400 font-bold' : (num > 0 ? 'text-emerald-400 font-bold' : 'text-slate-400');
+                                return `<span class="${color}">${num > 0 ? '+' : ''}${num.toFixed(2)}%</span>`;
+                            };
+
+                            const formatAvgSharesQoq = (val) => {
+                                if (val === null || val === undefined) return '<span class="text-slate-500">--</span>';
+                                const num = Number(val);
+                                const isUp = num > 0;
+                                const color = isUp ? 'text-rose-400 font-bold' : (num < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400');
+                                return `<span class="${color}">${isUp ? '+' : ''}${num.toFixed(2)}%</span>`;
+                            };
+
+                            const focusTag = item.focus && item.focus !== '--'
+                                ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/60">${item.focus}</span>`
+                                : '<span class="text-slate-500">--</span>';
+
+                            return `
+                                <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">
+                                    <td class="py-1.5 px-1 text-slate-300 font-sans font-medium">${item.period_title || item.period}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-cyan-400">${item.holder_count ? Number(item.holder_count).toLocaleString() + ' 户' : '--'}</td>
+                                    <td class="py-1.5 px-1 text-right">${formatHolderQoq(item.holder_qoq)}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-slate-200">${item.avg_shares_wan ? item.avg_shares_wan + ' 万' : '--'}</td>
+                                    <td class="py-1.5 px-1 text-right">${formatAvgSharesQoq(item.avg_shares_qoq)}</td>
+                                    <td class="py-1.5 px-1 text-right font-sans">${focusTag}</td>
                                 </tr>
                             `;
                         }).join('');

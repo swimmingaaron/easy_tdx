@@ -196,4 +196,41 @@ def get_stock_full_profile(code: str) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Failed to fetch Sina financial reports for {clean_code}: {e}")
 
+    # 5. Shareholder Counts History (Recent 4 Quarters, QoQ changes)
+    result["shareholder_history"] = []
+    try:
+        url_sh_hist = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
+        req_sh = urllib.request.Request(url_sh_hist, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req_sh, timeout=4) as resp_sh:
+            data_sh = json.loads(resp_sh.read().decode("utf-8"))
+            gdrs = data_sh.get("gdrs", [])
+            sh_list: List[Dict[str, Any]] = []
+            for g in gdrs[:4]:
+                end_date = str(g.get("END_DATE", ""))[:10]
+                title = end_date
+                if "-03-31" in end_date:
+                    title = f"{end_date[:4]}一季报"
+                elif "-06-30" in end_date:
+                    title = f"{end_date[:4]}中报"
+                elif "-09-30" in end_date:
+                    title = f"{end_date[:4]}三季报"
+                elif "-12-31" in end_date:
+                    title = f"{end_date[:4]}年报"
+                
+                sh_list.append({
+                    "period": end_date,
+                    "period_title": title,
+                    "holder_count": g.get("HOLDER_TOTAL_NUM"),
+                    "holder_qoq": round(float(g.get("TOTAL_NUM_RATIO")), 2) if g.get("TOTAL_NUM_RATIO") is not None else None,
+                    "avg_shares": g.get("AVG_FREE_SHARES"),
+                    "avg_shares_wan": round(float(g.get("AVG_FREE_SHARES")) / 10000.0, 2) if g.get("AVG_FREE_SHARES") is not None else None,
+                    "avg_shares_qoq": round(float(g.get("AVG_FREESHARES_RATIO")), 2) if g.get("AVG_FREESHARES_RATIO") is not None else None,
+                    "avg_hold_amt_wan": round(float(g.get("AVG_HOLD_AMT")) / 10000.0, 2) if g.get("AVG_HOLD_AMT") is not None else None,
+                    "focus": g.get("HOLD_FOCUS") or "--"
+                })
+            result["shareholder_history"] = sh_list
+    except Exception as e:
+        logger.debug(f"Failed to fetch shareholder history for {clean_code}: {e}")
+
     return result
+
