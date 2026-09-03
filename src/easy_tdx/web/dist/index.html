@@ -519,7 +519,7 @@
 
                         <div class="space-y-1">
                             <label class="text-[11px] text-slate-400">回测K线周期</label>
-                            <select id="bt-category" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none font-medium">
+                            <select id="bt-category" onchange="onBtCategoryChange()" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:border-cyan-400 focus:outline-none font-medium">
                                 <option value="DAY" selected>日K (DAY)</option>
                                 <option value="WEEK">周K (WEEK)</option>
                                 <option value="MONTH">月K (MONTH)</option>
@@ -541,7 +541,7 @@
                             </div>
                             <div class="space-y-1">
                                 <label class="text-[11px] text-slate-400">结束日期 (当天)</label>
-                                <input type="date" id="bt-end-date" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-cyan-400 focus:outline-none">
+                                <input type="date" id="bt-end-date" onchange="syncBtCutoffDate(this.value)" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-cyan-400 focus:outline-none">
                             </div>
                         </div>
 
@@ -640,12 +640,38 @@
                                     最大回撤: <strong class="text-emerald-400 font-mono font-bold" id="bt-kline-maxdd">-6.43%</strong>
                                 </span>
                             </div>
-                            <!-- Zoom & Pan Controls -->
-                            <div class="flex items-center space-x-1 text-xs">
-                                <button onclick="zoomKline(0.8)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">◀ 放大</button>
-                                <button onclick="zoomKline(1.2)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">▶ 缩小</button>
-                                <button onclick="panKline(-10)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">◄ 前移</button>
-                                <button onclick="panKline(10)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono">► 后移</button>
+                            <!-- Zoom & End Date Stepper Controls (参考 K线弹窗窗口) -->
+                            <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">
+                                <div class="flex items-center space-x-1">
+                                    <button type="button" onclick="zoomKline(0.8)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono cursor-pointer transition border border-slate-700/60" title="缩放K线图">◀ 放大</button>
+                                    <button type="button" onclick="zoomKline(1.2)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono cursor-pointer transition border border-slate-700/60" title="缩放K线图">▶ 缩小</button>
+                                </div>
+                                
+                                <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 shadow-inner shrink-0">
+                                    <span id="bt-period-tag" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 shrink-0 select-none">日K</span>
+
+                                    <button type="button" onclick="stepBtDate(-1)" id="bt-btn-prev-day" class="px-2 py-0.5 rounded-md text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="结束日期往前平移 1 个周期 (快捷键: ← 方向键)">
+                                        <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                                        <span>前移</span>
+                                    </button>
+                                    
+                                    <div class="relative flex items-center">
+                                        <input type="text" id="bt-cutoff-date" onchange="onBtCutoffDateChange(this.value)" class="bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded-md px-2 py-0.5 text-[11px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition text-center w-36" title="当前推演截止周期 (支持直接输入时点)">
+                                    </div>
+
+                                    <button type="button" onclick="stepBtDate(1)" id="bt-btn-next-day" class="px-2 py-0.5 rounded-md text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="结束日期往后平移 1 个周期 (快捷键: → 方向键)">
+                                        <span>后移</span>
+                                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                                    </button>
+
+                                    <button type="button" onclick="resetBtCutoffToLatest()" id="bt-btn-latest-day" class="px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden" title="恢复至最新周期">
+                                        <span>最新</span>
+                                    </button>
+
+                                    <button type="button" onclick="toggleBtReplayPlay()" id="bt-btn-play-replay" class="p-0.5 px-1 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer" title="逐周期自动推演回测 / 暂停 (快捷键: 空格键)">
+                                        <i id="bt-replay-play-icon" data-lucide="play" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1530,6 +1556,10 @@
                         <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">KDJ</button>
                         <button onclick="setKpSubIndicator('boll')" id="kp-sub-boll" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">BOLL</button>
                         <button onclick="toggleKpZigStrategy()" id="kp-sub-zig" class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer" title="ZIG 转向与右侧突破买卖点">ZIG策略</button>
+                        <button onclick="toggleKpZigAuxPanel()" id="kp-btn-zig-aux" class="px-1.5 py-0.5 rounded text-xs font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 transition cursor-pointer flex items-center space-x-0.5 shadow-sm" title="配置多指标共振辅助与获利最优移动止盈">
+                            <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i>
+                            <span id="kp-zig-aux-pill" class="text-[10px] font-mono font-semibold text-emerald-400">共振最优</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1556,6 +1586,104 @@
                     <button type="button" onclick="toggleKpReplayPlay()" id="kp-btn-play-replay" class="p-0.5 px-1 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer" title="逐日自动推演播放 / 暂停 (快捷键: 空格键)">
                         <i id="kp-replay-play-icon" data-lucide="play" class="w-3 h-3"></i>
                     </button>
+                </div>
+            </div>
+
+            <!-- Collapsible ZIG Auxiliary Resonance & Profit Optimization Panel -->
+            <div id="kp-zig-aux-panel" class="hidden bg-slate-900/95 border border-cyan-800/80 rounded-xl p-2.5 sm:p-3 space-y-2 text-xs backdrop-blur-md shadow-2xl shrink-0 transition-all">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-1.5 flex-wrap gap-1.5">
+                    <div class="flex items-center space-x-2">
+                        <span class="flex items-center space-x-1 font-bold text-cyan-300">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-cyan-400"></i>
+                            <span>ZIG 多指标共振与最优获利配置</span>
+                        </span>
+                        <span class="text-[10px] text-slate-400 hidden sm:inline">（滤除假波谷漂移 · 移动止盈锁定峰值收益）</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <div class="flex bg-slate-950 p-0.5 rounded-lg border border-slate-700 text-[11px]">
+                            <button type="button" onclick="setZigStrategyMode('ENHANCED')" id="kp-zig-mode-enhanced" class="px-2 py-0.5 rounded-md font-semibold text-cyan-300 bg-cyan-950 border border-cyan-700 transition cursor-pointer">🚀 多指标共振增强 (获利最优)</button>
+                            <button type="button" onclick="setZigStrategyMode('CLASSIC')" id="kp-zig-mode-classic" class="px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer">⚪ 纯ZIG模式</button>
+                        </div>
+                        <button type="button" onclick="toggleKpZigAuxPanel()" class="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Performance Stats Card -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 font-mono text-[11px]" id="kp-zig-perf-card">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-sans">策略胜率</span>
+                        <span class="text-emerald-400 font-bold text-xs sm:text-sm" id="kp-zig-stat-winrate">--%</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-sans">区间累计收益</span>
+                        <span class="text-rose-400 font-bold text-xs sm:text-sm" id="kp-zig-stat-pnl">--%</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-sans">盈亏比 (P/L)</span>
+                        <span class="text-amber-400 font-bold text-xs sm:text-sm" id="kp-zig-stat-ratio">--</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-slate-400 font-sans">交易战报 (胜/负)</span>
+                        <span class="text-slate-200 font-semibold" id="kp-zig-stat-trades">-- 笔 (--胜/--负)</span>
+                    </div>
+                </div>
+
+                <!-- Filter & Exit Parameters Form -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] pt-1">
+                    <!-- Left: Buy Filters -->
+                    <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 space-y-1.5">
+                        <div class="font-semibold text-slate-300 flex items-center space-x-1 border-b border-slate-800/60 pb-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>买入多指标共振过滤（杜绝买点时有时无）</span>
+                        </div>
+                        <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="kp-zig-use-ma" onchange="updateZigAuxConfig()" checked class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            <span><strong>MA 趋势生命线过滤</strong>：站上 MA10 或 MA20，防逆势抄底</span>
+                        </label>
+                        <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="kp-zig-use-vol" onchange="updateZigAuxConfig()" checked class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            <span><strong>成交量放量确认</strong>：建仓日成交量突破 5日均量，拒绝无量弱反弹</span>
+                        </label>
+                        <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="kp-zig-use-macd" onchange="updateZigAuxConfig()" checked class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            <span><strong>MACD 动量共振</strong>：红柱放大或绿柱缩短，动能同向转暖才建仓</span>
+                        </label>
+                    </div>
+
+                    <!-- Right: Optimal Exit & Profit Taking -->
+                    <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60 space-y-1.5">
+                        <div class="font-semibold text-slate-300 flex items-center space-x-1 border-b border-slate-800/60 pb-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span>卖出与获利最优机制（高位锁定利润）</span>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="kp-zig-use-trailing" onchange="updateZigAuxConfig()" checked class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                                <span><strong>动态移动跟踪止盈 (Trailing Stop)</strong></span>
+                            </label>
+                            <div class="flex items-center space-x-1.5 pl-5 text-[10px] text-slate-400 flex-wrap">
+                                <span>浮盈达</span>
+                                <input type="number" id="kp-zig-trail-trig" onchange="updateZigAuxConfig()" value="6.0" step="0.5" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 text-center font-mono text-cyan-300">%
+                                <span>启动跟踪；最高点回撤</span>
+                                <input type="number" id="kp-zig-trail-cb" onchange="updateZigAuxConfig()" value="3.5" step="0.5" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 text-center font-mono text-cyan-300">%
+                                <span>立即止盈</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between pt-0.5">
+                            <label class="flex items-center space-x-2 text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="kp-zig-use-sl" onchange="updateZigAuxConfig()" checked class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                                <span><strong>硬止损保护</strong></span>
+                            </label>
+                            <div class="flex items-center space-x-1 text-[10px] text-slate-400">
+                                <span>买入后跌破</span>
+                                <input type="number" id="kp-zig-sl-pct" onchange="updateZigAuxConfig()" value="5.0" step="0.5" class="w-12 bg-slate-900 border border-slate-700 rounded px-1 text-center font-mono text-rose-300">%
+                                <span>强制平仓</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -2416,6 +2544,22 @@
                         toggleKpReplayPlay();
                     }
                 }
+            } else {
+                // When on Single Stock Backtest view and modal is closed
+                const btView = document.getElementById('view-backtest');
+                const isBtActive = btView && !btView.classList.contains('hidden');
+                if (isBtActive && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                    if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        stepBtDate(-1);
+                    } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        stepBtDate(1);
+                    } else if (e.code === 'Space') {
+                        e.preventDefault();
+                        toggleBtReplayPlay();
+                    }
+                }
             }
         });
 
@@ -2459,16 +2603,18 @@
             }
         }
 
-        function calcZigZag(prices, percent = 10.0) {
+        function calcZigZagDetailed(prices, percent = 10.0) {
             const n = prices.length;
-            if (n === 0) return [];
-            if (n === 1) return [prices[0]];
+            if (n === 0) return { z: [], troughs: [], peaks: [] };
+            if (n === 1) return { z: [prices[0]], troughs: [], peaks: [] };
             const x = (percent > 1.0 ? percent / 100.0 : percent);
             
             let peer_i = 0;
             let candidate_i = null;
             const peers = [0];
             let state = 0; // 0: start, 1: rise, 2: fall
+            const troughs = [];
+            const peaks = [];
             
             for (let scan_i = 1; scan_i < n; scan_i++) {
                 if (scan_i === n - 1) {
@@ -2501,9 +2647,11 @@
                         if (prices[scan_i] >= prices[peer_i] * (1.0 + x)) {
                             candidate_i = scan_i;
                             state = 1;
+                            troughs.push({ troughIdx: peer_i, confirmIdx: scan_i, troughPrice: prices[peer_i], confirmPrice: prices[scan_i] });
                         } else if (prices[scan_i] <= prices[peer_i] * (1.0 - x)) {
                             candidate_i = scan_i;
                             state = 2;
+                            peaks.push({ peakIdx: peer_i, confirmIdx: scan_i, peakPrice: prices[peer_i], confirmPrice: prices[scan_i] });
                         }
                     }
                 } else if (state === 1) {
@@ -2513,6 +2661,7 @@
                         peer_i = candidate_i;
                         peers.push(peer_i);
                         state = 2;
+                        peaks.push({ peakIdx: candidate_i, confirmIdx: scan_i, peakPrice: prices[candidate_i], confirmPrice: prices[scan_i] });
                         candidate_i = scan_i;
                     }
                 } else if (state === 2) {
@@ -2522,6 +2671,7 @@
                         peer_i = candidate_i;
                         peers.push(peer_i);
                         state = 1;
+                        troughs.push({ troughIdx: candidate_i, confirmIdx: scan_i, troughPrice: prices[candidate_i], confirmPrice: prices[scan_i] });
                         candidate_i = scan_i;
                     }
                 }
@@ -2548,25 +2698,108 @@
                     z[k] = span === 0 ? v_start : v_start + (v_end - v_start) * (k - p_start) / span;
                 }
             }
-            return z;
+            return { z, troughs, peaks };
         }
 
-        function calcZigSignals(bars, zigDelta = 10.0, stopLossPct = 5.0, confirmPct = 1.0, hhvPeriod = 20) {
-            if (!bars || bars.length < 2) return { zigArr: [], trades: [], buySignals: [], sellSignals: [], inPos: false, buyPrice: 0 };
+        function calcZigZag(prices, percent = 10.0) {
+            return calcZigZagDetailed(prices, percent).z;
+        }
+
+        // Global ZIG Auxiliary Resonance & Profit Optimization Configuration
+        let zigAuxConfig = {
+            mode: 'ENHANCED', // 'ENHANCED' (多指标共振 + 动态移动止盈) or 'CLASSIC' (纯ZIG)
+            zigDelta: 10.0,
+            stopLossPct: 5.0,
+            confirmPct: 1.0,
+            hhvPeriod: 20,
+            useMaFilter: true,         // MA 趋势生命线过滤: 要求收盘价站上 MA10 或 MA20
+            useVolFilter: true,        // 成交量放量确认: 建仓日成交量突破 5日均量
+            useMacdFilter: true,       // MACD 动能共振: MACD柱状体转暖或DIF拐头向上
+            useTrailingStop: true,     // 动态移动跟踪止盈: 浮盈达标后自最高点回撤止盈，获利最优核心
+            trailTriggerPct: 6.0,      // 浮盈达 6.0% 开启回撤跟踪
+            trailCallbackPct: 3.5      // 最高点回撤 3.5% 立即锁定止盈
+        };
+
+        function toggleKpZigAuxPanel() {
+            const p = document.getElementById('kp-zig-aux-panel');
+            if (!p) return;
+            p.classList.toggle('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function setZigStrategyMode(mode) {
+            zigAuxConfig.mode = mode;
+            const btnEnh = document.getElementById('kp-zig-mode-enhanced');
+            const btnCls = document.getElementById('kp-zig-mode-classic');
+            const pill = document.getElementById('kp-zig-aux-pill');
+            if (mode === 'ENHANCED') {
+                if (btnEnh) btnEnh.className = 'px-2 py-0.5 rounded-md font-semibold text-cyan-300 bg-cyan-950 border border-cyan-700 transition cursor-pointer';
+                if (btnCls) btnCls.className = 'px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer';
+                if (pill) { pill.innerText = '共振最优'; pill.className = 'text-[10px] font-mono font-semibold text-emerald-400'; }
+            } else {
+                if (btnEnh) btnEnh.className = 'px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200 transition cursor-pointer';
+                if (btnCls) btnCls.className = 'px-2 py-0.5 rounded-md font-semibold text-cyan-300 bg-cyan-950 border border-cyan-700 transition cursor-pointer';
+                if (pill) { pill.innerText = '纯ZIG'; pill.className = 'text-[10px] font-mono font-semibold text-slate-400'; }
+            }
+            if (currentKpFullBars && currentKpFullBars.length > 0) {
+                applyKpCutoffAndRender();
+            }
+        }
+
+        function updateZigAuxConfig() {
+            zigAuxConfig.useMaFilter = document.getElementById('kp-zig-use-ma')?.checked ?? true;
+            zigAuxConfig.useVolFilter = document.getElementById('kp-zig-use-vol')?.checked ?? true;
+            zigAuxConfig.useMacdFilter = document.getElementById('kp-zig-use-macd')?.checked ?? true;
+            zigAuxConfig.useTrailingStop = document.getElementById('kp-zig-use-trailing')?.checked ?? true;
+            zigAuxConfig.trailTriggerPct = parseFloat(document.getElementById('kp-zig-trail-trig')?.value || '6.0');
+            zigAuxConfig.trailCallbackPct = parseFloat(document.getElementById('kp-zig-trail-cb')?.value || '3.5');
+            const useSl = document.getElementById('kp-zig-use-sl')?.checked ?? true;
+            zigAuxConfig.stopLossPct = useSl ? parseFloat(document.getElementById('kp-zig-sl-pct')?.value || '5.0') : 0;
             
+            if (currentKpFullBars && currentKpFullBars.length > 0) {
+                applyKpCutoffAndRender();
+            }
+        }
+
+        // Scheme B: Dual-Marker Synergy (波谷底定位 + 确认建仓日买点)
+        function calcZigSignals(bars, customCfg = {}) {
+            if (!bars || bars.length < 2) return {
+                zigArr: [], trades: [], anchorTroughs: [], anchorPeaks: [], buySignals: [], sellSignals: [], inPos: false, buyPrice: 0,
+                stats: { winRate: 0, totalPnl: 0, tradesCount: 0, winCount: 0, lossCount: 0, profitFactor: 0 }
+            };
+            
+            const cfg = Object.assign({}, zigAuxConfig, customCfg);
+            const n = bars.length;
             const closes = bars.map(b => Number(b.close || 0));
             const highs = bars.map(b => Number(b.high || b.close || 0));
-            const zigArr = calcZigZag(closes, zigDelta);
+            const lows = bars.map(b => Number(b.low || b.close || 0));
+            const vols = bars.map(b => Number(b.volume || b.vol || 0));
             
-            const n = bars.length;
+            const detailed = calcZigZagDetailed(closes, cfg.zigDelta);
+            const zigArr = detailed.z;
+            const troughs = detailed.troughs;
+            const peaks = detailed.peaks;
+            
+            // Compute 5-day Volume MA
+            let vSum5 = 0;
+            const volMa5 = vols.map((v, i) => {
+                vSum5 += v;
+                if (i >= 5) vSum5 -= vols[i - 5];
+                return i >= 4 ? vSum5 / 5 : v;
+            });
+
             const trades = [];
+            const anchorTroughs = [];
+            const anchorPeaks = [];
             const buySignals = new Array(n).fill(false);
             const sellSignals = new Array(n).fill(false);
             let inPos = false;
             let buyPrice = 0.0;
             let buyDate = '';
             let breakoutLevel = 0.0;
-            
+            let highestSinceBuy = 0.0;
+            let buyBarIdx = -1;
+
             function getHHV(idx, p) {
                 const start = Math.max(0, idx - p + 1);
                 let maxVal = -Infinity;
@@ -2575,52 +2808,164 @@
                 }
                 return maxVal;
             }
-            
+
             for (let i = 1; i < n; i++) {
                 const curC = closes[i];
+                const curH = highs[i];
+                const curL = lows[i];
                 const curZ = zigArr[i];
                 const prevZ = zigArr[i - 1];
                 const dt = bars[i].datetime;
-                
+
+                // 检查第 i 根 K 线是否是波谷确立日（如8月27日确认了8月21日波谷成立）
+                const troughMatch = troughs.find(t => t.confirmIdx === i);
+                // 检查第 i 根 K 线是否是波峰确立日（如从最高点回落超阈值确认见顶）
+                const peakMatch = peaks.find(p => p.confirmIdx === i);
+
                 if (inPos) {
-                    const isStopLoss = (stopLossPct > 0) && (curC < buyPrice * (1.0 - stopLossPct / 100.0));
-                    if (curZ < prevZ || isStopLoss) {
-                        breakoutLevel = getHHV(i, hhvPeriod);
+                    highestSinceBuy = Math.max(highestSinceBuy, curH, curC);
+                    const maxProfitPct = buyPrice > 0 ? ((highestSinceBuy - buyPrice) / buyPrice * 100) : 0;
+                    const curPnlPct = buyPrice > 0 ? ((curC - buyPrice) / buyPrice * 100) : 0;
+
+                    // 1. 移动动态跟踪止盈 (Trailing Stop-Profit)
+                    let isTrailingStop = false;
+                    if (cfg.mode === 'ENHANCED' && cfg.useTrailingStop && maxProfitPct >= cfg.trailTriggerPct) {
+                        const pullbackFromPeak = (highestSinceBuy - curC) / highestSinceBuy * 100;
+                        if (pullbackFromPeak >= cfg.trailCallbackPct) {
+                            isTrailingStop = true;
+                        }
+                    }
+
+                    // 2. 硬止损保护 (Stop Loss)
+                    const isStopLoss = (cfg.stopLossPct > 0) && (curC < buyPrice * (1.0 - cfg.stopLossPct / 100.0));
+
+                    // 3. ZIG 见顶确认 (Peak Reversal Confirmed on bar i)
+                    const isZigPeak = !!peakMatch || (curZ < prevZ);
+
+                    if (isTrailingStop || isStopLoss || isZigPeak) {
+                        breakoutLevel = getHHV(i, cfg.hhvPeriod);
                         sellSignals[i] = true;
-                        const pnlPct = buyPrice > 0 ? ((curC - buyPrice) / buyPrice * 100) : 0;
+                        
+                        let sellType = 'PEAK_REVERSAL';
+                        let sellLabel = '见顶';
+                        let sellReason = 'ZIG确认见顶';
+
+                        if (isTrailingStop) {
+                            sellType = 'TRAILING_STOP';
+                            sellLabel = '止盈';
+                            sellReason = `移动止盈 (最高+${maxProfitPct.toFixed(1)}% 回撤锁定)`;
+                        } else if (isStopLoss) {
+                            sellType = 'HARD_STOP';
+                            sellLabel = '止损';
+                            sellReason = `跌破硬止损 (-${cfg.stopLossPct}%)`;
+                        }
+
+                        // 记录波峰顶锚点
+                        if (peakMatch) {
+                            const pIdx = peakMatch.peakIdx;
+                            anchorPeaks.push({
+                                datetime: bars[pIdx].datetime,
+                                price: peakMatch.peakPrice,
+                                confirmDate: dt,
+                                reason: `波峰定位顶 (于${dt}确认见顶)`
+                            });
+                        }
+
                         trades.push({
                             type: 'SELL',
+                            subtype: sellType,
+                            label: sellLabel,
                             datetime: dt,
                             price: curC,
                             buyPrice: buyPrice,
-                            pnlPct: pnlPct,
-                            reason: isStopLoss ? '止损平仓' : '见顶卖出'
+                            buyDate: buyDate,
+                            highestPrice: highestSinceBuy,
+                            pnlPct: curPnlPct,
+                            holdDays: i - buyBarIdx,
+                            reason: sellReason
                         });
+
                         inPos = false;
                         buyPrice = 0.0;
+                        highestSinceBuy = 0.0;
+                        buyBarIdx = -1;
                     }
                 } else {
+                    // 空仓检测买入
+                    const maOk = (cfg.mode === 'CLASSIC' || !cfg.useMaFilter) || 
+                                 (bars[i].ma10 && curC >= bars[i].ma10 * 0.99) || 
+                                 (bars[i].ma20 && curC >= bars[i].ma20 * 0.98);
+
+                    const volOk = (cfg.mode === 'CLASSIC' || !cfg.useVolFilter) || 
+                                  (vols[i] >= volMa5[i] * 0.92);
+
+                    const macdOk = (cfg.mode === 'CLASSIC' || !cfg.useMacdFilter) || 
+                                   (bars[i].macd_hist !== undefined ? (bars[i].macd_hist >= (bars[i-1]?.macd_hist || 0) * 0.95) : true);
+
                     let triggeredBuy = false;
+                    let buySubtype = 'STRONG_BUY';
+                    let buyLabel = '强买';
                     let buyReason = '';
-                    if (curZ > prevZ) {
-                        breakoutLevel = 0.0;
-                        triggeredBuy = true;
-                        buyReason = '波谷启动';
-                    } else if (breakoutLevel > 0) {
-                        const threshold = breakoutLevel * (1.0 + confirmPct / 100.0);
-                        if (curC >= threshold) {
+
+                    // 方案 B 核心逻辑：
+                    // 当在第 i 根 K 线确认了波谷（如8月27日确认了8月21日为波谷）：
+                    if (troughMatch) {
+                        const tIdx = troughMatch.troughIdx;
+                        const tDate = bars[tIdx].datetime;
+                        const tPrice = troughMatch.troughPrice;
+                        const bouncePct = ((curC - tPrice) / tPrice * 100);
+
+                        // 1. 在历史波谷日 (8月21日) 记录【波谷底】定位锚点
+                        anchorTroughs.push({
+                            datetime: tDate,
+                            price: tPrice,
+                            confirmDate: dt,
+                            confirmPrice: curC,
+                            bouncePct: bouncePct,
+                            reason: `波谷底定位 (于${dt}确认反转成立)`
+                        });
+
+                        // 2. 在确认日当天 (8月27日) 触发实际建仓【强买】
+                        if (cfg.mode === 'CLASSIC') {
                             breakoutLevel = 0.0;
                             triggeredBuy = true;
-                            buyReason = '突破回补';
+                            buySubtype = 'CLASSIC_BUY';
+                            buyLabel = '强买';
+                            buyReason = `确认强买建仓 (确认${tDate}波谷底成立，自底反弹+${bouncePct.toFixed(1)}%)`;
+                        } else {
+                            if (maOk && volOk && macdOk) {
+                                breakoutLevel = 0.0;
+                                triggeredBuy = true;
+                                buySubtype = 'STRONG_BUY';
+                                buyLabel = '强买';
+                                buyReason = `多指标确认强买 (突破确认${tDate}波谷底成立，均线量能共振，自底反弹+${bouncePct.toFixed(1)}%)`;
+                            } else {
+                                // 假波谷或未获均线量能配合，记录前高等待右侧突破
+                                breakoutLevel = getHHV(i, cfg.hhvPeriod);
+                            }
+                        }
+                    } else if (breakoutLevel > 0) {
+                        const threshold = breakoutLevel * (1.0 + cfg.confirmPct / 100.0);
+                        if (curC >= threshold && (cfg.mode === 'CLASSIC' || maOk)) {
+                            breakoutLevel = 0.0;
+                            triggeredBuy = true;
+                            buySubtype = 'BREAKOUT';
+                            buyLabel = '突破';
+                            buyReason = `突破${cfg.hhvPeriod}日前高阻力回补建仓`;
                         }
                     }
+
                     if (triggeredBuy) {
                         buySignals[i] = true;
                         inPos = true;
                         buyPrice = curC;
                         buyDate = dt;
+                        highestSinceBuy = curH;
+                        buyBarIdx = i;
                         trades.push({
                             type: 'BUY',
+                            subtype: buySubtype,
+                            label: buyLabel,
                             datetime: dt,
                             price: curC,
                             reason: buyReason
@@ -2628,21 +2973,49 @@
                     }
                 }
             }
+
+            // Compute strategy summary stats
+            const closedTrades = trades.filter(t => t.type === 'SELL');
+            const winTrades = closedTrades.filter(t => t.pnlPct > 0);
+            const lossTrades = closedTrades.filter(t => t.pnlPct <= 0);
+            const winRate = closedTrades.length > 0 ? (winTrades.length / closedTrades.length * 100) : 0;
             
+            let totalPnl = 0;
+            closedTrades.forEach(t => {
+                totalPnl += t.pnlPct;
+            });
+
+            const sumWin = winTrades.reduce((acc, t) => acc + t.pnlPct, 0);
+            const sumLoss = Math.abs(lossTrades.reduce((acc, t) => acc + t.pnlPct, 0));
+            const profitFactor = sumLoss > 0 ? (sumWin / sumLoss) : (sumWin > 0 ? 99.9 : 1.0);
+
             for (let i = 0; i < n; i++) {
                 bars[i].zig = zigArr[i];
                 bars[i].zig_buy = buySignals[i];
                 bars[i].zig_sell = sellSignals[i];
+                bars[i].zig_trough = anchorTroughs.some(at => at.datetime === bars[i].datetime);
+                bars[i].zig_peak = anchorPeaks.some(ap => ap.datetime === bars[i].datetime);
             }
-            
+
             return {
                 zigArr,
                 trades,
+                anchorTroughs,
+                anchorPeaks,
                 buySignals,
                 sellSignals,
                 inPos,
                 buyPrice,
-                buyDate
+                buyDate,
+                highestSinceBuy,
+                stats: {
+                    winRate,
+                    totalPnl,
+                    tradesCount: closedTrades.length,
+                    winCount: winTrades.length,
+                    lossCount: lossTrades.length,
+                    profitFactor
+                }
             };
         }
 
@@ -3097,7 +3470,13 @@
                     <span style="color:#F97316">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
                     <span style="color:#8B5CF6">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
-                    ${isZigActive && bar.zig ? `<span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}${bar.zig_buy ? ' <strong class="text-rose-400 font-bold">[买点]</strong>' : (bar.zig_sell ? ' <strong class="text-amber-400 font-bold">[卖点]</strong>' : '')}</span>` : ''}
+                    ${isZigActive && bar.zig ? `
+                        <span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}</span>
+                        ${bar.zig_trough ? ' <strong class="text-sky-400 font-bold bg-sky-950/90 px-1.5 py-0.5 rounded border border-sky-700">[波谷底]</strong>' : ''}
+                        ${bar.zig_buy ? ' <strong class="text-rose-400 font-bold bg-rose-950/90 px-1.5 py-0.5 rounded border border-rose-700">[强买建仓]</strong>' : ''}
+                        ${bar.zig_peak ? ' <strong class="text-amber-400 font-bold bg-amber-950/90 px-1.5 py-0.5 rounded border border-amber-700">[波峰顶]</strong>' : ''}
+                        ${bar.zig_sell ? ' <strong class="text-yellow-400 font-bold bg-yellow-950/90 px-1.5 py-0.5 rounded border border-yellow-700">[卖点]</strong>' : ''}
+                    ` : ''}
                 </div>
             `;
         }
@@ -3117,8 +3496,31 @@
             // Check if Volume Ratio is toggled
             const showVolRatio = document.getElementById('kp-vol-ratio-toggle')?.checked ?? true;
 
-            // ZIG Strategy Calculation & Signals
-            const zigResult = calcZigSignals(bars, 10.0, 5.0, 1.0, 20);
+            // ZIG Strategy Calculation & Signals (Powered by Multi-Indicator Resonance & Trailing Stop)
+            const zigResult = calcZigSignals(bars);
+
+            // Update ZIG Stats Card in Auxiliary Configuration Panel
+            if (zigResult && zigResult.stats) {
+                const elWr = document.getElementById('kp-zig-stat-winrate');
+                const elPnl = document.getElementById('kp-zig-stat-pnl');
+                const elRatio = document.getElementById('kp-zig-stat-ratio');
+                const elTr = document.getElementById('kp-zig-stat-trades');
+                if (elWr) {
+                    elWr.innerText = `${zigResult.stats.winRate.toFixed(1)}%`;
+                    elWr.className = (zigResult.stats.winRate >= 50 ? 'text-emerald-400' : 'text-rose-400') + ' font-bold text-xs sm:text-sm';
+                }
+                if (elPnl) {
+                    const sign = zigResult.stats.totalPnl >= 0 ? '+' : '';
+                    elPnl.innerText = `${sign}${zigResult.stats.totalPnl.toFixed(1)}%`;
+                    elPnl.className = (zigResult.stats.totalPnl >= 0 ? 'text-rose-400' : 'text-emerald-400') + ' font-bold text-xs sm:text-sm';
+                }
+                if (elRatio) {
+                    elRatio.innerText = `${zigResult.stats.profitFactor.toFixed(2)} : 1`;
+                }
+                if (elTr) {
+                    elTr.innerText = `${zigResult.stats.tradesCount} 笔 (${zigResult.stats.winCount}赢 / ${zigResult.stats.lossCount}亏)`;
+                }
+            }
 
             // Mark point for extreme peak & ZIG buy/sell markers
             let maxHighVal = -Infinity;
@@ -3142,61 +3544,147 @@
                 });
             }
 
-            // Mark ZIG Buy & Sell Points
+            // 方案 B 核心渲染：波谷底定位锚点 [底]
+            if (isZigActive && zigResult.anchorTroughs && zigResult.anchorTroughs.length > 0) {
+                zigResult.anchorTroughs.forEach(at => {
+                    markPointData.push({
+                        name: '波谷底定位',
+                        coord: [at.datetime, at.price],
+                        value: '底',
+                        symbol: 'circle',
+                        symbolSize: 18,
+                        symbolOffset: [0, 8],
+                        itemStyle: {
+                            color: '#0284c7',
+                            borderColor: '#38bdf8',
+                            borderWidth: 2,
+                            shadowBlur: 6,
+                            shadowColor: 'rgba(56, 189, 248, 0.7)'
+                        },
+                        label: {
+                            show: true,
+                            formatter: '底',
+                            color: '#ffffff',
+                            fontWeight: 'bold',
+                            fontSize: 9
+                        }
+                    });
+                });
+            }
+
+            // 方案 B 核心渲染：波峰顶定位锚点 [顶]
+            if (isZigActive && zigResult.anchorPeaks && zigResult.anchorPeaks.length > 0) {
+                zigResult.anchorPeaks.forEach(ap => {
+                    markPointData.push({
+                        name: '波峰顶定位',
+                        coord: [ap.datetime, ap.price],
+                        value: '顶',
+                        symbol: 'circle',
+                        symbolSize: 18,
+                        symbolOffset: [0, -8],
+                        itemStyle: {
+                            color: '#b45309',
+                            borderColor: '#fde047',
+                            borderWidth: 2,
+                            shadowBlur: 6,
+                            shadowColor: 'rgba(253, 224, 71, 0.7)'
+                        },
+                        label: {
+                            show: true,
+                            formatter: '顶',
+                            color: '#ffffff',
+                            fontWeight: 'bold',
+                            fontSize: 9
+                        }
+                    });
+                });
+            }
+
+            // Mark ZIG Buy & Sell Points with Categorized Resonance Levels
             if (isZigActive && zigResult.trades && zigResult.trades.length > 0) {
                 zigResult.trades.forEach(t => {
                     const isBuy = (t.type === 'BUY');
                     if (isBuy) {
+                        const isStrong = (t.subtype === 'STRONG_BUY' || t.subtype === 'CONFIRMED_BUY');
+                        const isBreakout = (t.subtype === 'BREAKOUT');
+                        const pinColor = isStrong ? '#ef4444' : (isBreakout ? '#f97316' : '#ef4444');
+                        const borderClr = isStrong ? '#991b1b' : (isBreakout ? '#c2410c' : '#991b1b');
+                        const labelText = t.label || (isStrong ? '强买' : (isBreakout ? '突破' : '买'));
+
                         markPointData.push({
-                            name: 'ZIG买点',
+                            name: isStrong ? 'ZIG共振强买' : (isBreakout ? 'ZIG右侧突破' : 'ZIG买点'),
                             coord: [t.datetime, t.price],
-                            value: '买',
+                            value: labelText,
                             symbol: 'pin',
-                            symbolSize: 25,
+                            symbolSize: 26,
                             symbolOffset: [0, 12],
                             itemStyle: {
-                                color: '#ef4444',
-                                borderColor: '#991b1b',
+                                color: pinColor,
+                                borderColor: borderClr,
                                 borderWidth: 1.5,
                                 shadowBlur: 6,
-                                shadowColor: 'rgba(239, 68, 68, 0.6)'
+                                shadowColor: `${pinColor}99`
                             },
                             label: {
                                 show: true,
-                                formatter: '买',
+                                formatter: labelText,
                                 color: '#ffffff',
                                 fontWeight: 'bold',
-                                fontSize: 10
+                                fontSize: 9
                             }
                         });
                     } else {
+                        const isTrailing = (t.subtype === 'TRAILING_STOP');
+                        const isStopLoss = (t.subtype === 'HARD_STOP');
                         const isProf = t.pnlPct >= 0;
+                        
+                        let pinColor = '#eab308';
+                        let borderClr = '#854d0e';
+                        let labelText = t.label || '卖';
+                        let labelColor = '#000000';
+
+                        if (isTrailing) {
+                            pinColor = '#f59e0b';
+                            borderClr = '#b45309';
+                            labelText = '止盈';
+                            labelColor = '#000000';
+                        } else if (isStopLoss) {
+                            pinColor = '#10b981';
+                            borderClr = '#065f46';
+                            labelText = '止损';
+                            labelColor = '#ffffff';
+                        } else {
+                            pinColor = isProf ? '#f59e0b' : '#10b981';
+                            borderClr = isProf ? '#b45309' : '#065f46';
+                            labelText = isProf ? '见顶' : '卖';
+                            labelColor = isProf ? '#000000' : '#ffffff';
+                        }
+
                         markPointData.push({
-                            name: 'ZIG卖点',
+                            name: isTrailing ? 'ZIG移动止盈' : (isStopLoss ? 'ZIG硬止损' : 'ZIG见顶卖点'),
                             coord: [t.datetime, t.price],
-                            value: '卖',
+                            value: labelText,
                             symbol: 'pin',
-                            symbolSize: 25,
+                            symbolSize: 26,
                             symbolOffset: [0, -12],
                             itemStyle: {
-                                color: isProf ? '#eab308' : '#10b981',
-                                borderColor: isProf ? '#854d0e' : '#065f46',
+                                color: pinColor,
+                                borderColor: borderClr,
                                 borderWidth: 1.5,
                                 shadowBlur: 6,
-                                shadowColor: isProf ? 'rgba(234, 179, 8, 0.6)' : 'rgba(16, 185, 129, 0.6)'
+                                shadowColor: `${pinColor}99`
                             },
                             label: {
                                 show: true,
-                                formatter: '卖',
-                                color: isProf ? '#000000' : '#ffffff',
+                                formatter: labelText,
+                                color: labelColor,
                                 fontWeight: 'bold',
-                                fontSize: 10
+                                fontSize: 9
                             }
                         });
                     }
                 });
             }
-
 
             // Update Header Status Tag with ZIG info
             const tagEl = document.getElementById('kp-status-tag');
@@ -3207,8 +3695,9 @@
                         const lastClose = bars[bars.length - 1]?.close || lastBuy;
                         const pnl = lastBuy > 0 ? ((lastClose - lastBuy) / lastBuy * 100) : 0;
                         const sign = pnl >= 0 ? '+' : '';
+                        const maxP = zigResult.highestSinceBuy > 0 ? ((zigResult.highestSinceBuy - lastBuy) / lastBuy * 100) : pnl;
                         tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shrink-0 shadow-sm';
-                        tagEl.innerText = `ZIG持仓 (${sign}${pnl.toFixed(1)}%)`;
+                        tagEl.innerHTML = `ZIG持仓 (${sign}${pnl.toFixed(1)}%) <span class="text-[10px] text-rose-300/80 font-normal">最高+${maxP.toFixed(1)}%</span>`;
                     } else {
                         tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition whitespace-nowrap shrink-0 shadow-sm';
                         tagEl.innerText = `ZIG空仓等待`;
@@ -3819,12 +4308,267 @@
             if (equityEchart) equityEchart.setOption({ dataZoom: zoomOpt });
         }
 
+        // ==================== Single Stock Backtest End Date Stepper & Replay Controller (参考 K线弹窗窗口设计) ==================== //
+        let currentBtFullBars = [];
+        let currentBtCutoffIndex = -1;
+        let currentBtSymbol = '';
+        let currentBtCategory = '';
+        let currentBtReplayTimer = null;
+        let isBtRunning = false;
+
+        function isIntradayCategory(cat) {
+            return ['120M', '60M', '30M', '15M', '5M', '1M'].includes((cat || '').toUpperCase());
+        }
+
+        function getCategoryLabel(cat) {
+            const map = {
+                'DAY': '日K',
+                'WEEK': '周K',
+                'MONTH': '月K',
+                'SEASON': '季K',
+                'QUARTER': '季K',
+                'YEAR': '年K',
+                '120M': '120分',
+                '60M': '60分',
+                '30M': '30分',
+                '15M': '15分',
+                '5M': '5分',
+                '1M': '1分'
+            };
+            return map[(cat || '').toUpperCase()] || cat || '日K';
+        }
+
+        function updateBtStepperUI() {
+            const fullBars = currentBtFullBars || [];
+            const cat = document.getElementById('bt-category')?.value || currentBtCategory || 'DAY';
+            const catLabel = getCategoryLabel(cat);
+            const isIntraday = isIntradayCategory(cat);
+
+            const periodTag = document.getElementById('bt-period-tag');
+            if (periodTag) periodTag.innerText = catLabel;
+
+            if (fullBars.length === 0) return;
+
+            if (currentBtCutoffIndex < 0 || currentBtCutoffIndex >= fullBars.length) {
+                currentBtCutoffIndex = fullBars.length - 1;
+            }
+
+            const currentBar = fullBars[currentBtCutoffIndex];
+            const curBarTime = isIntraday ? String(currentBar.datetime).trim().slice(0, 16) : String(currentBar.datetime).trim().split(' ')[0];
+
+            // Update Input box value with full period datetime (isIntraday preserves YYYY-MM-DD HH:MM)
+            const dateInp = document.getElementById('bt-cutoff-date');
+            if (dateInp) {
+                dateInp.value = curBarTime;
+                dateInp.title = `当前推演截止: ${currentBar.datetime} (${currentBtCutoffIndex + 1}/${fullBars.length} 根 [${catLabel}])`;
+            }
+
+            const endEl = document.getElementById('bt-end-date');
+            if (endEl) {
+                endEl.value = currentBar.datetime.split(' ')[0];
+            }
+
+            const isAtLatest = currentBtCutoffIndex >= fullBars.length - 1;
+            const latestBtn = document.getElementById('bt-btn-latest-day');
+            if (latestBtn) {
+                if (isAtLatest) {
+                    latestBtn.classList.add('hidden');
+                } else {
+                    latestBtn.classList.remove('hidden');
+                }
+            }
+
+            const nextBtn = document.getElementById('bt-btn-next-day');
+            if (nextBtn) {
+                nextBtn.style.opacity = isAtLatest ? '0.4' : '1';
+                nextBtn.disabled = isAtLatest;
+                const nextBar = !isAtLatest && fullBars[currentBtCutoffIndex + 1] ? fullBars[currentBtCutoffIndex + 1] : null;
+                const nextHint = nextBar ? (isIntraday ? nextBar.datetime : nextBar.datetime.split(' ')[0]) : '最新';
+                nextBtn.title = `后移 1 根 [${catLabel}] K线 (至 ${nextHint}) (快捷键: → 方向键)`;
+            }
+
+            const prevBtn = document.getElementById('bt-btn-prev-day');
+            if (prevBtn) {
+                prevBtn.style.opacity = currentBtCutoffIndex <= 1 ? '0.4' : '1';
+                prevBtn.disabled = currentBtCutoffIndex <= 1;
+                const prevBar = currentBtCutoffIndex > 0 && fullBars[currentBtCutoffIndex - 1] ? fullBars[currentBtCutoffIndex - 1] : null;
+                const prevHint = prevBar ? (isIntraday ? prevBar.datetime : prevBar.datetime.split(' ')[0]) : '最早';
+                prevBtn.title = `前移 1 根 [${catLabel}] K线 (至 ${prevHint}) (快捷键: ← 方向键)`;
+            }
+        }
+
+        async function loadBtFullBars(sym, category) {
+            try {
+                const count = isIntradayCategory(category) ? 500 : 800;
+                const resp = await fetch(`/api/quotes/kline?symbol=${sym}&period=${category}&count=${count}`);
+                if (resp.ok) {
+                    const json = await resp.json();
+                    currentBtFullBars = json.data || [];
+                    currentBtSymbol = sym;
+                    currentBtCategory = category;
+                    if (currentBtCutoffIndex < 0 || currentBtCutoffIndex >= currentBtFullBars.length) {
+                        currentBtCutoffIndex = currentBtFullBars.length - 1;
+                    }
+                    updateBtStepperUI();
+                }
+            } catch (e) {
+                console.error('Failed to fetch full bars for backtest:', e);
+            }
+        }
+
+        // 参考 K线弹窗窗口 stepKpDate(delta)
+        async function stepBtDate(delta) {
+            if (isBtRunning) {
+                showToast('回测进行中', '上一笔回测正在运算，请稍候...');
+                return;
+            }
+            const sym = document.getElementById('bt-symbol')?.value?.trim() || '603986';
+            const cat = document.getElementById('bt-category')?.value || 'DAY';
+
+            if (!currentBtFullBars || currentBtFullBars.length === 0 || currentBtSymbol !== sym || currentBtCategory !== cat) {
+                await loadBtFullBars(sym, cat);
+            }
+            if (!currentBtFullBars || currentBtFullBars.length === 0) return;
+
+            if (currentBtCutoffIndex < 0 || currentBtCutoffIndex >= currentBtFullBars.length) {
+                currentBtCutoffIndex = currentBtFullBars.length - 1;
+            }
+
+            const newIdx = Math.max(1, Math.min(currentBtFullBars.length - 1, currentBtCutoffIndex + delta));
+            if (newIdx === currentBtCutoffIndex) {
+                if (currentBtReplayTimer) stopBtReplay();
+                showToast('已达边界', delta > 0 ? '已到达最新周期' : '已到达最早历史数据');
+                return;
+            }
+
+            currentBtCutoffIndex = newIdx;
+            updateBtStepperUI();
+
+            const curBar = currentBtFullBars[currentBtCutoffIndex];
+            const catLabel = getCategoryLabel(cat);
+            const curBarTime = isIntradayCategory(cat) ? curBar.datetime : curBar.datetime.split(' ')[0];
+            showToast(delta < 0 ? `前移 1 根 [${catLabel}]` : `后移 1 根 [${catLabel}]`, `时点已切换至 ${curBarTime} (${currentBtCutoffIndex + 1}/${currentBtFullBars.length} 根)，策略重新执行...`);
+            await runBacktest();
+        }
+
+        // 参考 K线弹窗窗口 onKpCutoffDateChange(targetYMD)
+        async function onBtCutoffDateChange(targetVal) {
+            if (!targetVal) return;
+            const sym = document.getElementById('bt-symbol')?.value?.trim() || '603986';
+            const cat = document.getElementById('bt-category')?.value || 'DAY';
+
+            if (!currentBtFullBars || currentBtFullBars.length === 0 || currentBtSymbol !== sym || currentBtCategory !== cat) {
+                await loadBtFullBars(sym, cat);
+            }
+            if (!currentBtFullBars || currentBtFullBars.length === 0) return;
+
+            let matchedIdx = -1;
+            const cleanTarget = String(targetVal).trim();
+            for (let i = currentBtFullBars.length - 1; i >= 0; i--) {
+                const bDate = currentBtFullBars[i].datetime;
+                if (bDate <= cleanTarget || bDate.split(' ')[0] <= cleanTarget) {
+                    matchedIdx = i;
+                    break;
+                }
+            }
+            if (matchedIdx < 0) matchedIdx = 0;
+            currentBtCutoffIndex = matchedIdx;
+            updateBtStepperUI();
+
+            const curBar = currentBtFullBars[currentBtCutoffIndex];
+            const curBarTime = isIntradayCategory(cat) ? curBar.datetime : curBar.datetime.split(' ')[0];
+            showToast('时点切换', `时点已切换至 ${curBarTime}，重新执行策略...`);
+            await runBacktest();
+        }
+
+        // 参考 K线弹窗窗口 resetKpCutoffToLatest()
+        async function resetBtCutoffToLatest() {
+            stopBtReplay();
+            if (!currentBtFullBars || currentBtFullBars.length === 0) return;
+            currentBtCutoffIndex = currentBtFullBars.length - 1;
+            updateBtStepperUI();
+            const curBar = currentBtFullBars[currentBtCutoffIndex];
+            showToast('已恢复最新', `已恢复至最新周期 (${curBar.datetime})`);
+            await runBacktest();
+        }
+
+        async function onBtCategoryChange() {
+            stopBtReplay();
+            const sym = document.getElementById('bt-symbol')?.value?.trim() || '603986';
+            const cat = document.getElementById('bt-category')?.value || 'DAY';
+            currentBtCutoffIndex = -1;
+            currentBtFullBars = [];
+            currentBtCategory = cat;
+            currentBtSymbol = sym;
+            const catLabel = getCategoryLabel(cat);
+            showToast('周期切换', `已切换至 ${catLabel}，正在获取行情并执行策略...`);
+            await loadBtFullBars(sym, cat);
+            await runBacktest();
+        }
+
+        function toggleBtReplayPlay() {
+            if (currentBtReplayTimer) {
+                stopBtReplay();
+            } else {
+                startBtReplay();
+            }
+        }
+
+        // 参考 K线弹窗窗口 startKpReplay()
+        function startBtReplay() {
+            stopBtReplay();
+            if (!currentBtFullBars || currentBtFullBars.length === 0) return;
+            if (currentBtCutoffIndex >= currentBtFullBars.length - 1) {
+                currentBtCutoffIndex = Math.max(5, currentBtFullBars.length - 30);
+                updateBtStepperUI();
+                runBacktest();
+            }
+            const icon = document.getElementById('bt-replay-play-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'pause');
+                if (window.lucide) lucide.createIcons();
+            }
+            const cat = document.getElementById('bt-category')?.value || 'DAY';
+            const catLabel = getCategoryLabel(cat);
+            showToast('开始推演', `逐周期推演 [${catLabel}] 已开启 (间隔 ~2.5s)`);
+
+            currentBtReplayTimer = setInterval(async () => {
+                if (isBtRunning) return;
+                if (currentBtCutoffIndex >= currentBtFullBars.length - 1) {
+                    stopBtReplay();
+                    showToast('推演完成', '已推演至最新周期');
+                    return;
+                }
+                await stepBtDate(1);
+            }, 2500);
+        }
+
+        function stopBtReplay() {
+            if (currentBtReplayTimer) {
+                clearInterval(currentBtReplayTimer);
+                currentBtReplayTimer = null;
+            }
+            const icon = document.getElementById('bt-replay-play-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'play');
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+
+
         function renderKlineChart(bars, trades, stockDisplay) {
             if (!klineEchart || !bars || bars.length === 0) return;
             currentKlineBars = bars;
             currentTrades = trades;
 
-            const dates = bars.map(b => String(b.datetime).split(' ')[0]);
+            const cat = document.getElementById('bt-category')?.value || currentBtCategory || 'DAY';
+            const isIntraday = isIntradayCategory(cat);
+
+            // X-axis datetime array: preserve HH:MM for intraday periods so every bar has a unique timestamp and responds to stepping!
+            const dates = bars.map(b => {
+                const raw = String(b.datetime).trim();
+                return isIntraday ? (raw.length > 16 ? raw.slice(0, 16) : raw) : raw.split(' ')[0];
+            });
             const ohlc = bars.map(b => [b.open, b.close, b.low, b.high]);
             const volumes = bars.map(b => ({
                 value: b.volume,
@@ -3837,7 +4581,8 @@
             dates.forEach((d, i) => { dateIdxMap[d] = i; });
 
             trades.forEach(t => {
-                const tDate = String(t.datetime).split(' ')[0];
+                const rawT = String(t.datetime).trim();
+                const tDate = isIntraday ? (rawT.length > 16 ? rawT.slice(0, 16) : rawT) : rawT.split(' ')[0];
                 const isBuy = (t.action === 'BUY' || t.direction === 'BUY');
                 if (dateIdxMap[tDate] !== undefined) {
                     markData.push({
@@ -3952,7 +4697,17 @@
                         data: dates,
                         boundaryGap: true,
                         axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { color: textColor, fontSize: 10 },
+                        axisLabel: {
+                            color: textColor,
+                            fontSize: 10,
+                            formatter: (val) => {
+                                if (!val) return '';
+                                if (isIntraday && val.includes(' ')) {
+                                    return val.slice(5); // e.g. "09-03 14:00"
+                                }
+                                return val;
+                            }
+                        },
                         splitLine: { show: false }
                     },
                     {
@@ -4012,7 +4767,13 @@
 
         function renderEquityChart(equityCurve) {
             if (!equityEchart || !equityCurve || equityCurve.length === 0) return;
-            const dates = equityCurve.map(e => String(e.datetime).split(' ')[0]);
+            const cat = document.getElementById('bt-category')?.value || currentBtCategory || 'DAY';
+            const isIntraday = isIntradayCategory(cat);
+
+            const dates = equityCurve.map(e => {
+                const raw = String(e.datetime).trim();
+                return isIntraday ? (raw.length > 16 ? raw.slice(0, 16) : raw) : raw.split(' ')[0];
+            });
             const totals = equityCurve.map(e => e.total || e.equity);
             const drawdowns = equityCurve.map(e => -(e.drawdown_pct || 0) * 100);
 
@@ -4034,7 +4795,17 @@
                     type: 'category',
                     data: dates,
                     axisLine: { lineStyle: { color: axisColor } },
-                    axisLabel: { color: textColor, fontSize: 10 }
+                    axisLabel: {
+                        color: textColor,
+                        fontSize: 10,
+                        formatter: (val) => {
+                            if (!val) return '';
+                            if (isIntraday && val.includes(' ')) {
+                                return val.slice(5); // e.g. "09-03 14:00"
+                            }
+                            return val;
+                        }
+                    }
                 },
                 yAxis: [
                     {
@@ -4240,9 +5011,13 @@
             const startStr = `${startYyyy}-${startMm}-${startDd}`;
 
             const endEl = document.getElementById('bt-end-date');
+            const cutoffEl = document.getElementById('bt-cutoff-date');
             const startEl = document.getElementById('bt-start-date');
             if (endEl && (force || !endEl.value || endEl.value === '2026-08-31')) {
                 endEl.value = todayStr;
+            }
+            if (cutoffEl && (force || !cutoffEl.value || cutoffEl.value === '2026-08-31')) {
+                cutoffEl.value = endEl ? endEl.value : todayStr;
             }
             if (startEl && (force || !startEl.value || startEl.value === '2025-08-31')) {
                 startEl.value = startStr;
@@ -4256,21 +5031,43 @@
                 const eVal = endEl ? endEl.value : todayStr;
                 hintEl.innerHTML = `<span><span class="badge-tag">${mkt}:${sym} DAY</span> <span class="badge-range">${sVal} ~ ${eVal}</span></span><span class="badge-count">240根</span>`;
             }
+            updateBtStepperUI();
         }
 
         async function runBacktest() {
-            initBacktestDates();
+            if (isBtRunning) return;
+            isBtRunning = true;
+            if (!document.getElementById('bt-end-date')?.value) {
+                initBacktestDates();
+            }
             const sym = document.getElementById('bt-symbol').value.trim() || '603986';
             const selectEl = document.getElementById('bt-strategy-select');
             const stId = selectEl.value || 'zig_breakout';
             const stDisplayName = selectEl.options && selectEl.selectedIndex >= 0 ? selectEl.options[selectEl.selectedIndex].text : stId;
             const category = document.getElementById('bt-category').value;
-            let startDate = document.getElementById('bt-start-date').value;
-            let endDate = document.getElementById('bt-end-date').value;
-            if (!endDate) {
-                endDate = getTodayDateStr();
-                if (document.getElementById('bt-end-date')) document.getElementById('bt-end-date').value = endDate;
+
+            // Ensure full bars are loaded for this symbol & category
+            if (!currentBtFullBars || currentBtFullBars.length === 0 || currentBtSymbol !== sym || currentBtCategory !== category) {
+                await loadBtFullBars(sym, category);
             }
+
+            if (currentBtCutoffIndex < 0 || currentBtCutoffIndex >= currentBtFullBars.length) {
+                currentBtCutoffIndex = currentBtFullBars.length - 1;
+            }
+
+            const currentBar = currentBtFullBars[currentBtCutoffIndex];
+            const endDateParam = currentBar ? currentBar.datetime : getTodayDateStr();
+
+            let startDate = document.getElementById('bt-start-date')?.value || '';
+            if (startDate && endDateParam && startDate > endDateParam.split(' ')[0] && currentBtFullBars.length > 0) {
+                startDate = currentBtFullBars[0].datetime.split(' ')[0];
+                if (document.getElementById('bt-start-date')) {
+                    document.getElementById('bt-start-date').value = startDate;
+                }
+            }
+
+            updateBtStepperUI();
+
             const cash = document.getElementById('bt-cash').value || 1000000;
             const commission = document.getElementById('bt-commission').value || 0.0003;
             const slippage = document.getElementById('bt-slippage').value || 0;
@@ -4291,7 +5088,7 @@
             showToast('回测执行', `正在回测 ${sym} (${stDisplayName})...`);
 
             try {
-                const url = `/api/backtest/run?symbol=${sym}&strategy=${stId}&category=${category}&start_date=${startDate}&end_date=${endDate}&initial_cash=${cash}&commission=${commission}&slippage=${slippage}&execution=${execution}${extraQuery}`;
+                const url = `/api/backtest/run?symbol=${sym}&strategy=${stId}&category=${category}&start_date=${startDate}&end_date=${encodeURIComponent(endDateParam)}&initial_cash=${cash}&commission=${commission}&slippage=${slippage}&execution=${execution}${extraQuery}`;
                 const resp = await fetch(url);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -4302,7 +5099,10 @@
                     // Update Top statuses
                     document.getElementById('bt-top-status-desc').innerText = `当前标的：${displaySymbol} · 策略：${stDisplayName}`;
                     const mkt = (json.symbol.startsWith('6') || json.symbol.startsWith('9') || json.symbol.startsWith('88')) ? 'SH' : 'SZ';
-                    document.getElementById('bt-kline-stats-hint').innerHTML = `<span><span class="badge-tag">${mkt}:${sym} ${category}</span> <span class="badge-range">${startDate} ~ ${endDate}</span></span><span class="badge-count">${(d.bars || []).length}根</span>`;
+                    const isIntraday = isIntradayCategory(category);
+                    const sVal = startDate || (d.bars && d.bars.length > 0 ? (isIntraday ? d.bars[0].datetime : d.bars[0].datetime.split(' ')[0]) : '');
+                    const eVal = isIntraday ? endDateParam : endDateParam.split(' ')[0];
+                    document.getElementById('bt-kline-stats-hint').innerHTML = `<span><span class="badge-tag">${mkt}:${sym} ${getCategoryLabel(category)}</span> <span class="badge-range">${sVal} ~ ${eVal}</span></span><span class="badge-count">${(d.bars || []).length}根</span>`;
 
                     const m = d.performance || d.metrics || {};
                     const totalRet = Number(m.total_return_pct ?? 0);
@@ -4312,8 +5112,10 @@
                     document.getElementById('bt-kline-totret').className = `font-mono font-bold ${totalRet >= 0 ? 'text-rose-500' : 'text-emerald-400'}`;
                     document.getElementById('bt-kline-maxdd').innerText = `-${Math.abs(maxDd).toFixed(2)}%`;
 
+                    const bars = d.bars || d.ohlcv || [];
+
                     // 1. Render ECharts K-Line & Equity
-                    renderKlineChart(d.bars || d.ohlcv || [], d.trades || [], displaySymbol);
+                    renderKlineChart(bars, d.trades || [], displaySymbol);
                     renderEquityChart(d.equity_curve || []);
 
                     // 2. Render Grade
@@ -4349,6 +5151,9 @@
                         }).join('');
                     }
 
+                    updateBtStepperUI(endDate);
+                    if (window.lucide) lucide.createIcons();
+
                     showToast('回测完成', `${displaySymbol} 回测成功：总收益率 ${totalRet >= 0 ? '+' : ''}${totalRet.toFixed(2)}%`);
                     speak(`${displaySymbol} 回测完成，总收益率百分之 ${Math.round(totalRet)}`);
                 }
@@ -4357,6 +5162,7 @@
                 showToast('回测错误', '数据加载或回测计算异常');
             } finally {
                 btnText.innerText = '开始回测';
+                isBtRunning = false;
             }
         }
 
