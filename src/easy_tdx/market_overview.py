@@ -321,7 +321,7 @@ def is_trading_time() -> bool:
 
 
 def _start_bg_overview_worker():
-    """Start 15s daemon background worker to continuously refresh market summary during trading hours."""
+    """Start 5s daemon background worker to continuously refresh market summary during trading hours."""
     global _BG_THREAD_STARTED
     if _BG_THREAD_STARTED:
         return
@@ -335,17 +335,17 @@ def _start_bg_overview_worker():
                     with _CACHE_LOCK:
                         global _OVERVIEW_CACHE
                         _OVERVIEW_CACHE = (time.time(), data)
-                    time.sleep(15.0)
+                    time.sleep(5.0)
                 else:
                     # Outside trading hours: idle check every 30s
                     time.sleep(30.0)
             except Exception as e:
                 logger.debug(f"Background market overview update error: {e}")
-                time.sleep(15.0)
+                time.sleep(5.0)
             
-    t = threading.Thread(target=_worker, daemon=True, name="MarketOverview15sDaemon")
+    t = threading.Thread(target=_worker, daemon=True, name="MarketOverview5sDaemon")
     t.start()
-    logger.info("Market overview 15s background worker started successfully (trading-session gated).")
+    logger.info("Market overview 5s background worker started successfully (trading-session gated).")
 
 
 def fetch_realtime_market_summary() -> dict[str, Any]:
