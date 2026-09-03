@@ -4117,23 +4117,30 @@
                 const prices = Array.isArray(item.sparkline) && item.sparkline.length > 1 ? item.sparkline : null;
                 const preClose = Number(item.pre_close || item.close || 0);
 
-                if (prices && prices.length > 1) {
+                if (prices && prices.length > 0) {
                     const minP = Math.min(...prices, preClose);
                     const maxP = Math.max(...prices, preClose);
                     const range = Math.max(0.01, maxP - minP);
                     const W = 120;
                     const H = 34;
-                    const padY = 4;
+                    const padY = 3;
                     const chartH = H - padY * 2;
                     
                     const getY = (val) => (H - padY - ((val - minP) / range) * chartH).toFixed(1);
                     const baseY = getY(preClose);
                     
+                    // If trading session has fewer than 240 minutes, span up to current progress or full width if completed (>180)
+                    const totalSlots = prices.length > 180 ? prices.length : 240;
                     const pts = prices.map((p, i) => {
-                        const x = ((i / (prices.length - 1)) * W).toFixed(1);
+                        const x = ((i / Math.max(1, totalSlots - 1)) * W).toFixed(1);
                         const y = getY(p);
                         return `${x},${y}`;
                     });
+
+                    // If only 1 point, draw from x=0
+                    if (pts.length === 1) {
+                        pts.unshift(`0,${getY(preClose)}`);
+                    }
 
                     sparklineSvg = `
                         <svg viewBox="0 0 ${W} ${H}" class="w-full h-full overflow-visible" preserveAspectRatio="none">

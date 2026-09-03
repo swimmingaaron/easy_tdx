@@ -228,9 +228,16 @@ def _build_market_summary() -> dict[str, Any]:
                     cur_pct = round(((cur_close / max(0.01, cur_pc)) - 1.0) * 100, 2)
                     cur_amt = round(float(last_b.get("amount", 0.0)) / 100000000.0, 2)
                 
-                mb = cli.get_index_bars(mkt, code, KlineCategory.MIN_5, 0, 48)
+                # Fetch 1-minute intraday bars (up to 300 bars) and filter to single latest trading day
+                mb = cli.get_index_bars(mkt, code, KlineCategory.MIN_1, 0, 300)
                 if mb is not None and not mb.empty:
-                    sparkline = [round(float(x), 2) for x in mb["close"].tolist()]
+                    mb['date_str'] = mb['datetime'].astype(str).str.split(' ').str[0]
+                    latest_date = mb['date_str'].iloc[-1]
+                    day_mb = mb[mb['date_str'] == latest_date]
+                    if not day_mb.empty:
+                        sparkline = [round(float(x), 2) for x in day_mb["close"].tolist()]
+                    else:
+                        sparkline = [round(float(x), 2) for x in mb["close"].tail(240).tolist()]
             except Exception as e:
                 logger.debug(f"Failed to fetch index {code} ({name}): {e}")
             
