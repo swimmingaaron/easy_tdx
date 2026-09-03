@@ -1442,8 +1442,9 @@
         <div class="glass-card bg-[#0b0f19]/85 border-0 sm:border sm:border-slate-700/60 rounded-none sm:rounded-2xl max-w-[1260px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl">
             
             <!-- Row 1: Stock Symbol, Name, Live Price, Cap & Action Buttons -->
+            <!-- Row 1: Stock Symbol, Name, Live Price, Strategy Status, Cap & Action Buttons -->
             <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5 flex-wrap shrink-0">
-                <!-- Left: Stock Identity & Live Price -->
+                <!-- Left: Stock Identity & Live Price & Strategy Status -->
                 <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap">
                     <span id="kp-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">创</span>
                     <span id="kp-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">300142.SZ</span>
@@ -1457,7 +1458,13 @@
                         <span id="kp-change-pct" class="text-xs font-bold text-rose-500">+6.33%</span>
                     </div>
 
-                    <div class="hidden md:flex items-center space-x-2 text-[11px] text-slate-400 font-sans ml-2">
+                    <!-- Strategy & Anomaly Status Tags (Always fully visible, no clipping) -->
+                    <div class="flex items-center space-x-1 ml-1 shrink-0">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3f2e00] text-[#facc15] border border-[#715400] whitespace-nowrap">异动</span>
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shadow-sm" id="kp-status-tag">强势上攻</span>
+                    </div>
+
+                    <div class="hidden lg:flex items-center space-x-2 text-[11px] text-slate-400 font-sans ml-2">
                         <span>市值 <strong class="text-slate-200 font-mono" id="kp-total-val">228.39亿</strong></span>
                         <span>流通 <strong class="text-slate-200 font-mono" id="kp-float-val">222.84亿</strong></span>
                         <span>换手 <strong class="text-slate-200 font-mono" id="kp-turnover">13.56%</strong></span>
@@ -1490,7 +1497,7 @@
                 </div>
             </div>
 
-            <!-- Row 2: Range Presets, Periods Selector & Technical Indicators (Scrollable Single Row) -->
+            <!-- Row 2: Range Presets, Periods Selector & Technical Indicators + 1点钟方向推演控制器 -->
             <div class="flex items-center justify-between gap-2 text-xs overflow-x-auto max-w-full no-scrollbar py-0.5 shrink-0">
                 <div class="flex items-center space-x-1.5 shrink-0">
                     <!-- Range Presets -->
@@ -1526,9 +1533,29 @@
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-1.5 shrink-0">
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3f2e00] text-[#facc15] border border-[#715400]">异动</span>
-                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800" id="kp-status-tag">强势上攻</span>
+                <!-- 1点钟方向: 前日/结束日期/后日 ZIG回归推演控制器 -->
+                <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 shadow-inner shrink-0">
+                    <button type="button" onclick="stepKpDate(-1)" id="kp-btn-prev-day" class="px-2 py-0.5 rounded-md text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="前移 1 根K线 (快捷键: ← 方向键)">
+                        <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                        <span>前日</span>
+                    </button>
+                    
+                    <div class="relative flex items-center">
+                        <input type="date" id="kp-cutoff-date" onchange="onKpCutoffDateChange(this.value)" class="bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded-md px-1.5 py-0.5 text-[11px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition cursor-pointer text-center" title="选择结束日期进行ZIG策略回归测试">
+                    </div>
+
+                    <button type="button" onclick="stepKpDate(1)" id="kp-btn-next-day" class="px-2 py-0.5 rounded-md text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="后移 1 根K线 (快捷键: → 方向键)">
+                        <span>后日</span>
+                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                    </button>
+
+                    <button type="button" onclick="resetKpCutoffToLatest()" id="kp-btn-latest-day" class="px-1.5 py-0.5 rounded-md text-[11px] font-semibold text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden" title="恢复至最新交易日">
+                        <span>最新</span>
+                    </button>
+                    
+                    <button type="button" onclick="toggleKpReplayPlay()" id="kp-btn-play-replay" class="p-0.5 px-1 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer" title="逐日自动推演播放 / 暂停 (快捷键: 空格键)">
+                        <i id="kp-replay-play-icon" data-lucide="play" class="w-3 h-3"></i>
+                    </button>
                 </div>
             </div>
 
@@ -1713,6 +1740,32 @@
             <div class="flex-1 flex items-center justify-between">
                 <span class="text-slate-200">重置图表缩放</span>
                 <span class="text-[10px] text-slate-400 font-mono">自适应</span>
+            </div>
+        </button>
+
+        <div class="h-[1px] bg-slate-800/80 my-1"></div>
+
+        <button type="button" onclick="handleKpContextAction('step-prev')" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-cyan-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="chevron-left" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span class="text-slate-200">前移一日 (前日)</span>
+                <span class="text-[10px] text-slate-400 font-mono">← 键</span>
+            </div>
+        </button>
+
+        <button type="button" onclick="handleKpContextAction('step-next')" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-cyan-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span class="text-slate-200">后移一日 (后日)</span>
+                <span class="text-[10px] text-slate-400 font-mono">→ 键</span>
+            </div>
+        </button>
+
+        <button type="button" onclick="handleKpContextAction('reset-latest')" class="w-full text-left px-3 py-1.5 hover:bg-amber-950/60 hover:text-amber-300 flex items-center space-x-2.5 cursor-pointer">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-amber-400"></i>
+            <div class="flex-1 flex items-center justify-between">
+                <span class="text-slate-200">恢复至最新交易日</span>
+                <span class="text-[10px] text-amber-400 font-mono">最新</span>
             </div>
         </button>
         
@@ -2296,6 +2349,9 @@
             const modalCard = modal.querySelector('.glass-card');
             if (modalCard) modalCard.scrollTop = 0;
 
+            currentKpCutoffIndex = -1;
+            stopKpReplay();
+
             // Load Stock Profile in parallel
             loadStockProfile(currentKpSymbol);
 
@@ -2320,6 +2376,7 @@
         }
 
         function closeKlineModal() {
+            stopKpReplay();
             hideKpContextMenu();
             document.getElementById('kline-preview-modal').classList.add('hidden');
         }
@@ -2340,14 +2397,50 @@
                     // When K-line modal is active, F5 or Ctrl+R refreshes modal data only without full page reload
                     e.preventDefault();
                     refreshKpData(true);
+                } else if (e.key === 'ArrowLeft') {
+                    // Left arrow steps back 1 day (前日)
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        stepKpDate(-1);
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    // Right arrow steps forward 1 day (后日)
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        stepKpDate(1);
+                    }
+                } else if (e.code === 'Space') {
+                    // Spacebar toggles auto regression replay
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        toggleKpReplayPlay();
+                    }
                 }
             }
         });
 
         function setKpMonths(m) {
             currentKpMonths = m;
+            currentKpCutoffIndex = -1;
+            stopKpReplay();
             document.getElementById('kp-btn-6m').className = m === 6 ? 'px-2 py-0.5 rounded-md text-slate-200 font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' : 'px-2 py-0.5 rounded-md text-slate-400 hover:text-white';
             document.getElementById('kp-btn-12m').className = m === 12 ? 'px-2 py-0.5 rounded-md text-slate-200 font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' : 'px-2 py-0.5 rounded-md text-slate-400 hover:text-white';
+            loadKlinePreviewData();
+        }
+
+        function setKpPeriod(p) {
+            currentKpPeriod = p;
+            currentKpCutoffIndex = -1;
+            stopKpReplay();
+            const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
+            periods.forEach(k => {
+                const el = document.getElementById(`kp-period-${k}`);
+                if (el) {
+                    el.className = (k === p) 
+                        ? 'kp-period-btn px-1.5 py-0.5 rounded-md font-medium text-cyan-400 bg-cyan-950 border border-cyan-800 transition shadow-sm' 
+                        : 'kp-period-btn px-1.5 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition';
+                }
+            });
             loadKlinePreviewData();
         }
 
@@ -2665,6 +2758,12 @@
                     renderKpChart(currentKpData);
                     showToast('图表重置', `已自适应重置【${currentKpStockName || currentKpSymbol}】K线时间轴与缩放`);
                 }
+            } else if (action === 'step-prev') {
+                stepKpDate(-1);
+            } else if (action === 'step-next') {
+                stepKpDate(1);
+            } else if (action === 'reset-latest') {
+                resetKpCutoffToLatest();
             } else if (action === 'toggle-watchlist') {
                 toggleKpWatchlist();
             } else if (action === 'toggle-profile') {
@@ -2684,6 +2783,173 @@
                 }
             } else if (action === 'close') {
                 closeKlineModal();
+            }
+        }
+
+        let currentKpFullBars = [];
+        let currentKpCutoffIndex = -1;
+        let currentKpReplayTimer = null;
+
+        function applyKpCutoffAndRender(baseJson) {
+            if (!baseJson) return;
+            const fullBars = currentKpFullBars || [];
+            if (fullBars.length === 0) return;
+
+            if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= fullBars.length) {
+                currentKpCutoffIndex = fullBars.length - 1;
+            }
+
+            // Cut bars up to cutoff index (strictly preventing future data leak)
+            const slicedBars = fullBars.slice(0, currentKpCutoffIndex + 1);
+            if (slicedBars.length === 0) return;
+
+            const currentBar = slicedBars[slicedBars.length - 1];
+            const prevBar = slicedBars.length > 1 ? slicedBars[slicedBars.length - 2] : null;
+            const curDateYMD = currentBar.datetime.split(' ')[0];
+
+            // Update Date picker min, max and current value
+            const dateInp = document.getElementById('kp-cutoff-date');
+            if (dateInp) {
+                dateInp.min = fullBars[0].datetime.split(' ')[0];
+                dateInp.max = fullBars[fullBars.length - 1].datetime.split(' ')[0];
+                dateInp.value = curDateYMD;
+            }
+
+            // Update Latest button & Stepper buttons state
+            const isAtLatest = currentKpCutoffIndex >= fullBars.length - 1;
+            const latestBtn = document.getElementById('kp-btn-latest-day');
+            if (latestBtn) {
+                if (isAtLatest) {
+                    latestBtn.classList.add('hidden');
+                } else {
+                    latestBtn.classList.remove('hidden');
+                }
+            }
+
+            const prevBtn = document.getElementById('kp-btn-prev-day');
+            if (prevBtn) {
+                prevBtn.style.opacity = currentKpCutoffIndex <= 1 ? '0.4' : '1';
+                prevBtn.disabled = currentKpCutoffIndex <= 1;
+            }
+            const nextBtn = document.getElementById('kp-btn-next-day');
+            if (nextBtn) {
+                nextBtn.style.opacity = isAtLatest ? '0.4' : '1';
+                nextBtn.disabled = isAtLatest;
+            }
+
+            // Update Date Range label
+            const firstDate = slicedBars[0].datetime;
+            const lastDate = slicedBars[slicedBars.length - 1].datetime;
+            const dateRangeEl = document.getElementById('kp-date-range');
+            if (dateRangeEl) {
+                dateRangeEl.innerText = isAtLatest 
+                    ? `${firstDate} ~ ${lastDate}` 
+                    : `${firstDate} ~ ${lastDate} (推演截止: ${currentKpCutoffIndex + 1}/${fullBars.length} 根)`;
+            }
+
+            // Update Price & Changes
+            const preC = (currentBar.pre_close !== undefined && currentBar.pre_close !== null) ? currentBar.pre_close : (prevBar ? prevBar.close : currentBar.open);
+            const p = Number(currentBar.close);
+            const chg = (currentBar.change !== undefined) ? currentBar.change : (p - preC);
+            const chgPct = (currentBar.change_pct !== undefined) ? currentBar.change_pct : (preC > 0 ? (chg / preC * 100) : 0);
+            const isUp = chg >= 0;
+            const sign = isUp ? '+' : '';
+
+            const pEl = document.getElementById('kp-price');
+            if (pEl) {
+                pEl.innerText = p.toFixed(2);
+                pEl.className = `text-xl font-black ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
+            }
+            const chgEl = document.getElementById('kp-change');
+            if (chgEl) {
+                chgEl.innerText = `${sign}${chg.toFixed(2)}`;
+                chgEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
+            }
+            const chgPctEl = document.getElementById('kp-change-pct');
+            if (chgPctEl) {
+                chgPctEl.innerText = `${sign}${chgPct.toFixed(2)}%`;
+                chgPctEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
+            }
+
+            // Update Dynamic Bar details
+            updateKpBarDetails(currentBar, prevBar);
+
+            // Render chart with dynamically sliced bars
+            renderKpChart({ ...baseJson, data: slicedBars });
+        }
+
+        function stepKpDate(delta) {
+            if (!currentKpFullBars || currentKpFullBars.length === 0) return;
+            const newIdx = Math.max(1, Math.min(currentKpFullBars.length - 1, currentKpCutoffIndex + delta));
+            if (newIdx === currentKpCutoffIndex) {
+                if (currentKpReplayTimer) stopKpReplay();
+                return;
+            }
+            currentKpCutoffIndex = newIdx;
+            applyKpCutoffAndRender(currentKpData);
+        }
+
+        function onKpCutoffDateChange(targetYMD) {
+            if (!currentKpFullBars || currentKpFullBars.length === 0 || !targetYMD) return;
+            let matchedIdx = -1;
+            for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
+                const bDate = currentKpFullBars[i].datetime.split(' ')[0];
+                if (bDate <= targetYMD) {
+                    matchedIdx = i;
+                    break;
+                }
+            }
+            if (matchedIdx < 0) matchedIdx = 0;
+            currentKpCutoffIndex = matchedIdx;
+            applyKpCutoffAndRender(currentKpData);
+        }
+
+        function resetKpCutoffToLatest() {
+            stopKpReplay();
+            if (!currentKpFullBars || currentKpFullBars.length === 0) return;
+            currentKpCutoffIndex = currentKpFullBars.length - 1;
+            applyKpCutoffAndRender(currentKpData);
+            showToast('已恢复最新', `已恢复至最新交易日 (${currentKpFullBars[currentKpCutoffIndex].datetime})`);
+        }
+
+        function toggleKpReplayPlay() {
+            if (currentKpReplayTimer) {
+                stopKpReplay();
+            } else {
+                startKpReplay();
+            }
+        }
+
+        function startKpReplay() {
+            stopKpReplay();
+            if (!currentKpFullBars || currentKpFullBars.length === 0) return;
+            if (currentKpCutoffIndex >= currentKpFullBars.length - 1) {
+                currentKpCutoffIndex = Math.max(5, currentKpFullBars.length - 30);
+                applyKpCutoffAndRender(currentKpData);
+            }
+            const icon = document.getElementById('kp-replay-play-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'pause');
+                if (window.lucide) lucide.createIcons();
+            }
+            currentKpReplayTimer = setInterval(() => {
+                if (currentKpCutoffIndex >= currentKpFullBars.length - 1) {
+                    stopKpReplay();
+                    return;
+                }
+                stepKpDate(1);
+            }, 750);
+        }
+
+        function stopKpReplay() {
+            if (currentKpReplayTimer) {
+                clearInterval(currentKpReplayTimer);
+                currentKpReplayTimer = null;
+            }
+            const icon = document.getElementById('kp-replay-play-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'play');
+                if (window.lucide) lucide.createIcons();
             }
         }
 
@@ -2737,6 +3003,7 @@
                 if (resp.ok) {
                     const json = await resp.json();
                     currentKpData = json;
+                    currentKpFullBars = json.data || [];
 
                     // Update Headers
                     const q = json.quote || {};
@@ -2757,47 +3024,18 @@
                     if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
                     if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
                     updateKpWatchlistButton();
-                    
-                    const bars = json.data || [];
-                    if (bars.length > 0) {
-                        const firstDate = bars[0].datetime;
-                        const lastDate = bars[bars.length - 1].datetime;
-                        const dateRangeEl = document.getElementById('kp-date-range');
-                        if (dateRangeEl) dateRangeEl.innerText = `${firstDate} ~ ${lastDate}`;
-                    }
-
-                    // Price & Changes
-                    const p = Number(q.price || (bars.length > 0 ? bars[bars.length - 1].close : 15.0));
-                    const chg = Number(q.change !== undefined ? q.change : (bars.length > 0 ? bars[bars.length - 1].change : 0));
-                    const chgPct = Number(q.change_pct !== undefined ? q.change_pct : (bars.length > 0 ? bars[bars.length - 1].change_pct : 0));
-                    const isUp = chg >= 0;
-                    const sign = isUp ? '+' : '';
-
-                    const pEl = document.getElementById('kp-price');
-                    if (pEl) {
-                        pEl.innerText = p.toFixed(2);
-                        pEl.className = `text-xl font-black ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
-                    }
-                    const chgEl = document.getElementById('kp-change');
-                    if (chgEl) {
-                        chgEl.innerText = `${sign}${chg.toFixed(2)}`;
-                        chgEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
-                    }
-                    const chgPctEl = document.getElementById('kp-change-pct');
-                    if (chgPctEl) {
-                        chgPctEl.innerText = `${sign}${chgPct.toFixed(2)}%`;
-                        chgPctEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
-                    }
 
                     if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = `${q.total_val_yi || 228.39}亿`;
                     if (document.getElementById('kp-float-val')) document.getElementById('kp-float-val').innerText = `${q.float_val_yi || 222.84}亿`;
-                    if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = `${q.turnover_rate || (bars.length > 0 ? (bars[bars.length - 1].turnover_rate || 5.0) : 5.0)}%`;
+                    if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = `${q.turnover_rate || (currentKpFullBars.length > 0 ? (currentKpFullBars[currentKpFullBars.length - 1].turnover_rate || 5.0) : 5.0)}%`;
 
-                    if (bars.length > 0) {
-                        updateKpBarDetails(bars[bars.length - 1], bars.length > 1 ? bars[bars.length - 2] : null);
+                    // If cutoff is unset, set to latest bar
+                    if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
+                        currentKpCutoffIndex = currentKpFullBars.length - 1;
                     }
 
-                    renderKpChart(json);
+                    // Apply cutoff and render
+                    applyKpCutoffAndRender(json);
                 }
             } catch (e) {
                 console.error('Failed to load kline modal data:', e);
@@ -2969,14 +3207,14 @@
                         const lastClose = bars[bars.length - 1]?.close || lastBuy;
                         const pnl = lastBuy > 0 ? ((lastClose - lastBuy) / lastBuy * 100) : 0;
                         const sign = pnl >= 0 ? '+' : '';
-                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition';
+                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shrink-0 shadow-sm';
                         tagEl.innerText = `ZIG持仓 (${sign}${pnl.toFixed(1)}%)`;
                     } else {
-                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition';
+                        tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition whitespace-nowrap shrink-0 shadow-sm';
                         tagEl.innerText = `ZIG空仓等待`;
                     }
                 } else {
-                    tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800';
+                    tagEl.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800 transition whitespace-nowrap shrink-0 shadow-sm';
                     tagEl.innerText = '强势上攻';
                 }
             }
