@@ -752,9 +752,21 @@
                     <div class="glass-card p-5 rounded-2xl space-y-3">
                         <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800/80 pb-3">
                             <div class="flex items-center space-x-3">
-                                <h4 class="text-sm font-bold text-white flex items-center">
+                                <h4 class="text-sm font-bold text-white flex items-center shrink-0">
                                     <i data-lucide="candlestick-chart" class="w-4 h-4 mr-2 text-rose-500"></i>K线 + 买卖点
                                 </h4>
+
+                                <!-- Backtest K-line Stock Quick Search by Code or Pinyin Initials -->
+                                <div class="relative flex items-center shrink-0">
+                                    <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-cyan-400/80 pointer-events-none"></i>
+                                    <input type="text" id="bt-kline-search" placeholder="代码 / 拼音首字母 (如: payh / 600519)..." autocomplete="off"
+                                        class="w-48 sm:w-60 bg-slate-900/90 border border-slate-700/80 hover:border-cyan-500/80 focus:border-cyan-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-400 focus:outline-none font-mono transition shadow-inner"
+                                        title="输入股票代码或拼音首字母快速切股并运行回测 (快捷键: / 或 Ctrl+K)">
+                                    <button id="bt-kline-search-clear" onclick="clearBtKlineSearch()" class="hidden absolute right-1.5 p-0.5 text-slate-400 hover:text-white rounded-full cursor-pointer" title="清空搜索">
+                                        <i data-lucide="x" class="w-3 h-3"></i>
+                                    </button>
+                                    <div id="bt-kline-search-dropdown" class="dropdown-menu absolute top-full left-0 mt-1 w-72 max-h-64 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60"></div>
+                                </div>
                                 <span id="bt-kline-grade-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold grade-badge-s">评级: S (89分)</span>
                                 <span class="text-xs text-slate-400">
                                     总收益率: <strong class="text-rose-500 font-mono font-bold" id="bt-kline-totret">+95.31%</strong>
@@ -2804,12 +2816,267 @@
             document.getElementById('kline-preview-modal').classList.add('hidden');
         }
 
+        // ==================== K-line UI Stock Search & Autocomplete ==================== //
+        let kpSearchTimer = null;
+        let kpSelectedIndex = -1;
+
+        function initKpStockSearch() {
+            const input = document.getElementById('kp-search-input');
+            const dropdown = document.getElementById('kp-search-dropdown');
+            const clearBtn = document.getElementById('kp-search-clear');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                if (clearBtn) {
+                    if (query) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
+                }
+
+                if (!query) {
+                    dropdown.innerHTML = '';
+                    dropdown.classList.add('hidden');
+                    kpSelectedIndex = -1;
+                    return;
+                }
+
+                if (kpSearchTimer) clearTimeout(kpSearchTimer);
+                kpSearchTimer = setTimeout(async () => {
+                    try {
+                        const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                        if (!resp.ok) return;
+                        const json = await resp.json();
+                        const list = json.data || [];
+                        kpSelectedIndex = -1;
+
+                        if (list.length === 0) {
+                            dropdown.innerHTML = `<div class="px-3.5 py-2.5 text-xs text-slate-400 text-center">未找到「${query}」匹配标的 (支持代码/拼音首字母/名称)</div>`;
+                            dropdown.classList.remove('hidden');
+                            return;
+                        }
+
+                        dropdown.innerHTML = list.slice(0, 10).map((item, idx) => `
+                            <div id="kp-search-item-${idx}" onclick="selectKpSearchResult('${item.code}', '${(item.name || '').replace(/'/g, "\\'")}')"
+                                 class="kp-search-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition hover:bg-cyan-950/80 border-b border-slate-800/40 last:border-b-0">
+                                <div class="flex items-center space-x-2.5 truncate">
+                                    <span class="font-mono font-bold text-cyan-400 shrink-0">${item.code}</span>
+                                    <span class="text-slate-100 font-sans font-semibold truncate">${item.name}</span>
+                                </div>
+                                <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px] text-slate-400">
+                                    <span class="text-amber-400/90 font-semibold">${item.pinyin || ''}</span>
+                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans">${item.market}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('');
+                        dropdown.classList.remove('hidden');
+                    } catch (e) {
+                        console.error('K-line search error:', e);
+                    }
+                }, 120);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.kp-search-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (items.length === 0) return;
+                    kpSelectedIndex = (kpSelectedIndex + 1) % items.length;
+                    highlightSearchItem(items, kpSelectedIndex);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (items.length === 0) return;
+                    kpSelectedIndex = (kpSelectedIndex - 1 + items.length) % items.length;
+                    highlightSearchItem(items, kpSelectedIndex);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (kpSelectedIndex >= 0 && items[kpSelectedIndex]) {
+                        items[kpSelectedIndex].click();
+                    } else if (items.length > 0) {
+                        items[0].click();
+                    } else if (input.value.trim()) {
+                        openKlineModal(input.value.trim());
+                        dropdown.classList.add('hidden');
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                    input.blur();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function highlightSearchItem(items, selectedIdx) {
+            items.forEach((el, idx) => {
+                if (idx === selectedIdx) {
+                    el.classList.add('bg-cyan-950', 'border-l-2', 'border-cyan-400');
+                    el.scrollIntoView({ block: 'nearest' });
+                } else {
+                    el.classList.remove('bg-cyan-950', 'border-l-2', 'border-cyan-400');
+                }
+            });
+        }
+
+        function selectKpSearchResult(code, name) {
+            const input = document.getElementById('kp-search-input');
+            if (input) input.value = name ? `${code} ${name}` : code;
+            const dropdown = document.getElementById('kp-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            const clearBtn = document.getElementById('kp-search-clear');
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            openKlineModal(code, name);
+        }
+
+        function clearKpSearch() {
+            const input = document.getElementById('kp-search-input');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            const dropdown = document.getElementById('kp-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            const clearBtn = document.getElementById('kp-search-clear');
+            if (clearBtn) clearBtn.classList.add('hidden');
+        }
+
+        // ==================== Backtest Main K-line Chart Stock Search ==================== //
+        let btKlineSearchTimer = null;
+        let btKlineSelectedIndex = -1;
+
+        function initBtKlineSearch() {
+            const input = document.getElementById('bt-kline-search');
+            const dropdown = document.getElementById('bt-kline-search-dropdown');
+            const clearBtn = document.getElementById('bt-kline-search-clear');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                if (clearBtn) {
+                    if (query) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
+                }
+
+                if (!query) {
+                    dropdown.innerHTML = '';
+                    dropdown.classList.add('hidden');
+                    btKlineSelectedIndex = -1;
+                    return;
+                }
+
+                if (btKlineSearchTimer) clearTimeout(btKlineSearchTimer);
+                btKlineSearchTimer = setTimeout(async () => {
+                    try {
+                        const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                        if (!resp.ok) return;
+                        const json = await resp.json();
+                        const list = json.data || [];
+                        btKlineSelectedIndex = -1;
+
+                        if (list.length === 0) {
+                            dropdown.innerHTML = `<div class="px-3.5 py-2.5 text-xs text-slate-400 text-center">未找到「${query}」匹配标的 (支持代码/拼音首字母/名称)</div>`;
+                            dropdown.classList.remove('hidden');
+                            return;
+                        }
+
+                        dropdown.innerHTML = list.slice(0, 10).map((item, idx) => `
+                            <div id="bt-kline-search-item-${idx}" onclick="selectBtKlineSearchResult('${item.code}', '${(item.name || '').replace(/'/g, "\\'")}')"
+                                 class="bt-kline-search-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition hover:bg-cyan-950/80 border-b border-slate-800/40 last:border-b-0">
+                                <div class="flex items-center space-x-2.5 truncate">
+                                    <span class="font-mono font-bold text-cyan-400 shrink-0">${item.code}</span>
+                                    <span class="text-slate-100 font-sans font-semibold truncate">${item.name}</span>
+                                </div>
+                                <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px] text-slate-400">
+                                    <span class="text-amber-400/90 font-semibold">${item.pinyin || ''}</span>
+                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans">${item.market}</span>` : ''}
+                                </div>
+                            </div>
+                        `).join('');
+                        dropdown.classList.remove('hidden');
+                    } catch (e) {
+                        console.error('Backtest K-line search error:', e);
+                    }
+                }, 120);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                const items = dropdown.querySelectorAll('.bt-kline-search-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (items.length === 0) return;
+                    btKlineSelectedIndex = (btKlineSelectedIndex + 1) % items.length;
+                    highlightSearchItem(items, btKlineSelectedIndex);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (items.length === 0) return;
+                    btKlineSelectedIndex = (btKlineSelectedIndex - 1 + items.length) % items.length;
+                    highlightSearchItem(items, btKlineSelectedIndex);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btKlineSelectedIndex >= 0 && items[btKlineSelectedIndex]) {
+                        items[btKlineSelectedIndex].click();
+                    } else if (items.length > 0) {
+                        items[0].click();
+                    } else if (input.value.trim()) {
+                        const code = input.value.trim();
+                        selectBtKlineSearchResult(code, '');
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                    input.blur();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectBtKlineSearchResult(code, name) {
+            const input = document.getElementById('bt-kline-search');
+            if (input) input.value = name ? `${code} ${name}` : code;
+            const dropdown = document.getElementById('bt-kline-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            const clearBtn = document.getElementById('bt-kline-search-clear');
+            if (clearBtn) clearBtn.classList.remove('hidden');
+
+            const btSymbol = document.getElementById('bt-symbol');
+            if (btSymbol) btSymbol.value = code;
+            runBacktest();
+        }
+
+        function clearBtKlineSearch() {
+            const input = document.getElementById('bt-kline-search');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            const dropdown = document.getElementById('bt-kline-search-dropdown');
+            if (dropdown) dropdown.classList.add('hidden');
+            const clearBtn = document.getElementById('bt-kline-search-clear');
+            if (clearBtn) clearBtn.classList.add('hidden');
+        }
+
         document.addEventListener('keydown', (e) => {
             const modal = document.getElementById('kline-preview-modal');
             const isModalOpen = modal && !modal.classList.contains('hidden');
 
             if (isModalOpen) {
-                if (e.key === 'Escape') {
+                if (e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) {
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        const input = document.getElementById('kp-search-input');
+                        if (input) {
+                            input.focus();
+                            input.select();
+                        }
+                    }
+                } else if (e.key === 'Escape') {
                     const menu = document.getElementById('kp-context-menu');
                     if (menu && !menu.classList.contains('hidden')) {
                         hideKpContextMenu();
@@ -2841,6 +3108,16 @@
                 }
             } else {
                 // When on Single Stock Backtest view and modal is closed
+                if (e.key === '/' || ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K'))) {
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        const input = document.getElementById('bt-kline-search') || document.getElementById('bt-symbol');
+                        if (input) {
+                            input.focus();
+                            input.select();
+                        }
+                    }
+                }
                 const btView = document.getElementById('view-backtest');
                 const isBtActive = btView && !btView.classList.contains('hidden');
                 if (isBtActive && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
@@ -8200,6 +8477,7 @@
             restoreInitialTab();
             initKpContextMenu();
             initKpStockSearch();
+            initBtKlineSearch();
         });
     </script>
 </body>
