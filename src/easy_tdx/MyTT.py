@@ -248,6 +248,74 @@ def LOWRANGE(S):  # LOWRANGE(LOW)表示当前最低价是近多少周期内最�
     return rt.astype("int")
 
 
+def BACKSET(S, N):  # 通达信 BACKSET：若S条件成立，则将当前及前N-1周期的值置为True/1
+    S = np.array(S, dtype=bool)
+    n_len = len(S)
+    res = np.zeros(n_len, dtype=bool)
+    N = int(N)
+    if N <= 0:
+        return res
+    for i in range(n_len):
+        if S[i]:
+            start = max(0, i - N + 1)
+            res[start : i + 1] = True
+    return res
+
+
+def TD_SEQUENTIAL(CLOSE, M=9):
+    """通达信九转/十三转序列指标实现。
+    
+    参数:
+        CLOSE: 收盘价序列
+        M: 9 或 13 (默认 9)
+    返回:
+        td_high: 上升九转序列（1~M整数，未点亮为0，M为高点转折）
+        td_low:  下跌九转序列（1~M整数，未点亮为0，M为低点转折）
+    """
+    C = np.array(CLOSE, dtype=float)
+    n_len = len(C)
+    if n_len < 5:
+        return np.zeros(n_len, dtype=int), np.zeros(n_len, dtype=int)
+    
+    N = int(M) - 1
+    ref4 = REF(C, 4)
+    
+    # ── 上升九转 (A 系列 - 见顶预警 / 高九) ──────────────────────────
+    a1 = C > ref4
+    a2 = BARSLASTCOUNT(a1)
+    ref_a2_1 = REF(a2, 1)
+    a3 = (ref_a2_1 == N) & (a2 > ref_a2_1)
+    
+    # ISLASTBAR 且在 6 到 N 之间进行时显示
+    a5 = np.zeros(n_len, dtype=bool)
+    if 6 <= a2[-1] <= N:
+        a5[-1] = True
+    
+    mask_a = BACKSET(a3, N + 1)
+    if a5[-1]:
+        mask_a = mask_a | BACKSET(a5, int(a2[-1]))
+    
+    td_high = (mask_a * a2).astype(int)
+    
+    # ── 下跌九转 (B 系列 - 抄底买点 / 低九) ──────────────────────────
+    b1 = C < ref4
+    b2 = BARSLASTCOUNT(b1)
+    ref_b2_1 = REF(b2, 1)
+    b3 = (ref_b2_1 == N) & (b2 > ref_b2_1)
+    
+    b5 = np.zeros(n_len, dtype=bool)
+    if 6 <= b2[-1] <= N:
+        b5[-1] = True
+    
+    mask_b = BACKSET(b3, N + 1)
+    if b5[-1]:
+        mask_b = mask_b | BACKSET(b5, int(b2[-1]))
+    
+    td_low = (mask_b * b2).astype(int)
+    
+    return td_high, td_low
+
+
 # ------------------   2级：技术指标函数(全部通过0级，1级函数实现） ------------------------------
 def MACD(CLOSE, SHORT=12, LONG=26, M=9):  # EMA的关系，S取120日，和雪球小数点2位相同
     DIF = EMA(CLOSE, SHORT) - EMA(CLOSE, LONG)

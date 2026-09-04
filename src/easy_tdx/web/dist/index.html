@@ -2081,6 +2081,7 @@
                         <button onclick="setKpSubIndicator('rsi')" id="kp-sub-rsi" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">RSI</button>
                         <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">KDJ</button>
                         <button onclick="setKpSubIndicator('boll')" id="kp-sub-boll" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">BOLL</button>
+                        <button onclick="toggleKpTdSequential()" id="kp-sub-td" class="px-2 py-0.5 rounded text-xs font-semibold bg-purple-950 text-purple-300 border border-purple-800 transition shadow-sm cursor-pointer" title="通达信九转/十三转序列（点击在 九转(9) / 十三转(13) / 关闭 之间切换）">九转(9)</button>
                         <button onclick="toggleKpZigStrategy()" id="kp-sub-zig" class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer" title="ZIG 转向与右侧突破买卖点">ZIG策略</button>
                         <button onclick="toggleKpZigAuxPanel()" id="kp-btn-zig-aux" class="px-1.5 py-0.5 rounded text-xs font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 transition cursor-pointer flex items-center space-x-0.5 shadow-sm" title="配置多指标共振辅助与获利最优移动止盈">
                             <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i>
@@ -3392,6 +3393,98 @@
             loadKlinePreviewData();
         }
 
+        // --- TD Sequential (通达信九转与十三转序列指标) ---
+        let kpTdMode = '9'; // '9' | '13' | 'off'
+        function toggleKpTdSequential() {
+            if (kpTdMode === '9') {
+                kpTdMode = '13';
+            } else if (kpTdMode === '13') {
+                kpTdMode = 'off';
+            } else {
+                kpTdMode = '9';
+            }
+            updateKpTdButtonState();
+            if (currentKpData) {
+                renderKpChart(currentKpData);
+            }
+        }
+
+        function updateKpTdButtonState() {
+            const el = document.getElementById('kp-sub-td');
+            if (!el) return;
+            if (kpTdMode === '9') {
+                el.innerText = '九转(9)';
+                el.className = 'px-2 py-0.5 rounded text-xs font-semibold bg-purple-950 text-purple-300 border border-purple-800 transition shadow-sm cursor-pointer';
+                el.title = '通达信九转 (M=9) 已激活，点击切换为十三转 (M=13)';
+            } else if (kpTdMode === '13') {
+                el.innerText = '十三转(13)';
+                el.className = 'px-2 py-0.5 rounded text-xs font-semibold bg-fuchsia-950 text-fuchsia-300 border border-fuchsia-800 transition shadow-sm cursor-pointer';
+                el.title = '通达信十三转 (M=13) 已激活，点击关闭九转';
+            } else {
+                el.innerText = '九转:关';
+                el.className = 'px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white transition cursor-pointer';
+                el.title = '九转序列已关闭，点击开启九转 (M=9)';
+            }
+        }
+
+        function calcTdSequential(bars, M = 9) {
+            const n = bars.length;
+            const tdHigh = new Array(n).fill(0);
+            const tdLow = new Array(n).fill(0);
+            if (n < 5) return { tdHigh, tdLow };
+            const N = M - 1;
+
+            const a2 = new Array(n).fill(0);
+            for (let i = 4; i < n; i++) {
+                if (bars[i].close > bars[i - 4].close) {
+                    a2[i] = a2[i - 1] + 1;
+                } else {
+                    a2[i] = 0;
+                }
+            }
+            for (let i = 0; i < n; i++) {
+                if (i > 0 && a2[i - 1] === N && a2[i] > a2[i - 1]) {
+                    const start = Math.max(0, i - (N + 1) + 1);
+                    for (let j = start; j <= i; j++) {
+                        tdHigh[j] = a2[j];
+                    }
+                }
+            }
+            const lastA2 = a2[n - 1];
+            if (lastA2 >= 6 && lastA2 <= N) {
+                const start = Math.max(0, n - 1 - lastA2 + 1);
+                for (let j = start; j < n; j++) {
+                    tdHigh[j] = a2[j];
+                }
+            }
+
+            const b2 = new Array(n).fill(0);
+            for (let i = 4; i < n; i++) {
+                if (bars[i].close < bars[i - 4].close) {
+                    b2[i] = b2[i - 1] + 1;
+                } else {
+                    b2[i] = 0;
+                }
+            }
+            for (let i = 0; i < n; i++) {
+                if (i > 0 && b2[i - 1] === N && b2[i] > b2[i - 1]) {
+                    const start = Math.max(0, i - (N + 1) + 1);
+                    for (let j = start; j <= i; j++) {
+                        tdLow[j] = b2[j];
+                    }
+                }
+            }
+            const lastB2 = b2[n - 1];
+            if (lastB2 >= 6 && lastB2 <= N) {
+                const start = Math.max(0, n - 1 - lastB2 + 1);
+                for (let j = start; j < n; j++) {
+                    tdLow[j] = b2[j];
+                }
+            }
+
+            return { tdHigh, tdLow };
+        }
+
         // --- ZIG Strategy Pure-JS Core (100% matched with easy_tdx.MyTT.ZIG & ZigBreakoutStrategy) ---
         let isZigActive = true;
         function toggleKpZigStrategy() {
@@ -4576,6 +4669,127 @@
                 });
             }
 
+            // ── 通达信九转 / 十三转序列标记 (TD Sequential) ──
+            if (kpTdMode !== 'off') {
+                const mVal = Number(kpTdMode) || 9;
+                let tdHighArr = [];
+                let tdLowArr = [];
+                const hasBackendTd = (mVal === 13) ? (bars[0] && bars[0].td13_high !== undefined) : (bars[0] && bars[0].td9_high !== undefined);
+                if (hasBackendTd) {
+                    tdHighArr = bars.map(b => (mVal === 13 ? b.td13_high : b.td9_high) || 0);
+                    tdLowArr = bars.map(b => (mVal === 13 ? b.td13_low : b.td9_low) || 0);
+                } else {
+                    const fallback = calcTdSequential(bars, mVal);
+                    tdHighArr = fallback.tdHigh;
+                    tdLowArr = fallback.tdLow;
+                }
+
+                bars.forEach((b, i) => {
+                    const hVal = tdHighArr[i];
+                    const lVal = tdLowArr[i];
+
+                    // 上升九转 (高九/高十三，见顶预警，数字标注在顶部)
+                    if (hVal > 0) {
+                        const isCompleted = (hVal === mVal);
+                        if (isCompleted) {
+                            // 第 9 或 13 根：通达信标准绿色高亮徽章图标
+                            markPointData.push({
+                                name: `九转高${hVal}`,
+                                coord: [b.datetime, b.high],
+                                value: String(hVal),
+                                symbol: 'circle',
+                                symbolSize: 18,
+                                symbolOffset: [0, -12],
+                                itemStyle: {
+                                    color: '#14532d',
+                                    borderColor: '#22c55e',
+                                    borderWidth: 2,
+                                    shadowBlur: 8,
+                                    shadowColor: 'rgba(34, 197, 94, 0.85)'
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: String(hVal),
+                                    color: '#ffffff',
+                                    fontWeight: 'bold',
+                                    fontSize: 10
+                                },
+                                z: 90
+                            });
+                        } else {
+                            // 1~8: 通达信洋红小字 (COLORFF00FF)
+                            markPointData.push({
+                                name: `高${hVal}`,
+                                coord: [b.datetime, b.high],
+                                value: String(hVal),
+                                symbol: 'circle',
+                                symbolSize: 1,
+                                symbolOffset: [0, -9],
+                                itemStyle: { color: 'transparent' },
+                                label: {
+                                    show: true,
+                                    formatter: String(hVal),
+                                    color: '#ff00ff',
+                                    fontWeight: 'bold',
+                                    fontSize: 9.5
+                                },
+                                z: 80
+                            });
+                        }
+                    }
+
+                    // 下跌九转 (低九/低十三，抄底买点，数字标注在底部)
+                    if (lVal > 0) {
+                        const isCompleted = (lVal === mVal);
+                        if (isCompleted) {
+                            // 第 9 或 13 根：通达信标准洋红/玫瑰红高亮徽章图标
+                            markPointData.push({
+                                name: `九转低${lVal}`,
+                                coord: [b.datetime, b.low],
+                                value: String(lVal),
+                                symbol: 'circle',
+                                symbolSize: 18,
+                                symbolOffset: [0, 12],
+                                itemStyle: {
+                                    color: '#881337',
+                                    borderColor: '#f43f5e',
+                                    borderWidth: 2,
+                                    shadowBlur: 8,
+                                    shadowColor: 'rgba(244, 63, 94, 0.85)'
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: String(lVal),
+                                    color: '#ffffff',
+                                    fontWeight: 'bold',
+                                    fontSize: 10
+                                },
+                                z: 90
+                            });
+                        } else {
+                            // 1~8: 通达信绿色小字 (COLOR00FF00)
+                            markPointData.push({
+                                name: `低${lVal}`,
+                                coord: [b.datetime, b.low],
+                                value: String(lVal),
+                                symbol: 'circle',
+                                symbolSize: 1,
+                                symbolOffset: [0, 9],
+                                itemStyle: { color: 'transparent' },
+                                label: {
+                                    show: true,
+                                    formatter: String(lVal),
+                                    color: '#00ff00',
+                                    fontWeight: 'bold',
+                                    fontSize: 9.5
+                                },
+                                z: 80
+                            });
+                        }
+                    }
+                });
+            }
+
             // Update Header Status Tag with ZIG info
             const tagEl = document.getElementById('kp-status-tag');
             if (tagEl) {
@@ -5014,6 +5228,19 @@
                 axisPointer: {
                     link: [{ xAxisIndex: 'all' }]
                 },
+                graphic: [
+                    {
+                        type: 'text',
+                        left: 75,
+                        top: 36,
+                        z: 10,
+                        style: {
+                            text: json.data1 || (json.symbol ? `${json.symbol}|${json.zs_block || json.board_tag || '主板'}` : ''),
+                            font: 'bold 11px "JetBrains Mono", Consolas, monospace',
+                            fill: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.85)',
+                        }
+                    }
+                ],
                 tooltip: {
                     trigger: 'axis',
                     axisPointer: {
@@ -5112,6 +5339,28 @@
                                     </div>
                                     ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(239,68,68,0.4);">⚡ ZIG 触发买点信号</div>' : ''}
                                     ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(234,179,8,0.4);">⚡ ZIG 触发卖点信号</div>' : ''}
+                                    ${(() => {
+                                        if (kpTdMode === 'off') return '';
+                                        const mVal = Number(kpTdMode) || 9;
+                                        const tdH = (mVal === 13) ? (bar.td13_high || 0) : (bar.td9_high || 0);
+                                        const tdL = (mVal === 13) ? (bar.td13_low || 0) : (bar.td9_low || 0);
+                                        let tdHtml = '';
+                                        if (tdH > 0) {
+                                            if (tdH === mVal) {
+                                                tdHtml += `<div style="color: #22c55e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信${mVal}转：高${tdH} 见顶阻力/高抛预警</div>`;
+                                            } else {
+                                                tdHtml += `<div style="color: #e879f9; font-weight: 500; font-size: 11px; margin-top: 2px;">九转高序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
+                                            }
+                                        }
+                                        if (tdL > 0) {
+                                            if (tdL === mVal) {
+                                                tdHtml += `<div style="color: #f43f5e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信${mVal}转：低${tdL} 超跌支撑/抄底买点</div>`;
+                                            } else {
+                                                tdHtml += `<div style="color: #4ade80; font-weight: 500; font-size: 11px; margin-top: 2px;">九转低序列：第 ${tdL} 根 (${tdL}/${mVal})</div>`;
+                                            }
+                                        }
+                                        return tdHtml;
+                                    })()}
                                 </div>
                             `;
                         } catch (err) {

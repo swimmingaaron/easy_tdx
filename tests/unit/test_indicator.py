@@ -166,3 +166,29 @@ class TestComputeIndicators:
         assert len(result) == 200
         assert np.isfinite(result["ZIG"]).all()
 
+    def test_backset(self):
+        from easy_tdx.MyTT import BACKSET
+        s = np.array([False, False, False, True, False])
+        res = BACKSET(s, 3)
+        # s[3] is True, N=3 -> indices 1, 2, 3 should be True
+        assert not res[0]
+        assert res[1] and res[2] and res[3]
+        assert not res[4]
+
+    def test_td_sequential_nine(self):
+        from easy_tdx.MyTT import TD_SEQUENTIAL
+        # Monotonically increasing close prices -> C > C[i-4]
+        c = np.arange(1, 20, dtype=float)
+        td_high, td_low = TD_SEQUENTIAL(c, 9)
+        # Indices 4 to 12 form 1..9 sequence
+        assert td_high[12] == 9
+        assert list(td_high[4:13]) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        assert td_low.sum() == 0
+
+    def test_td_sequential_thirteen(self):
+        from easy_tdx.MyTT import TD_SEQUENTIAL
+        c = np.arange(1, 25, dtype=float)
+        td_high, td_low = TD_SEQUENTIAL(c, 13)
+        assert td_high[16] == 13
+        assert list(td_high[4:17]) == list(range(1, 14))
+

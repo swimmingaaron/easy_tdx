@@ -9,7 +9,7 @@ import pandas as pd
 from fastapi import APIRouter, Query
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
-from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV, SUM
+from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV, SUM, TD_SEQUENTIAL
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -348,6 +348,10 @@ def get_kline(
     k_val, d_val, j_val = KDJ(c, h, l)
     boll_up, boll_mid, boll_low = BOLL(c, 20, 2)
     
+    # TD Sequential (通达信九转与十三转)
+    td9_h, td9_l = TD_SEQUENTIAL(c, 9)
+    td13_h, td13_l = TD_SEQUENTIAL(c, 13)
+
     # ZIG Indicator & Strategy Signals (10.0% turning threshold)
     zig_val = ZIG(c, 10.0)
     hhv20 = HHV(h, 20)
@@ -460,6 +464,10 @@ def get_kline(
             "zig": safe_float(zig_val[i]) if i < len(zig_val) else cur_c,
             "zig_buy": buy_signals[i],
             "zig_sell": sell_signals[i],
+            "td9_high": int(td9_h[i]),
+            "td9_low": int(td9_l[i]),
+            "td13_high": int(td13_h[i]),
+            "td13_low": int(td13_l[i]),
         })
 
     last_bar = bars_data[-1]
@@ -591,6 +599,11 @@ def get_kline(
     except Exception as e:
         logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
+    b_info = _resolve_stock_board_info(clean_sym, full_sym)
+    board_lbl = board.get("label", "") if isinstance(board, dict) else str(board)
+    zs_block = b_info.get("board_name") or board_lbl or ""
+    data1 = f"{clean_sym}|{zs_block}"
+
     return {
         "status": "success",
         "symbol": clean_sym,
@@ -599,8 +612,16 @@ def get_kline(
         "full_symbol": full_sym,
         "market": mkt,
         "board_tag": board,
+        "zs_block": zs_block,
+        "data1": data1,
         "period": period,
         "count": len(bars_data),
+        "td_summary": {
+            "td9_high": int(td9_h[-1]) if len(td9_h) > 0 else 0,
+            "td9_low": int(td9_l[-1]) if len(td9_l) > 0 else 0,
+            "td13_high": int(td13_h[-1]) if len(td13_h) > 0 else 0,
+            "td13_low": int(td13_l[-1]) if len(td13_l) > 0 else 0,
+        },
         "quote": {
             "price": last_price,
             "change": chg,
