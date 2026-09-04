@@ -83,6 +83,54 @@ _REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
 _REALTIME_QUOTES_LOCK = threading.Lock()
 REALTIME_TTL = 5.0
 
+_STOCK_BOARD_CACHE: dict[str, dict[str, str]] = {}
+_BOARD_NAME_MAP: dict[str, str] = {}
+_STOCK_BOARD_LOCK = threading.Lock()
+
+def _resolve_stock_board_info(code: str, raw_sym: str = "") -> dict[str, str]:
+    """Resolve stock industry sector name and code using TDX MAC get_belong_board."""
+    clean = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(".", "")
+    if clean.startswith("88"):
+        b_name = _BOARD_NAME_MAP.get(clean) or get_stock_name(clean)
+        return {"board_code": clean, "board_name": b_name}
+    if clean in ("999999", "399001", "399006", "000300", "000688", "899050"):
+        return {"board_code": clean, "board_name": "宽基指数"}
+        
+    with _STOCK_BOARD_LOCK:
+        if clean in _STOCK_BOARD_CACHE:
+            return _STOCK_BOARD_CACHE[clean]
+            
+    b_code = ""
+    b_name = "--"
+    try:
+        from easy_tdx.market_overview import _get_or_create_mac_client
+        mac = _get_or_create_mac_client()
+        mkt = 1 if (clean.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
+        df = mac.get_belong_board(mkt, clean)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                bc = str(row.get("board_code", "")).strip()
+                bn = str(row.get("board_name", "")).strip()
+                if bc and bn:
+                    _BOARD_NAME_MAP[bc] = bn
+            hy = df[df["board_type"] == 12]
+            if not hy.empty:
+                r = hy.iloc[-1]
+                b_code = str(r["board_code"])
+                b_name = str(r["board_name"])
+            else:
+                r = df.iloc[-1]
+                b_code = str(r["board_code"])
+                b_name = str(r["board_name"])
+    except Exception:
+        pass
+        
+    res = {"board_code": b_code, "board_name": b_name}
+    with _STOCK_BOARD_LOCK:
+        _STOCK_BOARD_CACHE[clean] = res
+    return res
+
+
 
 @router.get("/watchlist")
 def get_watchlist():
@@ -189,6 +237,7 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             m1, m3, m5 = 0.0, 0.0, 0.0
             inflow_1d, inflow_3d, inflow_5d = "0.0万", "0.0万", "0.0万"
             
+        b_info = _resolve_stock_board_info(code, full_sym)
         data.append({
             "symbol": code,
             "code": code,
@@ -196,6 +245,8 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             "display": f"{code} {name}",
             "full_symbol": full_sym,
             "board_tag": _get_board_tag(code),
+            "board_code": b_info["board_code"],
+            "board_name": b_info["board_name"],
             "price": p,
             "change_pct": chg,
             "high": h,
@@ -239,7 +290,7 @@ def get_kline(
     
     df = fetch_security_kline(raw_sym, count=n_bars, period=period)
     mkt, full_sym = _get_market_suffix(raw_sym)
-    stock_name = get_stock_name(full_sym)
+    stock_name = _BOARD_NAME_MAP.get(clean_sym) or get_stock_name(full_sym)
     board = _get_board_tag(full_sym)
 
     c = df["close"].values

@@ -1460,20 +1460,21 @@
 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
-                        <thead class="text-xs text-slate-400 border-b border-slate-800">
+                        <thead class="text-xs text-slate-400 border-b border-slate-800 font-sans select-none">
                             <tr>
-                                <th class="pb-3">股票代码</th>
-                                <th class="pb-3">股票名称</th>
-                                <th class="pb-3">最新价</th>
-                                <th class="pb-3">涨跌幅</th>
-                                <th class="pb-3">最高</th>
-                                <th class="pb-3">最低</th>
-                                <th class="pb-3">成交额(万)</th>
-                                <th class="pb-3 text-right">当日净流入</th>
-                                <th class="pb-3 text-right">3日净流入</th>
-                                <th class="pb-3 text-right">5日净流入</th>
-                                <th class="pb-3 pl-4">形态特征</th>
-                                <th class="pb-3 text-right pr-2">操作</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-left font-semibold">股票代码</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-left font-semibold">股票名称</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-left font-semibold">所属板块</th>
+                                <th class="py-3 px-2 whitespace-nowrap text-right font-semibold">最新价</th>
+                                <th class="py-3 px-2 whitespace-nowrap text-right font-semibold">涨跌幅</th>
+                                <th class="py-3 px-2 whitespace-nowrap text-right font-semibold">最高</th>
+                                <th class="py-3 px-2 whitespace-nowrap text-right font-semibold">最低</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-right font-semibold">成交额(万)</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-right font-semibold">当日净流入</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-right font-semibold">3日净流入</th>
+                                <th class="py-3 px-2.5 whitespace-nowrap text-right font-semibold">5日净流入</th>
+                                <th class="py-3 px-3 whitespace-nowrap text-center font-semibold">形态特征</th>
+                                <th class="py-3 px-3 whitespace-nowrap text-right pr-3 font-semibold">操作</th>
                             </tr>
                         </thead>
                         <tbody id="realtime-quotes-table" class="divide-y divide-slate-800/60 font-mono"></tbody>
@@ -3664,7 +3665,7 @@
                     }
 
                     const fullSym = json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`;
-                    const sName = json.name || currentKpSymbol;
+                    const sName = (json.name && !json.name.startsWith('标的_')) ? json.name : (currentKpStockName || json.name || currentKpSymbol);
                     currentKpStockName = sName;
                     if (document.getElementById('kp-full-symbol')) document.getElementById('kp-full-symbol').innerText = fullSym;
                     if (document.getElementById('kp-stock-name')) document.getElementById('kp-stock-name').innerText = sName;
@@ -5722,7 +5723,7 @@
                 if (symbols.length === 0) {
                     tableEl.innerHTML = `
                         <tr>
-                            <td colspan="12" class="py-10 text-center text-slate-400 font-sans">
+                            <td colspan="13" class="py-10 text-center text-slate-400 font-sans">
                                 <div class="flex flex-col items-center justify-center space-y-2">
                                     <i data-lucide="inbox" class="w-8 h-8 text-slate-500 stroke-1"></i>
                                     <p class="text-xs">当前自选监控池为空，请在上方输入代码/名称添加，或点击「恢复默认」</p>
@@ -5757,6 +5758,8 @@
                                 return {
                                     code: code,
                                     name: kj.name || code,
+                                    board_code: kj.board_code || '',
+                                    board_name: kj.board_name || kj.industry || '',
                                     price: q.price || q.close || 0,
                                     change_pct: q.change_pct || 0,
                                     high: q.high || 0,
@@ -5791,20 +5794,33 @@
                         const inflow3dColor = getStockInflowColor(m3);
                         const inflow5dColor = getStockInflowColor(m5);
 
+                        let boardBadgeHtml = '<span class="text-slate-500 font-mono text-xs">--</span>';
+                        const bCode = q.board_code || '';
+                        const bName = q.board_name || '';
+
+                        if (bName && bName !== '--') {
+                            if (bCode) {
+                                boardBadgeHtml = `<span onclick="openKlineModal('${bCode}', '${bName}')" class="stock-click-link text-slate-300 font-sans font-medium" title="点击查看【${bName}】(${bCode}) 板块K线">${bName}</span>`;
+                            } else {
+                                boardBadgeHtml = `<span class="text-slate-400 font-sans font-medium">${bName}</span>`;
+                            }
+                        }
+
                         return `
                         <tr class="hover:bg-slate-800/40 transition group">
-                            <td class="py-3 font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
-                            <td class="py-3 font-sans font-semibold"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
-                            <td class="py-3 font-bold text-white font-mono">¥${Number(q.price).toFixed(2)}</td>
-                            <td class="py-3 font-bold font-mono ${Number(q.change_pct) >= 0 ? 'text-rose-500' : 'text-emerald-400'}">${Number(q.change_pct) >= 0 ? '+' : ''}${Number(q.change_pct).toFixed(2)}%</td>
-                            <td class="py-3 text-slate-300 font-mono">¥${Number(q.high).toFixed(2)}</td>
-                            <td class="py-3 text-slate-300 font-mono">¥${Number(q.low).toFixed(2)}</td>
-                            <td class="py-3 text-slate-400 font-mono">${Number(q.turnover_wan).toLocaleString()}</td>
-                            <td class="py-3 text-right font-mono font-semibold ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
-                            <td class="py-3 text-right font-mono font-semibold ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
-                            <td class="py-3 text-right font-mono font-semibold ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
-                            <td class="py-3 pl-4 font-sans"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
-                            <td class="py-3 pr-2 text-right">
+                            <td class="py-2.5 px-2.5 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
+                            <td class="py-2.5 px-2.5 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
+                            <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${boardBadgeHtml}</td>
+                            <td class="py-2.5 px-2 font-bold text-white font-mono text-right whitespace-nowrap">¥${Number(q.price).toFixed(2)}</td>
+                            <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${Number(q.change_pct) >= 0 ? 'text-rose-500' : 'text-emerald-400'}">${Number(q.change_pct) >= 0 ? '+' : ''}${Number(q.change_pct).toFixed(2)}%</td>
+                            <td class="py-2.5 px-2 text-slate-300 font-mono text-right whitespace-nowrap">¥${Number(q.high).toFixed(2)}</td>
+                            <td class="py-2.5 px-2 text-slate-300 font-mono text-right whitespace-nowrap">¥${Number(q.low).toFixed(2)}</td>
+                            <td class="py-2.5 px-2.5 text-slate-400 font-mono text-right whitespace-nowrap">${Number(q.turnover_wan).toLocaleString()}</td>
+                            <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
+                            <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
+                            <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
+                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
+                            <td class="py-2.5 px-3 pr-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
                                     <button onclick="quickBacktest('${q.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer">回测</button>
