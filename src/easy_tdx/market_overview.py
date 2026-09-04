@@ -108,6 +108,7 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
         fields = (
             PresetField.BASIC
             + FieldBit.AMOUNT
+            + FieldBit.TOTAL_MARKET_CAP_AB
             + FieldBit.MAIN_NET_AMOUNT
             + FieldBit.MAIN_NET_3D_AMOUNT
             + FieldBit.MAIN_NET_5D_AMOUNT
@@ -126,6 +127,8 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
                     chg_pct = round(float(row.get("change_pct", 0.0)), 2)
                 chg_str = f"+{chg_pct:.2f}%" if chg_pct >= 0 else f"{chg_pct:.2f}%"
                 amt_yi = round(float(row.get("amount", 0.0)) / 100000000.0, 2)
+                t_cap = float(row.get("total_market_cap_ab") or 0.0)
+                total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
 
                 m1 = float(row.get("main_net_amount", 0.0))
                 m3 = float(row.get("main_net_3d_amount", 0.0))
@@ -146,6 +149,7 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
                     "change_pct": chg_pct,
                     "chg": chg_str,
                     "amount_yi": amt_yi,
+                    "total_mv_yi": total_mv_yi,
                     "main_net_amount": m1,
                     "main_net_3d": m3,
                     "main_net_5d": m5,

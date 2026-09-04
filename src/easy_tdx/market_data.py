@@ -329,6 +329,7 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
         fields = (
             PresetField.BASIC
             + FieldBit.AMOUNT
+            + FieldBit.TOTAL_MARKET_CAP_AB
             + FieldBit.MAIN_NET_AMOUNT
             + FieldBit.MAIN_NET_3D_AMOUNT
             + FieldBit.MAIN_NET_5D_AMOUNT
@@ -342,6 +343,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
                 pre_close = float(row.get("pre_close") or price)
                 chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
                 amt = float(row.get("amount") or 0.0)
+                t_cap = float(row.get("total_market_cap_ab") or 0.0)
+                total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
+
                 m1 = float(row.get("main_net_amount") or 0.0)
                 m3 = float(row.get("main_net_3d_amount") or 0.0)
                 m5 = float(row.get("main_net_5d_amount") or 0.0)
@@ -356,6 +360,7 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
                     "low": round(float(row.get("low") or price), 2),
                     "volume": int(row.get("vol") or 0),
                     "turnover_wan": round(amt / 10000.0, 1),
+                    "total_mv_yi": total_mv_yi,
                     "change_pct": chg_pct,
                     "main_net_amount": m1,
                     "main_net_3d": m3,

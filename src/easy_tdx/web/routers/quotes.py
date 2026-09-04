@@ -213,6 +213,7 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             l = rq["low"]
             v = rq["volume"]
             amt = rq["turnover_wan"]
+            total_mv_yi = rq.get("total_mv_yi", 0.0)
             m1 = rq.get("main_net_amount", 0.0)
             m3 = rq.get("main_net_3d", 0.0)
             m5 = rq.get("main_net_5d", 0.0)
@@ -234,6 +235,7 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
                 chg = round(((p / max(0.01, prev_close)) - 1.0) * 100, 2)
             else:
                 p, h, l, v, amt, chg = 0.0, 0.0, 0.0, 0, 0.0, 0.0
+            total_mv_yi = 0.0
             m1, m3, m5 = 0.0, 0.0, 0.0
             inflow_1d, inflow_3d, inflow_5d = "0.0万", "0.0万", "0.0万"
             
@@ -253,6 +255,7 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             "low": l,
             "volume": v,
             "turnover_wan": amt,
+            "total_mv_yi": total_mv_yi,
             "main_net_amount": m1,
             "main_net_3d": m3,
             "main_net_5d": m5,
