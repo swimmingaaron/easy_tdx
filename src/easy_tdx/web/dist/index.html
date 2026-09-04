@@ -1730,6 +1730,20 @@
                     <span id="kp-full-symbol-inline" class="hidden">300142.SZ</span>
                     <span id="kp-stock-name-inline" class="hidden">沃森生物</span>
                     
+                    <!-- K-line Stock Quick Search Input & Auto-complete Dropdown -->
+                    <div class="relative ml-1 sm:ml-1.5 shrink-0">
+                        <div class="relative flex items-center">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-cyan-400/80 pointer-events-none"></i>
+                            <input type="text" id="kp-search-input" placeholder="🔍 股票代码/名称/拼音..." autocomplete="off"
+                                class="w-36 sm:w-48 bg-slate-900/90 border border-slate-700/80 hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
+                                title="搜索股票代码、拼音或中文名称快速切股 (快捷键: / 或 Ctrl+K)">
+                            <button id="kp-search-clear" onclick="clearKpSearch()" class="hidden absolute right-1.5 p-0.5 text-slate-400 hover:text-white rounded-full cursor-pointer" title="清空搜索">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                        <div id="kp-search-dropdown" class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60"></div>
+                    </div>
+                    
                     <div class="flex items-baseline space-x-1 font-mono ml-1">
                         <span id="kp-price" class="text-base sm:text-lg font-black text-rose-500">14.28</span>
                         <span id="kp-change" class="text-xs font-bold text-rose-500">+0.85</span>
@@ -2708,6 +2722,17 @@
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
             document.getElementById('kp-full-symbol-inline').innerText = currentKpSymbol;
+
+            // Sync stock search input in K-line modal header
+            const kpSearchInput = document.getElementById('kp-search-input');
+            if (kpSearchInput) {
+                kpSearchInput.value = name ? `${currentKpSymbol} ${name}` : currentKpSymbol;
+            }
+            const kpSearchClear = document.getElementById('kp-search-clear');
+            if (kpSearchClear) kpSearchClear.classList.remove('hidden');
+            const kpSearchDropdown = document.getElementById('kp-search-dropdown');
+            if (kpSearchDropdown) kpSearchDropdown.classList.add('hidden');
+
             updateKpWatchlistButton();
             updateTradingStatusUI();
 
@@ -8174,6 +8199,7 @@
             populateInitialData();
             restoreInitialTab();
             initKpContextMenu();
+            initKpStockSearch();
         });
     </script>
 </body>

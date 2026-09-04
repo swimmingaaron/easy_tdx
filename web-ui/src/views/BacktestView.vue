@@ -12,12 +12,13 @@ import KlineChart from '../components/KlineChart.vue'
 import MetricTable from '../components/MetricTable.vue'
 import StrategyPicker from '../components/StrategyPicker.vue'
 import SymbolPicker from '../components/SymbolPicker.vue'
+import StockSearchInput from '../components/StockSearchInput.vue'
 import TradeTable from '../components/TradeTable.vue'
 import { formatError, saveStrategy } from '../api'
 import { detectMarket } from '../market'
 import { fmtPct } from '../format'
 import { gradePerformance } from '../grading'
-import type { Category, ExecutionMode } from '../types'
+import type { Category, ExecutionMode, StockSuggestItem } from '../types'
 import { useBacktestStore } from '../stores/backtest'
 
 const store = useBacktestStore()
@@ -101,6 +102,12 @@ async function onRun() {
     slippage: slippage.value,
     execution: execution.value,
   })
+}
+
+// 快速通过 K线图头部搜索切换标的并运行回测
+async function onStockSelect(item: StockSuggestItem) {
+  code.value = item.code
+  await onRun()
 }
 
 // ── 保存策略（把当前结果 + 配置 + 上下文存进策略库）──────────────────────────
@@ -260,24 +267,31 @@ async function onSave() {
         </div>
 
         <section class="report-section">
-          <h3 class="kline-header">
-            <span>K线 + 买卖点</span>
-            <span v-if="store.result?.performance" class="kline-header-stats">
-              <span v-if="grade" class="grade-badge" :class="`grade-${grade.grade.toLowerCase()}`">
-                评级: {{ grade.grade }}（{{ grade.score }}分）
+          <div class="kline-header">
+            <h3>
+              <span>K线 + 买卖点</span>
+              <span v-if="store.result" class="section-stats">
+                <span class="stat-item">
+                  总收益率:
+                  <strong :class="(store.result.performance.total_return ?? 0) >= 0 ? 'up' : 'down'">
+                    {{ (store.result.performance.total_return ?? 0) >= 0 ? '+' : '' }}{{ fmtPct(store.result.performance.total_return) }}
+                  </strong>
+                </span>
+                <span class="stat-item">
+                  最大回撤:
+                  <strong class="down">{{ fmtPct(store.result.performance.max_drawdown) }}</strong>
+                </span>
               </span>
-              <span class="stat-item">
-                总收益率:
-                <strong :class="(store.result.performance.total_return ?? 0) >= 0 ? 'up' : 'down'">
-                  {{ (store.result.performance.total_return ?? 0) >= 0 ? '+' : '' }}{{ fmtPct(store.result.performance.total_return) }}
-                </strong>
-              </span>
-              <span class="stat-item">
-                最大回撤:
-                <strong class="down">{{ fmtPct(store.result.performance.max_drawdown) }}</strong>
-              </span>
-            </span>
-          </h3>
+            </h3>
+            <div style="margin-left: auto; width: 260px;">
+              <StockSearchInput
+                v-model="code"
+                placeholder="🔍 代码/名称/拼音快速切股"
+                @select="onStockSelect"
+                @confirm="onRun"
+              />
+            </div>
+          </div>
           <KlineChart
             :bars="store.ohlcv"
             :trades="store.result.trades"
