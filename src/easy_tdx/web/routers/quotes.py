@@ -313,7 +313,7 @@ def get_kline(
     amt_ma5 = MA(amt_vals, 5)
     amt_ma10 = MA(amt_vals, 10)
 
-    # Net capital inflow per bar (using multi-factor price-action spread and close position)
+    # Net capital inflow per bar (using normalized price-action spread and trend)
     n_len = len(df)
     net_inflows = np.zeros(n_len, dtype=float)
     for idx in range(n_len):
@@ -322,10 +322,13 @@ def get_kline(
         h_i = float(h[idx])
         l_i = float(l[idx])
         amt_i = float(amt_vals[idx])
+        pre_c_i = float(df["close"].iloc[idx - 1]) if idx > 0 else o_i
         hl_diff = max(0.001, h_i - l_i)
         body_r = (c_i - o_i) / hl_diff
         pos_r = (c_i - l_i) / hl_diff - 0.5
-        flow_r = max(-0.85, min(0.85, body_r * 0.65 + pos_r * 0.5))
+        chg_r = ((c_i / max(0.01, pre_c_i)) - 1.0) * 10.0
+        # Realistic net capital inflow ratio in A-share market is bounded in [-0.20, 0.20]
+        flow_r = max(-0.20, min(0.20, body_r * 0.08 + pos_r * 0.06 + chg_r * 0.10))
         net_inflows[idx] = round(amt_i * flow_r, 2)
 
     inflow_ma3 = MA(net_inflows, 3)
@@ -466,6 +469,10 @@ def get_kline(
     pe_ttm = None
     pe_static = None
     vol_ratio = last_bar.get("vol_ratio", 1.0)
+    m1_real = float(last_bar.get("net_inflow", 0.0))
+    m3_real = 0.0
+    m5_real = 0.0
+    m10_real = 0.0
 
     # Real-time enrichment from TDX MAC quote protocol (total_cap, float_cap, PE, turnover, vol_ratio)
     try:
@@ -481,6 +488,10 @@ def get_kline(
             + FieldBit.PE_TTM
             + FieldBit.PE_STATIC
             + FieldBit.CIRCULATING_CAPITAL_Z
+            + FieldBit.MAIN_NET_AMOUNT
+            + FieldBit.MAIN_NET_3D_AMOUNT
+            + FieldBit.MAIN_NET_5D_AMOUNT
+            + FieldBit.MAIN_NET_10D_AMOUNT
         )
         mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
         df_q = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
@@ -507,6 +518,51 @@ def get_kline(
             vr = float(row_q.get("vol_ratio") or 0.0)
             if vr > 0:
                 vol_ratio = round(vr, 2)
+
+            m1_real = float(row_q.get("main_net_amount") or 0.0)
+            m3_real = float(row_q.get("main_net_3d_amount") or 0.0)
+            m5_real = float(row_q.get("main_net_5d_amount") or 0.0)
+            m10_real = float(row_q.get("main_net_10d_amount") or 0.0)
+
+            # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
+            if bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
+                bars_data[-1]["net_inflow"] = round(m1_real, 2)
+
+                # Calibrate 3-day window
+                if len(bars_data) >= 3 and m3_real != 0.0:
+                    diff_3 = m3_real - m1_real
+                    a_prev1 = float(bars_data[-2].get("amount") or 1.0)
+                    a_prev2 = float(bars_data[-3].get("amount") or 1.0)
+                    tot_a_3 = max(1.0, a_prev1 + a_prev2)
+                    bars_data[-2]["net_inflow"] = round(diff_3 * (a_prev1 / tot_a_3), 2)
+                    bars_data[-3]["net_inflow"] = round(diff_3 * (a_prev2 / tot_a_3), 2)
+
+                # Calibrate 5-day window
+                if len(bars_data) >= 5 and m5_real != 0.0:
+                    diff_5 = m5_real - (m3_real if m3_real != 0.0 else (m1_real * 3.0))
+                    a_prev3 = float(bars_data[-4].get("amount") or 1.0)
+                    a_prev4 = float(bars_data[-5].get("amount") or 1.0)
+                    tot_a_5 = max(1.0, a_prev3 + a_prev4)
+                    bars_data[-4]["net_inflow"] = round(diff_5 * (a_prev3 / tot_a_5), 2)
+                    bars_data[-5]["net_inflow"] = round(diff_5 * (a_prev4 / tot_a_5), 2)
+
+                # Calibrate 10-day window
+                if len(bars_data) >= 10 and m10_real != 0.0:
+                    diff_10 = m10_real - (m5_real if m5_real != 0.0 else (m1_real * 5.0))
+                    sub_amts = [float(bars_data[-(k+1)].get("amount") or 1.0) for k in range(5, 10)]
+                    tot_a_10 = max(1.0, sum(sub_amts))
+                    for k in range(5, 10):
+                        bars_data[-(k+1)]["net_inflow"] = round(diff_10 * (float(bars_data[-(k+1)].get("amount") or 1.0) / tot_a_10), 2)
+
+                # Recompute inflow_ma3, inflow_ma5, inflow_ma10 after calibration
+                calib_flows = [b["net_inflow"] for b in bars_data]
+                rec_ma3 = MA(calib_flows, 3)
+                rec_ma5 = MA(calib_flows, 5)
+                rec_ma10 = MA(calib_flows, 10)
+                for b_idx, b in enumerate(bars_data):
+                    b["inflow_ma3"] = safe_float(rec_ma3[b_idx])
+                    b["inflow_ma5"] = safe_float(rec_ma5[b_idx])
+                    b["inflow_ma10"] = safe_float(rec_ma10[b_idx])
     except Exception as e:
         logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
@@ -537,6 +593,11 @@ def get_kline(
             "pe_ttm": pe_ttm,
             "pe_static": pe_static,
             "vol_ratio": vol_ratio,
+            "main_net_amount": m1_real,
+            "main_net_3d": m3_real,
+            "main_net_5d": m5_real,
+            "main_net_10d": m10_real,
+            "net_inflow": last_bar.get("net_inflow", 0.0),
             "ma5": last_bar["ma5"],
             "ma10": last_bar["ma10"],
             "ma20": last_bar["ma20"],
