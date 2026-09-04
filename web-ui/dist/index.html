@@ -562,6 +562,61 @@
         }
     
         
+        
+                /* AI 4D 全池诊断表格背景与字体在亮色/暗色模式下的自适应优化 */
+        #ai-4d-ranking-tbody {
+            background-color: transparent !important;
+        }
+        #ai-4d-ranking-tbody tr {
+            background-color: transparent !important;
+        }
+        html.light #ai-4d-ranking-tbody {
+            background-color: transparent !important;
+        }
+        html.light #ai-4d-ranking-tbody tr {
+            background-color: transparent !important;
+        }
+        html.light #ai-4d-ranking-tbody tr:hover {
+            background-color: rgba(241, 245, 249, 0.7) !important;
+        }
+        html.light #ai-4d-ranking-tbody tr td:not(.stock-up):not(.stock-down) {
+            color: #334155;
+        }
+        html.light #ai-4d-ranking-tbody tr td.text-white,
+        html.light #ai-4d-ranking-tbody tr td .text-white {
+            color: #0f172a !important;
+        }
+        html.light #ai-4d-ranking-tbody tr td.text-slate-100,
+        html.light #ai-4d-ranking-tbody tr td.text-slate-200,
+        html.light #ai-4d-ranking-tbody tr td.text-slate-300 {
+            color: #475569 !important;
+        }
+
+        /* AI 4D 全池诊断表格正红负绿专用高对比度样式 (A股标准: 正数鲜红, 负数鲜绿) */
+        #ai-4d-ranking-tbody tr td.stock-up,
+        html.light #ai-4d-ranking-tbody tr td.stock-up,
+        .stock-up {
+            color: #e11d48 !important;
+            font-weight: 700 !important;
+        }
+
+        #ai-4d-ranking-tbody tr td.stock-down,
+        html.light #ai-4d-ranking-tbody tr td.stock-down,
+        .stock-down {
+            color: #059669 !important;
+            font-weight: 700 !important;
+        }
+
+        html:not(.light) #ai-4d-ranking-tbody tr td.stock-up {
+            color: #f43f5e !important;
+            font-weight: 700 !important;
+        }
+
+        html:not(.light) #ai-4d-ranking-tbody tr td.stock-down {
+            color: #10b981 !important;
+            font-weight: 700 !important;
+        }
+
         /* Universal Autocomplete Dropdown High Contrast Fix */
         .dropdown-menu,
         #kp-search-dropdown,
@@ -1734,38 +1789,133 @@
             </div>
         </section>
 
-        <!-- 6. AI Review & 4D Diagnosis View -->
+                                <!-- 6. AI Review & 4D Diagnosis View -->
         <section id="view-aireview" class="space-y-6 hidden">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 glass-card p-6 rounded-2xl space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h4 class="text-base font-bold text-white flex items-center"><i data-lucide="file-text" class="w-5 h-5 mr-2 text-cyan-400"></i>AI 每日盘后专业复盘报告</h4>
-                        <button onclick="loadAIReview()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-slate-700">刷新复盘</button>
-                    </div>
-                    <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800 text-sm leading-relaxed text-slate-300 whitespace-pre-line font-sans max-h-96 overflow-y-auto" id="ai-review-content">正在生成大盘深度复盘报告...</div>
-                </div>
-
-                <div class="glass-card p-6 rounded-2xl space-y-4">
-                    <h4 class="text-base font-bold text-white flex items-center"><i data-lucide="radar" class="w-5 h-5 mr-2 text-indigo-400"></i>个股 4D 多智能体深度诊断</h4>
-                    
-                    <div class="flex space-x-2 relative">
-                        <div class="relative flex-1">
-                            <input type="text" id="diag-symbol" value="603986" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" placeholder="输入代码 / 拼音 / 名称" autocomplete="off">
-                            <div id="diag-symbol-dropdown" class="dropdown-menu absolute top-full left-0 right-0 mt-1 rounded-xl max-h-60 overflow-y-auto hidden z-50 divide-y divide-slate-800/60"></div>
+            <!-- 左右互换并列布局: 左侧分栏 (1/3) │ 右侧分栏 (2/3) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                <!-- 左侧分栏 (1/3 宽度): 上为每日复盘报告，下为个股4D智能诊断 -->
+                <div class="lg:col-span-4 space-y-6 flex flex-col">
+                    <!-- AI 每日盘后专业复盘报告 -->
+                    <div class="glass-card p-6 rounded-2xl space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-base font-bold text-white flex items-center"><i data-lucide="file-text" class="w-5 h-5 mr-2 text-cyan-400"></i>AI 每日盘后专业复盘报告</h4>
+                            <button onclick="loadAIReview()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-cyan-400 hover:bg-slate-700 cursor-pointer">刷新复盘</button>
                         </div>
-                        <button onclick="runDiagnosis()" class="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 whitespace-nowrap">智能诊断</button>
+                        <div class="bg-slate-900/80 p-5 rounded-xl border border-slate-800 text-sm leading-relaxed text-slate-300 whitespace-pre-line font-sans max-h-96 overflow-y-auto" id="ai-review-content">正在生成大盘深度复盘报告...</div>
                     </div>
 
-                    <div class="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                        <div>
-                            <span class="text-xs text-slate-400" id="diag-stock-label">603986 兆易创新 · 综合评分</span>
-                            <h3 class="text-2xl font-bold text-cyan-400 font-mono" id="diag-overall-score">-- <span class="text-xs text-slate-400 font-normal">/ 100</span></h3>
+                    <!-- 个股 4D 多智能体深度诊断 -->
+                    <div class="glass-card p-6 rounded-2xl space-y-4" id="single-4d-diag-card">
+                        <h4 class="text-base font-bold text-white flex items-center"><i data-lucide="radar" class="w-5 h-5 mr-2 text-indigo-400"></i>个股 4D 多智能体深度诊断</h4>
+                        
+                        <div class="flex space-x-2 relative">
+                            <div class="relative flex-1">
+                                <input type="text" id="diag-symbol" value="603986" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" placeholder="输入代码 / 拼音 / 名称" autocomplete="off">
+                                <div id="diag-symbol-dropdown" class="dropdown-menu absolute top-full left-0 right-0 mt-1 rounded-xl max-h-60 overflow-y-auto hidden z-50 divide-y divide-slate-800/60"></div>
+                            </div>
+                            <button onclick="runDiagnosis()" class="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 whitespace-nowrap cursor-pointer">智能诊断</button>
                         </div>
-                        <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700" id="diag-signal-badge">分析中...</span>
+
+                        <div class="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                            <div>
+                                <span class="text-xs text-slate-400" id="diag-stock-label">603986 兆易创新 · 综合评分</span>
+                                <h3 class="text-2xl font-bold text-cyan-400 font-mono" id="diag-overall-score">-- <span class="text-xs text-slate-400 font-normal">/ 100</span></h3>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700" id="diag-signal-badge">分析中...</span>
+                        </div>
+                        <div class="h-52"><canvas id="radarChart"></canvas></div>
+                        <p class="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800" id="diag-summary">正在生成多智能体诊断建议...</p>
                     </div>
-                    <div class="h-52"><canvas id="radarChart"></canvas></div>
-                    <p class="text-xs text-slate-300 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800" id="diag-summary">正在生成多智能体诊断建议...</p>
                 </div>
+
+                <!-- 右侧分栏 (2/3 宽度): AI 4D 多智能体全池选股与深度诊断矩阵 -->
+                <div class="lg:col-span-8 glass-card p-5 sm:p-6 rounded-2xl space-y-4 border border-slate-800 shadow-xl" id="universe-4d-diag-card">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                                <i data-lucide="trophy" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-bold text-white flex items-center">
+                                    AI 4D 多智能体全池选股与深度诊断矩阵
+                                </h4>
+                                <p class="text-xs text-slate-400">参考 48 大策略全市场选股系统，基于 5 大智能体实时研判、资金流向与技术形态，全池筛选高分标的</p>
+                            </div>
+                        </div>
+
+                        <!-- 选股配置工具栏 -->
+                        <div class="flex flex-wrap items-center gap-2 text-xs">
+                            <div class="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-inner">
+                                <span class="text-slate-400">选股范围:</span>
+                                <select id="ai-4d-universe-select" class="bg-transparent text-cyan-300 font-bold focus:outline-none cursor-pointer">
+                                    <option value="core" class="bg-slate-900 text-slate-200">核心龙头 (159只)</option>
+                                    <option value="hs300" selected class="bg-slate-900 text-slate-200">沪深 300 (300只)</option>
+                                    <option value="zz500" class="bg-slate-900 text-slate-200">中证 500 (500只)</option>
+                                    <option value="zz1000" class="bg-slate-900 text-slate-200">中证 1000 (1000只)</option>
+                                    <option value="all" class="bg-slate-900 text-slate-200">全市场 (5000+全量A股)</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-inner">
+                                <span class="text-slate-400">并发线程:</span>
+                                <select id="ai-4d-workers-select" class="bg-transparent text-amber-400 font-bold focus:outline-none cursor-pointer">
+                                    <option value="16" selected class="bg-slate-900 text-slate-200">16 线程 (推荐)</option>
+                                    <option value="32" class="bg-slate-900 text-slate-200">32 线程 (极速)</option>
+                                    <option value="8" class="bg-slate-900 text-slate-200">8 线程</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-inner">
+                                <span class="text-slate-400">榜单显示:</span>
+                                <select id="ai-4d-top-select" class="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer">
+                                    <option value="20" selected class="bg-slate-900 text-slate-200">Top 20</option>
+                                    <option value="30" class="bg-slate-900 text-slate-200">Top 30</option>
+                                    <option value="50" class="bg-slate-900 text-slate-200">Top 50</option>
+                                    <option value="100" class="bg-slate-900 text-slate-200">Top 100</option>
+                                </select>
+                            </div>
+
+                            <button id="btn-run-4d-universe" onclick="run4DUniverseDiagnosis()" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold text-xs transition cursor-pointer shadow-md flex items-center">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1"></i>
+                                <span id="btn-4d-universe-text">智能诊断</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 诊断结果排行榜表格 (响应式 X 轴滚动) -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-800/80">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-900/90 text-slate-400 border-b border-slate-800 whitespace-nowrap">
+                                    <th class="py-2.5 px-3 font-semibold text-center w-10">#</th>
+                                    <th class="py-2.5 px-3 font-semibold">股票代码</th>
+                                    <th class="py-2.5 px-3 font-semibold">股票名称</th>
+                                    <th class="py-2.5 px-3 font-semibold text-center">4D综合得分</th>
+                                    <th class="py-2.5 px-3 font-semibold text-center">交易评级</th>
+                                    <th class="py-2.5 px-3 font-semibold">所属板块</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">总市值</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">最新价</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">涨跌幅</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">成交额(万)</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">当日净流入</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">3日净流入</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right">5日净流入</th>
+                                    <th class="py-2.5 px-3 font-semibold">形态特征</th>
+                                    <th class="py-2.5 px-3 font-semibold text-center w-24">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ai-4d-ranking-tbody" class="divide-y divide-slate-800/60">
+                                <tr>
+                                    <td colspan="15" class="py-8 text-center text-slate-500">
+                                        点击右上方「智能诊断」按钮，启动 4D 多智能体全池深度诊断与综合打分排名
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
 
             <div class="glass-card p-6 rounded-2xl space-y-4">
@@ -8555,6 +8705,177 @@
                 console.log(e);
             }
         }
+
+        
+                // ==================== AI 4D Universe Stock Ranking & Screening ==================== //
+        async function run4DUniverseDiagnosis() {
+            const universeSelect = document.getElementById('ai-4d-universe-select');
+            const workersSelect = document.getElementById('ai-4d-workers-select');
+            const topSelect = document.getElementById('ai-4d-top-select');
+            
+            const universe = universeSelect ? universeSelect.value : 'hs300';
+            const workers = workersSelect ? workersSelect.value : '16';
+            const top = topSelect ? topSelect.value : '20';
+
+            const btnText = document.getElementById('btn-4d-universe-text');
+            const tbody = document.getElementById('ai-4d-ranking-tbody');
+
+            if (btnText) btnText.innerText = '⚡ 诊断计算中...';
+            showToast('4D 全池智能诊断', `正在对【${universe}】股票池启动 4D 多智能体深度诊断...`);
+
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="15" class="py-10 text-center text-slate-400 font-mono animate-pulse">
+                            ⚡ 正在对 ${universe} 股票池进行 4D 多智能体全量深度诊断与实时资金流向计算，请稍候...
+                        </td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const resp = await fetch(`/api/ai/universe_ranking?universe=${universe}&max_workers=${workers}&top=${top}`);
+                if (!resp.ok) {
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+                const json = await resp.json();
+                const list = json.data || [];
+
+                if (btnText) btnText.innerText = '智能诊断';
+
+                if (list.length === 0) {
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500">未获取到有效的诊断打分结果</td></tr>`;
+                    return;
+                }
+
+                // 辅助函数: 判定涨跌幅及资金流向颜色 (正数红颜色，负数绿颜色)
+                function getSignedColor(val, str) {
+                    if (typeof str === 'string') {
+                        const trimmed = str.trim();
+                        if (trimmed.startsWith('+')) return 'stock-up';
+                        if (trimmed.startsWith('-')) return 'stock-down';
+                    }
+                    const num = Number(val || 0);
+                    if (num > 0) return 'stock-up';
+                    if (num < 0) return 'stock-down';
+                    return 'text-slate-500 font-normal';
+                }
+
+                if (tbody) {
+                    tbody.innerHTML = list.map((item, idx) => {
+                        const scoreVal = (item.overall_score || 0.0).toFixed(1);
+
+                        // 交易评级样式
+                        let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
+                        if (scoreVal >= 86.0) badgeClass = 'bg-rose-950/80 text-rose-400 border-rose-800';
+                        else if (scoreVal >= 76.0) badgeClass = 'bg-emerald-950/80 text-emerald-400 border-emerald-800';
+                        else if (scoreVal >= 65.0) badgeClass = 'bg-cyan-950/80 text-cyan-400 border-cyan-800';
+
+                        const safeName = (item.name || '').replace(/'/g, "\'");
+
+                        // 正红负绿精确判定
+                        const chgColor = getSignedColor(item.change_pct, item.change_pct_str);
+                        const inflow1dColor = getSignedColor(item.main_net_amount, item.inflow_1d_str);
+                        const inflow3dColor = getSignedColor(item.main_net_3d, item.inflow_3d_str);
+                        const inflow5dColor = getSignedColor(item.main_net_5d, item.inflow_5d_str);
+
+                        // 参考自选监控实时行情池，精准渲染所属行业板块并支持点击查看板块K线
+                        let boardBadgeHtml = '<span class="text-slate-500 font-sans text-xs">--</span>';
+                        const bCode = item.board_code || '';
+                        const bName = item.board_name || item.industry || '';
+                        if (bName && bName !== '--') {
+                            if (bCode) {
+                                boardBadgeHtml = `<button onclick="openKlineModal('${bCode}', '${bName}')" class="text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 hover:underline cursor-pointer transition font-sans font-medium" title="点击查看【${bName}】(${bCode}) 板块K线">${bName}</button>`;
+                            } else {
+                                boardBadgeHtml = `<span class="text-slate-700 dark:text-slate-300 font-sans font-medium">${bName}</span>`;
+                            }
+                        }
+
+                        return `
+                            <tr class="hover:bg-slate-800/40 transition">
+                                <td class="py-2.5 px-3 font-mono text-center text-slate-400">${idx + 1}</td>
+                                
+                                <!-- 股票代码: 点击弹出该股 K线 窗口 -->
+                                <td class="py-2.5 px-3 font-mono font-bold whitespace-nowrap">
+                                    <button onclick="openKlineModal('${item.code}', '${safeName}')" 
+                                            class="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline cursor-pointer transition font-mono font-bold tracking-wide" 
+                                            title="点击查看 ${item.code} ${item.name} K线走势">
+                                        ${item.code}
+                                    </button>
+                                </td>
+
+                                <!-- 股票名称: 点击弹出该股 K线 窗口 -->
+                                <td class="py-2.5 px-3 font-sans font-bold whitespace-nowrap">
+                                    <button onclick="openKlineModal('${item.code}', '${safeName}')" 
+                                            class="text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer transition text-left" 
+                                            title="点击查看 ${item.code} ${item.name} K线走势">
+                                        ${item.name}
+                                    </button>
+                                </td>
+                                
+                                <!-- 4D 综合得分: 点击根据代码调用个股 4D 深度诊断当前页面 -->
+                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <button onclick="jumpToSingle4DDiagnosis('${item.code}', '${safeName}')" 
+                                            class="px-2.5 py-1 rounded-lg bg-cyan-950/90 text-cyan-300 border border-cyan-800 hover:border-cyan-400 hover:bg-cyan-900 font-mono font-bold transition shadow-sm cursor-pointer" 
+                                            title="点击直接载入 ${item.code} ${item.name} 到个股 4D 智能诊断">
+                                        ${scoreVal}
+                                    </button>
+                                </td>
+
+                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-bold border ${badgeClass}">
+                                        ${item.signal_display || '持有'}
+                                    </span>
+                                </td>
+
+                                <td class="py-2.5 px-3 whitespace-nowrap">${boardBadgeHtml}</td>
+                                <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.market_cap_str || '--'}</td>
+                                <td class="py-2.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-100 text-right whitespace-nowrap">${item.price_str || '--'}</td>
+                                
+                                <!-- 涨跌幅: 正数红颜色，负数绿颜色 -->
+                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${chgColor}">${item.change_pct_str || '0.00%'}</td>
+                                <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.amount_wan_str || '0.0'}</td>
+                                
+                                <!-- 资金流向: 正数红颜色，负数绿颜色 -->
+                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow1dColor}">${item.inflow_1d_str || '0.0万'}</td>
+                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow3dColor}">${item.inflow_3d_str || '0.0万'}</td>
+                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow5dColor}">${item.inflow_5d_str || '0.0万'}</td>
+
+                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-xs truncate max-w-xs" title="${item.pattern}">${item.pattern}</td>
+
+                                <!-- 操作 -->
+                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <div class="flex items-center justify-center space-x-1.5">
+                                        <button onclick="openKlineModal('${item.code}', '${safeName}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">K线</button>
+                                        <button onclick="quickBacktest('${item.code}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">回测</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                showToast('诊断完成', `对【${universe}】池已完成 4D 智能诊断，匹配并展示 Top ${list.length} 标的`);
+            } catch (e) {
+                console.error('4D Universe Ranking Error:', e);
+                if (btnText) btnText.innerText = '智能诊断';
+                showToast('诊断失败', '请求发生网络或系统异常');
+            }
+        }
+
+        function jumpToSingle4DDiagnosis(code, name) {
+            const input = document.getElementById('diag-symbol');
+            if (input) {
+                input.value = code;
+            }
+            const singleDiagCard = document.getElementById('single-4d-diag-card');
+            if (singleDiagCard) {
+                singleDiagCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            runDiagnosis();
+            showToast('4D 深度诊断切换', `已载入标的 ${code} ${name} 并开启单股 5 大智能体深度诊断`);
+        }
+
 
         window.addEventListener('DOMContentLoaded', () => {
             initECharts();

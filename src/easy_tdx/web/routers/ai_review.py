@@ -100,3 +100,89 @@ def api_ai_chat(req: AIChatRequest):
         "query": q,
         "reply": reply
     }
+
+
+@router.get("/universe_ranking")
+def get_universe_4d_ranking(
+    universe: str = Query("hs300", description="core | hs300 | zz500 | zz1000 | all"),
+    max_workers: int = Query(16, description="Parallel thread count"),
+    top: int = Query(20, description="Top N ranked stocks to return")
+):
+    """Run batch 4D Multi-Agent diagnosis across stock universe with quote & capital inflow enrichment."""
+    from concurrent.futures import ThreadPoolExecutor
+    from easy_tdx.screener.universe import get_universe_symbols
+    from easy_tdx.screener.scanner import enrich_stocks_with_inflows
+
+    symbols = get_universe_symbols(universe)
+    if not symbols:
+        return {"status": "success", "universe": universe, "count": 0, "total_scanned": 0, "data": []}
+
+    def _score_one(sym: str):
+        clean_sym = sym.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "").zfill(6)
+        if not clean_sym:
+            return None
+        df = fetch_security_kline(clean_sym, count=60)
+        if df is None or df.empty or len(df) < 15:
+            return None
+        res = decision_agent.analyze(clean_sym, df)
+        
+        last_close = float(df["close"].iloc[-1])
+        prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else last_close
+        chg_pct = round((last_close / prev_close - 1.0) * 100.0, 2) if prev_close > 0 else 0.0
+        amt_wan = round(float(df["amount"].iloc[-1]) / 10000.0, 1) if "amount" in df.columns else 0.0
+        
+        tech_info = res.get("agents_detail", {}).get("technical", {})
+        intel_info = res.get("agents_detail", {}).get("intel", {})
+        
+        pattern = tech_info.get("trend_status", "多头排列")
+        theme = intel_info.get("theme", "主线题材")
+        
+        # 参考自选监控实时行情池，从 TDX MAC 解析真实的所属行业板块
+        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+        b_info = _resolve_stock_board_info(clean_sym)
+        b_code = b_info.get("board_code", "")
+        b_name = b_info.get("board_name", "")
+        ind = b_name if (b_name and b_name != "--") else (theme.split("/")[0] if "/" in theme else theme)
+        
+        return {
+            "code": clean_sym,
+            "symbol": clean_sym,
+            "name": get_stock_name(clean_sym),
+            "overall_score": res.get("overall_score", 0.0),
+            "signal_display": res.get("signal_display", ""),
+            "signal": res.get("signal", ""),
+            "badge_color": res.get("badge_color", "cyan"),
+            "industry": ind,
+            "board_code": b_code,
+            "board_name": ind,
+            "price": last_close,
+            "price_str": f"¥{last_close:.2f}",
+            "change_pct": chg_pct,
+            "change_pct_str": f"{chg_pct:+.2f}%",
+            "amount_wan": amt_wan,
+            "amount_wan_str": f"{amt_wan:,.1f}",
+            "pattern": pattern,
+            "summary": res.get("summary", "")
+        }
+
+    # Parallel score computation
+    workers = min(32, max(1, max_workers))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        items = [r for r in pool.map(_score_one, symbols) if r is not None]
+
+    # Enrich with real-time 1d/3d/5d capital inflows & total market cap
+    enrich_stocks_with_inflows(items)
+    
+    # Sort descending by overall score
+    items.sort(key=lambda x: x.get("overall_score", 0.0), reverse=True)
+    
+    # Format and return Top N
+    top_items = items[:top]
+    return {
+        "status": "success",
+        "universe": universe,
+        "count": len(top_items),
+        "total_scanned": len(items),
+        "data": top_items
+    }
+

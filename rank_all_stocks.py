@@ -47,9 +47,15 @@ def score_single_stock(symbol: str) -> dict | None:
         res = decision_agent.analyze(clean_sym, df)
         ratings = res.get("ratings_4d", {})
 
+        # 参考自选监控实时行情池，从 TDX MAC 查询真实行业板块
+        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+        b_info = _resolve_stock_board_info(clean_sym)
+        board_name = b_info.get("board_name", "--")
+
         return {
             "代码": clean_sym,
             "名称": get_stock_name(clean_sym),
+            "所属板块": board_name,
             "综合得分": res.get("overall_score", 0.0),
             "交易评级": res.get("signal_display", ""),
             "信号代码": res.get("signal", ""),
