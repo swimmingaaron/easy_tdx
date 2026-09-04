@@ -560,6 +560,88 @@
             border-color: #cbd5e1 !important;
             color: #1e293b !important;
         }
+    
+        
+        /* Universal Autocomplete Dropdown High Contrast Fix */
+        .dropdown-menu,
+        #kp-search-dropdown,
+        #bt-kline-search-dropdown,
+        #bt-symbol-dropdown,
+        #opt-symbol-dropdown,
+        #diag-symbol-dropdown {
+            background-color: #0f172a !important;
+            border: 1px solid #334155 !important;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7) !important;
+            color: #f8fafc !important;
+        }
+
+        /* Force inner text colors inside all dropdown menus overriding light mode */
+        html.light .dropdown-menu,
+        html.light #kp-search-dropdown,
+        html.light #bt-kline-search-dropdown,
+        html.light #bt-symbol-dropdown,
+        html.light #opt-symbol-dropdown,
+        html.light #diag-symbol-dropdown {
+            background-color: #0f172a !important;
+            border-color: #334155 !important;
+            color: #f8fafc !important;
+        }
+
+        html.light .dropdown-menu div,
+        html.light #kp-search-dropdown div,
+        html.light #bt-kline-search-dropdown div,
+        html.light #bt-symbol-dropdown div,
+        html.light #opt-symbol-dropdown div,
+        html.light #diag-symbol-dropdown div {
+            color: #f8fafc !important;
+        }
+
+        /* Stock Code - Bright Cyan */
+        .dropdown-menu .text-cyan-400,
+        #kp-search-dropdown .text-cyan-400,
+        #bt-kline-search-dropdown .text-cyan-400,
+        html.light .dropdown-menu .text-cyan-400 {
+            color: #38bdf8 !important;
+            font-weight: 700 !important;
+        }
+
+        /* Stock Name - Pure Bold White */
+        .dropdown-menu .text-white,
+        #kp-search-dropdown .text-white,
+        #bt-kline-search-dropdown .text-white,
+        html.light .dropdown-menu .text-white {
+            color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+
+        /* Pinyin & Secondary Text - High Contrast Gold & Light Slate */
+        .dropdown-menu .text-slate-500,
+        .dropdown-menu .text-slate-400,
+        html.light .dropdown-menu .text-slate-500,
+        html.light .dropdown-menu .text-slate-400 {
+            color: #cbd5e1 !important;
+        }
+
+        .dropdown-menu .text-amber-400,
+        #kp-search-dropdown .text-amber-400,
+        #bt-kline-search-dropdown .text-amber-400,
+        html.light .dropdown-menu .text-amber-400 {
+            color: #fbbf24 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Item Hover & Selected State */
+        .dropdown-menu div:hover,
+        #kp-search-dropdown .kp-search-item:hover,
+        #bt-kline-search-dropdown .bt-kline-search-item:hover,
+        html.light .dropdown-menu div:hover {
+            background-color: #1e293b !important;
+        }
+    
+        #kp-search-dropdown .text-amber-400, #bt-kline-search-dropdown .text-amber-400 {
+            color: #f59e0b !important;
+        }
+    
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
@@ -4970,12 +5052,15 @@
                                 return;
                             }
                             dropdown.innerHTML = list.map(item => `
-                                <div onclick="selectStock('${inputId}', '${dropdownId}', '${item.code}', '${item.name}')" class="px-3 py-2 hover:bg-cyan-950/80 cursor-pointer flex items-center justify-between text-xs transition">
-                                    <div class="flex items-center space-x-2">
-                                        <span class="font-mono font-bold text-cyan-400">${item.code}</span>
-                                        <span class="text-white font-sans font-semibold">${item.name}</span>
+                                <div onclick="selectStock('${inputId}', '${dropdownId}', '${item.code}', '${(item.name || '').replace(/'/g, "\'")}')" class="px-3.5 py-2 hover:bg-slate-800 cursor-pointer flex items-center justify-between text-xs transition border-b border-slate-800/60 last:border-b-0">
+                                    <div class="flex items-center space-x-2.5 truncate">
+                                        <span class="font-mono font-bold text-cyan-400 shrink-0">${item.code}</span>
+                                        <span class="text-white font-sans font-bold truncate">${item.name}</span>
                                     </div>
-                                    <span class="text-slate-500 font-mono text-[10px]">${item.pinyin || ''} · ${item.market || ''}</span>
+                                    <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px]">
+                                        <span class="text-amber-400 font-bold">${item.pinyin || ''}</span>
+                                        ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-sans border border-slate-700/80">${item.market}</span>` : ''}
+                                    </div>
                                 </div>
                             `).join('');
                             dropdown.classList.remove('hidden');

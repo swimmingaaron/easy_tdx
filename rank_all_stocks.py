@@ -11,6 +11,11 @@ src_path = Path(__file__).resolve().parent / "src"
 if str(src_path) not in sys.path:
     sys.path.insert(0, str(src_path))
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 from easy_tdx.ai.agents.decision_agent import decision_agent
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.screener.universe import get_universe_symbols
@@ -30,6 +35,8 @@ def score_single_stock(symbol: str) -> dict | None:
         )
         if not clean_sym:
             return None
+        if clean_sym.isdigit():
+            clean_sym = clean_sym.zfill(6)
 
         # 获取近 60 日真实 TDX K 线数据
         df = fetch_security_kline(clean_sym, count=60)
@@ -183,7 +190,9 @@ if __name__ == "__main__":
         ]
         print(rank_df[cols_display].head(top_n).to_string())
 
-        # 3. 导出完整排名为 CSV 文件
-        rank_df.to_csv(args.output, encoding="utf-8-sig")
-        print(f"\n💾 完整打分排名结果已保存至本地文件: {args.output}")
+        # 3. 导出完整排名为 CSV 文件 (为代码补齐 \t 防止 Excel 打开时丢失前导 0)
+        export_df = rank_df.copy()
+        export_df["代码"] = export_df["代码"].astype(str).str.zfill(6).apply(lambda x: f"\t{x}")
+        export_df.to_csv(args.output, encoding="utf-8-sig")
+        print(f"\n💾 完整打分排名结果已保存至本地文件: {args.output} (已完美解决 0 开头代码丢失前导 0 问题)")
 

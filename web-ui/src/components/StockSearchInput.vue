@@ -287,10 +287,10 @@ onBeforeUnmount(() => {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: #0f172a;
+  border: 1px solid #334155;
   border-radius: var(--radius);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
   max-height: 260px;
   overflow-y: auto;
   z-index: 200;
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 7px 10px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
   transition: background 0.1s;
 }
 .suggest-item:last-child {
@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
 }
 .suggest-item:hover,
 .suggest-item.active {
-  background: rgba(74, 158, 255, 0.15);
+  background: #1e293b;
 }
 .suggest-left {
   display: flex;
@@ -318,16 +318,17 @@ onBeforeUnmount(() => {
 }
 .stock-name {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
+  font-weight: 700;
+  color: #ffffff;
 }
 .stock-pinyin {
   font-size: 10px;
-  color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.06);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
   padding: 1px 4px;
   border-radius: 2px;
   font-family: var(--font-mono);
+  font-weight: 600;
 }
 .suggest-right {
   display: flex;
@@ -337,8 +338,8 @@ onBeforeUnmount(() => {
 .stock-code {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--accent);
-  font-weight: 600;
+  color: #38bdf8;
+  font-weight: 700;
 }
 .market-badge {
   font-size: 10px;
@@ -347,15 +348,15 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 .market-badge.sh {
-  background: rgba(239, 65, 70, 0.18);
-  color: var(--up);
+  background: rgba(239, 65, 70, 0.25);
+  color: #f87171;
 }
 .market-badge.sz {
-  background: rgba(74, 158, 255, 0.18);
-  color: var(--accent);
+  background: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
 }
 .market-badge.bj {
-  background: rgba(240, 160, 32, 0.18);
-  color: var(--warn);
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
 }
 </style>
