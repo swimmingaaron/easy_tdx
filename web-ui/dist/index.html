@@ -1567,25 +1567,27 @@
 
                 <!-- Results Table -->
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm min-w-[1100px]">
+                    <table class="w-full text-left text-sm min-w-[1180px]">
                         <colgroup>
+                            <col style="width: 7.5%;">
+                            <col style="width: 8.5%;">
+                            <col style="width: 12%;">
+                            <col style="width: 7.5%;">
+                            <col style="width: 6.5%;">
+                            <col style="width: 7.5%;">
+                            <col style="width: 7.5%;">
                             <col style="width: 8%;">
-                            <col style="width: 9%;">
-                            <col style="width: 14%;">
-                            <col style="width: 7%;">
                             <col style="width: 8%;">
-                            <col style="width: 9%;">
-                            <col style="width: 9%;">
-                            <col style="width: 9%;">
-                            <col style="width: 9%;">
-                            <col style="width: 9%;">
-                            <col style="width: 9%;">
+                            <col style="width: 8%;">
+                            <col style="width: 10.5%;">
+                            <col style="width: 8.5%;">
                         </colgroup>
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
                             <tr>
                                 <th class="pb-3 pl-3">股票代码</th>
                                 <th class="pb-3 px-2">股票名称</th>
                                 <th class="pb-3 px-2">触发战法</th>
+                                <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('cap')" title="点击按市值排序">市值<span id="screener-sort-cap" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('price')" title="点击按最新价排序">最新价<span id="screener-sort-price" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('chg')" title="点击按信号日涨跌排序">信号日涨跌<span id="screener-sort-chg" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('amount')" title="点击按成交额排序">成交额(万)<span id="screener-sort-amount" class="ml-1 text-[10px] text-slate-500"></span></th>
@@ -1597,7 +1599,7 @@
                             </tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
-                            <tr><td colspan="11" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
+                            <tr><td colspan="12" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -7724,7 +7726,7 @@
         let screenerSortAsc = false;
 
         function updateScreenerSortIcons() {
-            const cols = ['price', 'chg', 'amount', 'net_1d', 'net_3d', 'net_5d', 'date'];
+            const cols = ['cap', 'price', 'chg', 'amount', 'net_1d', 'net_3d', 'net_5d', 'date'];
             cols.forEach(c => {
                 const el = document.getElementById(`screener-sort-${c}`);
                 if (!el) return;
@@ -7750,7 +7752,10 @@
 
             const sorted = [...window._lastScreenerMatches].sort((a, b) => {
                 let va = 0, vb = 0;
-                if (col === 'price') {
+                if (col === 'cap') {
+                    va = Number(a.total_mv_yi ?? a.market_cap_yi ?? 0);
+                    vb = Number(b.total_mv_yi ?? b.market_cap_yi ?? 0);
+                } else if (col === 'price') {
                     va = Number(a.price || 0);
                     vb = Number(b.price || 0);
                 } else if (col === 'chg') {
@@ -7782,7 +7787,7 @@
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 return;
             }
 
@@ -7795,6 +7800,16 @@
                 const amt = m.amount_wan ? Number(m.amount_wan).toLocaleString() : '--';
                 const isToday = (m.status_label === '今日触发' || m.days_ago === 0);
                 const statusBadgeClass = isToday ? 'bg-rose-950 text-rose-400 border border-rose-800 font-bold' : 'bg-slate-800 text-slate-400 border border-slate-700';
+
+                const capVal = Number(m.total_mv_yi ?? m.market_cap_yi ?? 0);
+                let capStr = '--';
+                if (capVal >= 10000) {
+                    capStr = `${(capVal / 10000).toFixed(2)}万亿`;
+                } else if (capVal > 0) {
+                    capStr = `${capVal.toFixed(2)}亿`;
+                } else if (m.market_cap_str && m.market_cap_str !== '--') {
+                    capStr = m.market_cap_str;
+                }
 
                 const m1 = Number(m.main_net_amount || 0);
                 const m3 = Number(m.main_net_3d || 0);
@@ -7813,6 +7828,7 @@
                     <td class="py-3 pl-3 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-cyan-400 font-mono">${m.symbol || m.code}</span></td>
                     <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
                     <td class="py-3 px-2 font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span></td>
+                    <td class="py-3 px-2 text-right font-mono font-medium text-slate-200 whitespace-nowrap">${capStr}</td>
                     <td class="py-3 px-2 text-right font-bold text-white font-mono whitespace-nowrap">¥${Number(m.price).toFixed(2)}</td>
                     <td class="py-3 px-2 text-right font-mono ${chgClass} whitespace-nowrap">${chgStr}</td>
                     <td class="py-3 px-2 text-right text-slate-300 font-mono whitespace-nowrap">${amt}</td>
@@ -7872,7 +7888,7 @@
             if (btnText) btnText.innerText = '选股中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
             if (statusText) statusText.innerText = `正在对【${uniDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Carousel Modal
@@ -7898,11 +7914,11 @@
                     showToast('选股完成', `【${uniDesc}】共命中 ${matches.length} 只符合【${strategyName}】战法的强势标的 (耗时 ${elapsed}s)`);
                     speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                 } else {
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
                 }
             } catch (e) {
                 console.error('Screener scan error:', e);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
             } finally {
                 closeQuoteModal();
                 if (btn) btn.disabled = false;
@@ -7943,7 +7959,7 @@
             if (progLabel) progLabel.innerText = '全市场并发扫描初始化中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
             if (statusText) statusText.innerText = `全市场 5,200+ 只 A 股深度并发扫描中：【${strategyName}】`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Modal

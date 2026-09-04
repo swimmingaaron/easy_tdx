@@ -73,6 +73,7 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
         fields = (
             PresetField.BASIC
             + FieldBit.AMOUNT
+            + FieldBit.TOTAL_MARKET_CAP_AB
             + FieldBit.MAIN_NET_AMOUNT
             + FieldBit.MAIN_NET_3D_AMOUNT
             + FieldBit.MAIN_NET_5D_AMOUNT
@@ -80,7 +81,7 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
         
         symbols = [s.get("code") or s.get("symbol") for s in stocks if s.get("code") or s.get("symbol")]
         batch_size = 80
-        inflow_map: dict[str, tuple[float, float, float]] = {}
+        inflow_map: dict[str, tuple[float, float, float, float]] = {}
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i:i+batch_size]
             pairs = [(int(_get_market(code).value), code) for code in batch]
@@ -91,15 +92,25 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                     m1 = float(row.get("main_net_amount") or 0.0)
                     m3 = float(row.get("main_net_3d_amount") or 0.0)
                     m5 = float(row.get("main_net_5d_amount") or 0.0)
-                    inflow_map[c] = (m1, m3, m5)
+                    t_cap = float(row.get("total_market_cap_ab") or 0.0)
+                    mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
+                    if mv_yi == 0.0 and row.get("total_shares") and row.get("close"):
+                        sh = float(row.get("total_shares") or 0.0)
+                        cl = float(row.get("close") or 0.0)
+                        if sh > 0 and cl > 0:
+                            mv_yi = round(sh * cl / 10000.0, 2)
+                    inflow_map[c] = (m1, m3, m5, mv_yi)
                     
         for s in stocks:
             c = s.get("code") or s.get("symbol", "")
             if c in inflow_map:
-                m1, m3, m5 = inflow_map[c]
+                m1, m3, m5, mv_yi = inflow_map[c]
                 s["main_net_amount"] = m1
                 s["main_net_3d"] = m3
                 s["main_net_5d"] = m5
+                s["total_mv_yi"] = mv_yi
+                s["market_cap_yi"] = mv_yi
+                s["market_cap_str"] = f"{mv_yi:.2f}亿" if mv_yi > 0 else "--"
                 s["inflow_1d_str"] = _fmt_pool_money(m1)
                 s["inflow_3d_str"] = _fmt_pool_money(m3)
                 s["inflow_5d_str"] = _fmt_pool_money(m5)
@@ -107,6 +118,9 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                 s.setdefault("main_net_amount", 0.0)
                 s.setdefault("main_net_3d", 0.0)
                 s.setdefault("main_net_5d", 0.0)
+                s.setdefault("total_mv_yi", 0.0)
+                s.setdefault("market_cap_yi", 0.0)
+                s.setdefault("market_cap_str", "--")
                 s.setdefault("inflow_1d_str", "0.0万")
                 s.setdefault("inflow_3d_str", "0.0万")
                 s.setdefault("inflow_5d_str", "0.0万")
@@ -116,6 +130,9 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
             s.setdefault("main_net_amount", 0.0)
             s.setdefault("main_net_3d", 0.0)
             s.setdefault("main_net_5d", 0.0)
+            s.setdefault("total_mv_yi", 0.0)
+            s.setdefault("market_cap_yi", 0.0)
+            s.setdefault("market_cap_str", "--")
             s.setdefault("inflow_1d_str", "0.0万")
             s.setdefault("inflow_3d_str", "0.0万")
             s.setdefault("inflow_5d_str", "0.0万")
@@ -230,6 +247,9 @@ def scan_market_strategy(
                             "status_label": status_label,
                             "signal_date": signal_date or "最新交易日",
                             "trigger_date": signal_date or "最新交易日",
+                            "total_mv_yi": 0.0,
+                            "market_cap_yi": 0.0,
+                            "market_cap_str": "--",
                         })
         except Exception as e:
             logger.debug(f"Strategy {strategy_name} scan error on {sym}: {e}")
