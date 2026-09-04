@@ -3299,7 +3299,7 @@
                 });
             }
             if (currentKpData) {
-                renderKpChart(currentKpData);
+                applyKpCutoffAndRender(currentKpData);
             }
         }
 
@@ -3739,6 +3739,19 @@
             return timePart ? `${datePart} ${weekday} ${timePart}` : `${datePart} ${weekday}`;
         }
 
+        function formatAmtStr(v) {
+            if (v == null || isNaN(v)) return '—';
+            const n = Number(v);
+            return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿' : (n >= 1e4 ? (n / 1e4).toFixed(0) + '万' : `${n.toFixed(0)}`);
+        }
+
+        function formatFlowStr(v) {
+            if (v == null || isNaN(v)) return '—';
+            const n = Number(v);
+            const s = n >= 0 ? '+' : '';
+            return Math.abs(n) >= 1e8 ? `${s}${(n / 1e8).toFixed(2)}亿` : `${s}${(n / 1e4).toFixed(0)}万`;
+        }
+
         function updateKpBarDetails(bar, prev) {
             const el = document.getElementById('kp-bar-details');
             if (!el || !bar) return;
@@ -3766,18 +3779,6 @@
             else if (netInflowVal !== 0) inStr = `${inSign}${netInflowVal.toFixed(0)}元`;
             const inColor = netInflowVal >= 0 ? '#f04438' : '#12b76a';
 
-            const formatAmtStr = (v) => {
-                if (v == null || isNaN(v)) return '—';
-                const n = Number(v);
-                return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿' : (n >= 1e4 ? (n / 1e4).toFixed(0) + '万' : `${n.toFixed(0)}`);
-            };
-            const formatFlowStr = (v) => {
-                if (v == null || isNaN(v)) return '—';
-                const n = Number(v);
-                const s = n >= 0 ? '+' : '';
-                return Math.abs(n) >= 1e8 ? `${s}${(n / 1e8).toFixed(2)}亿` : `${s}${(n / 1e4).toFixed(0)}万`;
-            };
-
             let subMaLine = '';
             if (currentKpSub === 'inflow') {
                 subMaLine = `
@@ -3786,6 +3787,7 @@
                     <span style="color:#FACC15; margin-left:6px;">流入MA3:${formatFlowStr(bar.inflow_ma3)}</span>
                     <span style="color:#38BDF8">流入MA5:${formatFlowStr(bar.inflow_ma5)}</span>
                     <span style="color:#C084FC">流入MA10:${formatFlowStr(bar.inflow_ma10)}</span>
+                    <span style="color:#94a3b8; font-size:10px; margin-left:6px;">(3日和:${formatFlowStr(bar.inflow_sum3)} 5日和:${formatFlowStr(bar.inflow_sum5)} 10日和:${formatFlowStr(bar.inflow_sum10)})</span>
                 `;
             } else if (currentKpSub === 'vol') {
                 subMaLine = `
@@ -4135,12 +4137,30 @@
                 if (i < 9) return null;
                 let s = 0; for (let j = i - 9; j <= i; j++) s += netInflowVals[j]; return s / 10;
             });
+            const inflowSum3 = bars.map((b, i) => {
+                if (b.inflow_sum3 != null) return b.inflow_sum3;
+                if (i < 2) return null;
+                let s = 0; for (let j = i - 2; j <= i; j++) s += netInflowVals[j]; return s;
+            });
+            const inflowSum5 = bars.map((b, i) => {
+                if (b.inflow_sum5 != null) return b.inflow_sum5;
+                if (i < 4) return null;
+                let s = 0; for (let j = i - 4; j <= i; j++) s += netInflowVals[j]; return s;
+            });
+            const inflowSum10 = bars.map((b, i) => {
+                if (b.inflow_sum10 != null) return b.inflow_sum10;
+                if (i < 9) return null;
+                let s = 0; for (let j = i - 9; j <= i; j++) s += netInflowVals[j]; return s;
+            });
 
             bars.forEach((b, i) => {
                 if (b.net_inflow == null) b.net_inflow = netInflowVals[i];
                 if (b.inflow_ma3 == null) b.inflow_ma3 = inflowMa3[i];
                 if (b.inflow_ma5 == null) b.inflow_ma5 = inflowMa5[i];
                 if (b.inflow_ma10 == null) b.inflow_ma10 = inflowMa10[i];
+                if (b.inflow_sum3 == null) b.inflow_sum3 = inflowSum3[i];
+                if (b.inflow_sum5 == null) b.inflow_sum5 = inflowSum5[i];
+                if (b.inflow_sum10 == null) b.inflow_sum10 = inflowSum10[i];
             });
 
             const formatMoneyAxis = (v) => {
@@ -4471,80 +4491,97 @@
                     padding: 0,
                     extraCssText: 'box-shadow: none; border: none; background: transparent; pointer-events: none;',
                     formatter: (params) => {
-                        const p0 = params[0];
-                        if (!p0) return '';
-                        const idx = p0.dataIndex;
-                        const bar = bars[idx];
-                        if (!bar) return '';
+                        try {
+                            const p0 = params[0];
+                            if (!p0) return '';
+                            const idx = p0.dataIndex;
+                            const bar = bars[idx];
+                            if (!bar) return '';
 
-                        const stockName = json.name || currentKpSymbol;
-                        const stockCode = json.symbol || currentKpSymbol;
-                        const preClose = (bar.pre_close !== undefined) ? bar.pre_close : (idx > 0 ? bars[idx - 1].close : bar.open);
-                        const chg = (bar.change !== undefined) ? bar.change : (bar.close - preClose);
-                        const chgPct = (bar.change_pct !== undefined) ? bar.change_pct : (preClose > 0 ? (chg / preClose * 100) : 0);
-                        const isUp = chg >= 0;
-                        const chgColor = isUp ? '#ef4444' : '#10b981';
-                        const chgSign = isUp ? '+' : '';
+                            const stockName = json.name || currentKpSymbol;
+                            const stockCode = json.symbol || currentKpSymbol;
+                            const preClose = (bar.pre_close !== undefined) ? bar.pre_close : (idx > 0 ? bars[idx - 1].close : bar.open);
+                            const chg = (bar.change !== undefined) ? bar.change : (bar.close - preClose);
+                            const chgPct = (bar.change_pct !== undefined) ? bar.change_pct : (preClose > 0 ? (chg / preClose * 100) : 0);
+                            const isUp = chg >= 0;
+                            const chgColor = isUp ? '#ef4444' : '#10b981';
+                            const chgSign = isUp ? '+' : '';
 
-                        // Format Amount: 亿 or 万
-                        const amt = Number(bar.amount || (bar.volume * bar.close) || 0);
-                        let amtStr = '0.00万';
-                        if (amt >= 100000000) {
-                            amtStr = (amt / 100000000).toFixed(2) + '亿';
-                        } else if (amt >= 10000) {
-                            amtStr = (amt / 10000).toFixed(2) + '万';
-                        } else {
-                            amtStr = amt.toFixed(2) + '元';
+                            // Format Amount: 亿 or 万
+                            const amt = Number(bar.amount || (bar.volume * bar.close) || 0);
+                            let amtStr = '0.00万';
+                            if (amt >= 100000000) {
+                                amtStr = (amt / 100000000).toFixed(2) + '亿';
+                            } else if (amt >= 10000) {
+                                amtStr = (amt / 10000).toFixed(2) + '万';
+                            } else {
+                                amtStr = amt.toFixed(2) + '元';
+                            }
+
+                            // Format Net Inflow
+                            const netInflow = Number(bar.net_inflow || 0);
+                            let netInflowStr = '0.00万';
+                            if (Math.abs(netInflow) >= 100000000) {
+                                netInflowStr = (netInflow / 100000000).toFixed(2) + '亿';
+                            } else if (Math.abs(netInflow) >= 10000) {
+                                netInflowStr = (netInflow / 10000).toFixed(2) + '万';
+                            } else {
+                                netInflowStr = netInflow.toFixed(2) + '元';
+                            }
+                            const netInflowSign = netInflow > 0 ? '+' : '';
+                            const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
+
+                            // Format Volume: 手 (1手 = 100股)
+                            const volHands = Math.round(Number(bar.volume || 0) / 100);
+                            const labelClr = isDark ? '#94a3b8' : '#334155';
+                            const txtShadow = isDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);' : 'text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 6px rgba(255,255,255,0.9);';
+
+                            return `
+                                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.45; color: ${tooltipTextColor}; min-width: 175px; background: transparent; pointer-events: none; ${txtShadow}">
+                                    <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px dashed ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}; font-size: 13px;">
+                                        ${stockName} (${stockCode}) ${formatDatetimeWithWeekday(bar.datetime)}
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">开盘: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.open).toFixed(2)}</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">收盘: </span><span style="color: ${chgColor}; font-weight: 700;">${Number(bar.close).toFixed(2)}&nbsp;&nbsp;(${chgSign}${chgPct.toFixed(2)}%)</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">最高: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.high).toFixed(2)}</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">最低: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.low).toFixed(2)}</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">成交额: </span><span style="color: ${tooltipTitleColor}; font-weight: 700;">${amtStr}</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px;">
+                                        <span style="color: ${labelClr}; font-weight: 500;">资金净流入: </span><span style="color: ${netInflowColor}; font-weight: 700;">${netInflowSign}${netInflowStr}</span>
+                                    </div>
+                                    ${activeSub === 'inflow' ? `
+                                    <div style="margin-bottom: 1.5px; font-size: 11px;">
+                                        <span style="color: #FACC15;">MA3: ${formatFlowStr(bar.inflow_ma3)}</span>&nbsp;&nbsp;
+                                        <span style="color: #38BDF8;">MA5: ${formatFlowStr(bar.inflow_ma5)}</span>&nbsp;&nbsp;
+                                        <span style="color: #C084FC;">MA10: ${formatFlowStr(bar.inflow_ma10)}</span>
+                                    </div>
+                                    <div style="margin-bottom: 1.5px; font-size: 10.5px; color: #94a3b8;">
+                                        <span>3日和: ${formatFlowStr(bar.inflow_sum3)}</span>&nbsp;&nbsp;
+                                        <span>5日和: ${formatFlowStr(bar.inflow_sum5)}</span>&nbsp;&nbsp;
+                                        <span>10日和: ${formatFlowStr(bar.inflow_sum10)}</span>
+                                    </div>
+                                    ` : ''}
+                                    <div>
+                                        <span style="color: ${labelClr}; font-weight: 500;">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${volHands}手</span>
+                                    </div>
+                                    ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(239,68,68,0.4);">⚡ ZIG 触发买点信号</div>' : ''}
+                                    ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(234,179,8,0.4);">⚡ ZIG 触发卖点信号</div>' : ''}
+                                </div>
+                            `;
+                        } catch (err) {
+                            console.error('Tooltip formatter error:', err);
+                            return '';
                         }
-
-                        // Format Net Inflow
-                        const netInflow = Number(bar.net_inflow || 0);
-                        let netInflowStr = '0.00万';
-                        if (Math.abs(netInflow) >= 100000000) {
-                            netInflowStr = (netInflow / 100000000).toFixed(2) + '亿';
-                        } else if (Math.abs(netInflow) >= 10000) {
-                            netInflowStr = (netInflow / 10000).toFixed(2) + '万';
-                        } else {
-                            netInflowStr = netInflow.toFixed(2) + '元';
-                        }
-                        const netInflowSign = netInflow > 0 ? '+' : '';
-                        const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
-
-                        // Format Volume: 手 (1手 = 100股)
-                        const volHands = Math.round(Number(bar.volume || 0) / 100);
-                        const labelClr = isDark ? '#94a3b8' : '#334155';
-                        const txtShadow = isDark ? 'text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);' : 'text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 6px rgba(255,255,255,0.9);';
-
-                        return `
-                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.45; color: ${tooltipTextColor}; min-width: 175px; background: transparent; pointer-events: none; ${txtShadow}">
-                                <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 3px; margin-bottom: 4px; border-bottom: 1px dashed ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}; font-size: 13px;">
-                                    ${stockName} (${stockCode}) ${formatDatetimeWithWeekday(bar.datetime)}
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">开盘: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.open).toFixed(2)}</span>
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">收盘: </span><span style="color: ${chgColor}; font-weight: 700;">${Number(bar.close).toFixed(2)}&nbsp;&nbsp;(${chgSign}${chgPct.toFixed(2)}%)</span>
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">最高: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.high).toFixed(2)}</span>
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">最低: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${Number(bar.low).toFixed(2)}</span>
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">成交额: </span><span style="color: ${tooltipTitleColor}; font-weight: 700;">${amtStr}</span>
-                                </div>
-                                <div style="margin-bottom: 1.5px;">
-                                    <span style="color: ${labelClr}; font-weight: 500;">资金净流入: </span><span style="color: ${netInflowColor}; font-weight: 700;">${netInflowSign}${netInflowStr}</span>
-                                </div>
-                                <div>
-                                    <span style="color: ${labelClr}; font-weight: 500;">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${volHands}手</span>
-                                </div>
-                                ${isZigActive && bar.zig_buy ? '<div style="color: #ef4444; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(239,68,68,0.4);">⚡ ZIG 触发买点信号</div>' : ''}
-                                ${isZigActive && bar.zig_sell ? '<div style="color: #eab308; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(234,179,8,0.4);">⚡ ZIG 触发卖点信号</div>' : ''}
-                            </div>
-                        `;
                     }
                 },
                 grid: chartGrids,
@@ -4558,6 +4595,8 @@
                     {
                         name: `${json.name} K线`,
                         type: 'candlestick',
+                        xAxisIndex: 0,
+                        yAxisIndex: 0,
                         data: ohlc,
                         itemStyle: {
                             color: '#C74040',
@@ -4569,15 +4608,16 @@
                             data: markPointData
                         }
                     },
-                    { name: 'MA5', type: 'line', data: ma5, showSymbol: false, lineStyle: { width: 1.1, color: '#A1A1AA' } },
-                    { name: 'MA10', type: 'line', data: ma10, showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } },
-                    { name: 'MA20', type: 'line', data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
-                    { name: 'MA60', type: 'line', data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
+                    { name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma5, showSymbol: false, lineStyle: { width: 1.1, color: '#A1A1AA' } },
+                    { name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma10, showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } },
+                    { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
+                    { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
                     ...bollSeries,
                     ...subSeries
                 ]
             };
 
+            kpEchart.clear();
             kpEchart.setOption(option, true);
 
             // Crosshair update listener: dynamically updates the 2-line header bar above chart

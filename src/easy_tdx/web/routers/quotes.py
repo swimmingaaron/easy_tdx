@@ -9,7 +9,7 @@ import pandas as pd
 from fastapi import APIRouter, Query
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
-from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV
+from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV, SUM
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -334,6 +334,9 @@ def get_kline(
     inflow_ma3 = MA(net_inflows, 3)
     inflow_ma5 = MA(net_inflows, 5)
     inflow_ma10 = MA(net_inflows, 10)
+    inflow_sum3 = SUM(net_inflows, 3)
+    inflow_sum5 = SUM(net_inflows, 5)
+    inflow_sum10 = SUM(net_inflows, 10)
 
     # Indicators
     dif, dea, macd_hist = MACD(c)
@@ -427,6 +430,9 @@ def get_kline(
             "amount_ma5": safe_float(amt_ma5[i]),
             "amount_ma10": safe_float(amt_ma10[i]),
             "net_inflow": safe_float(net_inflows[i]),
+            "inflow_sum3": safe_float(inflow_sum3[i]),
+            "inflow_sum5": safe_float(inflow_sum5[i]),
+            "inflow_sum10": safe_float(inflow_sum10[i]),
             "inflow_ma3": safe_float(inflow_ma3[i]),
             "inflow_ma5": safe_float(inflow_ma5[i]),
             "inflow_ma10": safe_float(inflow_ma10[i]),
@@ -554,15 +560,31 @@ def get_kline(
                     for k in range(5, 10):
                         bars_data[-(k+1)]["net_inflow"] = round(diff_10 * (float(bars_data[-(k+1)].get("amount") or 1.0) / tot_a_10), 2)
 
-                # Recompute inflow_ma3, inflow_ma5, inflow_ma10 after calibration
+                # Recompute inflow_ma and inflow_sum after calibration
                 calib_flows = [b["net_inflow"] for b in bars_data]
-                rec_ma3 = MA(calib_flows, 3)
-                rec_ma5 = MA(calib_flows, 5)
-                rec_ma10 = MA(calib_flows, 10)
+                rec_flows_arr = np.array(calib_flows, dtype=float)
+                rec_ma3 = MA(rec_flows_arr, 3)
+                rec_ma5 = MA(rec_flows_arr, 5)
+                rec_ma10 = MA(rec_flows_arr, 10)
+                rec_sum3 = SUM(rec_flows_arr, 3)
+                rec_sum5 = SUM(rec_flows_arr, 5)
+                rec_sum10 = SUM(rec_flows_arr, 10)
                 for b_idx, b in enumerate(bars_data):
                     b["inflow_ma3"] = safe_float(rec_ma3[b_idx])
                     b["inflow_ma5"] = safe_float(rec_ma5[b_idx])
                     b["inflow_ma10"] = safe_float(rec_ma10[b_idx])
+                    b["inflow_sum3"] = safe_float(rec_sum3[b_idx])
+                    b["inflow_sum5"] = safe_float(rec_sum5[b_idx])
+                    b["inflow_sum10"] = safe_float(rec_sum10[b_idx])
+                if m3_real != 0.0:
+                    bars_data[-1]["inflow_sum3"] = round(m3_real, 2)
+                    bars_data[-1]["inflow_ma3"] = round(m3_real / 3.0, 2)
+                if m5_real != 0.0:
+                    bars_data[-1]["inflow_sum5"] = round(m5_real, 2)
+                    bars_data[-1]["inflow_ma5"] = round(m5_real / 5.0, 2)
+                if m10_real != 0.0:
+                    bars_data[-1]["inflow_sum10"] = round(m10_real, 2)
+                    bars_data[-1]["inflow_ma10"] = round(m10_real / 10.0, 2)
     except Exception as e:
         logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
