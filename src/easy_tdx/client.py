@@ -1081,7 +1081,7 @@ class AsyncTdxClient(AsyncHeartbeatMixin):
         await self._stop_heartbeat()
         await self._conn.close()
 
-    async def reconnect_to(self, host: str) -> None:
+    async def reconnect_to(self, host: str, port: int | None = None) -> None:
         """热切换到新 host：关旧连接 → 换 host → 建新连接。
 
         用于 web UI 的"服务器设置"页面——用户点选一个 host 后，无需重启
@@ -1089,6 +1089,8 @@ class AsyncTdxClient(AsyncHeartbeatMixin):
         撞到半开的连接。切换失败抛异常（旧连接已 close，client 处于断开
         状态，调用方应捕获并提示用户选别的 host）。
         """
+        if port is not None:
+            self._port = port
         async with self._execute_lock:
             await self._stop_heartbeat()
             await self._conn.close()

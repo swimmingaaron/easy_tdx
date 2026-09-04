@@ -4473,11 +4473,11 @@
                 const json = await resp.json();
                 if (resp.ok && json.status === 'success') {
                     currentServerHost = host;
-                    showToast('切换成功', json.data.message || `已成功连接至 ${host}`);
+                    showToast('切换成功', json.data?.message || json.message || `已成功连接至 ${host}`);
                     speak(`服务器已切换`);
                     await loadServerStatus();
                 } else {
-                    showToast('切换失败', json.data?.message || '连接节点超时');
+                    showToast('切换失败', json.data?.message || json.message || '连接节点超时');
                 }
             } catch (e) {
                 console.error('Switch server error:', e);

@@ -177,6 +177,37 @@ async def switch_server(req: ServerSwitchRequest, request: Request) -> dict[str,
     request.app.state.tdx_host = host
     request.app.state.tdx_port = port
 
+    # Reset/switch sync client in market_data
+    try:
+        import easy_tdx.market_data as md
+        with md._CLIENT_LOCK:
+            if md._TDX_CLIENT is not None:
+                try:
+                    md._TDX_CLIENT.close()
+                except Exception:
+                    pass
+                md._TDX_CLIENT = None
+            if host not in md.PRIMARY_HOSTS:
+                md.PRIMARY_HOSTS.insert(0, host)
+            else:
+                md.PRIMARY_HOSTS.remove(host)
+                md.PRIMARY_HOSTS.insert(0, host)
+    except Exception as e:
+        logger.debug(f"Resetting market_data sync client on switch: {e}")
+
+    # Reset/switch MAC client in market_overview
+    try:
+        import easy_tdx.market_overview as mo
+        with mo._MAC_LOCK:
+            if mo._MAC_CLIENT is not None:
+                try:
+                    mo._MAC_CLIENT.close()
+                except Exception:
+                    pass
+                mo._MAC_CLIENT = None
+    except Exception as e:
+        logger.debug(f"Resetting market_overview MAC client on switch: {e}")
+
     return {
         "status": "success",
         "ok": True,
