@@ -304,10 +304,33 @@ def get_kline(
     ma20 = MA(c, 20)
     ma60 = MA(c, min(60, len(c)))
 
-    # Volume MAs & ratio
+    # Volume & Turnover MAs & ratio
     v_ma5 = MA(v, 5)
     v_ma10 = MA(v, 10)
     vol_ratios = np.round(v / np.maximum(v_ma5, 1.0), 2)
+    
+    amt_vals = df["amount"].values.astype(float) if "amount" in df.columns else (c * v).astype(float)
+    amt_ma5 = MA(amt_vals, 5)
+    amt_ma10 = MA(amt_vals, 10)
+
+    # Net capital inflow per bar (using multi-factor price-action spread and close position)
+    n_len = len(df)
+    net_inflows = np.zeros(n_len, dtype=float)
+    for idx in range(n_len):
+        c_i = float(c[idx])
+        o_i = float(df["open"].iloc[idx])
+        h_i = float(h[idx])
+        l_i = float(l[idx])
+        amt_i = float(amt_vals[idx])
+        hl_diff = max(0.001, h_i - l_i)
+        body_r = (c_i - o_i) / hl_diff
+        pos_r = (c_i - l_i) / hl_diff - 0.5
+        flow_r = max(-0.85, min(0.85, body_r * 0.65 + pos_r * 0.5))
+        net_inflows[idx] = round(amt_i * flow_r, 2)
+
+    inflow_ma3 = MA(net_inflows, 3)
+    inflow_ma5 = MA(net_inflows, 5)
+    inflow_ma10 = MA(net_inflows, 10)
 
     # Indicators
     dif, dea, macd_hist = MACD(c)
@@ -397,7 +420,13 @@ def get_kline(
             "change_pct": bar_chg_pct,
             "amplitude_pct": bar_amp_pct,
             "volume": int(df["volume"].iloc[i]),
-            "amount": safe_float(df["amount"].iloc[i], 0.0),
+            "amount": safe_float(amt_vals[i], 0.0),
+            "amount_ma5": safe_float(amt_ma5[i]),
+            "amount_ma10": safe_float(amt_ma10[i]),
+            "net_inflow": safe_float(net_inflows[i]),
+            "inflow_ma3": safe_float(inflow_ma3[i]),
+            "inflow_ma5": safe_float(inflow_ma5[i]),
+            "inflow_ma10": safe_float(inflow_ma10[i]),
             "ma5": safe_float(ma5[i]),
             "ma10": safe_float(ma10[i]),
             "ma20": safe_float(ma20[i]),

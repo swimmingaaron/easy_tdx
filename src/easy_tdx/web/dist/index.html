@@ -1808,7 +1808,8 @@
 
                     <!-- Sub-indicators -->
                     <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 shrink-0">
-                        <button onclick="setKpSubIndicator('vol')" id="kp-sub-vol" class="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800">成交量</button>
+                        <button onclick="setKpSubIndicator('vol')" id="kp-sub-vol" class="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800">成交额</button>
+                        <button onclick="setKpSubIndicator('inflow')" id="kp-sub-inflow" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white" title="资金净流入柱状图与3日/5日/10日平均线">资金流入</button>
                         <button onclick="setKpSubIndicator('macd')" id="kp-sub-macd" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">MACD</button>
                         <button onclick="setKpSubIndicator('rsi')" id="kp-sub-rsi" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">RSI</button>
                         <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-white">KDJ</button>
@@ -2711,7 +2712,7 @@
                 }
             });
 
-            ['vol', 'macd', 'rsi', 'kdj'].forEach(k => {
+            ['vol', 'inflow', 'macd', 'rsi', 'kdj'].forEach(k => {
                 const el = document.getElementById(`kp-sub-${k}`);
                 if (el) {
                     el.className = k === currentKpSub 
@@ -3290,7 +3291,7 @@
                 }
             } else {
                 currentKpSub = sub;
-                ['vol', 'macd', 'rsi', 'kdj'].forEach(k => {
+                ['vol', 'inflow', 'macd', 'rsi', 'kdj'].forEach(k => {
                     const el = document.getElementById(`kp-sub-${k}`);
                     if (el) {
                         el.className = k === sub ? 'px-2.5 py-1 rounded text-xs font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' : 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white';
@@ -3750,6 +3751,49 @@
             const turnoverStr = (bar.turnover_rate !== undefined && bar.turnover_rate !== null) ? `${Number(bar.turnover_rate).toFixed(2)}%` : (bar.amplitude_pct ? `${Number(bar.amplitude_pct).toFixed(2)}%` : '—');
             const volRatioStr = (bar.vol_ratio !== undefined && bar.vol_ratio !== null) ? `${Number(bar.vol_ratio).toFixed(2)}` : '—';
 
+            // 成交额与资金净流入格式化
+            const amtVal = Number(bar.amount || (bar.volume * bar.close) || 0);
+            let amtStr = '0.00万';
+            if (amtVal >= 1e8) amtStr = (amtVal / 1e8).toFixed(2) + '亿';
+            else if (amtVal >= 1e4) amtStr = (amtVal / 1e4).toFixed(0) + '万';
+            else if (amtVal > 0) amtStr = amtVal.toFixed(0) + '元';
+
+            const netInflowVal = Number(bar.net_inflow || 0);
+            const inSign = netInflowVal >= 0 ? '+' : '';
+            let inStr = '0.00万';
+            if (Math.abs(netInflowVal) >= 1e8) inStr = `${inSign}${(netInflowVal / 1e8).toFixed(2)}亿`;
+            else if (Math.abs(netInflowVal) >= 1e4) inStr = `${inSign}${(netInflowVal / 1e4).toFixed(0)}万`;
+            else if (netInflowVal !== 0) inStr = `${inSign}${netInflowVal.toFixed(0)}元`;
+            const inColor = netInflowVal >= 0 ? '#f04438' : '#12b76a';
+
+            const formatAmtStr = (v) => {
+                if (v == null || isNaN(v)) return '—';
+                const n = Number(v);
+                return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿' : (n >= 1e4 ? (n / 1e4).toFixed(0) + '万' : `${n.toFixed(0)}`);
+            };
+            const formatFlowStr = (v) => {
+                if (v == null || isNaN(v)) return '—';
+                const n = Number(v);
+                const s = n >= 0 ? '+' : '';
+                return Math.abs(n) >= 1e8 ? `${s}${(n / 1e8).toFixed(2)}亿` : `${s}${(n / 1e4).toFixed(0)}万`;
+            };
+
+            let subMaLine = '';
+            if (currentKpSub === 'inflow') {
+                subMaLine = `
+                    <span style="color:#FACC15">额MA5:${formatAmtStr(bar.amount_ma5)}</span>
+                    <span style="color:#8B5CF6">额MA10:${formatAmtStr(bar.amount_ma10)}</span>
+                    <span style="color:#FACC15; margin-left:6px;">流入MA3:${formatFlowStr(bar.inflow_ma3)}</span>
+                    <span style="color:#38BDF8">流入MA5:${formatFlowStr(bar.inflow_ma5)}</span>
+                    <span style="color:#C084FC">流入MA10:${formatFlowStr(bar.inflow_ma10)}</span>
+                `;
+            } else if (currentKpSub === 'vol') {
+                subMaLine = `
+                    <span style="color:#FACC15">额MA5:${formatAmtStr(bar.amount_ma5)}</span>
+                    <span style="color:#8B5CF6">额MA10:${formatAmtStr(bar.amount_ma10)}</span>
+                `;
+            }
+
             el.innerHTML = `
                 <div class="flex items-center space-x-2 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
                     <span style="color:#8E8E96">${formatDatetimeWithWeekday(bar.datetime)}</span>
@@ -3766,6 +3810,10 @@
                     <span style="color:#8E8E96; font-weight:600;">${turnoverStr}</span>
                     <span style="color:#8E8E96; margin-left:6px;">量比</span>
                     <span style="color:#8E8E96; font-weight:600;">${volRatioStr}</span>
+                    <span style="color:#8E8E96; margin-left:6px;">成交额</span>
+                    <span style="color:#ffffff; font-weight:600;">${amtStr}</span>
+                    <span style="color:#8E8E96; margin-left:6px;">资金净流入</span>
+                    <span style="color:${inColor}; font-weight:700;">${inStr}</span>
                 </div>
                 <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>
@@ -3773,6 +3821,7 @@
                     <span style="color:#F97316">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
                     <span style="color:#8B5CF6">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
+                    ${subMaLine}
                     ${isZigActive && bar.zig ? `
                         <span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}</span>
                         ${bar.zig_trough ? ' <strong class="text-sky-400 font-bold bg-sky-950/90 px-1.5 py-0.5 rounded border border-sky-700">[波谷底]</strong>' : ''}
@@ -4048,112 +4097,60 @@
                 );
             }
 
-            // Sub indicator series: always valid for gridIndex: 1
-            const activeSub = (currentKpSub === 'boll' || !['vol', 'macd', 'rsi', 'kdj'].includes(currentKpSub)) ? 'vol' : currentKpSub;
-            let subSeries = [];
-            let subYAxis = {
-                type: 'value',
-                gridIndex: 1,
-                scale: true,
-                splitLine: { show: false },
-                axisLabel: { color: '#64748b', fontSize: 9 }
+            // Sub indicator series: support 'inflow', 'vol' (成交额), 'macd', 'rsi', 'kdj'
+            const activeSub = (currentKpSub === 'boll' || !['vol', 'inflow', 'macd', 'rsi', 'kdj'].includes(currentKpSub)) ? 'vol' : currentKpSub;
+
+            // Calculate Amount & Inflow Series Data
+            const amtVals = bars.map(b => Number(b.amount || (b.volume * b.close) || 0));
+            const amtMa5 = bars.map((b, i) => {
+                if (b.amount_ma5 != null) return b.amount_ma5;
+                if (i < 4) return null;
+                let s = 0; for (let j = i - 4; j <= i; j++) s += amtVals[j]; return s / 5;
+            });
+            const amtMa10 = bars.map((b, i) => {
+                if (b.amount_ma10 != null) return b.amount_ma10;
+                if (i < 9) return null;
+                let s = 0; for (let j = i - 9; j <= i; j++) s += amtVals[j]; return s / 10;
+            });
+
+            bars.forEach((b, i) => {
+                if (b.amount == null) b.amount = amtVals[i];
+                if (b.amount_ma5 == null) b.amount_ma5 = amtMa5[i];
+                if (b.amount_ma10 == null) b.amount_ma10 = amtMa10[i];
+            });
+
+            const netInflowVals = bars.map(b => Number(b.net_inflow || 0));
+            const inflowMa3 = bars.map((b, i) => {
+                if (b.inflow_ma3 != null) return b.inflow_ma3;
+                if (i < 2) return null;
+                let s = 0; for (let j = i - 2; j <= i; j++) s += netInflowVals[j]; return s / 3;
+            });
+            const inflowMa5 = bars.map((b, i) => {
+                if (b.inflow_ma5 != null) return b.inflow_ma5;
+                if (i < 4) return null;
+                let s = 0; for (let j = i - 4; j <= i; j++) s += netInflowVals[j]; return s / 5;
+            });
+            const inflowMa10 = bars.map((b, i) => {
+                if (b.inflow_ma10 != null) return b.inflow_ma10;
+                if (i < 9) return null;
+                let s = 0; for (let j = i - 9; j <= i; j++) s += netInflowVals[j]; return s / 10;
+            });
+
+            bars.forEach((b, i) => {
+                if (b.net_inflow == null) b.net_inflow = netInflowVals[i];
+                if (b.inflow_ma3 == null) b.inflow_ma3 = inflowMa3[i];
+                if (b.inflow_ma5 == null) b.inflow_ma5 = inflowMa5[i];
+                if (b.inflow_ma10 == null) b.inflow_ma10 = inflowMa10[i];
+            });
+
+            const formatMoneyAxis = (v) => {
+                if (v == null || isNaN(v)) return '';
+                const absV = Math.abs(v);
+                const sign = v < 0 ? '-' : '';
+                if (absV >= 100000000) return `${sign}${(absV / 100000000).toFixed(1)}亿`;
+                if (absV >= 10000) return `${sign}${(absV / 10000).toFixed(0)}万`;
+                return `${sign}${absV.toFixed(0)}`;
             };
-
-            if (activeSub === 'vol') {
-                const volMa5 = bars.map((b, i) => {
-                    if (i < 4) return null;
-                    let s = 0;
-                    for (let j = i - 4; j <= i; j++) s += bars[j].volume;
-                    return s / 5;
-                });
-                const volMa10 = bars.map((b, i) => {
-                    if (i < 9) return null;
-                    let s = 0;
-                    for (let j = i - 9; j <= i; j++) s += bars[j].volume;
-                    return s / 10;
-                });
-
-                subSeries = [
-                    {
-                        name: '成交量',
-                        type: 'bar',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: bars.map((b) => {
-                            const isU = b.close >= b.open;
-                            const ratio = b.vol_ratio;
-                            return {
-                                value: b.volume,
-                                itemStyle: { color: isU ? 'rgba(240,68,56,0.6)' : 'rgba(18,183,106,0.6)' },
-                                label: {
-                                    show: showVolRatio && ratio && ratio >= 0.8,
-                                    position: 'top',
-                                    distance: 2,
-                                    color: '#8E8E96',
-                                    fontSize: 8,
-                                    fontFamily: 'JetBrains Mono, monospace',
-                                    formatter: () => ratio ? `${ratio.toFixed(1)}x` : ''
-                                }
-                            };
-                        }),
-                        barWidth: '60%'
-                    },
-                    {
-                        name: 'VOL5',
-                        type: 'line',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: volMa5,
-                        showSymbol: false,
-                        lineStyle: { width: 1.1, color: '#FACC15' },
-                        itemStyle: { color: '#FACC15' }
-                    },
-                    {
-                        name: 'VOL10',
-                        type: 'line',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: volMa10,
-                        showSymbol: false,
-                        lineStyle: { width: 1.1, color: '#8B5CF6' },
-                        itemStyle: { color: '#8B5CF6' }
-                    }
-                ];
-                subYAxis = {
-                    type: 'value',
-                    gridIndex: 1,
-                    scale: true,
-                    splitLine: { show: false },
-                    axisLabel: { color: '#64748b', fontSize: 9, formatter: v => `${(v/10000).toFixed(0)}万` }
-                };
-            } else if (activeSub === 'macd') {
-                const dif = bars.map(b => b.macd_dif);
-                const dea = bars.map(b => b.macd_dea);
-                const hist = bars.map(b => ({
-                    value: (b.macd_hist || 0) * 2,
-                    itemStyle: { color: (b.macd_hist || 0) >= 0 ? 'rgba(240,68,56,0.6)' : 'rgba(18,183,106,0.6)' }
-                }));
-
-                subSeries = [
-                    { name: 'MACD柱', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: hist },
-                    { name: 'DIF', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: dif, showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
-                    { name: 'DEA', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: dea, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } }
-                ];
-                subYAxis = { type: 'value', gridIndex: 1, scale: true, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
-            } else if (activeSub === 'rsi') {
-                subSeries = [
-                    { name: 'RSI6', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.rsi6), showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
-                    { name: 'RSI12', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.rsi12), showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } }
-                ];
-                subYAxis = { type: 'value', gridIndex: 1, min: 0, max: 100, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
-            } else if (activeSub === 'kdj') {
-                subSeries = [
-                    { name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_k), showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
-                    { name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_d), showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } },
-                    { name: 'J', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_j), showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } }
-                ];
-                subYAxis = { type: 'value', gridIndex: 1, scale: true, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
-            }
 
             const isDark = getTheme() === 'dark';
             const splitColor = isDark ? '#1e293b' : '#f1f5f9';
@@ -4164,15 +4161,303 @@
             const tooltipBorder = isDark ? 'rgba(71, 85, 105, 0.5)' : 'rgba(203, 213, 225, 0.7)';
             const tooltipTextColor = isDark ? '#cbd5e1' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
-            const tooltipDivider = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
             const isMobile = window.innerWidth < 640;
-            const gridLeft = isMobile ? 38 : 52;
+            const gridLeft = isMobile ? 42 : 54;
             const gridRight = isMobile ? 12 : 28;
             const labelFontSize = isMobile ? 9 : 10;
 
+            let chartGrids = [];
+            let chartXAxes = [];
+            let chartYAxes = [];
+            let subSeries = [];
+
+            if (activeSub === 'inflow') {
+                // 3 Grids: K-line (top), 成交额 (middle), 资金流入 (bottom)
+                chartGrids = [
+                    { left: gridLeft, right: gridRight, top: 10, height: isMobile ? '44%' : '48%' },
+                    { left: gridLeft, right: gridRight, top: isMobile ? '52%' : '55%', height: isMobile ? '17%' : '17%' },
+                    { left: gridLeft, right: gridRight, top: isMobile ? '73%' : '75%', height: isMobile ? '17%' : '17%' }
+                ];
+                chartXAxes = [
+                    {
+                        type: 'category',
+                        gridIndex: 0,
+                        data: dates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { show: false },
+                        axisPointer: { label: { show: false } },
+                        splitLine: { show: false }
+                    },
+                    {
+                        type: 'category',
+                        gridIndex: 1,
+                        data: dates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { show: false },
+                        axisPointer: { label: { show: false } },
+                        splitLine: { show: false }
+                    },
+                    {
+                        type: 'category',
+                        gridIndex: 2,
+                        data: dates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { color: textColor, fontSize: labelFontSize },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg, formatter: p => formatDatetimeWithWeekday(p.value) } },
+                        splitLine: { show: false }
+                    }
+                ];
+                chartYAxes = [
+                    {
+                        type: 'value',
+                        gridIndex: 0,
+                        scale: true,
+                        splitLine: { lineStyle: { color: splitColor } },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
+                        axisLabel: { color: textColor, fontSize: labelFontSize, formatter: v => `¥${v.toFixed(2)}` }
+                    },
+                    {
+                        type: 'value',
+                        gridIndex: 1,
+                        scale: true,
+                        splitLine: { show: false },
+                        axisLabel: { color: '#64748b', fontSize: 9, formatter: formatMoneyAxis }
+                    },
+                    {
+                        type: 'value',
+                        gridIndex: 2,
+                        scale: true,
+                        splitLine: { lineStyle: { color: splitColor, type: 'dashed' } },
+                        axisLabel: { color: '#64748b', fontSize: 9, formatter: formatMoneyAxis }
+                    }
+                ];
+
+                subSeries = [
+                    // 成交额 Series (Grid 1)
+                    {
+                        name: '成交额',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: bars.map((b, i) => {
+                            const isU = b.close >= b.open;
+                            return {
+                                value: amtVals[i],
+                                itemStyle: { color: isU ? 'rgba(239, 68, 68, 0.65)' : 'rgba(16, 185, 129, 0.65)' }
+                            };
+                        }),
+                        barWidth: '60%'
+                    },
+                    {
+                        name: '额MA5',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: amtMa5,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#FACC15' },
+                        itemStyle: { color: '#FACC15' }
+                    },
+                    {
+                        name: '额MA10',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: amtMa10,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#8B5CF6' },
+                        itemStyle: { color: '#8B5CF6' }
+                    },
+                    // 资金流入 Series (Grid 2)
+                    {
+                        name: '资金净流入',
+                        type: 'bar',
+                        xAxisIndex: 2,
+                        yAxisIndex: 2,
+                        data: netInflowVals.map(val => {
+                            const isPos = val >= 0;
+                            return {
+                                value: val,
+                                itemStyle: {
+                                    color: isPos ? '#ef4444' : '#10b981',
+                                    borderColor: isPos ? '#dc2626' : '#059669',
+                                    borderWidth: 0.8
+                                }
+                            };
+                        }),
+                        barWidth: '60%'
+                    },
+                    {
+                        name: '流入MA3',
+                        type: 'line',
+                        xAxisIndex: 2,
+                        yAxisIndex: 2,
+                        data: inflowMa3,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#FACC15' },
+                        itemStyle: { color: '#FACC15' }
+                    },
+                    {
+                        name: '流入MA5',
+                        type: 'line',
+                        xAxisIndex: 2,
+                        yAxisIndex: 2,
+                        data: inflowMa5,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#38BDF8' },
+                        itemStyle: { color: '#38BDF8' }
+                    },
+                    {
+                        name: '流入MA10',
+                        type: 'line',
+                        xAxisIndex: 2,
+                        yAxisIndex: 2,
+                        data: inflowMa10,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#C084FC' },
+                        itemStyle: { color: '#C084FC' }
+                    }
+                ];
+            } else {
+                // 2 Grids layout
+                chartGrids = [
+                    { left: gridLeft, right: gridRight, top: 10, height: isMobile ? '52%' : '58%' },
+                    { left: gridLeft, right: gridRight, top: isMobile ? '69%' : '73%', height: isMobile ? '23%' : '20%' }
+                ];
+                chartXAxes = [
+                    {
+                        type: 'category',
+                        gridIndex: 0,
+                        data: dates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { color: textColor, fontSize: labelFontSize },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg, formatter: p => formatDatetimeWithWeekday(p.value) } },
+                        splitLine: { show: false }
+                    },
+                    {
+                        type: 'category',
+                        gridIndex: 1,
+                        data: dates,
+                        boundaryGap: true,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { show: false },
+                        splitLine: { show: false }
+                    }
+                ];
+
+                let subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: { color: '#64748b', fontSize: 9 }
+                };
+
+                if (activeSub === 'vol') {
+                    subSeries = [
+                        {
+                            name: '成交额',
+                            type: 'bar',
+                            xAxisIndex: 1,
+                            yAxisIndex: 1,
+                            data: bars.map((b, i) => {
+                                const isU = b.close >= b.open;
+                                const ratio = b.vol_ratio;
+                                return {
+                                    value: amtVals[i],
+                                    itemStyle: { color: isU ? 'rgba(239, 68, 68, 0.65)' : 'rgba(16, 185, 129, 0.65)' },
+                                    label: {
+                                        show: showVolRatio && ratio && ratio >= 0.8,
+                                        position: 'top',
+                                        distance: 2,
+                                        color: '#8E8E96',
+                                        fontSize: 8,
+                                        fontFamily: 'JetBrains Mono, monospace',
+                                        formatter: () => ratio ? `${ratio.toFixed(1)}x` : ''
+                                    }
+                                };
+                            }),
+                            barWidth: '60%'
+                        },
+                        {
+                            name: '额MA5',
+                            type: 'line',
+                            xAxisIndex: 1,
+                            yAxisIndex: 1,
+                            data: amtMa5,
+                            showSymbol: false,
+                            lineStyle: { width: 1.1, color: '#FACC15' },
+                            itemStyle: { color: '#FACC15' }
+                        },
+                        {
+                            name: '额MA10',
+                            type: 'line',
+                            xAxisIndex: 1,
+                            yAxisIndex: 1,
+                            data: amtMa10,
+                            showSymbol: false,
+                            lineStyle: { width: 1.1, color: '#8B5CF6' },
+                            itemStyle: { color: '#8B5CF6' }
+                        }
+                    ];
+                    subYAxis = {
+                        type: 'value',
+                        gridIndex: 1,
+                        scale: true,
+                        splitLine: { show: false },
+                        axisLabel: { color: '#64748b', fontSize: 9, formatter: formatMoneyAxis }
+                    };
+                } else if (activeSub === 'macd') {
+                    const dif = bars.map(b => b.macd_dif);
+                    const dea = bars.map(b => b.macd_dea);
+                    const hist = bars.map(b => ({
+                        value: (b.macd_hist || 0) * 2,
+                        itemStyle: { color: (b.macd_hist || 0) >= 0 ? 'rgba(240,68,56,0.6)' : 'rgba(18,183,106,0.6)' }
+                    }));
+                    subSeries = [
+                        { name: 'MACD柱', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: hist },
+                        { name: 'DIF', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: dif, showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
+                        { name: 'DEA', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: dea, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } }
+                    ];
+                    subYAxis = { type: 'value', gridIndex: 1, scale: true, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
+                } else if (activeSub === 'rsi') {
+                    subSeries = [
+                        { name: 'RSI6', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.rsi6), showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
+                        { name: 'RSI12', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.rsi12), showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } }
+                    ];
+                    subYAxis = { type: 'value', gridIndex: 1, min: 0, max: 100, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
+                } else if (activeSub === 'kdj') {
+                    subSeries = [
+                        { name: 'K', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_k), showSymbol: false, lineStyle: { width: 1.1, color: '#FACC15' } },
+                        { name: 'D', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_d), showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } },
+                        { name: 'J', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: bars.map(b => b.kdj_j), showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } }
+                    ];
+                    subYAxis = { type: 'value', gridIndex: 1, scale: true, splitLine: { lineStyle: { color: '#1e293b' } }, axisLabel: { color: '#64748b', fontSize: 9 } };
+                }
+
+                chartYAxes = [
+                    {
+                        type: 'value',
+                        gridIndex: 0,
+                        scale: true,
+                        splitLine: { lineStyle: { color: splitColor } },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
+                        axisLabel: { color: textColor, fontSize: labelFontSize, formatter: v => `¥${v.toFixed(2)}` }
+                    },
+                    subYAxis
+                ];
+            }
+
             const option = {
                 backgroundColor: 'transparent',
+                axisPointer: {
+                    link: [{ xAxisIndex: 'all' }]
+                },
                 tooltip: {
                     trigger: 'axis',
                     axisPointer: {
@@ -4212,6 +4497,19 @@
                             amtStr = amt.toFixed(2) + '元';
                         }
 
+                        // Format Net Inflow
+                        const netInflow = Number(bar.net_inflow || 0);
+                        let netInflowStr = '0.00万';
+                        if (Math.abs(netInflow) >= 100000000) {
+                            netInflowStr = (netInflow / 100000000).toFixed(2) + '亿';
+                        } else if (Math.abs(netInflow) >= 10000) {
+                            netInflowStr = (netInflow / 10000).toFixed(2) + '万';
+                        } else {
+                            netInflowStr = netInflow.toFixed(2) + '元';
+                        }
+                        const netInflowSign = netInflow > 0 ? '+' : '';
+                        const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
+
                         // Format Volume: 手 (1手 = 100股)
                         const volHands = Math.round(Number(bar.volume || 0) / 100);
                         const labelClr = isDark ? '#94a3b8' : '#334155';
@@ -4237,6 +4535,9 @@
                                 <div style="margin-bottom: 1.5px;">
                                     <span style="color: ${labelClr}; font-weight: 500;">成交额: </span><span style="color: ${tooltipTitleColor}; font-weight: 700;">${amtStr}</span>
                                 </div>
+                                <div style="margin-bottom: 1.5px;">
+                                    <span style="color: ${labelClr}; font-weight: 500;">资金净流入: </span><span style="color: ${netInflowColor}; font-weight: 700;">${netInflowSign}${netInflowStr}</span>
+                                </div>
                                 <div>
                                     <span style="color: ${labelClr}; font-weight: 500;">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 600;">${volHands}手</span>
                                 </div>
@@ -4246,43 +4547,12 @@
                         `;
                     }
                 },
-                grid: [
-                    { left: gridLeft, right: gridRight, top: 10, height: isMobile ? '52%' : '58%' },
-                    { left: gridLeft, right: gridRight, top: isMobile ? '69%' : '73%', height: isMobile ? '23%' : '20%' }
-                ],
-                xAxis: [
-                    {
-                        type: 'category',
-                        data: dates,
-                        boundaryGap: true,
-                        axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { color: textColor, fontSize: labelFontSize },
-                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg, formatter: p => formatDatetimeWithWeekday(p.value) } },
-                        splitLine: { show: false }
-                    },
-                    {
-                        type: 'category',
-                        gridIndex: 1,
-                        data: dates,
-                        boundaryGap: true,
-                        axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { show: false },
-                        splitLine: { show: false }
-                    }
-                ],
-                yAxis: [
-                    {
-                        type: 'value',
-                        scale: true,
-                        splitLine: { lineStyle: { color: splitColor } },
-                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
-                        axisLabel: { color: textColor, fontSize: labelFontSize, formatter: v => `¥${v.toFixed(2)}` }
-                    },
-                    subYAxis
-                ],
+                grid: chartGrids,
+                xAxis: chartXAxes,
+                yAxis: chartYAxes,
                 dataZoom: [
-                    { type: 'inside', xAxisIndex: [0, 1], start: 40, end: 100 },
-                    { type: 'slider', xAxisIndex: [0, 1], start: 40, end: 100, height: isMobile ? 10 : 14, bottom: 2, borderColor: axisColor, fillerColor: 'rgba(0, 210, 255, 0.15)' }
+                    { type: 'inside', xAxisIndex: activeSub === 'inflow' ? [0, 1, 2] : [0, 1], start: 40, end: 100 },
+                    { type: 'slider', xAxisIndex: activeSub === 'inflow' ? [0, 1, 2] : [0, 1], start: 40, end: 100, height: isMobile ? 10 : 14, bottom: 2, borderColor: axisColor, fillerColor: 'rgba(0, 210, 255, 0.15)' }
                 ],
                 series: [
                     {
