@@ -81,7 +81,8 @@ class WatchlistUpdateRequest(BaseModel):
 
 _REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
 _REALTIME_QUOTES_LOCK = threading.Lock()
-REALTIME_TTL = 15.0
+REALTIME_TTL = 5.0
+
 
 @router.get("/watchlist")
 def get_watchlist():

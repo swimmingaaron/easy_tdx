@@ -1119,8 +1119,43 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6 hidden">
+            <!-- 顶部大盘全景控制条 (5s 自动刷新状态指示器与时段切换) -->
+            <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 backdrop-blur-md">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                        <i data-lucide="activity" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h2 class="text-sm font-bold text-white tracking-wide">A股全市场宏观全景与实时行情监控</h2>
+                            <div class="flex items-center space-x-1.5">
+                                <span class="relative flex h-2.5 w-2.5">
+                                    <span id="dashboard-pulse-dot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span id="dashboard-static-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                                </span>
+                                <span id="dashboard-status-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">5s 自动刷新</span>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-400 font-mono mt-0.5">
+                            数据更新时间：<span id="dashboard-refresh-ts" class="text-cyan-400 font-semibold">正在同步...</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 text-xs">
+                    <label class="flex items-center space-x-2 cursor-pointer select-none text-slate-300 hover:text-white transition bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700/60">
+                        <input type="checkbox" id="dashboard-only-trading-hours" onchange="handleTradingHoursToggle()" class="rounded bg-slate-700 border-slate-600 text-cyan-500 focus:ring-0 w-3.5 h-3.5">
+                        <span class="text-xs">仅交易时段自动刷新</span>
+                    </label>
+                    <button onclick="manualRefreshDashboard()" id="btn-manual-refresh-dashboard" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition" title="立即手动刷新大盘数据">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span>立即刷新</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- 核心交易所与主要指数一览 (上交所·上证指数, 深交所·深证成指, 创业板·创业板指, 科创板·科创50, 核心宽基·沪深300) -->
             <div id="exchange-indices-row" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+
                 <!-- 上证指数 (上交所) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
                      onclick="openKlineModal('999999', '上证指数')" title="点击查看 上证指数 (000001.SH) 实时K线行情与多周期指标">
@@ -1712,6 +1747,15 @@
 
                 <!-- Right: Action Icons (Watchlist, Backtest, Profile, Theme, Refresh, Close) -->
                 <div class="flex items-center space-x-1.5 text-xs shrink-0">
+                    <!-- K-line Modal 5s live auto-refresh indicator -->
+                    <div id="kp-live-indicator" class="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 font-mono text-[10px] font-bold shrink-0" title="A股交易时间 5s 自动刷新">
+                        <span class="relative flex h-2 w-2">
+                            <span id="kp-pulse-dot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span id="kp-static-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span id="kp-live-text">5s 实时</span>
+                    </div>
+
                     <button id="kp-watchlist-btn" onclick="toggleKpWatchlist()" class="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer not-in-watchlist" title="加入或移出自选监控池">
                         <i id="kp-watchlist-icon" data-lucide="star" class="w-3.5 h-3.5"></i>
                         <span id="kp-watchlist-text">自选</span>
@@ -3542,17 +3586,33 @@
 
         async function refreshKpData(showFeedback = false) {
             const icon = document.getElementById('kp-refresh-icon');
-            if (icon) icon.classList.add('animate-spin');
+            if (icon && showFeedback) icon.classList.add('animate-spin');
 
             try {
+                const wasAtLatest = (currentKpCutoffIndex < 0 || (currentKpFullBars.length > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1));
                 // Simultaneously refresh both K-line historical data and full stock profile/financials
                 await Promise.allSettled([
                     loadKlinePreviewData(),
                     loadStockProfile(currentKpSymbol)
                 ]);
 
+                if (wasAtLatest && currentKpFullBars.length > 0) {
+                    currentKpCutoffIndex = currentKpFullBars.length - 1;
+                    applyKpCutoffAndRender(currentKpData);
+                }
+
                 if (kpEchart) {
                     kpEchart.resize();
+                }
+
+                const liveText = document.getElementById('kp-live-text');
+                const pulseDot = document.getElementById('kp-pulse-dot');
+                if (liveText) {
+                    const inSession = isTradeSession();
+                    liveText.innerText = inSession ? '5s 实时' : '5s 轮询';
+                    if (pulseDot) {
+                        pulseDot.style.display = inSession ? '' : 'none';
+                    }
                 }
 
                 if (showFeedback) {
@@ -3564,7 +3624,7 @@
                     showToast('刷新异常', '数据重新加载失败，请检查网络连接');
                 }
             } finally {
-                if (icon) {
+                if (icon && showFeedback) {
                     setTimeout(() => icon.classList.remove('animate-spin'), 400);
                 }
             }
@@ -5865,24 +5925,25 @@
             }
         }
 
-        let _dashboardAutoTimer = null;
-        let _isDashboardPolling = false;
+        let _masterBgTimer = null;
+        let _isMasterPolling = false;
 
         function isTradeSession() {
             const now = new Date();
             const day = now.getDay(); // 0 is Sunday, 6 is Saturday
             if (day === 0 || day === 6) return false;
             
-            const curMinutes = now.getHours() * 60 + now.getMinutes();
-            // Morning: 09:15 ~ 11:30 (555 ~ 690)
-            const morning = (curMinutes >= 555 && curMinutes <= 690);
-            // Afternoon: 13:00 ~ 15:05 (780 ~ 905)
-            const afternoon = (curMinutes >= 780 && curMinutes <= 905);
+            const totalSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+            // A股 交易时间:
+            // 早盘集合竞价与连续竞价: 09:15:00 (33300s) ~ 11:30:30 (41430s)
+            const morning = (totalSec >= 33300 && totalSec <= 41430);
+            // 午盘连续竞价与收盘集合竞价: 13:00:00 (46800s) ~ 15:05:30 (54330s)
+            const afternoon = (totalSec >= 46800 && totalSec <= 54330);
             return morning || afternoon;
         }
 
         function updateTradingStatusUI() {
-            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? true;
+            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? false;
             const inSession = isTradeSession();
             const badgeEl = document.getElementById('dashboard-status-badge');
             const pulseDot = document.getElementById('dashboard-pulse-dot');
@@ -5891,7 +5952,7 @@
 
             if (!onlyTrading) {
                 badgeEl.className = 'px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/80 font-mono text-[11px] font-bold';
-                badgeEl.innerText = '全天候模式 · 5s 自动刷新';
+                badgeEl.innerText = inSession ? '交易中 · 5s 自动刷新' : '全天候 · 5s 自动刷新';
                 if (pulseDot) { pulseDot.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75'; pulseDot.style.display = ''; }
                 if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500';
             } else if (inSession) {
@@ -5909,9 +5970,9 @@
 
         function handleTradingHoursToggle() {
             updateTradingStatusUI();
-            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? true;
+            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? false;
             if (!onlyTrading || isTradeSession()) {
-                tickDashboardOnce();
+                tickMasterBackgroundOnce();
             }
         }
 
@@ -5921,7 +5982,8 @@
             try {
                 await Promise.allSettled([
                     loadDashboardData(),
-                    loadRealtimeQuotes()
+                    loadRealtimeQuotes(),
+                    tickAllKlinesOnce()
                 ]);
             } catch (e) {
                 console.error('Manual refresh error:', e);
@@ -5931,37 +5993,71 @@
             }
         }
 
-        async function tickDashboardOnce() {
+        // 所有 K线 UI 后台 5s 自动刷新调度器
+        async function tickAllKlinesOnce() {
+            try {
+                // 1. K线弹窗 (kline-preview-modal) 自动刷新
+                const modal = document.getElementById('kline-preview-modal');
+                if (modal && !modal.classList.contains('hidden') && currentKpSymbol) {
+                    if (!currentKpReplayTimer) {
+                        await refreshKpData(false);
+                    }
+                }
+
+                // 2. 单标的回测 / 策略 K线图 (view-backtest) 自动刷新
+                const btView = document.getElementById('view-backtest');
+                if (btView && !btView.classList.contains('hidden') && !isBtRunning && !currentBtReplayTimer) {
+                    const wasAtLatest = (currentBtCutoffIndex < 0 || (currentBtFullBars.length > 0 && currentBtCutoffIndex >= currentBtFullBars.length - 1));
+                    if (wasAtLatest) {
+                        const sym = document.getElementById('bt-symbol')?.value?.trim() || '603986';
+                        const cat = document.getElementById('bt-category')?.value || 'DAY';
+                        await loadBtFullBars(sym, cat);
+                        if (currentBtFullBars.length > 0) {
+                            currentBtCutoffIndex = currentBtFullBars.length - 1;
+                            updateBtStepperUI();
+                            await runBacktest();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.debug('Kline 5s auto-refresh error:', err);
+            }
+        }
+
+        // A股交易时间 后台 5s 统一高频自动刷新调度器
+        async function tickMasterBackgroundOnce() {
             updateTradingStatusUI();
-            const dashView = document.getElementById('view-dashboard');
-            // Only update when Dashboard is currently displayed
-            if (!dashView || dashView.classList.contains('hidden')) return;
             
-            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? true;
+            const inSession = isTradeSession();
+            const onlyTrading = document.getElementById('dashboard-only-trading-hours')?.checked ?? false;
             // When onlyTrading is enabled and outside trading hours, skip auto-refresh!
-            if (onlyTrading && !isTradeSession()) {
+            if (onlyTrading && !inSession) {
                 return;
             }
 
-            if (_isDashboardPolling) return;
-            _isDashboardPolling = true;
+            if (_isMasterPolling) return;
+            _isMasterPolling = true;
             try {
+                // 1. Dashboard UI (全景宏观指标、情绪温度、涨跌分布、行业资金流、自选监控实时行情池)
+                // 2. 所有 K线 UI (K线预览弹窗、回测单标的K线图)
                 await Promise.allSettled([
                     loadDashboardData(),
-                    loadRealtimeQuotes()
+                    loadRealtimeQuotes(),
+                    tickAllKlinesOnce()
                 ]);
             } catch (err) {
-                console.debug('Dashboard polling error:', err);
+                console.debug('Master 5s background polling error:', err);
             } finally {
-                _isDashboardPolling = false;
+                _isMasterPolling = false;
             }
         }
 
         function startDashboardAutoRefresh() {
             updateTradingStatusUI();
-            if (_dashboardAutoTimer) clearInterval(_dashboardAutoTimer);
-            _dashboardAutoTimer = setInterval(tickDashboardOnce, 5000);
+            if (_masterBgTimer) clearInterval(_masterBgTimer);
+            _masterBgTimer = setInterval(tickMasterBackgroundOnce, 5000);
         }
+
 
         function renderExchangeIndices(indices) {
             const container = document.getElementById('exchange-indices-row');

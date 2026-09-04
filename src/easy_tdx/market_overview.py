@@ -11,7 +11,8 @@ from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
 logger = logging.getLogger(__name__)
 
 _OVERVIEW_CACHE: tuple[float, dict[str, Any]] | None = None
-CACHE_TTL_SEC = 10.0
+CACHE_TTL_SEC = 5.0
+
 
 # ── MAC client singleton (for board/industry ranking APIs) ────────────
 _MAC_CLIENT = None
@@ -307,7 +308,7 @@ def _build_market_summary() -> dict[str, Any]:
         "status": "success",
         "date": today_str,
         "update_time": update_time_str,
-        "refresh_interval_ms": 15000,
+        "refresh_interval_ms": 5000,
         "is_trading_time": is_trading_time(),
         "major_indices": major_indices,
         "sh_index": {
@@ -363,7 +364,7 @@ def is_trading_time() -> bool:
 
 
 def _start_bg_overview_worker():
-    """Start 5s daemon background worker to continuously refresh market summary during trading hours."""
+    """Start 5s daemon background worker to continuously refresh market summary."""
     global _BG_THREAD_STARTED
     if _BG_THREAD_STARTED:
         return
@@ -372,39 +373,38 @@ def _start_bg_overview_worker():
     def _worker():
         while True:
             try:
-                if is_trading_time():
-                    data = _build_market_summary()
-                    with _CACHE_LOCK:
-                        global _OVERVIEW_CACHE
-                        _OVERVIEW_CACHE = (time.time(), data)
-                    time.sleep(5.0)
-                else:
-                    # Outside trading hours: idle check every 30s
-                    time.sleep(30.0)
+                data = _build_market_summary()
+                with _CACHE_LOCK:
+                    global _OVERVIEW_CACHE
+                    _OVERVIEW_CACHE = (time.time(), data)
             except Exception as e:
                 logger.debug(f"Background market overview update error: {e}")
-                time.sleep(5.0)
+            time.sleep(5.0)
             
     t = threading.Thread(target=_worker, daemon=True, name="MarketOverview5sDaemon")
     t.start()
-    logger.info("Market overview 5s background worker started successfully (trading-session gated).")
+    logger.info("Market overview 5s background worker started successfully.")
 
 
 def fetch_realtime_market_summary() -> dict[str, Any]:
     """Fetch real-time comprehensive market breadth, sentiment, turnover directly from native TDX socket.
     
-    Uses high-speed 15s in-memory cache backed by a daemon background worker,
+    Uses high-speed 5s in-memory cache backed by a daemon background worker,
     ensuring <1ms response times on periodic polling.
     """
     global _OVERVIEW_CACHE
     _start_bg_overview_worker()
+    now = time.time()
     with _CACHE_LOCK:
         if _OVERVIEW_CACHE is not None:
-            return _OVERVIEW_CACHE[1]
+            ts, data = _OVERVIEW_CACHE
+            if now - ts < CACHE_TTL_SEC:
+                return data
 
-    # First-time synchronous fallback if background thread hasn't finished first tick
+    # Cache expired or first-time synchronous fallback
     data = _build_market_summary()
     with _CACHE_LOCK:
-        _OVERVIEW_CACHE = (time.time(), data)
+        _OVERVIEW_CACHE = (now, data)
     return data
+
 
