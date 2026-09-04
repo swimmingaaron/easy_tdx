@@ -88,10 +88,10 @@ defineExpose({ loadBars, loading })
 <template>
   <div class="symbol-picker">
     <div class="field">
-      <label>代码 / 拼音 / 名称</label>
+      <label>股票代码</label>
       <StockSearchInput
         v-model="code"
-        placeholder="6位代码 / 拼音首字母(如jzgf) / 名称"
+        placeholder="搜索股票代码..."
       />
     </div>
 

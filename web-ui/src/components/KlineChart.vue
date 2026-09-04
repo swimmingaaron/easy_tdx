@@ -144,16 +144,9 @@ function buildOption(): echarts.EChartsCoreOption {
     })
   }
 
-  // 组装 K 线名称（如：君正股份 (601216) K线）
+  // 组装 K 线名称：只显示股票代码，节省布局
   const cleanCode = props.code || (props.symbol ? props.symbol.split(':').pop() : '')
-  let klineName = 'K线'
-  if (resolvedName.value && cleanCode) {
-    klineName = `${resolvedName.value} (${cleanCode}) K线`
-  } else if (resolvedName.value) {
-    klineName = `${resolvedName.value} K线`
-  } else if (cleanCode) {
-    klineName = `${cleanCode} K线`
-  }
+  const klineName = cleanCode ? `${cleanCode} K线` : 'K线'
 
   return {
     backgroundColor: 'transparent',

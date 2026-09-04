@@ -14,7 +14,7 @@ const props = withDefaults(
     autoAddOnSelect?: boolean
   }>(),
   {
-    placeholder: '代码 / 拼音首字母(如jzgf) / 名称',
+    placeholder: '搜索股票代码...',
     autoAddOnSelect: false,
   },
 )
@@ -98,7 +98,7 @@ function onFocus() {
   }
 }
 
-// 选中某个建议项
+// 选中某个建议项：只在搜索框回填 6 位股票代码，节省布局
 function selectItem(item: StockSuggestItem) {
   query.value = item.code
   selectedName.value = item.name
@@ -109,6 +109,16 @@ function selectItem(item: StockSuggestItem) {
   nextTick(() => {
     inputRef.value?.focus()
   })
+}
+
+// 清空按钮
+function clearQuery() {
+  query.value = ''
+  selectedName.value = ''
+  open.value = false
+  suggestions.value = []
+  emit('update:modelValue', '')
+  inputRef.value?.focus()
 }
 
 // 键盘事件处理
@@ -184,6 +194,15 @@ onBeforeUnmount(() => {
         @focus="onFocus"
         @keydown="onKeyDown"
       />
+      <button
+        v-if="query"
+        type="button"
+        class="clear-btn"
+        title="清空"
+        @click="clearQuery"
+      >
+        ✕
+      </button>
       <span v-if="detectedMarket" class="market-tag">{{ detectedMarket }}</span>
     </div>
 
@@ -237,6 +256,20 @@ onBeforeUnmount(() => {
 .input-wrapper input:focus {
   outline: none;
   border-color: var(--accent);
+}
+.clear-btn {
+  position: absolute;
+  right: 48px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.clear-btn:hover {
+  color: var(--text);
 }
 .market-tag {
   position: absolute;
