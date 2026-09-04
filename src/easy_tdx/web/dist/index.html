@@ -3797,7 +3797,7 @@
             }
 
             el.innerHTML = `
-                <div class="flex items-center space-x-2 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
+                <div class="flex items-center space-x-2 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap no-scrollbar h-[18px]">
                     <span style="color:#8E8E96">${formatDatetimeWithWeekday(bar.datetime)}</span>
                     <span style="color:#8E8E96">开</span>
                     <span style="color:${openClr}; font-weight:600;">${Number(bar.open).toFixed(2)}</span>
@@ -3817,7 +3817,7 @@
                     <span style="color:#8E8E96; margin-left:6px;">资金净流入</span>
                     <span style="color:${inColor}; font-weight:700;">${inStr}</span>
                 </div>
-                <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
+                <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap no-scrollbar h-[18px]">
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>
                     <span style="color:#3B82F6">MA10:${bar.ma10 ? Number(bar.ma10).toFixed(2) : '—'}</span>
                     <span style="color:#F97316">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
@@ -3826,10 +3826,10 @@
                     ${subMaLine}
                     ${isZigActive && bar.zig ? `
                         <span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}</span>
-                        ${bar.zig_trough ? ' <strong class="text-sky-400 font-bold bg-sky-950/90 px-1.5 py-0.5 rounded border border-sky-700">[波谷底]</strong>' : ''}
-                        ${bar.zig_buy ? ' <strong class="text-rose-400 font-bold bg-rose-950/90 px-1.5 py-0.5 rounded border border-rose-700">[强买建仓]</strong>' : ''}
-                        ${bar.zig_peak ? ' <strong class="text-amber-400 font-bold bg-amber-950/90 px-1.5 py-0.5 rounded border border-amber-700">[波峰顶]</strong>' : ''}
-                        ${bar.zig_sell ? ' <strong class="text-yellow-400 font-bold bg-yellow-950/90 px-1.5 py-0.5 rounded border border-yellow-700">[卖点]</strong>' : ''}
+                        ${bar.zig_trough ? ' <span style="color:#38BDF8; font-weight:600;">[波谷底]</span>' : ''}
+                        ${bar.zig_buy ? ' <span style="color:#f04438; font-weight:600;">[买点]</span>' : ''}
+                        ${bar.zig_peak ? ' <span style="color:#F59E0B; font-weight:600;">[波峰顶]</span>' : ''}
+                        ${bar.zig_sell ? ' <span style="color:#EAB308; font-weight:600;">[卖点]</span>' : ''}
                     ` : ''}
                 </div>
             `;
