@@ -1697,10 +1697,16 @@
                         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shadow-sm" id="kp-status-tag">强势上攻</span>
                     </div>
 
-                    <div class="hidden lg:flex items-center space-x-2 text-[11px] text-slate-400 font-sans ml-2">
-                        <span>市值 <strong class="text-slate-200 font-mono" id="kp-total-val">228.39亿</strong></span>
-                        <span>流通 <strong class="text-slate-200 font-mono" id="kp-float-val">222.84亿</strong></span>
-                        <span>换手 <strong class="text-slate-200 font-mono" id="kp-turnover">13.56%</strong></span>
+                    <div class="hidden md:flex items-center space-x-2 text-[11px] text-slate-400 font-sans ml-2 bg-slate-900/60 px-2.5 py-0.5 rounded-lg border border-slate-800/80 shrink-0">
+                        <span>总市值 <strong class="text-slate-200 font-mono font-semibold" id="kp-total-val">--</strong></span>
+                        <span class="text-slate-700">|</span>
+                        <span>流通市值 <strong class="text-slate-200 font-mono font-semibold" id="kp-float-val">--</strong></span>
+                        <span class="text-slate-700">|</span>
+                        <span>PE(动) <strong class="text-slate-200 font-mono font-semibold" id="kp-pe" title="动态市盈率">--</strong></span>
+                        <span class="text-slate-700">|</span>
+                        <span>换手率 <strong class="text-slate-200 font-mono font-semibold" id="kp-turnover">--</strong></span>
+                        <span class="text-slate-700">|</span>
+                        <span>量比 <strong class="text-slate-200 font-mono font-semibold" id="kp-vol-ratio">--</strong></span>
                     </div>
                 </div>
 
@@ -1903,7 +1909,8 @@
                     <span class="text-slate-400">低</span> <span class="text-emerald-400 font-semibold">14.26</span>
                     <span class="text-slate-400">收</span> <span class="text-rose-500 font-bold">14.28</span>
                     <span class="text-rose-500 font-bold ml-1">+6.33%</span>
-                    <span class="text-slate-400 ml-1">换手</span> <span class="text-slate-300 font-semibold">13.56%</span>
+                    <span class="text-slate-400 ml-1">换手</span> <span class="text-slate-300 font-semibold" id="kp-bar-turnover">--</span>
+                    <span class="text-slate-400 ml-1">量比</span> <span class="text-slate-300 font-semibold" id="kp-bar-vol-ratio">--</span>
                 </div>
                 <div class="flex items-center space-x-2 sm:space-x-3 text-[10px] sm:text-[11px] overflow-x-auto whitespace-nowrap no-scrollbar">
                     <span style="color:#A1A1AA">MA5:15.06</span>
@@ -3605,9 +3612,34 @@
                     if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
                     updateKpWatchlistButton();
 
-                    if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = `${q.total_val_yi || 228.39}亿`;
-                    if (document.getElementById('kp-float-val')) document.getElementById('kp-float-val').innerText = `${q.float_val_yi || 222.84}亿`;
-                    if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = `${q.turnover_rate || (currentKpFullBars.length > 0 ? (currentKpFullBars[currentKpFullBars.length - 1].turnover_rate || 5.0) : 5.0)}%`;
+                    const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
+                    const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
+                    const turnoverStr = q.turnover_rate !== undefined && q.turnover_rate !== null ? `${Number(q.turnover_rate).toFixed(2)}%` : '--';
+                    const volRatioVal = q.vol_ratio !== undefined && q.vol_ratio !== null ? Number(q.vol_ratio) : null;
+                    const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
+
+                    let peStr = '--';
+                    if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
+                        peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
+                    } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
+                        peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
+                    }
+
+                    if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = totValStr;
+                    if (document.getElementById('kp-float-val')) document.getElementById('kp-float-val').innerText = fltValStr;
+                    if (document.getElementById('kp-pe')) {
+                        const peEl = document.getElementById('kp-pe');
+                        peEl.innerText = peStr;
+                        peEl.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM市盈率: ${q.pe_ttm ?? '--'}, 静态市盈率: ${q.pe_static ?? '--'}`;
+                    }
+                    if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = turnoverStr;
+                    if (document.getElementById('kp-vol-ratio')) {
+                        const vrEl = document.getElementById('kp-vol-ratio');
+                        vrEl.innerText = volRatioStr;
+                        if (volRatioVal !== null) {
+                            vrEl.className = volRatioVal >= 2.0 ? 'font-mono font-bold text-amber-400' : (volRatioVal >= 1.0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-slate-200');
+                        }
+                    }
 
                     // If cutoff is unset, set to latest bar
                     if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
@@ -3655,6 +3687,7 @@
             const sign = isUp ? '+' : '';
             const openClr = bar.open >= bar.close ? '#12b76a' : '#f04438';
             const turnoverStr = (bar.turnover_rate !== undefined && bar.turnover_rate !== null) ? `${Number(bar.turnover_rate).toFixed(2)}%` : (bar.amplitude_pct ? `${Number(bar.amplitude_pct).toFixed(2)}%` : '—');
+            const volRatioStr = (bar.vol_ratio !== undefined && bar.vol_ratio !== null) ? `${Number(bar.vol_ratio).toFixed(2)}` : '—';
 
             el.innerHTML = `
                 <div class="flex items-center space-x-2 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
@@ -3670,6 +3703,8 @@
                     <span style="color:${clr}; font-weight:700; margin-left:6px;">${sign}${chgPct.toFixed(2)}%</span>
                     <span style="color:#8E8E96; margin-left:6px;">换手</span>
                     <span style="color:#8E8E96; font-weight:600;">${turnoverStr}</span>
+                    <span style="color:#8E8E96; margin-left:6px;">量比</span>
+                    <span style="color:#8E8E96; font-weight:600;">${volRatioStr}</span>
                 </div>
                 <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap">
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>

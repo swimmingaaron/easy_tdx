@@ -376,9 +376,58 @@ def get_kline(
     chg = round(last_price - prev_price, 2)
     chg_pct = round(((last_price / max(0.01, prev_price)) - 1.0) * 100, 2)
     amt_yi = round(float(last_bar.get("amount", 0.0)) / 100000000.0, 2)
+    
+    # Base defaults
     total_val_yi = round(amt_yi * 18.5, 2) if amt_yi > 0 else round(last_price * 15.0, 2)
     float_val_yi = round(total_val_yi * 0.85, 2)
     turnover = round((float(last_bar.get("volume", 0)) / 1000000.0) * 2.5, 2)
+    pe_dynamic = None
+    pe_ttm = None
+    pe_static = None
+    vol_ratio = last_bar.get("vol_ratio", 1.0)
+
+    # Real-time enrichment from TDX MAC quote protocol (total_cap, float_cap, PE, turnover, vol_ratio)
+    try:
+        from easy_tdx.market_overview import _get_or_create_mac_client
+        from easy_tdx.codec.bitmap import FieldBit, PresetField
+        mac = _get_or_create_mac_client()
+        fields = (
+            PresetField.BASIC
+            + FieldBit.AMOUNT
+            + FieldBit.VOL_RATIO
+            + FieldBit.TOTAL_MARKET_CAP_AB
+            + FieldBit.PE_DYNAMIC
+            + FieldBit.PE_TTM
+            + FieldBit.PE_STATIC
+            + FieldBit.CIRCULATING_CAPITAL_Z
+        )
+        mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
+        df_q = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
+        if df_q is not None and not df_q.empty:
+            row_q = df_q.iloc[0]
+            t_cap = float(row_q.get("total_market_cap_ab") or 0.0)
+            if t_cap > 0:
+                total_val_yi = round(t_cap / 1e8, 2)
+            circ_z = float(row_q.get("circulating_capital_z") or 0.0)
+            if circ_z > 0:
+                float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
+                vol_shares = float(last_bar.get("volume", 0))
+                turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
+            
+            p_d = float(row_q.get("pe_dynamic") or 0.0)
+            if p_d != 0:
+                pe_dynamic = round(p_d, 1)
+            p_t = float(row_q.get("pe_ttm") or 0.0)
+            if p_t != 0:
+                pe_ttm = round(p_t, 1)
+            p_s = float(row_q.get("pe_static") or 0.0)
+            if p_s != 0:
+                pe_static = round(p_s, 1)
+            vr = float(row_q.get("vol_ratio") or 0.0)
+            if vr > 0:
+                vol_ratio = round(vr, 2)
+    except Exception as e:
+        logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
     return {
         "status": "success",
@@ -403,11 +452,14 @@ def get_kline(
             "turnover_rate": turnover,
             "total_val_yi": total_val_yi,
             "float_val_yi": float_val_yi,
+            "pe_dynamic": pe_dynamic,
+            "pe_ttm": pe_ttm,
+            "pe_static": pe_static,
+            "vol_ratio": vol_ratio,
             "ma5": last_bar["ma5"],
             "ma10": last_bar["ma10"],
             "ma20": last_bar["ma20"],
             "ma60": last_bar["ma60"],
-            "vol_ratio": last_bar["vol_ratio"],
             "datetime": last_bar["datetime"]
         },
         "zig_summary": {
