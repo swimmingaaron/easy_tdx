@@ -1789,7 +1789,7 @@
                             <span id="kp-pulse-dot" style="display: none;" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span id="kp-static-dot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
                         </span>
-                        <span id="kp-live-text">休市暂停</span>
+                        <span id="kp-live-text">休市</span>
                     </div>
 
                     <button id="kp-watchlist-btn" onclick="toggleKpWatchlist()" class="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer not-in-watchlist" title="加入或移出自选监控池">
@@ -2729,7 +2729,7 @@
 
             // Render temporary name while fetching
             if (name) {
-                document.getElementById('kp-stock-name').innerText = name;
+                document.getElementById('kp-stock-name').innerText = '';
                 document.getElementById('kp-stock-name-inline').innerText = name;
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
@@ -2738,7 +2738,7 @@
             // Sync stock search input in K-line modal header
             const kpSearchInput = document.getElementById('kp-search-input');
             if (kpSearchInput) {
-                kpSearchInput.value = name ? `${currentKpSymbol} ${name}` : currentKpSymbol;
+                kpSearchInput.value = currentKpSymbol;
             }
             const kpSearchClear = document.getElementById('kp-search-clear');
             if (kpSearchClear) kpSearchClear.classList.remove('hidden');
@@ -2923,7 +2923,7 @@
 
         function selectKpSearchResult(code, name) {
             const input = document.getElementById('kp-search-input');
-            if (input) input.value = name ? `${code} ${name}` : code;
+            if (input) input.value = code;
             const dropdown = document.getElementById('kp-search-dropdown');
             if (dropdown) dropdown.classList.add('hidden');
             const clearBtn = document.getElementById('kp-search-clear');
@@ -3039,7 +3039,7 @@
 
         function selectBtKlineSearchResult(code, name) {
             const input = document.getElementById('bt-kline-search');
-            if (input) input.value = name ? `${code} ${name}` : code;
+            if (input) input.value = code;
             const dropdown = document.getElementById('bt-kline-search-dropdown');
             if (dropdown) dropdown.classList.add('hidden');
             const clearBtn = document.getElementById('bt-kline-search-clear');
@@ -6614,7 +6614,7 @@
                 } else {
                     kpBadge.className = 'flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-default';
                     kpBadge.title = 'A股非交易时段 自动刷新已暂停 (休市中)';
-                    kpText.innerText = '休市暂停';
+                    kpText.innerText = '休市';
                     if (kpPulseDot) kpPulseDot.style.display = 'none';
                     if (kpStaticDot) kpStaticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
                 }
