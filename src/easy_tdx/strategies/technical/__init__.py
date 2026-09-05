@@ -16,6 +16,7 @@ from .turtle_breakout import TurtleBreakoutStrategy
 from .volume_price import VolumePriceStrategy
 from .zhuoyao_momentum import ZhuoyaoStrategy
 from .zig_breakout import ZigBreakoutStrategy
+from .td_sequential import TDSequentialStrategy
 
 __all__ = [
     "BiasReversalStrategy",
@@ -35,4 +36,5 @@ __all__ = [
     "VolumePriceStrategy",
     "ZhuoyaoStrategy",
     "ZigBreakoutStrategy",
+    "TDSequentialStrategy",
 ]
