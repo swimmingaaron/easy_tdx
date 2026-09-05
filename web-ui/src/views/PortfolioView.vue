@@ -19,7 +19,7 @@ const store = useBacktestStore()
 const route = useRoute()
 
 const stocks = ref<string[]>(['SZ:000001', 'SH:600519'])
-const strategy = ref('zig_breakout')
+const strategy = ref('td_sequential')
 const params = ref<Record<string, number | string | boolean>>({})
 const cash = ref(1000000)
 const category = ref<Category>('DAY')

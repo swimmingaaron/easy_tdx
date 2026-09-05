@@ -822,14 +822,14 @@
                             <select id="bt-strategy-select" onchange="onStrategyChange()" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:border-cyan-400 focus:outline-none"></select>
                         </div>
                         <p class="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-2.5 rounded-lg border border-slate-800" id="bt-strategy-desc">
-                            ZIG 关注波峰波谷，结合放量确认反转突破。买卖点精准标记 BUY/SELL。
+                            只做上升九转：高1顺势主升突破建仓，高9见顶衰竭逢高止盈，专做单边主升浪大行情。
                         </p>
 
                         <!-- Dynamic Params Form -->
                         <div id="bt-dynamic-params-container" class="space-y-2 pt-1">
                             <div class="space-y-1">
-                                <label class="text-[11px] text-slate-400">转向确认偏离% (deviation)</label>
-                                <input type="number" id="param-deviation" value="5.0" step="0.5" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white">
+                                <label class="text-[11px] text-slate-400">序列点数 (m)</label>
+                                <input type="number" id="param-m" value="9" min="9" max="13" step="4" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white">
                             </div>
                         </div>
                     </div>
@@ -6574,7 +6574,7 @@
         // ==================== Dynamic Strategy Params Form ==================== //
         function renderStrategyParams(stName) {
             const list = window.ALL_STRATEGIES || [];
-            const st = list.find(s => s.name === stName) || list.find(s => s.name === 'zig_breakout');
+            const st = list.find(s => s.name === stName) || list.find(s => s.name === 'td_sequential') || list[0];
             const descEl = document.getElementById('bt-strategy-desc');
             const container = document.getElementById('bt-dynamic-params-container');
             if (!container) return;
@@ -6656,7 +6656,7 @@
             }
             const sym = document.getElementById('bt-symbol').value.trim() || '603986';
             const selectEl = document.getElementById('bt-strategy-select');
-            const stId = selectEl.value || 'zig_breakout';
+            const stId = selectEl.value || 'td_sequential';
             const stDisplayName = selectEl.options && selectEl.selectedIndex >= 0 ? selectEl.options[selectEl.selectedIndex].text : stId;
             const category = document.getElementById('bt-category').value;
 
@@ -8109,13 +8109,14 @@
             setupStockAutocomplete('opt-symbol', 'opt-symbol-dropdown', () => updateOptimizeKlineHint());
             const optSel = document.getElementById('opt-strategy-select');
             if (optSel && window.ALL_STRATEGIES && window.ALL_STRATEGIES.length > 0) {
-                const optHtml = window.ALL_STRATEGIES.map(s => `<option value="${s.name}" ${s.name==='zig_breakout'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
+                const optHtml = window.ALL_STRATEGIES.map(s => `<option value="${s.name}" ${s.name==='td_sequential'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
                 optSel.innerHTML = optHtml;
             }
             onOptimizeStrategyChange();
         }
 
         const OPT_DEFAULT_PRESETS = {
+            "td_sequential": { "m": [9, 13], "max_hold_bars": [8, 12, 15], "stop_loss_pct": [3.0, 5.0] },
             "zig_breakout": { "zig_delta": [10, 15, 20, 25, 30], "confirm_pct": [1.0, 2.0, 3.0, 5.0] },
             "ma_cross": { "fast": [5, 10, 20], "slow": [20, 30, 60] },
             "bollinger_breakout": { "period": [10, 20, 30], "std_mult": [1.5, 2.0, 2.5] },
@@ -8129,7 +8130,7 @@
         function onOptimizeStrategyChange() {
             const sel = document.getElementById('opt-strategy-select');
             if (!sel) return;
-            const stName = sel.value || 'zig_breakout';
+            const stName = sel.value || 'td_sequential';
             const list = window.ALL_STRATEGIES || [];
             const st = list.find(s => s.name === stName) || list[0];
             const descEl = document.getElementById('opt-strategy-desc');
@@ -8231,7 +8232,7 @@
             const cat = document.getElementById('opt-category')?.value || 'DAY';
             const sDate = document.getElementById('opt-start-date')?.value || '';
             const eDate = document.getElementById('opt-end-date')?.value || '';
-            const stName = document.getElementById('opt-strategy-select')?.value || 'zig_breakout';
+            const stName = document.getElementById('opt-strategy-select')?.value || 'td_sequential';
             const cash = Number(document.getElementById('opt-cash')?.value || 1000000);
             const exec = document.getElementById('opt-execution')?.value || 'next_open';
 
@@ -8681,12 +8682,12 @@
                     const data = await resp.json();
                     const strategies = data.strategies || data.data || [];
                     window.ALL_STRATEGIES = strategies;
-                    const optHtml = strategies.map(s => `<option value="${s.name}" ${s.name==='zig_breakout'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
+                    const optHtml = strategies.map(s => `<option value="${s.name}" ${s.name==='td_sequential'?'selected':''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
                     document.getElementById('screener-strategy-select').innerHTML = optHtml;
                     document.getElementById('bt-strategy-select').innerHTML = optHtml;
                     const optSel = document.getElementById('opt-strategy-select');
                     if (optSel) optSel.innerHTML = optHtml;
-                    renderStrategyParams('zig_breakout');
+                    renderStrategyParams('td_sequential');
                     initOptimizeView();
                     setTimeout(() => runScreenerScan(), 100);
                 }

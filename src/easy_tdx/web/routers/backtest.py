@@ -779,7 +779,7 @@ from fastapi import Request
 async def api_run_backtest_unified(
     request: Request,
     symbol: str = Query("000001", description="Stock code"),
-    strategy: str = Query("bull_trend", description="Strategy identifier"),
+    strategy: str = Query("td_sequential", description="Strategy identifier"),
     category: str = Query("DAY", description="K-line category"),
     start_date: str = Query("", description="Start date"),
     end_date: str = Query("", description="End date"),
@@ -1194,7 +1194,7 @@ def _simulate_strategy_point(
 async def api_run_optimize_unified(
     request: Request,
     symbol: str = Query("603986", description="Stock code"),
-    strategy: str = Query("zig_breakout", description="Strategy identifier"),
+    strategy: str = Query("td_sequential", description="Strategy identifier"),
     category: str = Query("DAY", description="K-line category"),
     start_date: str = Query("", description="Start date"),
     end_date: str = Query("", description="End date"),

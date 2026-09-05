@@ -34,7 +34,7 @@ function isoYearsFromNow(years: number): string {
 const startDate = ref(isoYearsFromNow(-1))
 const endDate = ref(new Date().toISOString().slice(0, 10))
 
-const strategy = ref('zig_breakout')
+const strategy = ref('td_sequential')
 const paramGrid = ref<Record<string, Array<number | string>>>({})
 const cash = ref(1000000)
 const execution = ref<ExecutionMode>('next_open')

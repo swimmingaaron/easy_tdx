@@ -40,7 +40,7 @@ const startDate = ref(isoYearsFromNow(-1))
 const endDate = ref(new Date().toISOString().slice(0, 10))
 
 // 表单状态（v-model 给子组件）
-const strategy = ref('zig_breakout')
+const strategy = ref('td_sequential')
 const params = ref<Record<string, number | string | boolean>>({})
 const cash = ref(1000000)
 const commission = ref(0.0003)

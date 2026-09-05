@@ -33,6 +33,7 @@ from easy_tdx.MyTT import (
     MACD,
     RSI,
     TAQ,
+    TD_SEQUENTIAL,
     TRIX,
     WR,
     ZIG,
@@ -41,7 +42,103 @@ from easy_tdx.MyTT import (
 __all__: list[str] = []  # 注册副作用即可，无需导出符号
 
 
-# ── ZIG 右侧突破回补（默认策略）──────────────────────────────────────────────
+# ── 通达信上升九转（默认策略）──────────────────────────────────────────────────
+
+
+@register_strategy(
+    name="td_sequential",
+    label="通达信上升九转",
+    description=(
+        "只做上升九转：高1顺势主升突破建仓，高9见顶衰竭逢高止盈，"
+        "专做单边主升浪大行情，不参与下跌九转（低9抄底）。"
+    ),
+)
+class TDSequentialStrategy(ParametrizedStrategy):
+    """通达信上升九转策略。
+
+    交易逻辑
+    --------
+    1. **空仓买入（高1启动）**：
+       当 K 线出现上升九转启动信号 (td_high == 1)，代表收盘价首次突破 4 日前收盘价
+       (C > REF(C, 4))，多头动能爆发，全仓顺势买入建仓！
+    2. **持仓卖出（高9见顶/止损/超时）**：
+       - 高9见顶止盈：上升九转连续完成到第 m 根 (td_high == m，默认高9)，多头衰竭见顶止盈；
+       - 目标止盈：若涨幅达到 take_profit_pct 提前获利了结（0 为关闭）；
+       - 硬止损保护：跌破买入价 stop_loss_pct (默认 5.0%) 强制平仓止损；
+       - 最大持仓期：持股达到 max_hold_bars (默认 12 根 K 线) 未现高9则主动平仓。
+    """
+
+    params = [
+        Param(
+            "m",
+            int,
+            default=9,
+            min_value=9,
+            max_value=13,
+            label="序列点数(9/13)",
+            description="通达信上升九转(9)或十三转(13)见顶目标",
+        ),
+        Param(
+            "max_hold_bars",
+            int,
+            default=12,
+            min_value=3,
+            max_value=30,
+            label="最大持仓周期",
+            description="买入后最多持仓 K 线根数，若未现高九则主动平仓",
+        ),
+        Param(
+            "stop_loss_pct",
+            float,
+            default=5.0,
+            min_value=0.0,
+            max_value=20.0,
+            label="硬止损比例(%)",
+            description="跌破买入价此比例强制平仓止损（0 为不设硬止损）",
+        ),
+        Param(
+            "take_profit_pct",
+            float,
+            default=0.0,
+            min_value=0.0,
+            max_value=50.0,
+            label="目标止盈比例(%)",
+            description="达到此盈利幅度提前止盈离场（0 为仅由高九见顶卖出）",
+        ),
+    ]
+
+    def init(self) -> None:
+        self.td_high, _ = self.I(TD_SEQUENTIAL, self.data.close, self.p["m"])
+        self._entry_price: float = 0.0
+        self._entry_bar: int = 0
+
+    def next(self) -> None:
+        idx = self._bar_index
+        cur_c = float(self.data.close[0])
+
+        if self.position["size"] == 0:
+            if self.td_high[idx] == 1:
+                self.buy(size=0)
+                self._entry_price = cur_c
+                self._entry_bar = idx
+        else:
+            is_high_m = (self.td_high[idx] == self.p["m"])
+            is_sl = (self.p["stop_loss_pct"] > 0) and (
+                cur_c < self._entry_price * (1.0 - self.p["stop_loss_pct"] / 100.0)
+            )
+            is_tp = (self.p["take_profit_pct"] > 0) and (
+                cur_c >= self._entry_price * (1.0 + self.p["take_profit_pct"] / 100.0)
+            )
+            is_timeout = (self.p["max_hold_bars"] > 0) and (
+                idx - self._entry_bar >= self.p["max_hold_bars"]
+            )
+
+            if is_high_m or is_sl or is_tp or is_timeout:
+                self.sell(size=0)
+                self._entry_price = 0.0
+
+
+# ── ZIG 右侧突破回补 ──────────────────────────────────────────────────────────
 
 
 @register_strategy(

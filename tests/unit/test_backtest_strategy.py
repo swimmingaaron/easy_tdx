@@ -556,3 +556,23 @@ class TestWarmupAndLookback:
             assert set(result.trades["direction"].unique()).issubset({"BUY", "SELL"})
             assert result.performance["total_trades"] > 0
 
+    def test_td_sequential_strategy_runs_successfully(self) -> None:
+        """回归测试：通达信上升九转策略作为默认策略能够顺利回测并正确生成交易。"""
+        from easy_tdx.backtest.engine import BacktestEngine
+        from easy_tdx.backtest.strategies.builtin import TDSequentialStrategy
+        from easy_tdx.backtest.strategies import get_registry
+
+        # 验证 registry 默认第一个策略是 td_sequential
+        strategies = get_registry().all()
+        assert len(strategies) > 0
+        assert strategies[0].name == "td_sequential"
+        assert strategies[0].label == "通达信上升九转"
+
+        df = _make_df(n=200, seed=42)
+        engine = BacktestEngine(TDSequentialStrategy, cash=100000)
+        result = engine.run(df)
+        assert len(result.equity_curve) == 200
+        assert result.performance is not None
+        assert "total_return" in result.performance
+
+
