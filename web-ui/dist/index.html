@@ -2080,7 +2080,6 @@
                 <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
                     <button type="button" onclick="stepKpDate(-1)" id="kp-btn-prev-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0" title="前移 1 根K线 (快捷键: ← 方向键)">
                         <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
-                        <span>前日</span>
                     </button>
                     
                     <div class="relative flex items-center shrink-0">
@@ -2088,12 +2087,11 @@
                     </div>
 
                     <button type="button" onclick="stepKpDate(1)" id="kp-btn-next-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0" title="后移 1 根K线 (快捷键: → 方向键)">
-                        <span>后日</span>
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                     </button>
 
                     <button type="button" onclick="resetKpCutoffToLatest()" id="kp-btn-latest-day" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden shrink-0" title="恢复至最新交易日">
-                        <span>最新</span>
+                        <span>今</span>
                     </button>
                     
                     <button type="button" onclick="toggleKpReplayPlay()" id="kp-btn-play-replay" class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0" title="逐日自动推演播放 / 暂停 (快捷键: 空格键)">
