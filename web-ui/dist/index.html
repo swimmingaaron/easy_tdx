@@ -2054,8 +2054,9 @@
                 <div id="kp-period-scroll-container" class="flex-1 min-w-0 overflow-x-auto no-scrollbar overscroll-x-contain touch-pan-x flex items-center space-x-1 py-0.5 cursor-grab active:cursor-grabbing select-none" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
                     <!-- Range Presets -->
                     <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
-                        <button onclick="setKpMonths(6)" id="kp-btn-6m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0">半年</button>
-                        <button onclick="setKpMonths(12)" id="kp-btn-12m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">1年</button>
+                        <button onclick="setKpMonths(2)" id="kp-btn-2m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="近2个月K线">月</button>
+                        <button onclick="setKpMonths(6)" id="kp-btn-6m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0" title="近半年K线">半年</button>
+                        <button onclick="setKpMonths(12)" id="kp-btn-12m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="近1年K线">1年</button>
                     </div>
 
                     <!-- 11 Periods Selector -->
@@ -3063,6 +3064,16 @@
             updateKpWatchlistButton();
             updateTradingStatusUI();
 
+            // Reset range months buttons state
+            [2, 6, 12].forEach(val => {
+                const btn = document.getElementById(`kp-btn-${val}m`);
+                if (btn) {
+                    btn.className = (val === currentKpMonths)
+                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0'
+                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                }
+            });
+
             // Reset period buttons state with unified standards
             const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
             periods.forEach(k => {
@@ -3453,10 +3464,14 @@
             currentKpMonths = m;
             currentKpCutoffIndex = -1;
             stopKpReplay();
-            const btn6 = document.getElementById('kp-btn-6m');
-            const btn12 = document.getElementById('kp-btn-12m');
-            if (btn6) btn6.className = m === 6 ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer' : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer';
-            if (btn12) btn12.className = m === 12 ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer' : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer';
+            [2, 6, 12].forEach(val => {
+                const btn = document.getElementById(`kp-btn-${val}m`);
+                if (btn) {
+                    btn.className = (val === m)
+                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0'
+                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                }
+            });
             loadKlinePreviewData();
         }
 
