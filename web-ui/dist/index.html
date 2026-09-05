@@ -869,13 +869,40 @@
             font-weight: 700 !important;
         }
 
-        /* Stock Name - Pure Bold White */
+        /* Stock Name - Pure Bold White across ALL themes & classes */
         .dropdown-menu .text-white,
+        .dropdown-menu .text-slate-100,
+        .dropdown-menu .stock-search-name,
         #kp-search-dropdown .text-white,
+        #kp-search-dropdown .text-slate-100,
+        #kp-search-dropdown .stock-search-name,
+        #kp-search-dropdown span.truncate,
         #bt-kline-search-dropdown .text-white,
-        html.light .dropdown-menu .text-white {
+        #bt-kline-search-dropdown .text-slate-100,
+        #bt-kline-search-dropdown .stock-search-name,
+        #bt-kline-search-dropdown span.truncate,
+        html.light .dropdown-menu .text-white,
+        html.light .dropdown-menu .text-slate-100,
+        html.light .dropdown-menu .stock-search-name,
+        html.light #kp-search-dropdown .text-white,
+        html.light #kp-search-dropdown .text-slate-100,
+        html.light #kp-search-dropdown .stock-search-name,
+        html.light #kp-search-dropdown span.truncate,
+        html.light #bt-kline-search-dropdown .text-white,
+        html.light #bt-kline-search-dropdown .text-slate-100,
+        html.light #bt-kline-search-dropdown .stock-search-name,
+        html.light #bt-kline-search-dropdown span.truncate {
             color: #ffffff !important;
             font-weight: 700 !important;
+        }
+
+        /* Dropdown market badge & secondary tags in light mode */
+        html.light #kp-search-dropdown .bg-slate-800,
+        html.light #bt-kline-search-dropdown .bg-slate-800,
+        html.light .dropdown-menu .bg-slate-800 {
+            background-color: #1e293b !important;
+            color: #94a3b8 !important;
+            border: 1px solid #334155 !important;
         }
 
         /* Pinyin & Secondary Text - High Contrast Gold & Light Slate */
@@ -3505,11 +3532,11 @@
                                  class="kp-search-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition hover:bg-cyan-950/80 border-b border-slate-800/40 last:border-b-0">
                                 <div class="flex items-center space-x-2.5 truncate">
                                     <span class="font-mono font-bold text-cyan-400 shrink-0">${item.code}</span>
-                                    <span class="text-slate-100 font-sans font-semibold truncate">${item.name}</span>
+                                    <span class="stock-search-name text-white font-sans font-bold truncate">${item.name}</span>
                                 </div>
                                 <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px] text-slate-400">
-                                    <span class="text-amber-400/90 font-semibold">${item.pinyin || ''}</span>
-                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans">${item.market}</span>` : ''}
+                                    <span class="text-amber-400 font-semibold">${item.pinyin || ''}</span>
+                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans border border-slate-700/80">${item.market}</span>` : ''}
                                 </div>
                             </div>
                         `).join('');
@@ -3632,11 +3659,11 @@
                                  class="bt-kline-search-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition hover:bg-cyan-950/80 border-b border-slate-800/40 last:border-b-0">
                                 <div class="flex items-center space-x-2.5 truncate">
                                     <span class="font-mono font-bold text-cyan-400 shrink-0">${item.code}</span>
-                                    <span class="text-slate-100 font-sans font-semibold truncate">${item.name}</span>
+                                    <span class="stock-search-name text-white font-sans font-bold truncate">${item.name}</span>
                                 </div>
                                 <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px] text-slate-400">
-                                    <span class="text-amber-400/90 font-semibold">${item.pinyin || ''}</span>
-                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans">${item.market}</span>` : ''}
+                                    <span class="text-amber-400 font-semibold">${item.pinyin || ''}</span>
+                                    ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans border border-slate-700/80">${item.market}</span>` : ''}
                                 </div>
                             </div>
                         `).join('');
