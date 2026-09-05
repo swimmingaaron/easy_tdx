@@ -1,6 +1,6 @@
-"""通达信九转交易策略。
+"""通达信上升九转策略。
 
-支持高1顺势主升买入与低9超跌反转买入，并在高9见顶时逢高止盈，结合最长持有期与硬止损保护。
+只做上升九转：高1顺势主升突破建仓，高9见顶衰竭逢高止盈，专做单边主升浪大行情。
 
 用法::
 
@@ -12,16 +12,15 @@ from easy_tdx.MyTT import TD_SEQUENTIAL
 
 
 class TDSequentialStrategy(Strategy):
-    """通达信九转策略。"""
+    """通达信上升九转策略。"""
 
     m: int = 9
-    trade_mode: str = "both"  # "both", "trend", "reversal"
-    max_hold_bars: int = 15
+    max_hold_bars: int = 12
     stop_loss_pct: float = 5.0
     take_profit_pct: float = 0.0
 
     def init(self) -> None:
-        self.td_high, self.td_low = self.I(TD_SEQUENTIAL, self.data.close, self.m)
+        self.td_high, _ = self.I(TD_SEQUENTIAL, self.data.close, self.m)
         self.entry_price = 0.0
         self.entry_bar = 0
 
@@ -30,13 +29,7 @@ class TDSequentialStrategy(Strategy):
         cur_c = float(self.data.close[0])
 
         if self.position["size"] == 0:
-            can_buy = False
-            if self.trade_mode in ("both", "reversal") and self.td_low[idx] == self.m:
-                can_buy = True
-            elif self.trade_mode in ("both", "trend") and self.td_high[idx] == 1:
-                can_buy = True
-
-            if can_buy:
+            if self.td_high[idx] == 1:
                 self.buy(size=0)
                 self.entry_price = cur_c
                 self.entry_bar = idx
