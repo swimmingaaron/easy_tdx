@@ -29,21 +29,21 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --bg-body: #07090e;
-            --text-primary: #e2e8f0;
-            --text-secondary: #94a3b8;
-            --card-bg: rgba(15, 23, 42, 0.85);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --border-subtle: #1e293b;
+            --bg-body: #0d1117; /* 护眼深灰蓝，告别刺眼死黑与眩光 */
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --card-bg: rgba(22, 27, 34, 0.88);
+            --card-border: rgba(48, 54, 61, 0.8);
+            --border-subtle: #21262d;
         }
 
         html.light {
-            --bg-body: #f8fafc;
-            --text-primary: #0f172a;
-            --text-secondary: #64748b;
-            --card-bg: rgba(255, 255, 255, 0.96);
-            --card-border: #e2e8f0;
-            --border-subtle: #f1f5f9;
+            --bg-body: #f0f2f5; /* 护眼温润雅灰，杜绝纯白高光反射，舒缓眼疲劳 */
+            --text-primary: #1f2328;
+            --text-secondary: #57606a;
+            --card-bg: #ffffff;
+            --card-border: #d0d7de;
+            --border-subtle: #e2e8f0;
         }
 
         body { 
@@ -143,7 +143,9 @@
             background-color: #f1f5f9 !important;
             border-color: #e2e8f0 !important;
         }
-        html.light .text-white {
+        html.light .text-white,
+        html.light .text-slate-50,
+        html.light .text-slate-100 {
             color: #0f172a !important;
         }
         html.light .text-slate-200 {
@@ -152,15 +154,130 @@
         html.light .text-slate-300 {
             color: #334155 !important;
         }
-        html.light .text-slate-400 {
+        html.light .text-slate-400,
+        html.light .text-slate-500 {
             color: #64748b !important;
         }
         html.light .border-slate-800, 
         html.light .border-slate-800\/80, 
         html.light .border-slate-800\/60, 
         html.light .border-slate-700, 
-        html.light .border-slate-700\/50 {
+        html.light .border-slate-700\/50,
+        html.light .border-slate-750\/70,
+        html.light .border-slate-750\/80 {
+            border-color: #cbd5e1 !important;
+        }
+
+        /* ==================== 连板天梯 舒适护眼配色体系 ==================== */
+        .ladder-tier-box {
+            background: rgba(22, 27, 34, 0.85);
+            border: 1px solid rgba(48, 54, 61, 0.8);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .ladder-tier-title {
+            color: #f0f6fc;
+        }
+        .ladder-tier-desc {
+            color: #8b949e;
+        }
+        .ladder-stock-card {
+            background: rgba(13, 17, 23, 0.9);
+            border: 1px solid #30363d;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+        }
+        .ladder-stock-card:hover {
+            background: rgba(22, 27, 34, 0.98);
+            border-color: rgba(56, 189, 248, 0.6);
+            box-shadow: 0 8px 24px rgba(8, 145, 178, 0.15);
+        }
+        .ladder-stock-name {
+            color: #f0f6fc;
+        }
+        .ladder-stock-price {
+            color: #e6edf3;
+        }
+        .ladder-metric-box {
+            background: rgba(22, 27, 34, 0.9);
+            border: 1px solid rgba(48, 54, 61, 0.7);
+        }
+        .ladder-metric-label {
+            color: #8b949e;
+        }
+        .ladder-metric-val {
+            color: #f0f6fc;
+        }
+        .ladder-hint-box {
+            background: rgba(22, 27, 34, 0.92);
+            border: 1px solid rgba(48, 54, 61, 0.8);
+            color: #c9d1d9;
+        }
+        .ladder-kpi-card {
+            background: rgba(22, 27, 34, 0.85);
+            border: 1px solid rgba(48, 54, 61, 0.8);
+        }
+        .ladder-filter-toolbar {
+            background: rgba(13, 17, 23, 0.8);
+            border: 1px solid rgba(48, 54, 61, 0.8);
+        }
+
+        /* 浅色/日间护眼模式针对连板天梯的温和高级质感 */
+        html.light .ladder-tier-box {
+            background: #ffffff !important;
             border-color: #e2e8f0 !important;
+            box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05) !important;
+        }
+        html.light .ladder-tier-title {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+        html.light .ladder-tier-desc {
+            color: #475569 !important;
+        }
+        html.light .ladder-stock-card {
+            background: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
+        }
+        html.light .ladder-stock-card:hover {
+            background: #ffffff !important;
+            border-color: #0284c7 !important;
+            box-shadow: 0 8px 20px rgba(2, 132, 199, 0.12) !important;
+        }
+        html.light .ladder-stock-name {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+        }
+        html.light .ladder-stock-price {
+            color: #1e293b !important;
+            font-weight: 700 !important;
+        }
+        html.light .ladder-metric-box {
+            background: #edf2f7 !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.light .ladder-metric-label {
+            color: #475569 !important;
+            font-weight: 500 !important;
+        }
+        html.light .ladder-metric-val {
+            color: #0f172a !important;
+            font-weight: 700 !important;
+        }
+        html.light .ladder-hint-box {
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+        html.light .ladder-kpi-card {
+            background: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light .ladder-filter-toolbar {
+            background: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
         }
         html.light table th {
             background-color: #f8fafc !important;
@@ -1780,7 +1897,7 @@
                 <!-- 5维短线情绪与晋级矩阵 KPI 看板 -->
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="ladder-kpi-bar">
                     <!-- 1. 市场短线情绪 -->
-                    <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                    <div class="ladder-kpi-card p-3.5 rounded-xl space-y-1.5 shadow-sm">
                         <div class="flex items-center justify-between">
                             <span class="text-[11px] text-slate-400 flex items-center"><i data-lucide="flame" class="w-3.5 h-3.5 mr-1 text-rose-500"></i>短线情绪周期</span>
                             <span id="ladder-kpi-emotion-tag" class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">主升亢奋</span>
@@ -1789,13 +1906,13 @@
                             <span id="ladder-kpi-emotion-score" class="text-2xl font-black font-mono text-rose-400">85</span>
                             <span class="text-[11px] text-slate-400">/ 100 分</span>
                         </div>
-                        <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                             <div id="ladder-kpi-emotion-meter" class="h-full bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500 rounded-full" style="width: 85%"></div>
                         </div>
                     </div>
 
                     <!-- 2. 最高空间高度 -->
-                    <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                    <div class="ladder-kpi-card p-3.5 rounded-xl space-y-1.5 shadow-sm">
                         <span class="text-[11px] text-slate-400 flex items-center"><i data-lucide="crown" class="w-3.5 h-3.5 mr-1 text-amber-400"></i>市场空间高度</span>
                         <div class="flex items-baseline space-x-1.5">
                             <span id="ladder-kpi-max-lbc" class="text-2xl font-black font-mono text-amber-400">5 连板</span>
@@ -1804,7 +1921,7 @@
                     </div>
 
                     <!-- 3. 梯队晋级胜率 -->
-                    <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                    <div class="ladder-kpi-card p-3.5 rounded-xl space-y-1.5 shadow-sm">
                         <span class="text-[11px] text-slate-400 flex items-center"><i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>梯队晋级胜率</span>
                         <div class="flex items-center justify-between text-xs font-mono pt-0.5">
                             <div class="text-center">
@@ -1824,7 +1941,7 @@
                     </div>
 
                     <!-- 4. 封板与炸板承接 -->
-                    <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                    <div class="ladder-kpi-card p-3.5 rounded-xl space-y-1.5 shadow-sm">
                         <span class="text-[11px] text-slate-400 flex items-center"><i data-lucide="shield-check" class="w-3.5 h-3.5 mr-1 text-indigo-400"></i>炸板率与溢价</span>
                         <div class="flex items-baseline space-x-2">
                             <span id="ladder-kpi-zb-rate" class="text-2xl font-black font-mono text-indigo-300">14.8%</span>
@@ -1834,7 +1951,7 @@
                     </div>
 
                     <!-- 5. 涨停生态池 -->
-                    <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                    <div class="ladder-kpi-card p-3.5 rounded-xl space-y-1.5 shadow-sm">
                         <span class="text-[11px] text-slate-400 flex items-center"><i data-lucide="activity" class="w-3.5 h-3.5 mr-1 text-emerald-400"></i>全市场封板格局</span>
                         <div class="flex items-baseline space-x-2">
                             <span id="ladder-kpi-zt-count" class="text-2xl font-black font-mono text-rose-500">53</span>
@@ -1845,7 +1962,7 @@
                 </div>
 
                 <!-- 筛选与检索控制条 -->
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                <div class="ladder-filter-toolbar flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl">
                     <!-- 梯队过滤按钮组 -->
                     <div class="flex items-center flex-wrap gap-1.5" id="ladder-filter-buttons">
                         <button onclick="setLadderTierFilter('all')" data-tier="all" class="ladder-filter-btn px-3 py-1 rounded-lg text-xs font-semibold bg-rose-500 text-white shadow-sm transition cursor-pointer">全部梯队</button>
@@ -7394,23 +7511,23 @@
             container.innerHTML = renderedTiers.map(tier => {
                 const avgScore = tier.stocks.length > 0 ? (tier.stocks.reduce((acc, s) => acc + (s.total_score || 75), 0) / tier.stocks.length).toFixed(1) : '--';
                 return `
-                <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800/90 space-y-4 shadow-sm">
+                <div class="ladder-tier-box p-5 rounded-2xl space-y-4 shadow-sm">
                     <!-- 梯队分组标题头 -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                         <div class="flex items-center space-x-2.5">
                             <span class="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500">
                                 <i data-lucide="flame" class="w-4 h-4"></i>
                             </span>
                             <div>
                                 <div class="flex items-center space-x-2">
-                                    <h4 class="text-base font-bold text-white tracking-wide" style="color: #ffffff !important;">${tier.tier}</h4>
-                                    <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">${tier.stocks.length} 只标的</span>
+                                    <h4 class="ladder-tier-title text-base font-extrabold tracking-wide">${tier.tier}</h4>
+                                    <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">${tier.stocks.length} 只标的</span>
                                 </div>
-                                <p class="text-xs text-slate-400 mt-0.5">${tier.desc || '梯队主力资金核心聚焦标的，关注量能承接与卡位'}</p>
+                                <p class="ladder-tier-desc text-xs mt-0.5">${tier.desc || '梯队主力资金核心聚焦标的，关注量能承接与卡位'}</p>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-3 text-xs text-slate-400 font-mono">
-                            <span>梯队平均得分: <strong class="text-amber-400 font-bold">${avgScore}</strong> 分</span>
+                        <div class="flex items-center space-x-3 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                            <span>梯队平均得分: <strong class="text-amber-500 font-bold">${avgScore}</strong> 分</span>
                         </div>
                     </div>
 
@@ -7418,83 +7535,83 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         ${tier.stocks.map(s => {
                             const score = s.total_score || 75.0;
-                            const scoreColor = score >= 88 ? 'text-rose-400' : (score >= 75 ? 'text-amber-400' : 'text-cyan-400');
+                            const scoreColor = score >= 88 ? 'text-rose-500' : (score >= 75 ? 'text-amber-500' : 'text-cyan-500');
                             const roleTag = s.role_tag || (s.lbc >= 4 ? '空间总龙' : (s.lbc >= 3 ? '中军领袖' : (s.lbc === 2 ? '首发龙苗' : '题材先锋')));
                             const status = s.status || (s.turnover > 15 ? '良性换手' : '强势加速');
                             const code = s.code || s.sym;
                             const name = s.name || code;
 
                             return `
-                            <div class="bg-slate-950/80 hover:bg-slate-900 p-4 rounded-xl border border-slate-800 hover:border-cyan-500/60 transition-all duration-200 shadow-sm hover:shadow-cyan-950/20 group flex flex-col justify-between space-y-3">
+                            <div class="ladder-stock-card p-4 rounded-xl group flex flex-col justify-between space-y-3 cursor-default">
                                 <!-- 顶部代码、名称与标签 -->
                                 <div>
                                     <div class="flex items-start justify-between">
                                         <div onclick="openKlineModal('${code}', '${name}')" class="cursor-pointer group-hover:translate-x-0.5 transition-transform">
                                             <div class="flex items-center space-x-2">
-                                                <span class="font-bold text-cyan-400 font-mono text-base group-hover:text-cyan-300">${code}</span>
-                                                <span class="text-sm font-bold group-hover:text-cyan-200" style="color: #f8fafc !important;">${name}</span>
+                                                <span class="font-bold text-cyan-500 dark:text-cyan-400 font-mono text-base">${code}</span>
+                                                <span class="ladder-stock-name text-sm font-bold">${name}</span>
                                             </div>
                                             <div class="flex items-baseline space-x-2 mt-0.5">
-                                                <span class="text-sm font-bold text-slate-100 font-mono" style="color: #f1f5f9 !important;">¥${s.price}</span>
+                                                <span class="ladder-stock-price text-sm font-bold font-mono">¥${s.price}</span>
                                                 <span class="text-xs font-bold font-mono text-rose-500">${s.chg}</span>
                                             </div>
                                         </div>
                                         <div class="flex flex-col items-end space-y-1">
-                                            <span class="text-[10px] px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 tracking-wide">${roleTag}</span>
-                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${status}</span>
+                                            <span class="text-[10px] px-2 py-0.5 rounded font-bold bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 tracking-wide">${roleTag}</span>
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30">${status}</span>
                                         </div>
                                     </div>
 
                                     <!-- 龙头晋级评分与进度条 -->
-                                    <div class="mt-2.5 bg-slate-900/90 p-2 rounded-lg border border-slate-800/80">
+                                    <div class="mt-2.5 ladder-metric-box p-2 rounded-lg">
                                         <div class="flex justify-between items-center text-[11px]">
-                                            <span class="text-slate-300 flex items-center font-medium"><i data-lucide="zap" class="w-3 h-3 mr-1 text-amber-400"></i>龙头晋级指数</span>
-                                            <span class="font-mono font-black ${scoreColor}">${score} <span class="text-[9px] text-slate-400">/ 100</span></span>
+                                            <span class="ladder-metric-label flex items-center font-medium"><i data-lucide="zap" class="w-3 h-3 mr-1 text-amber-500"></i>龙头晋级指数</span>
+                                            <span class="font-mono font-black ${scoreColor}">${score} <span class="text-[9px] opacity-70">/ 100</span></span>
                                         </div>
-                                        <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mt-1.5">
+                                        <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-1.5">
                                             <div class="h-full bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500 rounded-full transition-all duration-500" style="width: ${Math.min(100, Math.max(10, score))}%"></div>
                                         </div>
                                     </div>
 
                                     <!-- 关键盘口量化指标四宫格 -->
                                     <div class="grid grid-cols-4 gap-1.5 text-center mt-2.5">
-                                        <div class="bg-slate-900/90 p-1.5 rounded-lg border border-slate-750/70">
-                                            <div class="text-[10px] text-slate-400 font-medium">首封</div>
-                                            <div class="text-[11px] font-mono font-semibold text-slate-100 mt-0.5">${s.fbt || '--'}</div>
+                                        <div class="ladder-metric-box p-1.5 rounded-lg">
+                                            <div class="ladder-metric-label text-[10px] font-medium">首封</div>
+                                            <div class="ladder-metric-val text-[11px] font-mono mt-0.5">${s.fbt || '--'}</div>
                                         </div>
-                                        <div class="bg-slate-900/90 p-1.5 rounded-lg border border-slate-750/70">
-                                            <div class="text-[10px] text-slate-400 font-medium">封成比</div>
-                                            <div class="text-[11px] font-mono font-bold text-amber-300 mt-0.5">${s.seal_ratio ? s.seal_ratio + '%' : (s.seal || '--')}</div>
+                                        <div class="ladder-metric-box p-1.5 rounded-lg">
+                                            <div class="ladder-metric-label text-[10px] font-medium">封成比</div>
+                                            <div class="text-[11px] font-mono font-bold text-amber-500 mt-0.5">${s.seal_ratio ? s.seal_ratio + '%' : (s.seal || '--')}</div>
                                         </div>
-                                        <div class="bg-slate-900/90 p-1.5 rounded-lg border border-slate-750/70">
-                                            <div class="text-[10px] text-slate-400 font-medium">换手率</div>
-                                            <div class="text-[11px] font-mono font-semibold text-slate-100 mt-0.5">${s.turnover ? s.turnover + '%' : '--'}</div>
+                                        <div class="ladder-metric-box p-1.5 rounded-lg">
+                                            <div class="ladder-metric-label text-[10px] font-medium">换手率</div>
+                                            <div class="ladder-metric-val text-[11px] font-mono mt-0.5">${s.turnover ? s.turnover + '%' : '--'}</div>
                                         </div>
-                                        <div class="bg-slate-900/90 p-1.5 rounded-lg border border-slate-750/70">
-                                            <div class="text-[10px] text-slate-400 font-medium">成交额</div>
-                                            <div class="text-[11px] font-mono font-bold text-cyan-300 mt-0.5">${s.amt_yi ? s.amt_yi + '亿' : '--'}</div>
+                                        <div class="ladder-metric-box p-1.5 rounded-lg">
+                                            <div class="ladder-metric-label text-[10px] font-medium">成交额</div>
+                                            <div class="text-[11px] font-mono font-bold text-cyan-600 dark:text-cyan-300 mt-0.5">${s.amt_yi ? s.amt_yi + '亿' : '--'}</div>
                                         </div>
                                     </div>
 
                                     <!-- 实战操盘决策锦囊 -->
-                                    <div class="mt-2.5 text-[11px] leading-relaxed text-slate-200 bg-slate-900/95 p-2.5 rounded-lg border border-slate-750/80 flex items-start space-x-1.5 shadow-inner">
-                                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5"></i>
-                                        <span class="line-clamp-2 text-slate-200 font-sans">${s.action_hint || '主线突破标的，密切跟踪板块效应与分歧回封承接。'}</span>
+                                    <div class="mt-2.5 text-[11px] leading-relaxed ladder-hint-box p-2.5 rounded-lg flex items-start space-x-1.5 shadow-sm">
+                                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5"></i>
+                                        <span class="line-clamp-2 font-sans font-medium">${s.action_hint || '主线突破标的，密切跟踪板块效应与分歧回封承接。'}</span>
                                     </div>
                                 </div>
 
                                 <!-- 卡片底部：概念与快捷操作按钮 -->
-                                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                                    <div class="flex items-center space-x-1 text-slate-400 text-[11px] truncate max-w-[55%]">
-                                        <i data-lucide="tag" class="w-3 h-3 text-slate-400 shrink-0"></i>
-                                        <span class="truncate text-cyan-300 font-medium">${s.concept || '主线题材'}</span>
+                                <div class="pt-2 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
+                                    <div class="flex items-center space-x-1 text-slate-500 dark:text-slate-400 text-[11px] truncate max-w-[55%]">
+                                        <i data-lucide="tag" class="w-3 h-3 opacity-70 shrink-0"></i>
+                                        <span class="truncate text-cyan-600 dark:text-cyan-300 font-medium">${s.concept || '主线题材'}</span>
                                     </div>
                                     <div class="flex items-center space-x-1.5">
-                                        <button onclick="openKlineModal('${code}', '${name}')" class="px-2.5 py-1 rounded-md bg-indigo-950/90 text-indigo-200 border border-indigo-700 text-xs hover:bg-indigo-900 hover:text-white transition flex items-center space-x-1 cursor-pointer">
+                                        <button onclick="openKlineModal('${code}', '${name}')" class="px-2.5 py-1 rounded-md bg-indigo-500/10 dark:bg-indigo-950/90 text-indigo-600 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 text-xs hover:bg-indigo-500/20 hover:text-indigo-700 transition flex items-center space-x-1 cursor-pointer">
                                             <i data-lucide="line-chart" class="w-3 h-3"></i>
                                             <span>K线</span>
                                         </button>
-                                        <button onclick="quickBacktest('${code}')" class="px-2.5 py-1 rounded-md bg-cyan-950/90 text-cyan-200 border border-cyan-700 text-xs hover:bg-cyan-900 hover:text-white transition cursor-pointer">
+                                        <button onclick="quickBacktest('${code}')" class="px-2.5 py-1 rounded-md bg-cyan-500/10 dark:bg-cyan-950/90 text-cyan-600 dark:text-cyan-200 border border-cyan-300 dark:border-cyan-700 text-xs hover:bg-cyan-500/20 hover:text-cyan-700 transition cursor-pointer">
                                             <span>回测</span>
                                         </button>
                                     </div>
