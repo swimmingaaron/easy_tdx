@@ -304,16 +304,94 @@
         html.light table tr:hover {
             background-color: rgba(241, 245, 249, 0.7) !important;
         }
+        /* ==================== 模态框与弹窗 亮色模式高级柔和护眼底色 ==================== */
+        html.light #quote-carousel-modal,
+        html.light #server-modal,
+        html.light #kline-preview-modal {
+            background-color: rgba(15, 23, 42, 0.45) !important;
+            backdrop-filter: blur(8px) !important;
+            -webkit-backdrop-filter: blur(8px) !important;
+        }
+
         html.light #kline-preview-modal > div {
-            background: rgba(255, 255, 255, 0.88) !important;
+            background: rgba(255, 255, 255, 0.96) !important;
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border-color: rgba(226, 232, 240, 0.8) !important;
+            border-color: rgba(226, 232, 240, 0.9) !important;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
         }
+
+        /* 投资大师名言轮播弹窗 (QuoteCarousel Modal) 亮色模式极致调优：温润纯白护眼卡片与高对比墨石字 */
+        html.light #quote-carousel-modal > div {
+            background: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.light #quote-carousel-modal .absolute.top-0 {
+            background-color: #f1f5f9 !important;
+        }
+        html.light #quote-carousel-modal button {
+            color: #64748b !important;
+        }
+        html.light #quote-carousel-modal button:hover {
+            color: #0f172a !important;
+            background-color: #f1f5f9 !important;
+        }
+        html.light #quote-carousel-modal .text-6xl {
+            color: rgba(245, 158, 11, 0.22) !important;
+        }
+        html.light #modal-quote-text {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+        html.light #modal-quote-author {
+            color: #d97706 !important;
+        }
+        html.light #quote-carousel-modal .border-dashed {
+            border-color: #e2e8f0 !important;
+        }
+        html.light #modal-quote-hint,
+        html.light #quote-carousel-modal .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        /* 通达信行情服务器管理弹窗 (Server Modal) 亮色模式调优 */
+        html.light #server-modal > div,
         html.light #server-switch-modal > div {
             background: #ffffff !important;
             border-color: #e2e8f0 !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+        }
+        html.light #server-modal .border-b,
+        html.light #server-modal .border-t {
+            border-color: #e2e8f0 !important;
+        }
+        html.light #server-modal .bg-slate-900\/90 {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.light #server-modal input#server-filter-input {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+
+        /* 寻优参数代码框、Toast 与细节组件 */
+        html.light #opt-best-params-code {
+            background-color: #f1f5f9 !important;
+            color: #0284c7 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        html.light #toast-container .glass-card {
+            background: #ffffff !important;
+            border-color: #06b6d4 !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+        }
+        html.light #toast-container h5 {
+            color: #0f172a !important;
+        }
+        html.light #toast-container p {
+            color: #475569 !important;
         }
 
         /* Remove heavy dark badge backgrounds in light mode */
