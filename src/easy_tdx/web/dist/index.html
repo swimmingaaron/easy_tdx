@@ -3695,7 +3695,7 @@
         // Global ZIG Auxiliary Resonance & Profit Optimization Configuration
         let zigAuxConfig = {
             mode: 'ENHANCED', // 'ENHANCED' (多指标共振 + 动态移动止盈) or 'CLASSIC' (纯ZIG)
-            zigDelta: 10.0,
+            zigDelta: 5.0,
             stopLossPct: 5.0,
             confirmPct: 1.0,
             hhvPeriod: 20,
@@ -3762,7 +3762,35 @@
             const lows = bars.map(b => Number(b.low || b.close || 0));
             const vols = bars.map(b => Number(b.volume || b.vol || 0));
             
-            const detailed = calcZigZagDetailed(closes, cfg.zigDelta);
+            // 自适应周期与波动率的 ZIG 转向阈值计算
+            let maxC = -Infinity, minC = Infinity;
+            for (let c of closes) {
+                if (c > maxC) maxC = c;
+                if (c < minC) minC = c;
+            }
+            const totalSwingPct = minC > 0 ? ((maxC - minC) / minC * 100) : 0;
+
+            let baseDelta = cfg.zigDelta || 5.0;
+            if (!customCfg.zigDelta) {
+                if (['1M', '5M'].includes(currentKpPeriod)) {
+                    baseDelta = 1.0;
+                } else if (['15M', '30M'].includes(currentKpPeriod)) {
+                    baseDelta = 1.8;
+                } else if (['60M', '120M'].includes(currentKpPeriod)) {
+                    baseDelta = 2.8;
+                } else if (currentKpPeriod === 'DAY') {
+                    baseDelta = 5.0; // 通达信经典 5% 转向
+                } else {
+                    baseDelta = 8.0;
+                }
+            }
+
+            let effectiveDelta = baseDelta;
+            if (totalSwingPct > 0 && totalSwingPct < baseDelta * 2.5) {
+                effectiveDelta = Math.max(0.5, +(totalSwingPct / 3.2).toFixed(1));
+            }
+
+            const detailed = calcZigZagDetailed(closes, effectiveDelta);
             const zigArr = detailed.z;
             const troughs = detailed.troughs;
             const peaks = detailed.peaks;
@@ -3936,9 +3964,9 @@
                         if (curC >= threshold && (cfg.mode === 'CLASSIC' || maOk)) {
                             breakoutLevel = 0.0;
                             triggeredBuy = true;
-                            buySubtype = 'BREAKOUT';
-                            buyLabel = '突破';
-                            buyReason = `突破${cfg.hhvPeriod}日前高阻力回补建仓`;
+                            buySubtype = 'STRONG_BUY';
+                            buyLabel = '强买';
+                            buyReason = `突破${cfg.hhvPeriod}日前高阻力右侧确认强买`;
                         }
                     }
 
@@ -5493,7 +5521,21 @@
                     { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
                     { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
                     ...bollSeries,
-                    ...subSeries
+                    ...subSeries,
+                    ...(isZigActive && zigResult && zigResult.zigArr && zigResult.zigArr.length > 0 ? [{
+                        name: 'ZIG转向线',
+                        type: 'line',
+                        xAxisIndex: 0,
+                        yAxisIndex: 0,
+                        data: zigResult.zigArr,
+                        showSymbol: false,
+                        lineStyle: {
+                            width: 1.8,
+                            color: '#06B6D4',
+                            type: 'dashed'
+                        },
+                        z: 4
+                    }] : [])
                 ]
             };
 
