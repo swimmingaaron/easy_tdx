@@ -2048,80 +2048,84 @@
                 </div>
             </div>
 
-            <!-- Row 2A: Range Presets, Periods Selector & Replay Controller (时间周期与推演回放) -->
-            <div class="flex items-center justify-between gap-2 text-xs py-0.5 shrink-0">
-                <div class="flex items-center space-x-1 shrink-0 overflow-x-auto no-scrollbar">
+            <!-- Row 2A: Range Presets, Periods Selector & Replay Controller (时间周期与推演回放，支持移动端左右触控滑动与鼠标拖拽) -->
+            <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 shrink-0">
+                <!-- 周期选择滚动容器 (手机触控滑动 + 鼠标拖动) -->
+                <div id="kp-period-scroll-container" class="flex-1 min-w-0 overflow-x-auto no-scrollbar overscroll-x-contain touch-pan-x flex items-center space-x-1 py-0.5 cursor-grab active:cursor-grabbing select-none" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
                     <!-- Range Presets -->
                     <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
-                        <button onclick="setKpMonths(6)" id="kp-btn-6m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer">半年</button>
-                        <button onclick="setKpMonths(12)" id="kp-btn-12m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">1年</button>
+                        <button onclick="setKpMonths(6)" id="kp-btn-6m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0">半年</button>
+                        <button onclick="setKpMonths(12)" id="kp-btn-12m" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">1年</button>
                     </div>
 
                     <!-- 11 Periods Selector -->
                     <div class="flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
-                        <button type="button" onclick="setKpPeriod('DAY')" id="kp-period-DAY" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer">日K</button>
-                        <button type="button" onclick="setKpPeriod('WEEK')" id="kp-period-WEEK" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">周K</button>
-                        <button type="button" onclick="setKpPeriod('MONTH')" id="kp-period-MONTH" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">月K</button>
-                        <button type="button" onclick="setKpPeriod('SEASON')" id="kp-period-SEASON" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">季K</button>
-                        <button type="button" onclick="setKpPeriod('YEAR')" id="kp-period-YEAR" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">年K</button>
-                        <span class="w-[1px] h-3 bg-slate-800 mx-0.5"></span>
-                        <button type="button" onclick="setKpPeriod('120M')" id="kp-period-120M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">120分</button>
-                        <button type="button" onclick="setKpPeriod('60M')" id="kp-period-60M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">60分</button>
-                        <button type="button" onclick="setKpPeriod('30M')" id="kp-period-30M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">30分</button>
-                        <button type="button" onclick="setKpPeriod('15M')" id="kp-period-15M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">15分</button>
-                        <button type="button" onclick="setKpPeriod('5M')" id="kp-period-5M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">5分</button>
-                        <button type="button" onclick="setKpPeriod('1M')" id="kp-period-1M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">1分</button>
+                        <button type="button" onclick="setKpPeriod('DAY')" id="kp-period-DAY" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer shrink-0">日K</button>
+                        <button type="button" onclick="setKpPeriod('WEEK')" id="kp-period-WEEK" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">周K</button>
+                        <button type="button" onclick="setKpPeriod('MONTH')" id="kp-period-MONTH" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">月K</button>
+                        <button type="button" onclick="setKpPeriod('SEASON')" id="kp-period-SEASON" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">季K</button>
+                        <button type="button" onclick="setKpPeriod('YEAR')" id="kp-period-YEAR" class="kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">年K</button>
+                        <span class="w-[1px] h-3 bg-slate-800 mx-0.5 shrink-0"></span>
+                        <button type="button" onclick="setKpPeriod('120M')" id="kp-period-120M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">120分</button>
+                        <button type="button" onclick="setKpPeriod('60M')" id="kp-period-60M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">60分</button>
+                        <button type="button" onclick="setKpPeriod('30M')" id="kp-period-30M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">30分</button>
+                        <button type="button" onclick="setKpPeriod('15M')" id="kp-period-15M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">15分</button>
+                        <button type="button" onclick="setKpPeriod('5M')" id="kp-period-5M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">5分</button>
+                        <button type="button" onclick="setKpPeriod('1M')" id="kp-period-1M" class="kp-period-btn h-6 px-1 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">1分</button>
                     </div>
                 </div>
 
                 <!-- 1点钟方向: 前日/结束日期/后日 ZIG回归推演控制器 (右对齐独立卡片，绝不被挤出截断) -->
                 <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
-                    <button type="button" onclick="stepKpDate(-1)" id="kp-btn-prev-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="前移 1 根K线 (快捷键: ← 方向键)">
+                    <button type="button" onclick="stepKpDate(-1)" id="kp-btn-prev-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0" title="前移 1 根K线 (快捷键: ← 方向键)">
                         <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
                         <span>前日</span>
                     </button>
                     
-                    <div class="relative flex items-center">
+                    <div class="relative flex items-center shrink-0">
                         <input type="date" id="kp-cutoff-date" onchange="onKpCutoffDateChange(this.value)" class="h-6 bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition cursor-pointer text-center" title="选择结束日期进行ZIG策略回归测试">
                     </div>
 
-                    <button type="button" onclick="stepKpDate(1)" id="kp-btn-next-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px]" title="后移 1 根K线 (快捷键: → 方向键)">
+                    <button type="button" onclick="stepKpDate(1)" id="kp-btn-next-day" class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0" title="后移 1 根K线 (快捷键: → 方向键)">
                         <span>后日</span>
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                     </button>
 
-                    <button type="button" onclick="resetKpCutoffToLatest()" id="kp-btn-latest-day" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden" title="恢复至最新交易日">
+                    <button type="button" onclick="resetKpCutoffToLatest()" id="kp-btn-latest-day" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden shrink-0" title="恢复至最新交易日">
                         <span>最新</span>
                     </button>
                     
-                    <button type="button" onclick="toggleKpReplayPlay()" id="kp-btn-play-replay" class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center" title="逐日自动推演播放 / 暂停 (快捷键: 空格键)">
+                    <button type="button" onclick="toggleKpReplayPlay()" id="kp-btn-play-replay" class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0" title="逐日自动推演播放 / 暂停 (快捷键: 空格键)">
                         <i id="kp-replay-play-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Row 2B: Technical Indicators & Quantitative Strategies (副图指标与主图策略，统一字体规范) -->
-            <div class="flex items-center justify-between gap-2 text-xs py-0.5 shrink-0">
-                <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-800/90 shrink-0 overflow-x-auto no-scrollbar">
-                    <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium">副图:</span>
-                    <button onclick="setKpSubIndicator('vol')" id="kp-sub-vol" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer">成交额</button>
-                    <button onclick="setKpSubIndicator('inflow')" id="kp-sub-inflow" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer" title="资金净流入柱状图与3日/5日/10日平均线">资金流入</button>
-                    <button onclick="setKpSubIndicator('macd')" id="kp-sub-macd" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">MACD</button>
-                    <button onclick="setKpSubIndicator('rsi')" id="kp-sub-rsi" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">RSI</button>
-                    <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">KDJ</button>
-                    <button onclick="setKpSubIndicator('boll')" id="kp-sub-boll" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer">BOLL</button>
-                    
-                    <span class="w-[1px] h-3.5 bg-slate-800 mx-1"></span>
-                    <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium">主图:</span>
-                    <button onclick="toggleKpTdSequential()" id="kp-sub-td" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition shadow-sm cursor-pointer" title="通达信九转/十三转序列（点击在 九转(9) / 13转(13) / 关闭 之间切换）">九转(9)</button>
-                    <button onclick="toggleKpZigStrategy()" id="kp-sub-zig" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 transition shadow-sm cursor-pointer" title="ZIG 转向与右侧突破买卖点">ZIG策略</button>
-                    <button onclick="toggleKpZigAuxPanel()" id="kp-btn-zig-aux" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 transition cursor-pointer flex items-center space-x-1 shadow-sm" title="配置多指标共振辅助与获利最优移动止盈">
-                        <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i>
-                        <span id="kp-zig-aux-pill" class="text-[10px] font-sans font-medium text-emerald-400">共振最优</span>
-                    </button>
+            <!-- Row 2B: Technical Indicators & Quantitative Strategies (副图指标与主图策略，支持移动端左右触控滑动与鼠标拖拽) -->
+            <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 shrink-0">
+                <!-- 指标与策略滚动容器 (手机触控滑动 + 鼠标拖动) -->
+                <div id="kp-indicator-scroll-container" class="flex-1 min-w-0 overflow-x-auto no-scrollbar overscroll-x-contain touch-pan-x flex items-center space-x-1 py-0.5 cursor-grab active:cursor-grabbing select-none" style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
+                    <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-800/90 shrink-0">
+                        <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
+                        <button onclick="setKpSubIndicator('vol')" id="kp-sub-vol" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">成交额</button>
+                        <button onclick="setKpSubIndicator('inflow')" id="kp-sub-inflow" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="资金净流入柱状图与3日/5日/10日平均线">资金流入</button>
+                        <button onclick="setKpSubIndicator('macd')" id="kp-sub-macd" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">MACD</button>
+                        <button onclick="setKpSubIndicator('rsi')" id="kp-sub-rsi" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">RSI</button>
+                        <button onclick="setKpSubIndicator('kdj')" id="kp-sub-kdj" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">KDJ</button>
+                        <button onclick="setKpSubIndicator('boll')" id="kp-sub-boll" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">BOLL</button>
+                        
+                        <span class="w-[1px] h-3.5 bg-slate-800 mx-1 shrink-0"></span>
+                        <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
+                        <button onclick="toggleKpTdSequential()" id="kp-sub-td" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition shadow-sm cursor-pointer shrink-0" title="通达信九转/十三转序列（点击在 九转(9) / 13转(13) / 关闭 之间切换）">九转(9)</button>
+                        <button onclick="toggleKpZigStrategy()" id="kp-sub-zig" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 transition shadow-sm cursor-pointer shrink-0" title="ZIG 转向与右侧突破买卖点">ZIG策略</button>
+                        <button onclick="toggleKpZigAuxPanel()" id="kp-btn-zig-aux" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 hover:text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-800 transition cursor-pointer flex items-center space-x-1 shadow-sm shrink-0" title="配置多指标共振辅助与获利最优移动止盈">
+                            <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i>
+                            <span id="kp-zig-aux-pill" class="text-[10px] font-sans font-medium text-emerald-400">共振最优</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="hidden sm:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1">
+                <div class="hidden md:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
                     <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">→</kbd> 逐日推演</span>
                     <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">空格</kbd> 播放</span>
                     <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">ESC</kbd> 关闭</span>
@@ -2787,8 +2791,11 @@
                 const el = document.getElementById(`kp-period-${k}`);
                 if (el) {
                     el.className = (k === p) 
-                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer' 
-                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer';
+                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer shrink-0' 
+                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                    if (k === p) {
+                        try { el.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } catch (e) {}
+                    }
                 }
             });
             loadKlinePreviewData();
@@ -2966,6 +2973,62 @@
             }
         }
 
+        
+        // --- 手机端与桌面端左右触控滑动与鼠标拖拽支持 (Horizontal Drag-to-Scroll) ---
+        function enableHorizontalDragScroll(el) {
+            if (!el || el._dragScrollInitialized) return;
+            el._dragScrollInitialized = true;
+
+            let isDown = false;
+            let startX = 0;
+            let scrollLeft = 0;
+            let hasDragged = false;
+            const dragThreshold = 5;
+
+            el.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                isDown = true;
+                hasDragged = false;
+                startX = e.pageX - el.offsetLeft;
+                scrollLeft = el.scrollLeft;
+                el.classList.add('cursor-grabbing');
+                el.classList.remove('cursor-grab');
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isDown) return;
+                isDown = false;
+                if (el) {
+                    el.classList.remove('cursor-grabbing');
+                    el.classList.add('cursor-grab');
+                }
+                setTimeout(() => { hasDragged = false; }, 40);
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                const x = e.pageX - el.offsetLeft;
+                const walk = (x - startX);
+                if (Math.abs(walk) > dragThreshold) {
+                    hasDragged = true;
+                }
+                el.scrollLeft = scrollLeft - walk;
+            });
+
+            // Prevent button trigger if user actually dragged
+            el.addEventListener('click', (e) => {
+                if (hasDragged) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
+        }
+
+        function initKpDragScroll() {
+            enableHorizontalDragScroll(document.getElementById('kp-period-scroll-container'));
+            enableHorizontalDragScroll(document.getElementById('kp-indicator-scroll-container'));
+        }
+
         function openKlineModal(sym, name) {
             const rawSym = String(sym || '600123').trim();
             currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
@@ -2997,37 +3060,39 @@
             updateKpWatchlistButton();
             updateTradingStatusUI();
 
-            // Reset period buttons state if needed
+            // Reset period buttons state with unified standards
             const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
             periods.forEach(k => {
                 const el = document.getElementById(`kp-period-${k}`);
                 if (el) {
                     el.className = (k === currentKpPeriod) 
-                        ? 'kp-period-btn px-2 py-0.5 rounded-lg font-medium text-cyan-400 bg-cyan-950 border border-cyan-800 transition shadow-sm'
-                        : 'kp-period-btn px-1.5 py-0.5 rounded-lg font-medium text-slate-400 hover:text-slate-200 transition';
+                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer shrink-0'
+                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
                 }
             });
 
             ['vol', 'inflow', 'macd', 'rsi', 'kdj'].forEach(k => {
                 const el = document.getElementById(`kp-sub-${k}`);
                 if (el) {
-                    el.className = k === currentKpSub 
-                        ? 'px-2.5 py-1 rounded text-xs font-semibold bg-cyan-950 text-cyan-400 border border-cyan-800' 
-                        : 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white';
+                    el.className = (k === currentKpSub) 
+                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0' 
+                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
                 }
             });
             const bollEl = document.getElementById('kp-sub-boll');
             if (bollEl) {
                 bollEl.className = isBollActive 
-                    ? 'px-2.5 py-1 rounded text-xs font-semibold bg-purple-950 text-purple-400 border border-purple-800' 
-                    : 'px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white';
+                    ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0' 
+                    : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
             }
             // ZIG strategy defaults to active
             isZigActive = true;
             const zigEl = document.getElementById('kp-sub-zig');
             if (zigEl) {
-                zigEl.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 transition shadow-sm cursor-pointer';
+                zigEl.className = 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 transition shadow-sm cursor-pointer shrink-0';
             }
+            updateKpTdButtonState();
+            initKpDragScroll();
 
             // Reset modal scroll position to top
             const modalCard = modal.querySelector('.glass-card');
@@ -3408,8 +3473,11 @@
                 const el = document.getElementById(`kp-period-${k}`);
                 if (el) {
                     el.className = (k === p) 
-                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer' 
-                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer';
+                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer shrink-0' 
+                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                    if (k === p) {
+                        try { el.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } catch (e) {}
+                    }
                 }
             });
             loadKlinePreviewData();
@@ -3954,8 +4022,11 @@
                     const el = document.getElementById(`kp-sub-${k}`);
                     if (el) {
                         el.className = (k === sub)
-                            ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer'
-                            : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer';
+                            ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0'
+                            : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                        if (k === sub) {
+                            try { el.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } catch (e) {}
+                        }
                     }
                 });
             }
