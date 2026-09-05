@@ -9,7 +9,7 @@ import pandas as pd
 from fastapi import APIRouter, Query
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
-from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV, SUM, TD_SEQUENTIAL
+from easy_tdx.MyTT import MA, MACD, RSI, KDJ, BOLL, ZIG, HHV, SUM, TD_SEQUENTIAL, EXPMA
 
 router = APIRouter(prefix="/api/quotes", tags=["quotes"])
 
@@ -347,6 +347,7 @@ def get_kline(
     rsi12 = RSI(c, 12)
     k_val, d_val, j_val = KDJ(c, h, l)
     boll_up, boll_mid, boll_low = BOLL(c, 20, 2)
+    exp12, exp50 = EXPMA(c, 12, 50)
     
     # TD Sequential (通达信九转与十三转)
     td9_h, td9_l = TD_SEQUENTIAL(c, 9)
@@ -461,6 +462,8 @@ def get_kline(
             "boll_up": safe_float(boll_up[i]),
             "boll_mid": safe_float(boll_mid[i]),
             "boll_low": safe_float(boll_low[i]),
+            "expma12": safe_float(exp12[i]),
+            "expma50": safe_float(exp50[i]),
             "zig": safe_float(zig_val[i]) if i < len(zig_val) else cur_c,
             "zig_buy": buy_signals[i],
             "zig_sell": sell_signals[i],
