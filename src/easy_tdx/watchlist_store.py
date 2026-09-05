@@ -15,17 +15,32 @@ DEFAULT_WATCHLIST = [
     "000858", "881287"
 ]
 
-_lock = threading.Lock()
+def _get_run_dir() -> Path:
+    """定位 run.py 所在的主工程根目录。"""
+    cur = Path(__file__).resolve()
+    for p in cur.parents:
+        if (p / "run.py").is_file():
+            return p
+    cwd = Path.cwd().resolve()
+    if (cwd / "run.py").is_file():
+        return cwd
+    # 默认回退到 easy_tdx 仓库根目录 (src/easy_tdx 的上两级)
+    return cur.parents[2]
+
 
 def _get_watchlist_paths() -> list[Path]:
     paths = []
-    # 1. Config dir ~/.easy_tdx/watchlist.json
+    # 1. run.py 同目录下 (最高优先级)
+    run_file = _get_run_dir() / "watchlist.json"
+    paths.append(run_file)
+    # 2. Config dir ~/.easy_tdx/watchlist.json
     cfg_dir = Path(os.environ.get("EASY_TDX_CONFIG_DIR", str(Path.home() / ".easy_tdx")))
     paths.append(cfg_dir / "watchlist.json")
-    # 2. Local workspace directory
-    workspace_file = Path("c:/Users/aaron/Documents/stock_data/watchlist.json")
-    paths.append(workspace_file)
     return paths
+
+
+_lock = threading.Lock()
+
 
 def load_watchlist() -> list[str]:
     """Load persisted watchlist from disk, falling back to defaults if not found."""
