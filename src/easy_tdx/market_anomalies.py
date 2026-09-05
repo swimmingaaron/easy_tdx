@@ -8,6 +8,7 @@ Powered 100% natively by easy_tdx:
 from __future__ import annotations
 import logging
 import time
+import threading
 import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -99,15 +100,55 @@ def _calc_intraday_speed(code: str) -> dict[str, Any]:
         logger.debug(f"Failed to calculate intraday speed for {code}: {e}")
     return {"speed_pct": 0.0, "time": datetime.datetime.now().strftime("%H:%M:%S")}
 
+_ANOMALIES_REFRESHING = False
+_ANOMALIES_REFRESH_LOCK = threading.Lock()
+
+def _trigger_async_anomalies_refresh():
+    """Background refresh for market anomalies (SWR pattern)."""
+    global _ANOMALIES_REFRESHING
+    with _ANOMALIES_REFRESH_LOCK:
+        if _ANOMALIES_REFRESHING:
+            return
+        _ANOMALIES_REFRESHING = True
+
+    def _worker():
+        global _ANOMALIES_REFRESHING, _ANOMALIES_CACHE
+        try:
+            data = _compute_realtime_anomalies()
+            _ANOMALIES_CACHE = (time.time(), data)
+        except Exception as e:
+            logger.debug(f"Async anomalies update failed: {e}")
+        finally:
+            with _ANOMALIES_REFRESH_LOCK:
+                _ANOMALIES_REFRESHING = False
+
+    t = threading.Thread(target=_worker, daemon=True, name="AnomaliesAsyncSWR")
+    t.start()
+
+
 def fetch_realtime_anomalies() -> dict[str, list[dict[str, Any]]]:
     """Fetch real-time market anomalies powered 100% by easy_tdx native socket & K-line data."""
     global _ANOMALIES_CACHE
     now = time.time()
+    from easy_tdx.market_overview import is_trading_time
+    effective_ttl = CACHE_TTL_SEC if is_trading_time() else 300.0
+
     if _ANOMALIES_CACHE is not None:
         ts, cached_data = _ANOMALIES_CACHE
-        if now - ts < CACHE_TTL_SEC:
+        if now - ts < effective_ttl:
             return cached_data
+        # SWR: Return stale cache instantly (<1ms) and refresh in background
+        _trigger_async_anomalies_refresh()
+        return cached_data
 
+    # First-time compute
+    data = _compute_realtime_anomalies()
+    _ANOMALIES_CACHE = (now, data)
+    return data
+
+
+def _compute_realtime_anomalies() -> dict[str, list[dict[str, Any]]]:
+    """Internal computation of market anomalies."""
     auction_list: list[dict[str, Any]] = []
     intraday_list: list[dict[str, Any]] = []
     deviation_list: list[dict[str, Any]] = []
@@ -219,5 +260,4 @@ def fetch_realtime_anomalies() -> dict[str, list[dict[str, Any]]]:
         "intraday": intraday_list[:6],
         "deviation": deviation_list[:6]
     }
-    _ANOMALIES_CACHE = (now, result)
     return result

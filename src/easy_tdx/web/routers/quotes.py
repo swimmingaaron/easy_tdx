@@ -275,6 +275,9 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
         "data": data
     }
 
+_KLINE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_KLINE_CACHE_LOCK = threading.Lock()
+
 @router.get("/kline")
 def get_kline(
     symbol: str = Query("000001", description="Stock symbol"),
@@ -290,6 +293,17 @@ def get_kline(
         raw_sym = "000001"
         
     n_bars = max(30, min(500, count if count != 120 else (months * 22 if months else 120)))
+
+    # Check in-memory endpoint cache (5s during trade session, 300s off-hours)
+    from easy_tdx.market_overview import is_trading_time
+    now = time.time()
+    effective_ttl = 5.0 if is_trading_time() else 300.0
+    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}"
+    with _KLINE_CACHE_LOCK:
+        if cache_k in _KLINE_CACHE:
+            ts, cached_res = _KLINE_CACHE[cache_k]
+            if now - ts < effective_ttl:
+                return cached_res
     
     df = fetch_security_kline(raw_sym, count=n_bars, period=period)
     mkt, full_sym = _get_market_suffix(raw_sym)
@@ -607,7 +621,7 @@ def get_kline(
     zs_block = b_info.get("board_name") or board_lbl or ""
     data1 = f"{clean_sym}|{zs_block}"
 
-    return {
+    res = {
         "status": "success",
         "symbol": clean_sym,
         "name": stock_name,
@@ -661,6 +675,11 @@ def get_kline(
         },
         "data": bars_data
     }
+
+    with _KLINE_CACHE_LOCK:
+        _KLINE_CACHE[cache_k] = (now, res)
+
+    return res
 
 @router.get("/ladder")
 def get_ladder():

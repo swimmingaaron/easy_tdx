@@ -2859,7 +2859,18 @@
                                 initOptimizeDates();
                                 if (window.optHeatmapChart) window.optHeatmapChart.resize();
                             }, 80);
+                        } else if (t === 'ladder') {
+                            loadLadderData();
+                        } else if (t === 'abnormal') {
+                            loadAnomaliesData();
+                        } else if (t === 'screener') {
+                            if (!window._HAS_SCREENED) {
+                                window._HAS_SCREENED = true;
+                                setTimeout(() => runScreenerScan(), 100);
+                            }
                         } else if (t === 'aireview') {
+                            loadAIReview();
+                            runDiagnosis();
                             setTimeout(() => { if (window.radarChart) window.radarChart.resize(); }, 80);
                         }
                     } else {
@@ -9095,13 +9106,6 @@
             initBacktestDates(true);
 
             await syncWatchlistFromBackend();
-            loadDashboardData();
-            loadRealtimeQuotes();
-            loadLadderData();
-            loadAnomaliesData();
-
-            // Start 500ms high-frequency background auto-refresh for Dashboard
-            startDashboardAutoRefresh();
 
             // Load Radar
             const ctxR = document.getElementById('radarChart').getContext('2d');
@@ -9128,7 +9132,6 @@
                     if (optSel) optSel.innerHTML = optHtml;
                     renderStrategyParams('td_sequential');
                     initOptimizeView();
-                    setTimeout(() => runScreenerScan(), 100);
                 }
             } catch (e) {
                 console.log('Failed to fetch strategies:', e);
@@ -9136,10 +9139,6 @@
 
             setupStockAutocomplete('bt-symbol', 'bt-symbol-dropdown', () => runBacktest());
             setupStockAutocomplete('diag-symbol', 'diag-symbol-dropdown', () => runDiagnosis());
-
-            loadAIReview();
-            runDiagnosis();
-            runBacktest();
         }
 
         let activeScreenerTaskId = null;
@@ -9779,10 +9778,14 @@
         }
 
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             initECharts();
-            populateInitialData();
+            await populateInitialData();
             restoreInitialTab();
+            const activeTab = (window.location.hash || '').replace('#', '').trim() || localStorage.getItem('easy_tdx_active_tab') || 'backtest';
+            if (activeTab === 'backtest') {
+                runBacktest();
+            }
             initKpContextMenu();
             initKpStockSearch();
             initBtKlineSearch();

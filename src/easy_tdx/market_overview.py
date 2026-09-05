@@ -368,7 +368,7 @@ def is_trading_time() -> bool:
 
 
 def _start_bg_overview_worker():
-    """Start 5s daemon background worker to continuously refresh market summary."""
+    """Start daemon background worker to continuously refresh market summary."""
     global _BG_THREAD_STARTED
     if _BG_THREAD_STARTED:
         return
@@ -377,35 +377,73 @@ def _start_bg_overview_worker():
     def _worker():
         while True:
             try:
+                # During trading hours, refresh every 5s; off-hours sleep longer (30s)
+                sleep_interval = 5.0 if is_trading_time() else 30.0
+                time.sleep(sleep_interval)
+                
                 data = _build_market_summary()
                 with _CACHE_LOCK:
                     global _OVERVIEW_CACHE
                     _OVERVIEW_CACHE = (time.time(), data)
             except Exception as e:
                 logger.debug(f"Background market overview update error: {e}")
-            time.sleep(5.0)
+                time.sleep(5.0)
             
-    t = threading.Thread(target=_worker, daemon=True, name="MarketOverview5sDaemon")
+    t = threading.Thread(target=_worker, daemon=True, name="MarketOverviewDaemon")
     t.start()
-    logger.info("Market overview 5s background worker started successfully.")
+    logger.info("Market overview background worker started successfully.")
+
+
+_IS_REFRESHING = False
+_REFRESH_LOCK = threading.Lock()
+
+def _trigger_async_market_summary_refresh():
+    """Fire-and-forget background refresh for Stale-While-Revalidate."""
+    global _IS_REFRESHING
+    with _REFRESH_LOCK:
+        if _IS_REFRESHING:
+            return
+        _IS_REFRESHING = True
+
+    def _async_task():
+        global _IS_REFRESHING, _OVERVIEW_CACHE
+        try:
+            data = _build_market_summary()
+            with _CACHE_LOCK:
+                _OVERVIEW_CACHE = (time.time(), data)
+        except Exception as e:
+            logger.debug(f"Async market overview update error: {e}")
+        finally:
+            with _REFRESH_LOCK:
+                _IS_REFRESHING = False
+
+    t = threading.Thread(target=_async_task, daemon=True, name="MarketOverviewAsyncSWR")
+    t.start()
 
 
 def fetch_realtime_market_summary() -> dict[str, Any]:
     """Fetch real-time comprehensive market breadth, sentiment, turnover directly from native TDX socket.
     
-    Uses high-speed 5s in-memory cache backed by a daemon background worker,
-    ensuring <1ms response times on periodic polling.
+    Uses high-speed Stale-While-Revalidate (SWR) in-memory cache backed by a daemon background worker,
+    guaranteeing <1ms non-blocking response times.
     """
     global _OVERVIEW_CACHE
     _start_bg_overview_worker()
     now = time.time()
+    effective_ttl = CACHE_TTL_SEC if is_trading_time() else 300.0
+
     with _CACHE_LOCK:
         if _OVERVIEW_CACHE is not None:
             ts, data = _OVERVIEW_CACHE
-            if now - ts < CACHE_TTL_SEC:
+            # Cache is fresh
+            if now - ts < effective_ttl:
                 return data
+            # SWR: Stale data exists. Return immediately (<1ms) to eliminate user-perceived latency,
+            # and trigger background async refresh if needed.
+            _trigger_async_market_summary_refresh()
+            return data
 
-    # Cache expired or first-time synchronous fallback
+    # Cache completely empty (first-time boot): synchronous compute
     data = _build_market_summary()
     with _CACHE_LOCK:
         _OVERVIEW_CACHE = (now, data)

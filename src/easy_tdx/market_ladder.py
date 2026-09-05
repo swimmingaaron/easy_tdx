@@ -4,6 +4,7 @@ import logging
 import urllib.request
 import json
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from easy_tdx.market_data import fetch_security_kline
@@ -328,15 +329,56 @@ def _calc_dragon_metrics(stock: dict[str, Any], max_lbc: int) -> dict[str, Any]:
         "seal": f"封成比 {seal_ratio:.1f}%" if seal_ratio > 0 else f"成交 {amt_yi:.1f}亿"
     }
 
+_LADDER_REFRESHING = False
+_LADDER_REFRESH_LOCK = threading.Lock()
+
+def _trigger_async_ladder_refresh():
+    """Background refresh for market ladder (SWR pattern)."""
+    global _LADDER_REFRESHING
+    with _LADDER_REFRESH_LOCK:
+        if _LADDER_REFRESHING:
+            return
+        _LADDER_REFRESHING = True
+
+    def _worker():
+        global _LADDER_REFRESHING, _LADDER_CACHE
+        try:
+            data = _compute_market_ladder_and_matrix()
+            _LADDER_CACHE = (time.time(), data)
+        except Exception as e:
+            logger.debug(f"Async ladder update failed: {e}")
+        finally:
+            with _LADDER_REFRESH_LOCK:
+                _LADDER_REFRESHING = False
+
+    t = threading.Thread(target=_worker, daemon=True, name="LadderAsyncSWR")
+    t.start()
+
+
 def get_market_ladder_and_matrix() -> dict[str, Any]:
     """Fetch live limit-up ladder, compute Short-Term Dragon Promotion Matrix and stats directly via easy_tdx."""
     global _LADDER_CACHE
     now = time.time()
+    from easy_tdx.market_overview import is_trading_time
+    effective_ttl = CACHE_TTL_SEC if is_trading_time() else 300.0
+
     if _LADDER_CACHE is not None:
         ts, cached_data = _LADDER_CACHE
-        if now - ts < CACHE_TTL_SEC and len(cached_data.get("ladder", [])) > 0:
+        if now - ts < effective_ttl and len(cached_data.get("ladder", [])) > 0:
             return cached_data
+        # SWR: Return stale cache instantly (<1ms) and refresh in background
+        _trigger_async_ladder_refresh()
+        return cached_data
 
+    # First-time compute
+    data = _compute_market_ladder_and_matrix()
+    _LADDER_CACHE = (now, data)
+    return data
+
+
+def _compute_market_ladder_and_matrix() -> dict[str, Any]:
+    """Internal computation of market ladder."""
+    now = time.time()
     raw_candidates: list[dict[str, Any]] = []
 
     # 1. Fetch real-time top gainer candidates from live market

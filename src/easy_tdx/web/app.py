@@ -215,6 +215,10 @@ def _create_app(
         allow_headers=["*"],
     )
 
+    # GZip compression middleware (compresses responses > 1000 bytes)
+    from starlette.middleware.gzip import GZipMiddleware
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+
     # Register exception handlers
     register_exception_handlers(app)
 
