@@ -665,10 +665,12 @@ def get_kline(
 @router.get("/ladder")
 def get_ladder():
     """Get real-time limit up ladder and short-term leader promotion matrix."""
-    from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
-    ladder = fetch_realtime_limit_up_ladder()
+    from easy_tdx.market_ladder import get_market_ladder_and_matrix
+    result = get_market_ladder_and_matrix()
+    ladder = result.get("ladder", [])
     return {
         "status": "success",
+        "stats": result.get("stats", {}),
         "count": sum(len(tier.get("stocks", [])) for tier in ladder),
         "data": ladder
     }
