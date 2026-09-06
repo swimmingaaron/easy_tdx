@@ -1952,20 +1952,21 @@
 
                 <!-- Results Table -->
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm min-w-[1180px]">
+                    <table class="w-full text-left text-sm min-w-[1240px]">
                         <colgroup>
-                            <col style="width: 7.5%;">
-                            <col style="width: 8.5%;">
-                            <col style="width: 12%;">
-                            <col style="width: 7.5%;">
+                            <col style="width: 7%;">
+                            <col style="width: 8%;">
+                            <col style="width: 10%;">
+                            <col style="width: 7%;">
                             <col style="width: 6.5%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
                             <col style="width: 7.5%;">
                             <col style="width: 7.5%;">
-                            <col style="width: 8%;">
-                            <col style="width: 8%;">
-                            <col style="width: 8%;">
-                            <col style="width: 10.5%;">
-                            <col style="width: 8.5%;">
+                            <col style="width: 7.5%;">
+                            <col style="width: 9.5%;">
+                            <col style="width: 12.5%;">
+                            <col style="width: 6%;">
                         </colgroup>
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
                             <tr>
@@ -1980,11 +1981,12 @@
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('net_3d')" title="点击按3日净流入排序">3日净流入<span id="screener-sort-net_3d" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('net_5d')" title="点击按5日净流入排序">5日净流入<span id="screener-sort-net_5d" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-3 text-center cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('date')" title="点击按触发日期排序">触发日期 / 状态<span id="screener-sort-date" class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="pb-3 px-3 text-center font-sans">形态特征</th>
                                 <th class="pb-3 pr-3 text-right">操作</th>
                             </tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
-                            <tr><td colspan="12" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
+                            <tr><td colspan="13" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -7369,6 +7371,59 @@
             updateKpWatchlistButton();
         }
 
+        function renderPatternBadges(patterns, defaultStatus) {
+            let list = [];
+            if (Array.isArray(patterns) && patterns.length > 0) {
+                list = patterns;
+            } else if (typeof defaultStatus === 'string' && defaultStatus.trim()) {
+                list = defaultStatus.split(' · ').map(s => s.trim()).filter(Boolean);
+            }
+            if (list.length === 0) list = ['震荡整理'];
+
+            return `
+                <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 min-w-[80px]">
+                    ${list.map(p => {
+                        // 下跌信号: 绿色 (中国A股下跌绿)
+                        const isBearish = (
+                            p.includes('乌鸦') || p.includes('乌云盖顶') || p.includes('倾盆大雨') ||
+                            p.includes('阴包阳') || p.includes('黄昏之星') || p.includes('下降三法') ||
+                            p.includes('射击之星') || p.includes('流星') || p.includes('吊颈线') ||
+                            p.includes('空方炮') || p.includes('死蜘蛛') || p.includes('价压') ||
+                            p.includes('空头') || p.includes('顶分型') || p.includes('死叉') ||
+                            p.includes('放量下跌') || p.includes('滞涨') || p.includes('顶背离') ||
+                            p.includes('见顶') || p.includes('跌破') || p.includes('压力') ||
+                            p.includes('弱势') || p.includes('量价背离') || p.includes('向下跳空') ||
+                            p.includes('超买') || p.includes('长上影')
+                        );
+
+                        // 上涨信号: 红色 (中国A股上涨红)
+                        const isBullish = (
+                            p.includes('突破') || p.includes('出水芙蓉') || p.includes('蛟龙出海') ||
+                            p.includes('金蜘蛛') || p.includes('起爆') || p.includes('旭日东升') ||
+                            p.includes('多方炮') || p.includes('上升三法') || p.includes('价托') ||
+                            p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴') ||
+                            p.includes('启明星') || p.includes('曙光初现') || p.includes('价涨量增') ||
+                            p.includes('OBV创新高') || p.includes('回踩') || p.includes('底分型') ||
+                            p.includes('锤子线') || p.includes('倒锤子') || p.includes('低位金叉') ||
+                            p.includes('超卖') || p.includes('底背离') || p.includes('蓄势') ||
+                            p.includes('支撑') || p.includes('见底') || p.includes('希望') ||
+                            p.includes('金叉') || p.includes('共振') || p.includes('向上跳空') ||
+                            p.includes('长下影') || p.includes('低位十字')
+                        );
+
+                        let textColor = 'text-slate-400 font-medium';
+                        if (isBearish) {
+                            textColor = 'text-emerald-500 font-bold';
+                        } else if (isBullish) {
+                            textColor = 'text-rose-500 font-bold';
+                        }
+
+                        return `<span class="text-xs whitespace-nowrap select-none ${textColor}" title="${p}">${p}</span>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         async function loadRealtimeQuotes() {
             try {
                 const symbols = getWatchlistSymbols();
@@ -7413,6 +7468,8 @@
                             if (r.ok) {
                                 const kj = await r.json();
                                 const q = kj.quote || {};
+                                const pats = kj.patterns || (q.patterns) || [];
+                                const stStr = kj.pattern_status || q.status || (pats.length ? pats.join(' · ') : '震荡整理');
                                 return {
                                     code: code,
                                     name: kj.name || code,
@@ -7424,7 +7481,8 @@
                                     low: q.low || 0,
                                     total_mv_yi: q.total_val_yi || 0,
                                     turnover_wan: q.amount ? Math.round(q.amount / 10000) : 0,
-                                    status: (q.change_pct > 1.5) ? '多头排列' : ((q.change_pct > 0) ? '放量突破' : '缩量回踩')
+                                    status: stStr,
+                                    patterns: pats
                                 };
                             }
                         } catch (err) {}
@@ -7481,7 +7539,7 @@
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
-                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
+                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(q.patterns, q.status)}</td>
                             <td class="py-2.5 px-3 pr-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
@@ -9048,7 +9106,7 @@
                         <td class="py-2.5 text-right text-white font-medium">${r.win_rate.toFixed(1)}%</td>
                         <td class="py-2.5 text-right text-slate-300">${r.profit_factor.toFixed(2)}</td>
                         <td class="py-2.5 text-center">
-                            <button onclick='loadOptimizeBacktest("${r.strategy}", ${JSON.stringify(r.params)})' class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-semibold transition cursor-pointer">载入回测</button>
+                            <button onclick='loadOptimizeBacktest("${r.strategy}", ${JSON.stringify(r.params)})' class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-semibold transition cursor-pointer">回测</button>
                         </td>
                     </tr>
                 `;
@@ -9330,7 +9388,7 @@
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 return;
             }
 
@@ -9379,10 +9437,11 @@
                     <td class="py-3 px-2 text-right font-mono font-semibold ${inflow3dColor} whitespace-nowrap" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                     <td class="py-3 px-2 text-right font-mono font-semibold ${inflow5dColor} whitespace-nowrap" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-3 px-3 text-center font-mono whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs ${statusBadgeClass}">${m.signal_date} (${m.status_label || '信号'})</span></td>
+                    <td class="py-3 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(m.patterns, m.status || m.pattern_status)}</td>
                     <td class="py-3 pr-3 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end space-x-1.5">
                             <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>
-                            <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer whitespace-nowrap">载入回测</button>
+                            <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer whitespace-nowrap">回测</button>
                         </div>
                     </td>
                 </tr>`;
@@ -9431,7 +9490,7 @@
             if (btnText) btnText.innerText = '选股中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
             if (statusText) statusText.innerText = `正在对【${uniDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Carousel Modal
@@ -9457,11 +9516,11 @@
                     showToast('选股完成', `【${uniDesc}】共命中 ${matches.length} 只符合【${strategyName}】战法的强势标的 (耗时 ${elapsed}s)`);
                     speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                 } else {
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
                 }
             } catch (e) {
                 console.error('Screener scan error:', e);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
             } finally {
                 closeQuoteModal();
                 if (btn) btn.disabled = false;
@@ -9502,7 +9561,7 @@
             if (progLabel) progLabel.innerText = '全市场并发扫描初始化中...';
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
             if (statusText) statusText.innerText = `全市场 5,200+ 只 A 股深度并发扫描中：【${strategyName}】`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
             lucide.createIcons();
 
             // Open Quote Modal
@@ -9847,7 +9906,7 @@
                                 <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow3dColor}">${item.inflow_3d_str || '0.0万'}</td>
                                 <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow5dColor}">${item.inflow_5d_str || '0.0万'}</td>
 
-                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-xs truncate max-w-xs" title="${item.pattern}">${item.pattern}</td>
+                                <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(item.patterns, item.pattern)}</td>
 
                                 <!-- 操作 -->
                                 <td class="py-2.5 px-3 text-center whitespace-nowrap">

@@ -103,6 +103,18 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                     
         for s in stocks:
             c = s.get("code") or s.get("symbol", "")
+            if not s.get("patterns"):
+                try:
+                    from easy_tdx.pattern_recognition import detect_stock_patterns
+                    pats = detect_stock_patterns(c)
+                    s["patterns"] = pats
+                    s["pattern_status"] = " · ".join(pats) if pats else "震荡整理"
+                    s["status"] = s["pattern_status"]
+                except Exception:
+                    s["patterns"] = ["震荡整理"]
+                    s["pattern_status"] = "震荡整理"
+                    s["status"] = "震荡整理"
+
             if c in inflow_map:
                 m1, m3, m5, mv_yi = inflow_map[c]
                 s["main_net_amount"] = m1
@@ -127,6 +139,10 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
     except Exception as e:
         logger.debug(f"Failed to enrich screener stocks with inflows: {e}")
         for s in stocks:
+            if not s.get("patterns"):
+                s["patterns"] = ["震荡整理"]
+                s["pattern_status"] = "震荡整理"
+                s["status"] = "震荡整理"
             s.setdefault("main_net_amount", 0.0)
             s.setdefault("main_net_3d", 0.0)
             s.setdefault("main_net_5d", 0.0)
@@ -227,6 +243,13 @@ def scan_market_strategy(
                         days_ago = len(sig_df) - 1 - sig_df.index.get_loc(trigger_idx)
                         status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
 
+                        try:
+                            from easy_tdx.pattern_recognition import detect_patterns
+                            patterns = detect_patterns(sig_df)
+                        except Exception:
+                            patterns = ["震荡整理"]
+                        pattern_status = " · ".join(patterns) if patterns else "震荡整理"
+
                         matched.append({
                             "symbol": sym,
                             "code": sym,
@@ -247,6 +270,9 @@ def scan_market_strategy(
                             "status_label": status_label,
                             "signal_date": signal_date or "最新交易日",
                             "trigger_date": signal_date or "最新交易日",
+                            "patterns": patterns,
+                            "pattern_status": pattern_status,
+                            "status": pattern_status,
                             "total_mv_yi": 0.0,
                             "market_cap_yi": 0.0,
                             "market_cap_str": "--",
