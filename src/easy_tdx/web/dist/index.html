@@ -7382,18 +7382,16 @@
                 <div class="flex flex-wrap items-center justify-center gap-1.5 min-w-[80px]">
                     ${list.map(p => {
                         let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
-                        if (p.includes('突破') || p.includes('出水芙蓉') || p.includes('起爆')) {
+                        if (p.includes('突破') || p.includes('出水芙蓉') || p.includes('蛟龙出海') || p.includes('金蜘蛛') || p.includes('起爆') || p.includes('旭日东升') || p.includes('多方炮') || p.includes('上升三法') || p.includes('价托')) {
                             badgeClass = 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/30 font-semibold';
-                        } else if (p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴')) {
+                        } else if (p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴') || p.includes('启明星') || p.includes('曙光初现') || p.includes('价涨量增') || p.includes('OBV创新高')) {
                             badgeClass = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold';
-                        } else if (p.includes('回踩') || p.includes('底分型') || p.includes('低位金叉') || p.includes('蓄势')) {
+                        } else if (p.includes('回踩') || p.includes('底分型') || p.includes('锤子线') || p.includes('倒锤子') || p.includes('低位金叉') || p.includes('超卖') || p.includes('底背离') || p.includes('蓄势') || p.includes('支撑') || p.includes('见底') || p.includes('希望') || p.includes('低位十字星')) {
                             badgeClass = 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30';
-                        } else if (p.includes('TD9') || p.includes('拐点')) {
+                        } else if (p.includes('TD9') || p.includes('TD13') || p.includes('金叉') || p.includes('共振') || p.includes('地量') || p.includes('开口')) {
                             badgeClass = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold';
-                        } else if (p.includes('金叉') || p.includes('共振')) {
-                            badgeClass = 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30';
-                        } else if (p.includes('空头') || p.includes('顶分型') || p.includes('死叉') || p.includes('弱势')) {
-                            badgeClass = 'bg-rose-950/40 text-rose-400 border-rose-800/50';
+                        } else if (p.includes('乌鸦') || p.includes('乌云盖顶') || p.includes('倾盆大雨') || p.includes('阴包阳') || p.includes('黄昏之星') || p.includes('下降三法') || p.includes('射击之星') || p.includes('流星') || p.includes('吊颈线') || p.includes('空方炮') || p.includes('死蜘蛛') || p.includes('价压') || p.includes('空头') || p.includes('顶分型') || p.includes('死叉') || p.includes('放量下跌') || p.includes('滞涨') || p.includes('顶背离') || p.includes('见顶') || p.includes('跌破') || p.includes('压力') || p.includes('弱势') || p.includes('背离')) {
+                            badgeClass = 'bg-rose-950/50 text-rose-400 border-rose-800/60 font-medium';
                         }
                         return `<span class="px-2 py-0.5 rounded text-xs font-medium border whitespace-nowrap shadow-xs ${badgeClass}" title="${p}">${p}</span>`;
                     }).join('')}

@@ -388,7 +388,10 @@ def PSY(CLOSE, N=12, M=6):
 
 def CCI(CLOSE, HIGH, LOW, N=14):
     TP = (HIGH + LOW + CLOSE) / 3
-    return (TP - MA(TP, N)) / (0.015 * AVEDEV(TP, N))
+    denom = 0.015 * AVEDEV(TP, N)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cci_val = np.where(denom != 0, (TP - MA(TP, N)) / denom, 0.0)
+    return cci_val
 
 
 def ATR(CLOSE, HIGH, LOW, N=20):  # 真实波动N日平均值
