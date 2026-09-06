@@ -39,8 +39,11 @@ def _get_market_suffix(sym: str) -> tuple[str, str]:
     if raw_upper.endswith(".HY") or raw_upper.endswith("HY") or raw_upper.startswith("HY"):
         clean = raw_upper.replace(".HY", "").replace("HY", "").replace(".", "")
         return "HY", f"{clean}.HY"
+    if raw_upper.endswith(".BK") or raw_upper.endswith("BK") or raw_upper.startswith("BK"):
+        clean = raw_upper.replace(".BK", "").replace("BK", "").replace(".", "")
+        return "HY", f"{clean}.HY"
 
-    clean_sym = raw_upper.replace(".", "")
+    clean_sym = raw_upper.replace(".", "").replace("HY", "").replace("BK", "")
     if clean_sym in ("999999", "999998", "999997", "000688"):
         return "SH", f"{clean_sym}.SH"
     if clean_sym.startswith("88"):
@@ -55,7 +58,15 @@ def _get_market_suffix(sym: str) -> tuple[str, str]:
 
 def _get_board_tag(sym: str) -> dict[str, str]:
     raw_upper = sym.strip().upper()
-    clean = raw_upper.replace(".SH", "").replace("SH", "").replace(".SZ", "").replace("SZ", "").replace(".BJ", "").replace("BJ", "").replace(".", "")
+    clean = (
+        raw_upper
+        .replace(".SH", "").replace("SH", "")
+        .replace(".SZ", "").replace("SZ", "")
+        .replace(".BJ", "").replace("BJ", "")
+        .replace(".HY", "").replace("HY", "")
+        .replace(".BK", "").replace("BK", "")
+        .replace(".", "")
+    )
     if clean in ("000688", "999688"):
         return {"label": "科", "color": "#a855f7"}
     if clean in ("999999", "000001", "000300", "399300", "399001"):
@@ -287,7 +298,15 @@ def get_kline(
 ):
     """Get rich real-time K-line bars directly from TDX feed, moving averages, and technical indicators."""
     raw_sym = symbol.strip()
-    clean_sym = raw_sym.upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    clean_sym = (
+        raw_sym.upper()
+        .replace("SH", "")
+        .replace("SZ", "")
+        .replace("BJ", "")
+        .replace("HY", "")
+        .replace("BK", "")
+        .replace(".", "")
+    )
     if not clean_sym:
         clean_sym = "000001"
         raw_sym = "000001"

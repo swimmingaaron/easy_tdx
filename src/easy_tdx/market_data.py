@@ -28,24 +28,34 @@ def _get_market(symbol: str) -> Market:
         return Market.SZ
     if raw_upper.startswith("BJ") or raw_upper.endswith("BJ"):
         return Market.BJ
+    if raw_upper.startswith(("HY", "BK")) or raw_upper.endswith(("HY", "BK")):
+        return Market.SH
         
-    sym = raw_upper.replace("SH", "").replace("SZ", "").replace("BJ", "")
-    # Specific standard Shanghai index codes without explicit exchange suffix
+    sym = (
+        raw_upper
+        .replace("SH", "")
+        .replace("SZ", "")
+        .replace("BJ", "")
+        .replace("HY", "")
+        .replace("BK", "")
+    )
+    # Specific standard Shanghai index codes and 88xxxx industry/concept board indices
     if sym in ("999999", "999998", "999997", "000688"):
         return Market.SH
-    if sym.startswith(("60", "68", "99")):
+    if sym.startswith(("60", "68", "99", "88")):
         return Market.SH
     elif sym.startswith(("00", "30", "399")):
         return Market.SZ
-    elif sym.startswith(("4", "83", "87", "88", "92")):
+    elif sym.startswith(("4", "83", "87", "92", "899")):
         return Market.BJ
-    elif sym.startswith("8"):
+    elif sym.startswith("8") and not sym.startswith("88"):
         return Market.BJ
     return Market.SZ
 
 def _is_board_symbol(clean_sym: str) -> bool:
     """Detect if symbol is an industry/concept board index (e.g. 881376, 880472, 880xxx, 881xxx)."""
-    if clean_sym.startswith("88") and len(clean_sym) == 6:
+    s = clean_sym.strip().upper().replace("HY", "").replace("BK", "").replace(".", "")
+    if s.startswith("88") and len(s) == 6:
         return True
     if clean_sym.startswith(("BK", "HY")):
         return True
@@ -53,6 +63,8 @@ def _is_board_symbol(clean_sym: str) -> bool:
 
 def _is_index_symbol(clean_sym: str, market: Market) -> bool:
     """Detect if symbol is a standard index."""
+    if clean_sym.startswith("88"):
+        return True
     if market == Market.SH and (clean_sym in ("999999", "000300", "000016", "000010", "000688", "000001") or clean_sym.startswith("99")):
         return True
     if market == Market.SZ and (clean_sym.startswith("399") or clean_sym in ("399001", "399006", "399300", "399005")):
@@ -119,7 +131,15 @@ def fetch_security_kline(
     if period is not None:
         category = period
         
-    clean_sym = symbol.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+    clean_sym = (
+        symbol.strip().upper()
+        .replace("SH", "")
+        .replace("SZ", "")
+        .replace("BJ", "")
+        .replace("HY", "")
+        .replace("BK", "")
+        .replace(".", "")
+    )
     if not clean_sym:
         clean_sym = "000001"
         

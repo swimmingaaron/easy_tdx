@@ -62,12 +62,16 @@ class GetSecurityBarsCmd(BaseCommand[list[SecurityBar]]):
 
     def parse_response(self, body: bytes) -> list[SecurityBar]:
         (ret_count,) = unpack_from("<H", body, 0, "security_bars header")
+        if ret_count == 0 or len(body) <= 2:
+            return []
         pos = 2
         bars: list[SecurityBar] = []
         pre_diff_base = 0
         cat = int(self.category)
 
         for i in range(ret_count):
+            if pos >= len(body):
+                break
             record_start = pos
             try:
                 year, month, day, hour, minute, pos = get_datetime(cat, body, pos)
@@ -89,9 +93,8 @@ class GetSecurityBarsCmd(BaseCommand[list[SecurityBar]]):
                 # 让调用方分页重试比直接 500 更友好。
                 if i == 0 and not bars:
                     # 第 1 条即崩且无任何已解析记录：典型"服务器空响应"
-                    # （ret_count 撒谎）。用更明确的措辞，便于上层故障转移逻辑
-                    # 与人工排查识别"这是该服务器没数据，该换台"。
-                    _log.warning(
+                    # （ret_count 撒谎或标的不存在）。记录 debug 日志，避免故障转移探测时重复刷屏
+                    _log.debug(
                         "K线响应为空（声称 %d 条但首条即解析失败：%s），"
                         "该服务器可能未提供此标的，返回空列表",
                         ret_count,
@@ -143,12 +146,16 @@ class GetIndexBarsCmd(GetSecurityBarsCmd):
 
     def parse_response(self, body: bytes) -> list[SecurityBar]:
         (ret_count,) = unpack_from("<H", body, 0, "security_bars header")
+        if ret_count == 0 or len(body) <= 2:
+            return []
         pos = 2
         bars: list[SecurityBar] = []
         pre_diff_base = 0
         cat = int(self.category)
 
         for i in range(ret_count):
+            if pos >= len(body):
+                break
             record_start = pos
             try:
                 year, month, day, hour, minute, pos = get_datetime(cat, body, pos)
@@ -165,7 +172,7 @@ class GetIndexBarsCmd(GetSecurityBarsCmd):
                 pos += 4
             except TdxDecodeError as e:
                 if i == 0 and not bars:
-                    _log.warning(
+                    _log.debug(
                         "指数K线响应为空（声称 %d 条但首条即解析失败：%s），"
                         "该服务器可能未提供此指数，返回空列表",
                         ret_count,
