@@ -251,6 +251,10 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             inflow_1d, inflow_3d, inflow_5d = "0.0万", "0.0万", "0.0万"
             
         b_info = _resolve_stock_board_info(code, full_sym)
+        from easy_tdx.pattern_recognition import detect_stock_patterns
+        patterns = detect_stock_patterns(code)
+        status_str = " · ".join(patterns) if patterns else "震荡整理"
+
         data.append({
             "symbol": code,
             "code": code,
@@ -273,7 +277,8 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             "inflow_1d_str": inflow_1d,
             "inflow_3d_str": inflow_3d,
             "inflow_5d_str": inflow_5d,
-            "status": "多头排列" if chg > 1.5 else ("放量突破" if chg > 0 else "缩量回踩")
+            "status": status_str,
+            "patterns": patterns,
         })
         
     if not symbols:
@@ -640,6 +645,10 @@ def get_kline(
     zs_block = b_info.get("board_name") or board_lbl or ""
     data1 = f"{clean_sym}|{zs_block}"
 
+    from easy_tdx.pattern_recognition import detect_patterns
+    patterns = detect_patterns(df)
+    pattern_status = " · ".join(patterns) if patterns else "震荡整理"
+
     res = {
         "status": "success",
         "symbol": clean_sym,
@@ -651,6 +660,8 @@ def get_kline(
         "zs_block": zs_block,
         "data1": data1,
         "period": period,
+        "patterns": patterns,
+        "pattern_status": pattern_status,
         "count": len(bars_data),
         "td_summary": {
             "td9_high": int(td9_h[-1]) if len(td9_h) > 0 else 0,
@@ -662,6 +673,8 @@ def get_kline(
             "price": last_price,
             "change": chg,
             "change_pct": chg_pct,
+            "status": pattern_status,
+            "patterns": patterns,
             "open": last_bar["open"],
             "high": last_bar["high"],
             "low": last_bar["low"],

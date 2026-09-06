@@ -55,17 +55,19 @@ class TechnicalAgent(BaseAgent):
         elif vol_ratio > 3.5:
             score -= 5.0  # Excessive turnover warning
             
-        score = min(98.0, max(40.0, score))
-        trend_status = "多头排列 · 顺势主升" if is_bull else ("震荡整理 · 均线粘合" if c_cur >= m20_cur else "空头破位 · 弱势整理")
+        from easy_tdx.pattern_recognition import detect_patterns
+        patterns = detect_patterns(kline_df)
+        trend_status = " · ".join(patterns) if patterns else ("多头排列 · 顺势主升" if is_bull else "震荡整理")
         
         summary = (
-            f"当前价格 ¥{c_cur:.2f}，呈现【{trend_status}】，MA5/10/20 分别为 ¥{m5_cur:.2f}/¥{m10_cur:.2f}/¥{m20_cur:.2f}。"
+            f"当前价格 ¥{c_cur:.2f}，满足量化形态【{trend_status}】，MA5/10/20 分别为 ¥{m5_cur:.2f}/¥{m10_cur:.2f}/¥{m20_cur:.2f}。"
             f"日内量比 {vol_ratio:.2f}，MACD {'金叉多头区域' if is_macd_gold else '死叉整理区域'}。"
         )
 
         return {
             "score": round(score, 1),
             "trend_status": trend_status,
+            "patterns": patterns,
             "is_bull_alignment": is_bull,
             "volume_ratio": round(vol_ratio, 2),
             "support_price": round(m10_cur, 2),

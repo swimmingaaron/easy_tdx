@@ -7369,6 +7369,38 @@
             updateKpWatchlistButton();
         }
 
+        function renderPatternBadges(patterns, defaultStatus) {
+            let list = [];
+            if (Array.isArray(patterns) && patterns.length > 0) {
+                list = patterns;
+            } else if (typeof defaultStatus === 'string' && defaultStatus.trim()) {
+                list = defaultStatus.split(' · ').map(s => s.trim()).filter(Boolean);
+            }
+            if (list.length === 0) list = ['震荡整理'];
+
+            return `
+                <div class="flex flex-wrap items-center justify-center gap-1.5 min-w-[80px]">
+                    ${list.map(p => {
+                        let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
+                        if (p.includes('突破') || p.includes('出水芙蓉') || p.includes('起爆')) {
+                            badgeClass = 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border-rose-500/30 font-semibold';
+                        } else if (p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴')) {
+                            badgeClass = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold';
+                        } else if (p.includes('回踩') || p.includes('底分型') || p.includes('低位金叉') || p.includes('蓄势')) {
+                            badgeClass = 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30';
+                        } else if (p.includes('TD9') || p.includes('拐点')) {
+                            badgeClass = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold';
+                        } else if (p.includes('金叉') || p.includes('共振')) {
+                            badgeClass = 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30';
+                        } else if (p.includes('空头') || p.includes('顶分型') || p.includes('死叉') || p.includes('弱势')) {
+                            badgeClass = 'bg-rose-950/40 text-rose-400 border-rose-800/50';
+                        }
+                        return `<span class="px-2 py-0.5 rounded text-xs font-medium border whitespace-nowrap shadow-xs ${badgeClass}" title="${p}">${p}</span>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         async function loadRealtimeQuotes() {
             try {
                 const symbols = getWatchlistSymbols();
@@ -7413,6 +7445,8 @@
                             if (r.ok) {
                                 const kj = await r.json();
                                 const q = kj.quote || {};
+                                const pats = kj.patterns || (q.patterns) || [];
+                                const stStr = kj.pattern_status || q.status || (pats.length ? pats.join(' · ') : '震荡整理');
                                 return {
                                     code: code,
                                     name: kj.name || code,
@@ -7424,7 +7458,8 @@
                                     low: q.low || 0,
                                     total_mv_yi: q.total_val_yi || 0,
                                     turnover_wan: q.amount ? Math.round(q.amount / 10000) : 0,
-                                    status: (q.change_pct > 1.5) ? '多头排列' : ((q.change_pct > 0) ? '放量突破' : '缩量回踩')
+                                    status: stStr,
+                                    patterns: pats
                                 };
                             }
                         } catch (err) {}
@@ -7481,7 +7516,7 @@
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                             <td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
-                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-400 border border-cyan-800">${q.status}</span></td>
+                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(q.patterns, q.status)}</td>
                             <td class="py-2.5 px-3 pr-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openKlineModal('${q.code}', '${q.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
@@ -9847,7 +9882,7 @@
                                 <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow3dColor}">${item.inflow_3d_str || '0.0万'}</td>
                                 <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow5dColor}">${item.inflow_5d_str || '0.0万'}</td>
 
-                                <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-xs truncate max-w-xs" title="${item.pattern}">${item.pattern}</td>
+                                <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(item.patterns, item.pattern)}</td>
 
                                 <!-- 操作 -->
                                 <td class="py-2.5 px-3 text-center whitespace-nowrap">

@@ -144,6 +144,9 @@ def get_universe_4d_ranking(
         b_name = b_info.get("board_name", "")
         ind = b_name if (b_name and b_name != "--") else (theme.split("/")[0] if "/" in theme else theme)
         
+        patterns = tech_info.get("patterns") or ([pattern] if pattern else ["震荡整理"])
+        pattern_str = " · ".join(patterns) if isinstance(patterns, list) else pattern
+
         return {
             "code": clean_sym,
             "symbol": clean_sym,
@@ -161,7 +164,8 @@ def get_universe_4d_ranking(
             "change_pct_str": f"{chg_pct:+.2f}%",
             "amount_wan": amt_wan,
             "amount_wan_str": f"{amt_wan:,.1f}",
-            "pattern": pattern,
+            "pattern": pattern_str,
+            "patterns": patterns,
             "summary": res.get("summary", "")
         }
 

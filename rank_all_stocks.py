@@ -52,10 +52,15 @@ def score_single_stock(symbol: str) -> dict | None:
         b_info = _resolve_stock_board_info(clean_sym)
         board_name = b_info.get("board_name", "--")
 
+        tech_info = res.get("agents_detail", {}).get("technical", {})
+        patterns = tech_info.get("patterns") or ([tech_info.get("trend_status")] if tech_info.get("trend_status") else ["震荡整理"])
+        pattern_str = " · ".join(patterns) if isinstance(patterns, list) else str(patterns)
+
         return {
             "代码": clean_sym,
             "名称": get_stock_name(clean_sym),
             "所属板块": board_name,
+            "形态特征": pattern_str,
             "综合得分": res.get("overall_score", 0.0),
             "交易评级": res.get("signal_display", ""),
             "信号代码": res.get("signal", ""),
