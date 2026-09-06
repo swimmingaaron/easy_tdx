@@ -7371,7 +7371,47 @@
             updateKpWatchlistButton();
         }
 
-        function renderPatternBadges(patterns, defaultStatus) {
+        function formatSinglePattern(p) {
+            if (!p) return '';
+            // 下跌信号: 绿色 (中国A股下跌绿)
+            const isBearish = (
+                p.includes('乌鸦') || p.includes('乌云盖顶') || p.includes('倾盆大雨') ||
+                p.includes('阴包阳') || p.includes('黄昏之星') || p.includes('下降三法') ||
+                p.includes('射击之星') || p.includes('流星') || p.includes('吊颈线') ||
+                p.includes('空方炮') || p.includes('死蜘蛛') || p.includes('价压') ||
+                p.includes('空头') || p.includes('顶分型') || p.includes('死叉') ||
+                p.includes('放量下跌') || p.includes('滞涨') || p.includes('顶背离') ||
+                p.includes('见顶') || p.includes('跌破') || p.includes('压力') ||
+                p.includes('弱势') || p.includes('量价背离') || p.includes('向下跳空') ||
+                p.includes('超买') || p.includes('长上影')
+            );
+
+            // 上涨信号: 红色 (中国A股上涨红)
+            const isBullish = (
+                p.includes('突破') || p.includes('出水芙蓉') || p.includes('蛟龙出海') ||
+                p.includes('金蜘蛛') || p.includes('起爆') || p.includes('旭日东升') ||
+                p.includes('多方炮') || p.includes('上升三法') || p.includes('价托') ||
+                p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴') ||
+                p.includes('启明星') || p.includes('曙光初现') || p.includes('价涨量增') ||
+                p.includes('OBV创新高') || p.includes('回踩') || p.includes('底分型') ||
+                p.includes('锤子线') || p.includes('倒锤子') || p.includes('低位金叉') ||
+                p.includes('超卖') || p.includes('底背离') || p.includes('蓄势') ||
+                p.includes('支撑') || p.includes('见底') || p.includes('希望') ||
+                p.includes('金叉') || p.includes('共振') || p.includes('向上跳空') ||
+                p.includes('长下影') || p.includes('低位十字')
+            );
+
+            let textColor = 'text-slate-400 font-medium';
+            if (isBearish) {
+                textColor = 'text-emerald-500 font-bold';
+            } else if (isBullish) {
+                textColor = 'text-rose-500 font-bold';
+            }
+
+            return `<span class="text-xs whitespace-nowrap select-none ${textColor}" title="${p}">${p}</span>`;
+        }
+
+        function renderPatternBadges(patterns, defaultStatus, triggerPatterns, daysAgo, signalDate, latestDate) {
             let list = [];
             if (Array.isArray(patterns) && patterns.length > 0) {
                 list = patterns;
@@ -7380,46 +7420,30 @@
             }
             if (list.length === 0) list = ['震荡整理'];
 
+            // 方案C: 若为历史触发 (daysAgo > 0) 且有触发日形态数据，展示双重视角 (当前最新 + 触发当时副标题与悬停详情)
+            if (daysAgo && Number(daysAgo) > 0 && Array.isArray(triggerPatterns) && triggerPatterns.length > 0) {
+                let trigList = triggerPatterns.length > 0 ? triggerPatterns : ['震荡整理'];
+                const latestText = list.join(' · ');
+                const trigText = trigList.join(' · ');
+                const hoverTip = `【双重视角】&#10;当前最新 (${latestDate || '最新收盘'}): ${latestText}&#10;历史触发 (${signalDate || '触发日'}): ${trigText}`;
+
+                return `
+                    <div class="flex flex-col items-center justify-center gap-0.5 py-0.5 cursor-help" title="${hoverTip}">
+                        <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
+                            <span class="text-[10px] text-slate-500 font-mono scale-90 select-none">当前</span>
+                            ${list.map(formatSinglePattern).join('')}
+                        </div>
+                        <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 opacity-80 border-t border-slate-800/40 pt-0.5">
+                            <span class="text-[10px] text-indigo-400 font-mono scale-90 select-none">触发(${signalDate || '当时'})</span>
+                            ${trigList.map(formatSinglePattern).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
             return `
                 <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 min-w-[80px]">
-                    ${list.map(p => {
-                        // 下跌信号: 绿色 (中国A股下跌绿)
-                        const isBearish = (
-                            p.includes('乌鸦') || p.includes('乌云盖顶') || p.includes('倾盆大雨') ||
-                            p.includes('阴包阳') || p.includes('黄昏之星') || p.includes('下降三法') ||
-                            p.includes('射击之星') || p.includes('流星') || p.includes('吊颈线') ||
-                            p.includes('空方炮') || p.includes('死蜘蛛') || p.includes('价压') ||
-                            p.includes('空头') || p.includes('顶分型') || p.includes('死叉') ||
-                            p.includes('放量下跌') || p.includes('滞涨') || p.includes('顶背离') ||
-                            p.includes('见顶') || p.includes('跌破') || p.includes('压力') ||
-                            p.includes('弱势') || p.includes('量价背离') || p.includes('向下跳空') ||
-                            p.includes('超买') || p.includes('长上影')
-                        );
-
-                        // 上涨信号: 红色 (中国A股上涨红)
-                        const isBullish = (
-                            p.includes('突破') || p.includes('出水芙蓉') || p.includes('蛟龙出海') ||
-                            p.includes('金蜘蛛') || p.includes('起爆') || p.includes('旭日东升') ||
-                            p.includes('多方炮') || p.includes('上升三法') || p.includes('价托') ||
-                            p.includes('多头') || p.includes('红三兵') || p.includes('阳包阴') ||
-                            p.includes('启明星') || p.includes('曙光初现') || p.includes('价涨量增') ||
-                            p.includes('OBV创新高') || p.includes('回踩') || p.includes('底分型') ||
-                            p.includes('锤子线') || p.includes('倒锤子') || p.includes('低位金叉') ||
-                            p.includes('超卖') || p.includes('底背离') || p.includes('蓄势') ||
-                            p.includes('支撑') || p.includes('见底') || p.includes('希望') ||
-                            p.includes('金叉') || p.includes('共振') || p.includes('向上跳空') ||
-                            p.includes('长下影') || p.includes('低位十字')
-                        );
-
-                        let textColor = 'text-slate-400 font-medium';
-                        if (isBearish) {
-                            textColor = 'text-emerald-500 font-bold';
-                        } else if (isBullish) {
-                            textColor = 'text-rose-500 font-bold';
-                        }
-
-                        return `<span class="text-xs whitespace-nowrap select-none ${textColor}" title="${p}">${p}</span>`;
-                    }).join('')}
+                    ${list.map(formatSinglePattern).join('')}
                 </div>
             `;
         }
@@ -9437,7 +9461,7 @@
                     <td class="py-3 px-2 text-right font-mono font-semibold ${inflow3dColor} whitespace-nowrap" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                     <td class="py-3 px-2 text-right font-mono font-semibold ${inflow5dColor} whitespace-nowrap" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-3 px-3 text-center font-mono whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs ${statusBadgeClass}">${m.signal_date} (${m.status_label || '信号'})</span></td>
-                    <td class="py-3 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(m.patterns, m.status || m.pattern_status)}</td>
+                    <td class="py-3 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(m.patterns, m.status || m.pattern_status, m.trigger_patterns, m.days_ago, m.signal_date, m.latest_date)}</td>
                     <td class="py-3 pr-3 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end space-x-1.5">
                             <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>

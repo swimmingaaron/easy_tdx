@@ -250,6 +250,24 @@ def scan_market_strategy(
                             patterns = ["震荡整理"]
                         pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
+                        # 方案C: 计算历史触发日的形态特征 (对比历史起涨形态与当前最新形态)
+                        if days_ago == 0:
+                            trigger_patterns = list(patterns)
+                        else:
+                            try:
+                                from easy_tdx.pattern_recognition import detect_patterns
+                                trigger_df = sig_df.iloc[:trigger_loc + 1]
+                                trigger_patterns = detect_patterns(trigger_df)
+                            except Exception:
+                                trigger_patterns = ["震荡整理"]
+                        trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
+
+                        latest_date = str(last_bar.get("datetime", ""))
+                        if " " in latest_date:
+                            latest_date = latest_date.split(" ")[0]
+                        elif len(latest_date) == 8 and latest_date.isdigit():
+                            latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
+
                         matched.append({
                             "symbol": sym,
                             "code": sym,
@@ -270,8 +288,11 @@ def scan_market_strategy(
                             "status_label": status_label,
                             "signal_date": signal_date or "最新交易日",
                             "trigger_date": signal_date or "最新交易日",
+                            "latest_date": latest_date or "最新收盘",
                             "patterns": patterns,
                             "pattern_status": pattern_status,
+                            "trigger_patterns": trigger_patterns,
+                            "trigger_pattern_status": trigger_pattern_status,
                             "status": pattern_status,
                             "total_mv_yi": 0.0,
                             "market_cap_yi": 0.0,
