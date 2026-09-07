@@ -152,6 +152,7 @@ function buildOption(): echarts.EChartsCoreOption {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
+      alwaysShowContent: true,
       axisPointer: {
         type: 'cross',
         label: {

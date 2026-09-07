@@ -46,6 +46,7 @@ function buildOption(
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
+      alwaysShowContent: true,
       valueFormatter: (v: number | string) => fmt2(Number(v)),
     },
     legend: { top: 0, data: series.map((s) => s.name) },

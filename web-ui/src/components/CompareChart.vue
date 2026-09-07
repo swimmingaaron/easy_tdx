@@ -37,6 +37,7 @@ function buildOption(): echarts.EChartsCoreOption {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
+      alwaysShowContent: true,
       valueFormatter: (v: number | string) => fmt2(Number(v)),
     },
     legend: { top: 0, data: seriesData.map((s) => s.name) },
