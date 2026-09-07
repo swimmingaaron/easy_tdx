@@ -63,39 +63,45 @@ COMMON_INDICES = [
     {"code": "899050.BJ", "name": "北证50", "market": "BJ", "pinyin": "BZ50"},
 ]
 
+import threading
+
 # Fast in-memory map: symbol -> name
 _SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS + COMMON_INDICES}
 _BOARD_MAP: dict[str, dict[str, Any]] = {}
 _BOARD_MAP_LOADED = False
+_BOARD_MAP_LOCK = threading.Lock()
 
 def _ensure_board_map():
     """Lazily load all 560+ TDX industry and concept board metadata."""
     global _BOARD_MAP, _BOARD_MAP_LOADED
     if _BOARD_MAP_LOADED:
         return
-    try:
-        from easy_tdx.mac.client import MacClient
-        from easy_tdx.mac.enums import BoardType
-        mac = MacClient.from_best_host()
-        mac.connect()
-        df = mac.get_board_list(BoardType.ALL)
-        if df is not None and not df.empty:
-            for _, row in df.iterrows():
-                c = str(row.get("code", "")).strip()
-                n = str(row.get("name", "")).strip()
-                if c and n:
-                    _BOARD_MAP[c] = {
-                        "symbol": c,
-                        "code": c,
-                        "name": n,
-                        "market": "HY",
-                        "pinyin": "",
-                        "display": f"{c} {n} [行业板块]"
-                    }
-                    _SYMBOL_NAME_MAP[c] = n
-            _BOARD_MAP_LOADED = True
-    except Exception as e:
-        logger.warning(f"Failed to pre-load TDX board map: {e}")
+    with _BOARD_MAP_LOCK:
+        if _BOARD_MAP_LOADED:
+            return
+        try:
+            from easy_tdx.mac.client import MacClient
+            from easy_tdx.mac.enums import BoardType
+            mac = MacClient.from_best_host()
+            mac.connect()
+            df = mac.get_board_list(BoardType.ALL)
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    c = str(row.get("code", "")).strip()
+                    n = str(row.get("name", "")).strip()
+                    if c and n:
+                        _BOARD_MAP[c] = {
+                            "symbol": c,
+                            "code": c,
+                            "name": n,
+                            "market": "HY",
+                            "pinyin": "",
+                            "display": f"{c} {n} [行业板块]"
+                        }
+                        _SYMBOL_NAME_MAP[c] = n
+                _BOARD_MAP_LOADED = True
+        except Exception as e:
+            logger.debug(f"Failed to pre-load TDX board map: {e}")
 
 def get_stock_name(symbol: str) -> str:
     """Resolve Chinese stock or board name from symbol, with fallback."""

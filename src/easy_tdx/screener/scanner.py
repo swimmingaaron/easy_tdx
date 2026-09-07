@@ -154,6 +154,183 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
             s.setdefault("inflow_3d_str", "0.0万")
             s.setdefault("inflow_5d_str", "0.0万")
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+_DAILY_KLINE_CACHE: dict[str, tuple[str, pd.DataFrame]] = {}
+_DAILY_KLINE_LOCK = threading.Lock()
+
+
+def _get_or_fetch_daily_kline(sym: str) -> pd.DataFrame | None:
+    today_str = date.today().strftime("%Y%m%d")
+    with _DAILY_KLINE_LOCK:
+        if sym in _DAILY_KLINE_CACHE:
+            d_str, cached_df = _DAILY_KLINE_CACHE[sym]
+            if d_str == today_str:
+                return cached_df
+
+    from easy_tdx.market_data import fetch_kline_with_pool
+    df = fetch_kline_with_pool(sym, category="DAY", count=140)
+    if df is not None and len(df) >= 20:
+        with _DAILY_KLINE_LOCK:
+            _DAILY_KLINE_CACHE[sym] = (today_str, df)
+        return df
+    return None
+
+
+def _evaluate_stock_for_strategy(
+    sym: str,
+    strategy_name: str,
+    st: Any,
+    lookback_bars: int
+) -> dict[str, Any] | None:
+    df = _get_or_fetch_daily_kline(sym)
+    if df is None or len(df) < 20:
+        return None
+
+    try:
+        sig_df = st.generate_signals(df)
+        if sig_df is None or "buy_signal" not in sig_df.columns:
+            return None
+
+        window_size = min(lookback_bars, len(sig_df))
+        recent_df = sig_df.iloc[-window_size:]
+        buy_mask = recent_df["buy_signal"].astype(bool)
+
+        if not buy_mask.any():
+            return None
+
+        if strategy_name == "td_sequential":
+            # 用户明确要求：“48 大策略全市场选股系统 中， 通达信上升九转策略 只显示 高序列 结果”
+            # 必须保证最新一根 K 线的上升九转序列仍然有效（处于高序列中 cur_h_seq >= 1），
+            # 过滤掉高序列已中断（cur_h_seq == 0）或已转为下跌低序列的股票
+            c_vals = sig_df["close"].values
+            ref4 = REF(c_vals, 4)
+            cur_h_seq = int(BARSLASTCOUNT(c_vals > ref4)[-1])
+            if cur_h_seq <= 0:
+                return None
+
+            trigger_loc = max(0, len(sig_df) - cur_h_seq)
+            trigger_bar = sig_df.iloc[trigger_loc]
+            trigger_idx = sig_df.index[trigger_loc]
+            days_ago = cur_h_seq - 1
+        else:
+            trigger_idx = buy_mask[buy_mask].index[-1]
+            trigger_bar = sig_df.loc[trigger_idx]
+            trigger_loc = sig_df.index.get_loc(trigger_idx)
+            days_ago = len(sig_df) - 1 - trigger_loc
+
+        last_bar = sig_df.iloc[-1]
+        stock_name = get_stock_name(sym)
+
+        close_price = round(float(last_bar["close"]), 2)
+        trigger_price = round(float(trigger_bar["close"]), 2)
+        vol = int(last_bar["volume"])
+        amt_wan = round(float(last_bar.get("amount", 0.0)) / 10000.0, 1)
+
+        if trigger_loc > 0:
+            trigger_prev_close = float(sig_df.iloc[trigger_loc - 1]["close"])
+            signal_change_pct = round((trigger_price - trigger_prev_close) / trigger_prev_close * 100.0, 2) if trigger_prev_close > 0 else 0.0
+        elif "change_pct" in trigger_bar and pd.notna(trigger_bar["change_pct"]):
+            signal_change_pct = round(float(trigger_bar["change_pct"]), 2)
+        else:
+            signal_change_pct = 0.0
+
+        since_signal_pct = round((close_price - trigger_price) / trigger_price * 100.0, 2) if trigger_price > 0 else 0.0
+
+        if len(sig_df) >= 2:
+            last_prev_close = float(sig_df.iloc[-2]["close"])
+            latest_change_pct = round((close_price - last_prev_close) / last_prev_close * 100.0, 2) if last_prev_close > 0 else 0.0
+        else:
+            latest_change_pct = 0.0
+
+        signal_date = str(trigger_bar.get("datetime", ""))
+        if " " in signal_date:
+            signal_date = signal_date.split(" ")[0]
+        elif len(signal_date) == 8 and signal_date.isdigit():
+            signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
+
+        if strategy_name == "td_sequential":
+            if cur_h_seq == 1:
+                status_label = "今日高1序列"
+            elif cur_h_seq == 9:
+                status_label = "高9序列 (见顶警示)"
+            elif cur_h_seq == 13:
+                status_label = "高13序列 (极致反转)"
+            else:
+                status_label = f"高{cur_h_seq}序列 ({days_ago}日前启动)"
+        else:
+            status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
+
+        try:
+            from easy_tdx.pattern_recognition import detect_patterns
+            patterns = detect_patterns(sig_df)
+        except Exception:
+            patterns = ["震荡整理"]
+
+        if strategy_name == "td_sequential":
+            td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
+            patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
+
+        pattern_status = " · ".join(patterns) if patterns else "震荡整理"
+
+        # 计算历史触发日的形态特征
+        if days_ago == 0:
+            trigger_patterns = list(patterns)
+        else:
+            try:
+                from easy_tdx.pattern_recognition import detect_patterns
+                trigger_df = sig_df.iloc[:trigger_loc + 1]
+                trigger_patterns = detect_patterns(trigger_df)
+            except Exception:
+                trigger_patterns = ["震荡整理"]
+
+        if strategy_name == "td_sequential":
+            if "高1序列" not in trigger_patterns:
+                trigger_patterns = ["高1序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
+
+        trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
+
+        latest_date = str(last_bar.get("datetime", ""))
+        if " " in latest_date:
+            latest_date = latest_date.split(" ")[0]
+        elif len(latest_date) == 8 and latest_date.isdigit():
+            latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
+
+        return {
+            "symbol": sym,
+            "code": sym,
+            "name": stock_name,
+            "display": f"{sym} {stock_name}",
+            "strategy": st.display_name,
+            "strategy_id": strategy_name,
+            "price": close_price,
+            "change_pct": signal_change_pct,
+            "signal_change_pct": signal_change_pct,
+            "since_signal_pct": since_signal_pct,
+            "latest_change_pct": latest_change_pct,
+            "trigger_price": trigger_price,
+            "volume": vol,
+            "amount_wan": amt_wan,
+            "days_ago": days_ago,
+            "trigger_days_ago": days_ago,
+            "status_label": status_label,
+            "signal_date": signal_date or "最新交易日",
+            "trigger_date": signal_date or "最新交易日",
+            "latest_date": latest_date or "最新收盘",
+            "patterns": patterns,
+            "pattern_status": pattern_status,
+            "trigger_patterns": trigger_patterns,
+            "trigger_pattern_status": trigger_pattern_status,
+            "status": pattern_status,
+            "total_mv_yi": 0.0,
+            "market_cap_yi": 0.0,
+            "market_cap_str": "--",
+        }
+    except Exception as e:
+        logger.debug(f"Strategy {strategy_name} scan error on {sym}: {e}")
+        return None
+
+
 def scan_market_strategy(
     strategy_name: str, 
     symbols: list[str] | None = None,
@@ -163,7 +340,7 @@ def scan_market_strategy(
     progress_callback: Callable[[int, int, int, float], None] | None = None,
     stop_event: threading.Event | None = None
 ) -> list[dict[str, Any]]:
-    """Scan market universe against strategy using real TDX historical bars and return matched stocks.
+    """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency.
     
     Args:
         strategy_name: Identifier for strategy in registry
@@ -192,158 +369,40 @@ def scan_market_strategy(
         
     total_count = len(symbols)
     matched: list[dict[str, Any]] = []
-    
-    for idx, sym in enumerate(symbols, 1):
-        if stop_event is not None and stop_event.is_set():
-            logger.info(f"Scan aborted by stop_event at {idx}/{total_count}")
-            break
 
-        try:
-            df = fetch_security_kline(sym, period="DAY", count=140)
-            if df is None or len(df) < 20:
-                pass
-            else:
-                sig_df = st.generate_signals(df)
-                if sig_df is not None and "buy_signal" in sig_df.columns:
-                    window_size = min(lookback_bars, len(sig_df))
-                    recent_df = sig_df.iloc[-window_size:]
-                    buy_mask = recent_df["buy_signal"].astype(bool)
-                    
-                    if buy_mask.any():
-                        if strategy_name == "td_sequential":
-                            # 用户明确要求：“48 大策略全市场选股系统 中， 通达信上升九转策略 只显示 高序列 结果”
-                            # 必须保证最新一根 K 线的上升九转序列仍然有效（处于高序列中 cur_h_seq >= 1），
-                            # 过滤掉高序列已中断（cur_h_seq == 0）或已转为下跌低序列的股票
-                            c_vals = sig_df["close"].values
-                            ref4 = REF(c_vals, 4)
-                            cur_h_seq = int(BARSLASTCOUNT(c_vals > ref4)[-1])
-                            if cur_h_seq <= 0:
-                                continue
-                            
-                            trigger_loc = max(0, len(sig_df) - cur_h_seq)
-                            trigger_bar = sig_df.iloc[trigger_loc]
-                            trigger_idx = sig_df.index[trigger_loc]
-                            days_ago = cur_h_seq - 1
-                        else:
-                            trigger_idx = buy_mask[buy_mask].index[-1]
-                            trigger_bar = sig_df.loc[trigger_idx]
-                            trigger_loc = sig_df.index.get_loc(trigger_idx)
-                            days_ago = len(sig_df) - 1 - trigger_loc
+    # Dynamic thread pool sizing
+    if total_count <= 40:
+        max_workers = min(8, total_count)
+    elif total_count <= 500:
+        max_workers = 16
+    else:
+        max_workers = 32
 
-                        last_bar = sig_df.iloc[-1]
-                        
-                        stock_name = get_stock_name(sym)
-                        close_price = round(float(last_bar["close"]), 2)
-                        trigger_price = round(float(trigger_bar["close"]), 2)
-                        vol = int(last_bar["volume"])
-                        amt_wan = round(float(last_bar.get("amount", 0.0)) / 10000.0, 1)
+    processed = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars): sym
+            for sym in symbols
+        }
+        for fut in as_completed(futures):
+            if stop_event is not None and stop_event.is_set():
+                logger.info(f"Scan aborted by stop_event at {processed}/{total_count}")
+                for f in futures:
+                    f.cancel()
+                break
 
-                        if trigger_loc > 0:
-                            trigger_prev_close = float(sig_df.iloc[trigger_loc - 1]["close"])
-                            signal_change_pct = round((trigger_price - trigger_prev_close) / trigger_prev_close * 100.0, 2) if trigger_prev_close > 0 else 0.0
-                        elif "change_pct" in trigger_bar and pd.notna(trigger_bar["change_pct"]):
-                            signal_change_pct = round(float(trigger_bar["change_pct"]), 2)
-                        else:
-                            signal_change_pct = 0.0
+            processed += 1
+            try:
+                res = fut.result()
+                if res is not None:
+                    matched.append(res)
+            except Exception as e:
+                logger.debug(f"Strategy eval worker exception: {e}")
 
-                        since_signal_pct = round((close_price - trigger_price) / trigger_price * 100.0, 2) if trigger_price > 0 else 0.0
-
-                        if len(sig_df) >= 2:
-                            last_prev_close = float(sig_df.iloc[-2]["close"])
-                            latest_change_pct = round((close_price - last_prev_close) / last_prev_close * 100.0, 2) if last_prev_close > 0 else 0.0
-                        else:
-                            latest_change_pct = 0.0
-                        
-                        signal_date = str(trigger_bar.get("datetime", ""))
-                        if " " in signal_date:
-                            signal_date = signal_date.split(" ")[0]
-                        elif len(signal_date) == 8 and signal_date.isdigit():
-                            signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
-                            
-                        if strategy_name == "td_sequential":
-                            if cur_h_seq == 1:
-                                status_label = "今日高1序列"
-                            elif cur_h_seq == 9:
-                                status_label = "高9序列 (见顶警示)"
-                            elif cur_h_seq == 13:
-                                status_label = "高13序列 (极致反转)"
-                            else:
-                                status_label = f"高{cur_h_seq}序列 ({days_ago}日前启动)"
-                        else:
-                            status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
-
-                        try:
-                            from easy_tdx.pattern_recognition import detect_patterns
-                            patterns = detect_patterns(sig_df)
-                        except Exception:
-                            patterns = ["震荡整理"]
-
-                        if strategy_name == "td_sequential":
-                            td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
-                            patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
-
-                        pattern_status = " · ".join(patterns) if patterns else "震荡整理"
-
-                        # 方案C: 计算历史触发日的形态特征 (对比历史起涨形态与当前最新形态)
-                        if days_ago == 0:
-                            trigger_patterns = list(patterns)
-                        else:
-                            try:
-                                from easy_tdx.pattern_recognition import detect_patterns
-                                trigger_df = sig_df.iloc[:trigger_loc + 1]
-                                trigger_patterns = detect_patterns(trigger_df)
-                            except Exception:
-                                trigger_patterns = ["震荡整理"]
-
-                        if strategy_name == "td_sequential":
-                            if "高1序列" not in trigger_patterns:
-                                trigger_patterns = ["高1序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
-
-                        trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
-
-                        latest_date = str(last_bar.get("datetime", ""))
-                        if " " in latest_date:
-                            latest_date = latest_date.split(" ")[0]
-                        elif len(latest_date) == 8 and latest_date.isdigit():
-                            latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
-
-                        matched.append({
-                            "symbol": sym,
-                            "code": sym,
-                            "name": stock_name,
-                            "display": f"{sym} {stock_name}",
-                            "strategy": st.display_name,
-                            "strategy_id": strategy_name,
-                            "price": close_price,
-                            "change_pct": signal_change_pct,
-                            "signal_change_pct": signal_change_pct,
-                            "since_signal_pct": since_signal_pct,
-                            "latest_change_pct": latest_change_pct,
-                            "trigger_price": trigger_price,
-                            "volume": vol,
-                            "amount_wan": amt_wan,
-                            "days_ago": days_ago,
-                            "trigger_days_ago": days_ago,
-                            "status_label": status_label,
-                            "signal_date": signal_date or "最新交易日",
-                            "trigger_date": signal_date or "最新交易日",
-                            "latest_date": latest_date or "最新收盘",
-                            "patterns": patterns,
-                            "pattern_status": pattern_status,
-                            "trigger_patterns": trigger_patterns,
-                            "trigger_pattern_status": trigger_pattern_status,
-                            "status": pattern_status,
-                            "total_mv_yi": 0.0,
-                            "market_cap_yi": 0.0,
-                            "market_cap_str": "--",
-                        })
-        except Exception as e:
-            logger.debug(f"Strategy {strategy_name} scan error on {sym}: {e}")
-            
-        # Report progress every 3 stocks or on completion
-        if progress_callback and (idx % 3 == 0 or idx == total_count):
-            pct = round((idx / total_count) * 100.0, 1)
-            progress_callback(idx, total_count, len(matched), pct)
+            # Throttled progress callback
+            if progress_callback and (processed % 4 == 0 or processed == total_count or processed % 50 == 0):
+                pct = round((processed / total_count) * 100.0, 1)
+                progress_callback(processed, total_count, len(matched), pct)
 
     # Sort matches: most recent signals first (days_ago ascending), then by volume descending
     matched.sort(key=lambda x: (x.get("days_ago", 999), -x.get("volume", 0)))

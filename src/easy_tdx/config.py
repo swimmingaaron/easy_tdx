@@ -138,20 +138,41 @@ _FALLBACK_TIMEOUT = 15.0
 # ---------------------------------------------------------------------------
 
 
+import threading
+import uuid
+import time
+
+_CONFIG_LOCK = threading.Lock()
+
 def _load() -> dict[str, Any]:
-    try:
-        if _CONFIG_FILE.exists():
-            return cast(dict[str, Any], json.loads(_CONFIG_FILE.read_text("utf-8")))
-    except Exception:
-        pass
-    return {}
+    with _CONFIG_LOCK:
+        try:
+            if _CONFIG_FILE.exists():
+                return cast(dict[str, Any], json.loads(_CONFIG_FILE.read_text("utf-8")))
+        except Exception:
+            pass
+        return {}
 
 
 def _save(data: dict[str, Any]) -> None:
-    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = _CONFIG_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
-    tmp.replace(_CONFIG_FILE)
+    with _CONFIG_LOCK:
+        try:
+            _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            tmp = _CONFIG_FILE.with_suffix(f".tmp.{uuid.uuid4().hex[:6]}")
+            tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
+            for _ in range(5):
+                try:
+                    tmp.replace(_CONFIG_FILE)
+                    break
+                except Exception:
+                    time.sleep(0.05)
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------

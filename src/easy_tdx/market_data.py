@@ -17,7 +17,63 @@ _TDX_CLIENT: TdxClient | None = None
 _CACHE: dict[str, tuple[float, pd.DataFrame]] = {}
 CACHE_TTL_SEC = 30.0
 
-PRIMARY_HOSTS = ["180.153.18.170", "119.147.212.81", "115.238.56.198", "124.71.187.122"]
+PRIMARY_HOSTS = [
+    "180.153.18.170",
+    "119.147.212.81",
+    "115.238.56.198",
+    "124.71.187.122",
+    "218.75.126.9",
+    "114.80.63.12",
+]
+
+
+class TdxConnectionPool:
+    """Thread-safe connection pool for parallel high-throughput market data fetching."""
+
+    def __init__(self, max_size: int = 32):
+        self.max_size = max_size
+        self._pool: list[TdxClient] = []
+        self._lock = threading.Lock()
+        self._counter = 0
+
+    def acquire(self) -> TdxClient:
+        with self._lock:
+            if self._pool:
+                return self._pool.pop()
+            self._counter += 1
+            idx = self._counter
+
+        host = PRIMARY_HOSTS[idx % len(PRIMARY_HOSTS)]
+        cli = TdxClient(host=host, port=7709, timeout=3.0, auto_reconnect=False)
+        try:
+            cli.connect()
+        except Exception:
+            pass
+        return cli
+
+    def release(self, cli: TdxClient):
+        if cli is None:
+            return
+        with self._lock:
+            if len(self._pool) < self.max_size:
+                self._pool.append(cli)
+            else:
+                try:
+                    cli.disconnect()
+                except Exception:
+                    pass
+
+    def close_all(self):
+        with self._lock:
+            while self._pool:
+                cli = self._pool.pop()
+                try:
+                    cli.disconnect()
+                except Exception:
+                    pass
+
+
+_TDX_POOL = TdxConnectionPool(max_size=32)
 
 def _get_market(symbol: str) -> Market:
     raw_upper = symbol.strip().upper().replace(".", "")
@@ -298,6 +354,74 @@ def fetch_security_kline(
         
     # Fallback to realistic bars if TDX connection fails
     return _generate_fallback_bars(clean_sym, n_bars=count)
+
+
+def fetch_kline_with_pool(
+    symbol: str, 
+    category: KlineCategory | str = KlineCategory.DAY, 
+    count: int = 140
+) -> pd.DataFrame | None:
+    """Fetch historical K-line bars using connection pool for high-concurrency multi-threading."""
+    clean_sym = (
+        symbol.strip().upper()
+        .replace("SH", "").replace("SZ", "").replace("BJ", "")
+        .replace("HY", "").replace("BK", "").replace(".", "")
+    )
+    if not clean_sym:
+        return None
+    market = _get_market(symbol)
+    cat_str = category.value if hasattr(category, "value") else str(category)
+    cache_key = f"{market.value}_{clean_sym}_{cat_str}_{count}"
+    now = time.time()
+    if cache_key in _CACHE:
+        ts, cached_df = _CACHE[cache_key]
+        if now - ts < CACHE_TTL_SEC:
+            return cached_df.copy()
+
+    if _is_board_symbol(clean_sym):
+        return fetch_security_kline(symbol, category=category, count=count)
+
+    cli = _TDX_POOL.acquire()
+    try:
+        cat = category if isinstance(category, KlineCategory) else (KlineCategory.DAY if str(category).upper() in ("DAY", "DAILY") else KlineCategory.DAY)
+        if _is_index_symbol(clean_sym, market):
+            raw_res = cli.get_index_bars(market, clean_sym, cat, 0, count)
+        else:
+            raw_res = cli.get_security_bars(market, clean_sym, cat, 0, count)
+        _TDX_POOL.release(cli)
+
+        if raw_res is None or len(raw_res) == 0:
+            return None
+
+        if isinstance(raw_res, pd.DataFrame):
+            df = raw_res.copy()
+            if "date" in df.columns and "datetime" not in df.columns:
+                df["datetime"] = df["date"]
+            if "vol" in df.columns and "volume" not in df.columns:
+                df["volume"] = df["vol"]
+            if "amount" not in df.columns:
+                df["amount"] = (df["volume"] * df["close"]).round(2)
+            df = df.sort_values(by="datetime").reset_index(drop=True)
+            _CACHE[cache_key] = (now, df)
+            return df.copy()
+
+        # List of SecurityBar objects
+        df = pd.DataFrame([{
+            "datetime": f"{b.year:04d}-{b.month:02d}-{b.day:02d}" if hasattr(b, "year") else str(getattr(b, "datetime", "")),
+            "open": round(b.open, 2),
+            "high": round(b.high, 2),
+            "low": round(b.low, 2),
+            "close": round(b.close, 2),
+            "volume": int(getattr(b, "vol", getattr(b, "volume", 0))),
+            "amount": round(getattr(b, "amount", 0.0), 2)
+        } for b in raw_res])
+        df = df.sort_values(by="datetime").reset_index(drop=True)
+        _CACHE[cache_key] = (now, df)
+        return df.copy()
+    except Exception as e:
+        _TDX_POOL.release(cli)
+        logger.debug(f"fetch_kline_with_pool error for {clean_sym}: {e}")
+        return None
 
 def _generate_fallback_bars(symbol: str, n_bars: int = 120) -> pd.DataFrame:
     """Deterministic fallback bars generator without circular dependencies."""
