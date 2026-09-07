@@ -31,7 +31,13 @@ INTRADAY_CACHE_TTL_SEC: float = 120.0  # 2 minutes during trading hours (09:15-1
 POST_MARKET_CACHE_TTL_SEC: float = 43200.0  # 12 hours post-market / weekends
 
 def _get_cache_dir() -> Path:
-    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "screener_cache"
+    """获取选股策略缓存目录（始终定位到当前工作目录/项目根目录下的 data/screener_cache）。"""
+    cwd_cache = Path.cwd() / "data" / "screener_cache"
+    if cwd_cache.parent.exists():
+        cwd_cache.mkdir(parents=True, exist_ok=True)
+        return cwd_cache
+    repo_root = Path(__file__).resolve().parents[3]
+    base = repo_root / "data" / "screener_cache"
     base.mkdir(parents=True, exist_ok=True)
     return base
 

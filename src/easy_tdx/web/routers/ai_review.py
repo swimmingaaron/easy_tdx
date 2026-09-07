@@ -139,11 +139,20 @@ class Universe4DTaskStartRequest(BaseModel):
     top: int = 20
     force_refresh: bool = False
 
+def _get_4d_cache_dir() -> Path:
+    """获取 4D 诊断缓存目录（始终定位到当前工作目录/项目根目录下的 data/screener_cache）。"""
+    cwd_cache = Path.cwd() / "data" / "screener_cache"
+    if cwd_cache.parent.exists():
+        cwd_cache.mkdir(parents=True, exist_ok=True)
+        return cwd_cache
+    repo_root = Path(__file__).resolve().parents[4]
+    base = repo_root / "data" / "screener_cache"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
 def _get_4d_cache_file(universe: str) -> Path:
     today_str = date.today().strftime("%Y%m%d")
-    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "screener_cache"
-    base.mkdir(parents=True, exist_ok=True)
-    return base / f"ai_4d_{universe}_{today_str}.json"
+    return _get_4d_cache_dir() / f"ai_4d_{universe}_{today_str}.json"
 
 def _load_4d_cache(universe: str, expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
     if force_refresh:
