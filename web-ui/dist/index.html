@@ -5857,8 +5857,18 @@
                             }
                             const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
 
-                            const turnover = (bar.turnover_rate !== undefined && bar.turnover_rate !== null) ? `${Number(bar.turnover_rate).toFixed(2)}%` : (bar.amplitude_pct ? `${Number(bar.amplitude_pct).toFixed(2)}%` : '—');
+                            // Format Amplitude (振幅)
+                            const ampVal = (bar.amplitude_pct !== undefined && bar.amplitude_pct !== null)
+                                ? Number(bar.amplitude_pct)
+                                : (preClose > 0 ? ((bar.high - bar.low) / preClose * 100) : 0);
+                            const ampStr = `${ampVal.toFixed(2)}%`;
+
+                            const turnover = (bar.turnover_rate !== undefined && bar.turnover_rate !== null) ? `${Number(bar.turnover_rate).toFixed(2)}%` : '—';
                             const volRatio = (bar.vol_ratio !== undefined && bar.vol_ratio !== null) ? `${Number(bar.vol_ratio).toFixed(2)}` : '—';
+
+                            const labelColor = isDark ? '#94a3b8' : '#64748b';
+                            const valColor = isDark ? '#e2e8f0' : '#0f172a';
+                            const amtColor = isDark ? '#38bdf8' : '#0284c7';
 
                             let tdHtml = '';
                             try {
@@ -5891,15 +5901,16 @@
                                         <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                        <span style="color: #8E8E96;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${bar.close.toFixed(2)}</span>
-                                        <span style="color: #8E8E96;">开盘:</span><span style="color: ${bar.open >= bar.close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${bar.open.toFixed(2)}</span>
-                                        <span style="color: #8E8E96;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${bar.high.toFixed(2)}</span>
-                                        <span style="color: #8E8E96;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${bar.low.toFixed(2)}</span>
-                                        <span style="color: #8E8E96;">涨跌额:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
-                                        <span style="color: #8E8E96;">换手:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${turnover}</span>
-                                        <span style="color: #8E8E96;">量比:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${volRatio}</span>
-                                        <span style="color: #8E8E96;">成交额:</span><span style="color: #ffffff; font-weight: 600; text-align: right;">${amtStr}</span>
-                                        <span style="color: #8E8E96;">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
+                                        <span style="color: ${labelColor};">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${bar.close.toFixed(2)}</span>
+                                        <span style="color: ${labelColor};">开盘:</span><span style="color: ${bar.open >= bar.close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${bar.open.toFixed(2)}</span>
+                                        <span style="color: ${labelColor};">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${bar.high.toFixed(2)}</span>
+                                        <span style="color: ${labelColor};">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${bar.low.toFixed(2)}</span>
+                                        <span style="color: ${labelColor};">涨跌额:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                        <span style="color: ${labelColor};">振幅:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${ampStr}</span>
+                                        <span style="color: ${labelColor};">换手:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${turnover}</span>
+                                        <span style="color: ${labelColor};">量比:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${volRatio}</span>
+                                        <span style="color: ${labelColor};">成交额:</span><span style="color: ${amtColor}; font-weight: 700; text-align: right;">${amtStr}</span>
+                                        <span style="color: ${labelColor};">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
                                     </div>
                                     ${tdHtml}
                                 </div>
