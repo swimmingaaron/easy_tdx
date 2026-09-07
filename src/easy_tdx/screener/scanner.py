@@ -21,6 +21,7 @@ from easy_tdx.strategies.registry import get_strategy
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.screener.universe import get_universe_symbols, CORE_UNIVERSE
+from easy_tdx.MyTT import REF, BARSLASTCOUNT
 
 logger = logging.getLogger(__name__)
 
@@ -209,9 +210,26 @@ def scan_market_strategy(
                     buy_mask = recent_df["buy_signal"].astype(bool)
                     
                     if buy_mask.any():
-                        trigger_idx = buy_mask[buy_mask].index[-1]
-                        trigger_bar = sig_df.loc[trigger_idx]
-                        trigger_loc = sig_df.index.get_loc(trigger_idx)
+                        if strategy_name == "td_sequential":
+                            # 用户明确要求：“48 大策略全市场选股系统 中， 通达信上升九转策略 只显示 高序列 结果”
+                            # 必须保证最新一根 K 线的上升九转序列仍然有效（处于高序列中 cur_h_seq >= 1），
+                            # 过滤掉高序列已中断（cur_h_seq == 0）或已转为下跌低序列的股票
+                            c_vals = sig_df["close"].values
+                            ref4 = REF(c_vals, 4)
+                            cur_h_seq = int(BARSLASTCOUNT(c_vals > ref4)[-1])
+                            if cur_h_seq <= 0:
+                                continue
+                            
+                            trigger_loc = max(0, len(sig_df) - cur_h_seq)
+                            trigger_bar = sig_df.iloc[trigger_loc]
+                            trigger_idx = sig_df.index[trigger_loc]
+                            days_ago = cur_h_seq - 1
+                        else:
+                            trigger_idx = buy_mask[buy_mask].index[-1]
+                            trigger_bar = sig_df.loc[trigger_idx]
+                            trigger_loc = sig_df.index.get_loc(trigger_idx)
+                            days_ago = len(sig_df) - 1 - trigger_loc
+
                         last_bar = sig_df.iloc[-1]
                         
                         stock_name = get_stock_name(sym)
@@ -242,14 +260,28 @@ def scan_market_strategy(
                         elif len(signal_date) == 8 and signal_date.isdigit():
                             signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
                             
-                        days_ago = len(sig_df) - 1 - sig_df.index.get_loc(trigger_idx)
-                        status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
+                        if strategy_name == "td_sequential":
+                            if cur_h_seq == 1:
+                                status_label = "今日高1序列"
+                            elif cur_h_seq == 9:
+                                status_label = "高9序列 (见顶警示)"
+                            elif cur_h_seq == 13:
+                                status_label = "高13序列 (极致反转)"
+                            else:
+                                status_label = f"高{cur_h_seq}序列 ({days_ago}日前启动)"
+                        else:
+                            status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
 
                         try:
                             from easy_tdx.pattern_recognition import detect_patterns
                             patterns = detect_patterns(sig_df)
                         except Exception:
                             patterns = ["震荡整理"]
+
+                        if strategy_name == "td_sequential":
+                            td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
+                            patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
+
                         pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
                         # 方案C: 计算历史触发日的形态特征 (对比历史起涨形态与当前最新形态)
@@ -262,6 +294,11 @@ def scan_market_strategy(
                                 trigger_patterns = detect_patterns(trigger_df)
                             except Exception:
                                 trigger_patterns = ["震荡整理"]
+
+                        if strategy_name == "td_sequential":
+                            if "高1序列" not in trigger_patterns:
+                                trigger_patterns = ["高1序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
+
                         trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
 
                         latest_date = str(last_bar.get("datetime", ""))
