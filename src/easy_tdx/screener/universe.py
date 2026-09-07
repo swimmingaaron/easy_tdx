@@ -247,23 +247,20 @@ def get_universe_symbols(scope: str = "core") -> list[str]:
     s = (scope or "core").lower().strip()
     all_stocks = _load_all_ashares()
     
+    core_set = set(CORE_UNIVERSE)
+    rest = [c for c in all_stocks if c not in core_set]
+    ordered_all = CORE_UNIVERSE + rest
+
     if s == "core":
         return CORE_UNIVERSE
     elif s in ("hs300", "csi300", "300"):
-        # Prioritize core stocks then fill up to 300
-        core_set = set(CORE_UNIVERSE)
-        rest = [c for c in all_stocks if c not in core_set]
-        return (CORE_UNIVERSE + rest)[:300]
+        return ordered_all[:300]
     elif s in ("zz500", "csi500", "500"):
-        core_set = set(CORE_UNIVERSE)
-        rest = [c for c in all_stocks if c not in core_set]
-        return (CORE_UNIVERSE + rest)[:500]
+        return ordered_all[:500]
     elif s in ("zz1000", "csi1000", "1000"):
-        core_set = set(CORE_UNIVERSE)
-        rest = [c for c in all_stocks if c not in core_set]
-        return (CORE_UNIVERSE + rest)[:1000]
+        return ordered_all[:1000]
     elif s in ("all", "full", "all_a", "market"):
-        return all_stocks
+        return ordered_all
     else:
         return CORE_UNIVERSE
 

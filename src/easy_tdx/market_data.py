@@ -18,12 +18,18 @@ _CACHE: dict[str, tuple[float, pd.DataFrame]] = {}
 CACHE_TTL_SEC = 30.0
 
 PRIMARY_HOSTS = [
+    "123.60.164.122",
+    "122.51.232.182",
     "180.153.18.170",
-    "119.147.212.81",
-    "115.238.56.198",
+    "122.51.120.217",
+    "124.70.133.119",
+    "101.35.121.35",
+    "150.158.160.2",
     "124.71.187.122",
+    "115.238.90.165",
     "218.75.126.9",
-    "114.80.63.12",
+    "121.36.225.169",
+    "123.60.70.228",
 ]
 
 
@@ -38,22 +44,46 @@ class TdxConnectionPool:
 
     def acquire(self) -> TdxClient:
         with self._lock:
-            if self._pool:
-                return self._pool.pop()
+            while self._pool:
+                cli = self._pool.pop()
+                conn = getattr(cli, "_conn", None)
+                if conn is not None and getattr(conn, "_sock", None) is not None:
+                    return cli
+                try:
+                    cli.disconnect()
+                except Exception:
+                    pass
             self._counter += 1
             idx = self._counter
 
-        host = PRIMARY_HOSTS[idx % len(PRIMARY_HOSTS)]
-        cli = TdxClient(host=host, port=7709, timeout=3.0, auto_reconnect=False)
-        try:
-            cli.connect()
-        except Exception:
-            pass
-        return cli
+        # Try up to min(6, len(PRIMARY_HOSTS)) to find a working host
+        n_hosts = len(PRIMARY_HOSTS)
+        for attempt in range(min(6, n_hosts)):
+            host = PRIMARY_HOSTS[(idx + attempt) % n_hosts]
+            cli = TdxClient(host=host, port=7709, timeout=2.0, auto_reconnect=False)
+            try:
+                cli.connect()
+                return cli
+            except Exception:
+                try:
+                    cli.disconnect()
+                except Exception:
+                    pass
 
-    def release(self, cli: TdxClient):
+        # Final fallback to standard client singleton
+        return _get_or_create_client()
+
+    def release(self, cli: TdxClient, success: bool = True):
         if cli is None:
             return
+        # If client failed or socket closed, do not return to pool!
+        if not success:
+            try:
+                cli.disconnect()
+            except Exception:
+                pass
+            return
+
         with self._lock:
             if len(self._pool) < self.max_size:
                 self._pool.append(cli)
@@ -382,46 +412,47 @@ def fetch_kline_with_pool(
         return fetch_security_kline(symbol, category=category, count=count)
 
     cli = _TDX_POOL.acquire()
+    raw_res = None
     try:
         cat = category if isinstance(category, KlineCategory) else (KlineCategory.DAY if str(category).upper() in ("DAY", "DAILY") else KlineCategory.DAY)
         if _is_index_symbol(clean_sym, market):
             raw_res = cli.get_index_bars(market, clean_sym, cat, 0, count)
         else:
             raw_res = cli.get_security_bars(market, clean_sym, cat, 0, count)
-        _TDX_POOL.release(cli)
+        _TDX_POOL.release(cli, success=True)
+    except Exception as e:
+        _TDX_POOL.release(cli, success=False)
+        logger.debug(f"fetch_kline_with_pool error for {clean_sym}: {e}, falling back to fetch_security_kline")
+        return fetch_security_kline(symbol, category=category, count=count)
 
-        if raw_res is None or len(raw_res) == 0:
-            return None
+    if raw_res is None or len(raw_res) == 0:
+        return fetch_security_kline(symbol, category=category, count=count)
 
-        if isinstance(raw_res, pd.DataFrame):
-            df = raw_res.copy()
-            if "date" in df.columns and "datetime" not in df.columns:
-                df["datetime"] = df["date"]
-            if "vol" in df.columns and "volume" not in df.columns:
-                df["volume"] = df["vol"]
-            if "amount" not in df.columns:
-                df["amount"] = (df["volume"] * df["close"]).round(2)
-            df = df.sort_values(by="datetime").reset_index(drop=True)
-            _CACHE[cache_key] = (now, df)
-            return df.copy()
-
-        # List of SecurityBar objects
-        df = pd.DataFrame([{
-            "datetime": f"{b.year:04d}-{b.month:02d}-{b.day:02d}" if hasattr(b, "year") else str(getattr(b, "datetime", "")),
-            "open": round(b.open, 2),
-            "high": round(b.high, 2),
-            "low": round(b.low, 2),
-            "close": round(b.close, 2),
-            "volume": int(getattr(b, "vol", getattr(b, "volume", 0))),
-            "amount": round(getattr(b, "amount", 0.0), 2)
-        } for b in raw_res])
+    if isinstance(raw_res, pd.DataFrame):
+        df = raw_res.copy()
+        if "date" in df.columns and "datetime" not in df.columns:
+            df["datetime"] = df["date"]
+        if "vol" in df.columns and "volume" not in df.columns:
+            df["volume"] = df["vol"]
+        if "amount" not in df.columns:
+            df["amount"] = (df["volume"] * df["close"]).round(2)
         df = df.sort_values(by="datetime").reset_index(drop=True)
         _CACHE[cache_key] = (now, df)
         return df.copy()
-    except Exception as e:
-        _TDX_POOL.release(cli)
-        logger.debug(f"fetch_kline_with_pool error for {clean_sym}: {e}")
-        return None
+
+    # List of SecurityBar objects
+    df = pd.DataFrame([{
+        "datetime": f"{b.year:04d}-{b.month:02d}-{b.day:02d}" if hasattr(b, "year") else str(getattr(b, "datetime", "")),
+        "open": round(b.open, 2),
+        "high": round(b.high, 2),
+        "low": round(b.low, 2),
+        "close": round(b.close, 2),
+        "volume": int(getattr(b, "vol", getattr(b, "volume", 0))),
+        "amount": round(getattr(b, "amount", 0.0), 2)
+    } for b in raw_res])
+    df = df.sort_values(by="datetime").reset_index(drop=True)
+    _CACHE[cache_key] = (now, df)
+    return df.copy()
 
 def _generate_fallback_bars(symbol: str, n_bars: int = 120) -> pd.DataFrame:
     """Deterministic fallback bars generator without circular dependencies."""

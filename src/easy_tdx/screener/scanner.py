@@ -214,8 +214,10 @@ def _get_or_fetch_daily_kline(sym: str, force_refresh: bool = False) -> pd.DataF
                     if (now_ts - cached_ts) < max_age:
                         return cached_df
 
-    from easy_tdx.market_data import fetch_kline_with_pool
+    from easy_tdx.market_data import fetch_kline_with_pool, fetch_security_kline
     df = fetch_kline_with_pool(sym, category="DAY", count=140)
+    if df is None or len(df) < 20:
+        df = fetch_security_kline(sym, category="DAY", count=140)
     if df is not None and len(df) >= 20:
         with _DAILY_KLINE_LOCK:
             _DAILY_KLINE_CACHE[sym] = (today_str, now_ts, df)
@@ -236,14 +238,7 @@ def _evaluate_stock_for_strategy(
 
     try:
         sig_df = st.generate_signals(df)
-        if sig_df is None or "buy_signal" not in sig_df.columns:
-            return None
-
-        window_size = min(lookback_bars, len(sig_df))
-        recent_df = sig_df.iloc[-window_size:]
-        buy_mask = recent_df["buy_signal"].astype(bool)
-
-        if not buy_mask.any():
+        if sig_df is None:
             return None
 
         if strategy_name == "td_sequential":
@@ -257,11 +252,24 @@ def _evaluate_stock_for_strategy(
             if cur_h_seq <= 0 or cur_l_seq > 0:
                 return None
 
+            days_ago = cur_h_seq - 1
+            if lookback_bars > 0 and days_ago >= lookback_bars:
+                return None
+
             trigger_loc = max(0, len(sig_df) - cur_h_seq)
             trigger_bar = sig_df.iloc[trigger_loc]
             trigger_idx = sig_df.index[trigger_loc]
-            days_ago = cur_h_seq - 1
         else:
+            if "buy_signal" not in sig_df.columns:
+                return None
+
+            window_size = min(lookback_bars, len(sig_df))
+            recent_df = sig_df.iloc[-window_size:]
+            buy_mask = recent_df["buy_signal"].astype(bool)
+
+            if not buy_mask.any():
+                return None
+
             trigger_idx = buy_mask[buy_mask].index[-1]
             trigger_bar = sig_df.loc[trigger_idx]
             trigger_loc = sig_df.index.get_loc(trigger_idx)
