@@ -2331,32 +2331,17 @@
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
     <div id="kline-preview-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-0 sm:p-2 md:p-3">
-        <div class="glass-card bg-[#0b0f19]/85 border-0 sm:border sm:border-slate-700/60 rounded-none sm:rounded-2xl max-w-[1260px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl">
+        <div class="glass-card bg-[#0b0f19]/85 border-0 sm:border sm:border-slate-700/60 rounded-none sm:rounded-2xl max-w-[1440px] xl:max-w-[1480px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl">
             
-            <!-- Row 1: Stock Symbol, Name, Live Price, Cap & Action Buttons -->
-            <!-- Row 1: Stock Symbol, Name, Live Price, Strategy Status, Cap & Action Buttons -->
-            <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5 flex-wrap shrink-0">
-                <!-- Left: Stock Identity & Live Price & Strategy Status -->
+            <!-- Row 1: Stock Symbol, Name, Live Price, Strategy Status, Cap & Action Buttons (图2 Layout) -->
+            <div class="border-b border-slate-800/80 pb-1.5 space-y-1.5 shrink-0">
+                <!-- Line 1: Stock Identity & Live Price & Strategy Status & Valuation Metrics -->
                 <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap">
                     <span id="kp-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">创</span>
                     <span id="kp-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">300142.SZ</span>
                     <span id="kp-stock-name" class="text-sm sm:text-base font-semibold text-slate-200 whitespace-nowrap">沃森生物</span>
                     <span id="kp-full-symbol-inline" class="hidden">300142.SZ</span>
                     <span id="kp-stock-name-inline" class="hidden">沃森生物</span>
-                    
-                    <!-- K-line Stock Quick Search Input & Auto-complete Dropdown -->
-                    <div class="relative ml-1 sm:ml-1.5 shrink-0">
-                        <div class="relative flex items-center">
-                            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-cyan-400/80 pointer-events-none"></i>
-                            <input type="text" id="kp-search-input" placeholder="🔍 股票代码/名称/拼音..." autocomplete="off"
-                                class="w-36 sm:w-48 bg-slate-900/90 border border-slate-700/80 hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
-                                title="搜索股票代码、拼音或中文名称快速切股 (快捷键: / 或 Ctrl+K)">
-                            <button id="kp-search-clear" onclick="clearKpSearch()" class="hidden absolute right-1.5 p-0.5 text-slate-400 hover:text-white rounded-full cursor-pointer" title="清空搜索">
-                                <i data-lucide="x" class="w-3 h-3"></i>
-                            </button>
-                        </div>
-                        <div id="kp-search-dropdown" class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60"></div>
-                    </div>
                     
                     <div class="flex items-baseline space-x-1 font-mono ml-1">
                         <span id="kp-price" class="text-base sm:text-lg font-black text-rose-500">14.28</span>
@@ -2385,8 +2370,8 @@
                     </div>
                 </div>
 
-                <!-- Right: Action Icons (Watchlist, Backtest, Profile, Theme, Refresh, Close) -->
-                <div class="flex items-center space-x-1.5 text-xs shrink-0">
+                <!-- Line 2: Action Icons, Window Tools & Quick Search (图2: 左对齐，操作按钮 -> 分隔符 -> 窗口工具 -> 搜索框) -->
+                <div class="flex items-center space-x-1.5 text-xs flex-wrap">
                     <!-- K-line Modal 5s live auto-refresh indicator -->
                     <div id="kp-live-indicator" class="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-default" title="A股非交易时段 自动刷新已暂停 (休市中)">
                         <span class="relative flex h-2 w-2">
@@ -2408,6 +2393,9 @@
                         <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-400"></i>
                         <span>资料·财务</span>
                     </button>
+
+                    <span class="text-slate-700 mx-0.5 select-none">|</span>
+
                     <button onclick="toggleTheme()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="切换亮色/暗色模式">
                         <i id="kp-theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
                     </button>
@@ -2417,6 +2405,20 @@
                     <button onclick="closeKlineModal()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="关闭 (ESC)">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
+
+                    <!-- K-line Stock Quick Search Input & Auto-complete Dropdown (图2: 放在所有按钮末尾) -->
+                    <div class="relative ml-1 shrink-0">
+                        <div class="relative flex items-center">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-cyan-400/80 pointer-events-none"></i>
+                            <input type="text" id="kp-search-input" placeholder="🔍 股票代码/名称/拼音..." autocomplete="off"
+                                class="w-36 sm:w-48 bg-slate-900/90 border border-slate-700/80 hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
+                                title="搜索股票代码、拼音或中文名称快速切股 (快捷键: / 或 Ctrl+K)">
+                            <button id="kp-search-clear" onclick="clearKpSearch()" class="hidden absolute right-1.5 p-0.5 text-slate-400 hover:text-white rounded-full cursor-pointer" title="清空搜索">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                        <div id="kp-search-dropdown" class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60"></div>
+                    </div>
                 </div>
             </div>
 
