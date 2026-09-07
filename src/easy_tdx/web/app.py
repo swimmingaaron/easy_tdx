@@ -326,13 +326,23 @@ def _create_app(
                     if method != "GET" or raw_path.startswith("/api") or path.startswith("api"):
                         return await super().get_response(path, scope)
                 try:
-                    return await super().get_response(path, scope)
+                    resp = await super().get_response(path, scope)
+                    if path.endswith(".html") or path == "" or path == ".":
+                        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                        resp.headers["Pragma"] = "no-cache"
+                        resp.headers["Expires"] = "0"
+                    return resp
                 except Exception:
                     # 仅对前端 GET 路由导航返回 index.html
                     if scope.get("method", "GET") == "GET":
                         index = _Path(str(self.directory)) / "index.html"
                         if index.is_file():
-                            return FileResponse(str(index))
+                            headers = {
+                                "Cache-Control": "no-cache, no-store, must-revalidate",
+                                "Pragma": "no-cache",
+                                "Expires": "0",
+                            }
+                            return FileResponse(str(index), headers=headers)
                     raise
 
         app.mount("/", SPAStaticFiles(directory=str(dist_dir), html=True), name="web-ui")
