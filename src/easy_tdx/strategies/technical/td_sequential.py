@@ -15,7 +15,7 @@ from __future__ import annotations
 import pandas as pd
 from easy_tdx.strategies.base import BaseStrategy, Param
 from easy_tdx.strategies.registry import register_strategy
-from easy_tdx.MyTT import TD_SEQUENTIAL
+from easy_tdx.MyTT import REF, BARSLASTCOUNT, TD_SEQUENTIAL
 
 
 @register_strategy
@@ -41,7 +41,9 @@ class TDSequentialStrategy(BaseStrategy):
         tp_pct = float(self.params.get("take_profit_pct", 0.0))
         
         c_vals = res["close"].values
-        td_high, _ = TD_SEQUENTIAL(c_vals, m_val)
+        ref4 = REF(c_vals, 4)
+        a1 = c_vals > ref4
+        seq_high = BARSLASTCOUNT(a1)
         
         n = len(res)
         buy_sig = [False] * n
@@ -56,7 +58,7 @@ class TDSequentialStrategy(BaseStrategy):
             if in_pos:
                 # 卖出条件：
                 # 1. 出现上升九转完成 (高九 / 高十三) 见顶止盈
-                is_high_m = (td_high[i] == m_val)
+                is_high_m = (seq_high[i] >= m_val)
                 # 2. 硬止损保护
                 is_sl = (sl_pct > 0) and (cur_c < buy_price * (1.0 - sl_pct / 100.0))
                 # 3. 目标止盈提前锁定
@@ -69,7 +71,7 @@ class TDSequentialStrategy(BaseStrategy):
                     in_pos = False
             else:
                 # 只做上升九转：出现上升九转启动第 1 根时顺势建仓
-                if td_high[i] == 1:
+                if seq_high[i] == 1:
                     buy_sig[i] = True
                     in_pos = True
                     buy_price = cur_c

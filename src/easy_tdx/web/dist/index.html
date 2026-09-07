@@ -3906,7 +3906,7 @@
                 }
             }
             const lastA2 = a2[n - 1];
-            if (lastA2 >= 6 && lastA2 <= N) {
+            if (lastA2 >= 1 && lastA2 <= N) {
                 const start = Math.max(0, n - 1 - lastA2 + 1);
                 for (let j = start; j < n; j++) {
                     tdHigh[j] = a2[j];
@@ -3930,7 +3930,7 @@
                 }
             }
             const lastB2 = b2[n - 1];
-            if (lastB2 >= 6 && lastB2 <= N) {
+            if (lastB2 >= 1 && lastB2 <= N) {
                 const start = Math.max(0, n - 1 - lastB2 + 1);
                 for (let j = start; j < n; j++) {
                     tdLow[j] = b2[j];
@@ -5217,6 +5217,17 @@
                     tdLowArr = fallback.tdLow;
                 }
 
+                // Ensure bars have td sequence properties populated for tooltip and indicators
+                bars.forEach((b, i) => {
+                    if (mVal === 13) {
+                        b.td13_high = tdHighArr[i] || 0;
+                        b.td13_low = tdLowArr[i] || 0;
+                    } else {
+                        b.td9_high = tdHighArr[i] || 0;
+                        b.td9_low = tdLowArr[i] || 0;
+                    }
+                });
+
                 bars.forEach((b, i) => {
                     const hVal = tdHighArr[i];
                     const lVal = tdLowArr[i];
@@ -5801,20 +5812,20 @@
                         lineStyle: { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)', type: 'dashed' },
                         label: { backgroundColor: axisPointerBg }
                     },
-                    backgroundColor: 'transparent',
-                    borderColor: 'transparent',
-                    borderWidth: 0,
-                    padding: 0,
-                    extraCssText: 'box-shadow: none; border: none; background: transparent; pointer-events: none;',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.94)',
+                    borderColor: tooltipBorder,
+                    borderWidth: 1,
+                    padding: [8, 12],
+                    extraCssText: 'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3); border-radius: 8px; z-index: 99999; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: none;',
                     formatter: (params) => {
                         try {
-                            const p0 = params[0];
+                            const p0 = params && params[0];
                             if (!p0) return '';
                             const idx = p0.dataIndex;
                             const bar = bars[idx];
                             if (!bar) return '';
 
-                            const stockName = json.name || currentKpSymbol;
+                            const stockName = json.name || currentKpStockName || currentKpSymbol;
                             const stockCode = json.symbol || currentKpSymbol;
                             const preClose = (bar.pre_close !== undefined) ? bar.pre_close : (idx > 0 ? bars[idx - 1].close : bar.open);
                             const chg = (bar.change !== undefined) ? bar.change : (bar.close - preClose);
@@ -5844,36 +5855,37 @@
                             } else {
                                 netInflowStr = netInflow.toFixed(2) + '元';
                             }
-                            const netInflowSign = netInflow > 0 ? '+' : '';
                             const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
-
-                            // Format Volume: 手 (1手 = 100股)
-                            const volHands = Math.round(bar.volume / 100);
-                            let volStr = `${volHands}手`;
-                            if (volHands >= 10000) {
-                                volStr = `${(volHands / 10000).toFixed(2)}万手`;
-                            }
 
                             const turnover = (bar.turnover_rate !== undefined && bar.turnover_rate !== null) ? `${Number(bar.turnover_rate).toFixed(2)}%` : (bar.amplitude_pct ? `${Number(bar.amplitude_pct).toFixed(2)}%` : '—');
                             const volRatio = (bar.vol_ratio !== undefined && bar.vol_ratio !== null) ? `${Number(bar.vol_ratio).toFixed(2)}` : '—';
 
+                            let tdHtml = '';
+                            try {
+                                const mode = (typeof kpTdMode !== 'undefined') ? kpTdMode : '9';
+                                if (mode !== 'off') {
+                                    const mVal = (mode === '13') ? 13 : 9;
+                                    const tdH = (mVal === 13) ? (bar.td13_high || 0) : (bar.td9_high || 0);
+                                    const tdL = (mVal === 13) ? (bar.td13_low || 0) : (bar.td9_low || 0);
+                                    if (tdH > 0) {
+                                        if (tdH === mVal) {
+                                            tdHtml += `<div style="color: #22c55e; font-weight: 700; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信${mVal}转：高${tdH} 见顶警示/反转点</div>`;
+                                        } else {
+                                            tdHtml += `<div style="color: #ff00ff; font-weight: 500; font-size: 11px; margin-top: 3px;">九转高序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
+                                        }
+                                    }
+                                    if (tdL > 0) {
+                                        if (tdL === mVal) {
+                                            tdHtml += `<div style="color: #f43f5e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信${mVal}转：低${tdL} 超跌支撑/抄底买点</div>`;
+                                        } else {
+                                            tdHtml += `<div style="color: #4ade80; font-weight: 500; font-size: 11px; margin-top: 2px;">九转低序列：第 ${tdL} 根 (${tdL}/${mVal})</div>`;
+                                        }
+                                    }
+                                }
+                            } catch (e) {}
+
                             return `
-                                <div style="
-                                    background: ${tooltipBg};
-                                    backdrop-filter: blur(12px);
-                                    -webkit-backdrop-filter: blur(12px);
-                                    border: 1px solid ${tooltipBorder};
-                                    border-radius: 8px;
-                                    padding: 10px 12px;
-                                    color: ${tooltipTextColor};
-                                    font-size: 11px;
-                                    line-height: 1.45;
-                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-                                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-                                    min-width: 175px;
-                                    max-width: 240px;
-                                    pointer-events: none;
-                                ">
+                                <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; min-width: 175px;">
                                     <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 5px; margin-bottom: 6px;">
                                         <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${formatDatetimeWithWeekday(bar.datetime)}</span>
                                         <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
@@ -5889,27 +5901,7 @@
                                         <span style="color: #8E8E96;">成交额:</span><span style="color: #ffffff; font-weight: 600; text-align: right;">${amtStr}</span>
                                         <span style="color: #8E8E96;">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
                                     </div>
-                                    ${(() => {
-                                        const mVal = (typeof currentKpTdM === 'number') ? currentKpTdM : 9;
-                                        const tdH = (mVal === 13) ? (bar.td13_high || 0) : (bar.td9_high || 0);
-                                        const tdL = (mVal === 13) ? (bar.td13_low || 0) : (bar.td9_low || 0);
-                                        let tdHtml = '';
-                                        if (tdH > 0) {
-                                            if (tdH === mVal) {
-                                                tdHtml += `<div style="color: #22c55e; font-weight: 700; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信${mVal}转：高${tdH} 见顶警示/反转点</div>`;
-                                            } else {
-                                                tdHtml += `<div style="color: #ff00ff; font-weight: 500; font-size: 11px; margin-top: 3px;">九转高序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
-                                            }
-                                        }
-                                        if (tdL > 0) {
-                                            if (tdL === mVal) {
-                                                tdHtml += `<div style="color: #f43f5e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信${mVal}转：低${tdL} 超跌支撑/抄底买点</div>`;
-                                            } else {
-                                                tdHtml += `<div style="color: #4ade80; font-weight: 500; font-size: 11px; margin-top: 2px;">九转低序列：第 ${tdL} 根 (${tdL}/${mVal})</div>`;
-                                            }
-                                        }
-                                        return tdHtml;
-                                    })()}
+                                    ${tdHtml}
                                 </div>
                             `;
                         } catch (err) {

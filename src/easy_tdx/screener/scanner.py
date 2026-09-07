@@ -175,8 +175,10 @@ def scan_market_strategy(
     """
     st = get_strategy(strategy_name)
     
+    is_custom_symbols = (symbols is not None)
+    
     # 1. Check disk cache if symbols is not custom
-    if not symbols and use_cache:
+    if not is_custom_symbols and use_cache:
         cached = _load_cache(strategy_name, universe)
         if cached is not None:
             enrich_stocks_with_inflows(cached)
@@ -312,7 +314,7 @@ def scan_market_strategy(
     enrich_stocks_with_inflows(matched)
 
     # Save to disk cache if full universe scan completed without abortion
-    if (stop_event is None or not stop_event.is_set()) and not symbols:
+    if (stop_event is None or not stop_event.is_set()) and not is_custom_symbols:
         _save_cache(strategy_name, universe, matched)
 
     return matched

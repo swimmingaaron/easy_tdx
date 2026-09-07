@@ -286,9 +286,9 @@ def TD_SEQUENTIAL(CLOSE, M=9):
     ref_a2_1 = REF(a2, 1)
     a3 = (ref_a2_1 == N) & (a2 > ref_a2_1)
     
-    # ISLASTBAR 且在 6 到 N 之间进行时显示
+    # ISLASTBAR 且在进行中时显示（支持从第1根起实时标注九转高序列）
     a5 = np.zeros(n_len, dtype=bool)
-    if 6 <= a2[-1] <= N:
+    if 1 <= a2[-1] <= N:
         a5[-1] = True
     
     mask_a = BACKSET(a3, N + 1)
@@ -303,8 +303,9 @@ def TD_SEQUENTIAL(CLOSE, M=9):
     ref_b2_1 = REF(b2, 1)
     b3 = (ref_b2_1 == N) & (b2 > ref_b2_1)
     
+    # ISLASTBAR 且在进行中时显示（支持从第1根起实时标注九转低序列）
     b5 = np.zeros(n_len, dtype=bool)
-    if 6 <= b2[-1] <= N:
+    if 1 <= b2[-1] <= N:
         b5[-1] = True
     
     mask_b = BACKSET(b3, N + 1)
