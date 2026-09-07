@@ -41,9 +41,8 @@ class TDSequentialStrategy(BaseStrategy):
         tp_pct = float(self.params.get("take_profit_pct", 0.0))
         
         c_vals = res["close"].values
-        ref4 = REF(c_vals, 4)
-        a1 = c_vals > ref4
-        seq_high = BARSLASTCOUNT(a1)
+        # 严格使用通达信九转/十三转统一算法作为单一事实来源
+        td_high, td_low = TD_SEQUENTIAL(c_vals, m_val)
         
         n = len(res)
         buy_sig = [False] * n
@@ -58,7 +57,7 @@ class TDSequentialStrategy(BaseStrategy):
             if in_pos:
                 # 卖出条件：
                 # 1. 出现上升九转完成 (高九 / 高十三) 见顶止盈
-                is_high_m = (seq_high[i] >= m_val)
+                is_high_m = (td_high[i] >= m_val)
                 # 2. 硬止损保护
                 is_sl = (sl_pct > 0) and (cur_c < buy_price * (1.0 - sl_pct / 100.0))
                 # 3. 目标止盈提前锁定
@@ -71,7 +70,7 @@ class TDSequentialStrategy(BaseStrategy):
                     in_pos = False
             else:
                 # 只做上升九转：出现上升九转启动第 1 根时顺势建仓
-                if seq_high[i] == 1:
+                if td_high[i] == 1:
                     buy_sig[i] = True
                     in_pos = True
                     buy_price = cur_c
@@ -79,4 +78,6 @@ class TDSequentialStrategy(BaseStrategy):
                     
         res["buy_signal"] = buy_sig
         res["sell_signal"] = sell_sig
+        res["td_high"] = td_high
+        res["td_low"] = td_low
         return res

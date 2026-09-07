@@ -21,7 +21,7 @@ from easy_tdx.strategies.registry import get_strategy
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.screener.universe import get_universe_symbols, CORE_UNIVERSE
-from easy_tdx.MyTT import REF, BARSLASTCOUNT
+from easy_tdx.MyTT import REF, BARSLASTCOUNT, TD_SEQUENTIAL
 
 logger = logging.getLogger(__name__)
 
@@ -223,13 +223,14 @@ def _evaluate_stock_for_strategy(
             return None
 
         if strategy_name == "td_sequential":
-            # 用户明确要求：“48 大策略全市场选股系统 中， 通达信上升九转策略 只显示 高序列 结果”
-            # 必须保证最新一根 K 线的上升九转序列仍然有效（处于高序列中 cur_h_seq >= 1），
-            # 过滤掉高序列已中断（cur_h_seq == 0）或已转为下跌低序列的股票
+            # 严格以 K 线显示的 TD_SEQUENTIAL 算法为单一基准：
+            # 必须保证最新一根 K 线的上升九转序列真实点亮且处于高序列中 (td9_h[-1] >= 1)，
+            # 严格过滤掉未点亮/已中断 (td9_h[-1] == 0) 或已转为下跌低序列 (td9_l[-1] > 0) 的股票
             c_vals = sig_df["close"].values
-            ref4 = REF(c_vals, 4)
-            cur_h_seq = int(BARSLASTCOUNT(c_vals > ref4)[-1])
-            if cur_h_seq <= 0:
+            td9_h, td9_l = TD_SEQUENTIAL(c_vals, 9)
+            cur_h_seq = int(td9_h[-1])
+            cur_l_seq = int(td9_l[-1])
+            if cur_h_seq <= 0 or cur_l_seq > 0:
                 return None
 
             trigger_loc = max(0, len(sig_df) - cur_h_seq)
