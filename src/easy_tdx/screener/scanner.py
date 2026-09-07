@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SCAN_UNIVERSE = CORE_UNIVERSE
 
+INTRADAY_CACHE_TTL_SEC: float = 120.0  # 2 minutes during trading hours (09:15-11:30, 13:00-15:05)
+POST_MARKET_CACHE_TTL_SEC: float = 43200.0  # 12 hours post-market / weekends
+
 def _get_cache_dir() -> Path:
     base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "screener_cache"
     base.mkdir(parents=True, exist_ok=True)
@@ -36,17 +39,23 @@ def _get_cache_file(strategy_name: str, universe: str) -> Path:
     today_str = date.today().strftime("%Y%m%d")
     return _get_cache_dir() / f"{strategy_name}_{universe}_{today_str}.json"
 
-def _load_cache(strategy_name: str, universe: str) -> list[dict[str, Any]] | None:
+def _load_cache(strategy_name: str, universe: str, force_refresh: bool = False) -> list[dict[str, Any]] | None:
+    if force_refresh:
+        return None
     cache_f = _get_cache_file(strategy_name, universe)
     if cache_f.exists():
         try:
-            # Valid if created within the last 12 hours
             mtime = os.path.getmtime(cache_f)
-            if time.time() - mtime < 43200:
+            age = time.time() - mtime
+            # During trading hours, strategy match cache expires quickly (120s)
+            # Outside trading hours, valid for up to 12 hours on the same trading day
+            from easy_tdx.market_overview import is_trading_time
+            max_age = INTRADAY_CACHE_TTL_SEC if is_trading_time() else POST_MARKET_CACHE_TTL_SEC
+            if age < max_age:
                 with open(cache_f, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
-                        logger.info(f"Loaded {len(data)} cached screener results from {cache_f.name}")
+                        logger.info(f"Loaded {len(data)} cached screener results from {cache_f.name} (age={age:.1f}s)")
                         return data
         except Exception as e:
             logger.warning(f"Failed to read cache {cache_f}: {e}")
@@ -156,23 +165,36 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-_DAILY_KLINE_CACHE: dict[str, tuple[str, pd.DataFrame]] = {}
+_DAILY_KLINE_CACHE: dict[str, tuple[str, float, pd.DataFrame]] = {}
 _DAILY_KLINE_LOCK = threading.Lock()
 
 
-def _get_or_fetch_daily_kline(sym: str) -> pd.DataFrame | None:
-    today_str = date.today().strftime("%Y%m%d")
+def clear_screener_cache() -> None:
+    """Clear in-memory daily kline cache for all strategies."""
     with _DAILY_KLINE_LOCK:
-        if sym in _DAILY_KLINE_CACHE:
-            d_str, cached_df = _DAILY_KLINE_CACHE[sym]
-            if d_str == today_str:
-                return cached_df
+        _DAILY_KLINE_CACHE.clear()
+        logger.info("Cleared screener in-memory daily kline cache.")
+
+
+def _get_or_fetch_daily_kline(sym: str, force_refresh: bool = False) -> pd.DataFrame | None:
+    today_str = date.today().strftime("%Y%m%d")
+    now_ts = time.time()
+    
+    if not force_refresh:
+        with _DAILY_KLINE_LOCK:
+            if sym in _DAILY_KLINE_CACHE:
+                d_str, cached_ts, cached_df = _DAILY_KLINE_CACHE[sym]
+                if d_str == today_str:
+                    from easy_tdx.market_overview import is_trading_time
+                    max_age = INTRADAY_CACHE_TTL_SEC if is_trading_time() else POST_MARKET_CACHE_TTL_SEC
+                    if (now_ts - cached_ts) < max_age:
+                        return cached_df
 
     from easy_tdx.market_data import fetch_kline_with_pool
     df = fetch_kline_with_pool(sym, category="DAY", count=140)
     if df is not None and len(df) >= 20:
         with _DAILY_KLINE_LOCK:
-            _DAILY_KLINE_CACHE[sym] = (today_str, df)
+            _DAILY_KLINE_CACHE[sym] = (today_str, now_ts, df)
         return df
     return None
 
@@ -181,9 +203,10 @@ def _evaluate_stock_for_strategy(
     sym: str,
     strategy_name: str,
     st: Any,
-    lookback_bars: int
+    lookback_bars: int,
+    force_refresh: bool = False
 ) -> dict[str, Any] | None:
-    df = _get_or_fetch_daily_kline(sym)
+    df = _get_or_fetch_daily_kline(sym, force_refresh=force_refresh)
     if df is None or len(df) < 20:
         return None
 
@@ -337,6 +360,7 @@ def scan_market_strategy(
     universe: str = "core",
     lookback_bars: int = 20,
     use_cache: bool = True,
+    force_refresh: bool = False,
     progress_callback: Callable[[int, int, int, float], None] | None = None,
     stop_event: threading.Event | None = None
 ) -> list[dict[str, Any]]:
@@ -348,6 +372,7 @@ def scan_market_strategy(
         universe: Universe tier: 'core' (35), 'hs300' (300), 'zz500' (500), 'zz1000' (1000), 'all' (5200+)
         lookback_bars: Signal trigger lookback window
         use_cache: If True, check disk cache for today's completed scan
+        force_refresh: If True, bypass all memory and disk caches and fetch fresh intraday data
         progress_callback: Optional callable(processed, total, matches_count, percent)
         stop_event: Optional threading.Event to abort early
     """
@@ -355,9 +380,9 @@ def scan_market_strategy(
     
     is_custom_symbols = (symbols is not None)
     
-    # 1. Check disk cache if symbols is not custom
-    if not is_custom_symbols and use_cache:
-        cached = _load_cache(strategy_name, universe)
+    # 1. Check disk cache if symbols is not custom and not force_refresh
+    if not is_custom_symbols and use_cache and not force_refresh:
+        cached = _load_cache(strategy_name, universe, force_refresh=force_refresh)
         if cached is not None:
             enrich_stocks_with_inflows(cached)
             if progress_callback:
@@ -381,7 +406,7 @@ def scan_market_strategy(
     processed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars): sym
+            executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars, force_refresh): sym
             for sym in symbols
         }
         for fut in as_completed(futures):

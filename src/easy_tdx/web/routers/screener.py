@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Query, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from easy_tdx.screener.scanner import scan_market_strategy
+from easy_tdx.screener.scanner import scan_market_strategy, clear_screener_cache
 from easy_tdx.screener.universe import get_universe_options, get_universe_symbols
 from easy_tdx.strategies.registry import list_all_strategies, get_strategy
 
@@ -32,11 +32,13 @@ class ScreenerScanRequest(BaseModel):
     universe: str = "core"
     symbols: list[str] | None = None
     lookback_bars: int = 20
+    force_refresh: bool = False
 
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str
     universe: str = "all"
     lookback_bars: int = 20
+    force_refresh: bool = False
 
 @router.get("/universes")
 def get_universes():
@@ -57,13 +59,23 @@ def get_screener_strategies():
         "strategies": strategies
     }
 
+@router.post("/cache/clear")
+def api_clear_screener_cache():
+    """Manually clear screener in-memory daily kline cache."""
+    clear_screener_cache()
+    return {
+        "status": "success",
+        "message": "已清除选股引擎内存日K缓存"
+    }
+
 @router.get("/scan")
 def api_scan_get(
     strategy: str = Query("zig_breakout", description="Strategy identifier name"),
     universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all"),
+    force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
 ):
     """Scan market against selected strategy synchronously (GET request)."""
-    matches = scan_market_strategy(strategy, universe=universe)
+    matches = scan_market_strategy(strategy, universe=universe, force_refresh=force_refresh)
     return {
         "status": "success",
         "strategy": strategy,
@@ -80,7 +92,8 @@ def api_scan_post(req: ScreenerScanRequest):
         strategy_name=req.strategy, 
         symbols=req.symbols, 
         universe=req.universe,
-        lookback_bars=req.lookback_bars
+        lookback_bars=req.lookback_bars,
+        force_refresh=req.force_refresh
     )
     return {
         "status": "success",
@@ -91,7 +104,7 @@ def api_scan_post(req: ScreenerScanRequest):
         "data": matches
     }
 
-def _run_async_screener_worker(task_id: str, strategy: str, universe: str, lookback_bars: int):
+def _run_async_screener_worker(task_id: str, strategy: str, universe: str, lookback_bars: int, force_refresh: bool = False):
     """Background worker for long-running screening tasks (e.g. all 5,200+ A-shares)."""
     with _TASKS_LOCK:
         task = _ASYNC_TASKS.get(task_id)
@@ -120,6 +133,7 @@ def _run_async_screener_worker(task_id: str, strategy: str, universe: str, lookb
             universe=universe,
             lookback_bars=lookback_bars,
             use_cache=True,
+            force_refresh=force_refresh,
             progress_callback=on_progress,
             stop_event=stop_event
         )
@@ -171,7 +185,7 @@ def api_start_task(req: ScreenerTaskStartRequest):
     # Launch in a daemon thread so it runs independently in the background
     th = threading.Thread(
         target=_run_async_screener_worker,
-        args=(task_id, req.strategy, req.universe, req.lookback_bars),
+        args=(task_id, req.strategy, req.universe, req.lookback_bars, req.force_refresh),
         daemon=True
     )
     th.start()
