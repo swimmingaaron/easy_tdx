@@ -10158,77 +10158,117 @@
             }
 
             try {
-                const resp = await fetch('/api/ai/universe_ranking/task/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ universe: universe, max_workers: workers, top: top })
-                });
-
-                if (!resp.ok) {
-                    throw new Error(`启动 4D 诊断任务失败 (HTTP ${resp.status})`);
+                let startResp = null;
+                try {
+                    startResp = await fetch('/api/ai/universe_ranking/task/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ universe: universe, max_workers: workers, top: top })
+                    });
+                } catch (netErr) {
+                    console.warn('Task start network attempt error:', netErr);
                 }
 
-                const data = await resp.json();
-                active4DTaskId = data.task_id;
-                const totalSymbols = data.total || (universe === 'all' ? 5222 : 300);
-
-                const updateProgressUI = (pct, processed, total, elapsed) => {
-                    if (progBar) progBar.style.width = `${pct}%`;
-                    if (progPct) progPct.innerText = `${pct.toFixed(1)}%`;
-                    if (countText) countText.innerHTML = `已诊断: <strong>${processed} / ${total}</strong> 只`;
-                    if (elapsedTime) elapsedTime.innerText = `${elapsed}s`;
-                    if (progLabel) progLabel.innerText = `正在评估【${universeDesc}】4D 多智能体得分 (${processed}/${total})...`;
-                };
-
-                updateProgressUI(0.0, 0, totalSymbols, 0.0);
-
-                // 200ms 丝滑高频轮询
-                ai4dPollTimer = setInterval(async () => {
-                    if (!active4DTaskId) return;
+                const contentType = startResp ? (startResp.headers.get('content-type') || '') : '';
+                let data = null;
+                if (startResp && startResp.ok && contentType.includes('application/json')) {
                     try {
-                        const statusResp = await fetch(`/api/ai/universe_ranking/task/status/${active4DTaskId}`);
-                        if (!statusResp.ok) return;
-                        const task = await statusResp.json();
-
-                        const pct = Number(task.percent || 0);
-                        const processed = Number(task.processed || 0);
-                        const total = Number(task.total || totalSymbols);
-                        const elapsed = task.elapsed_seconds || 0;
-
-                        updateProgressUI(pct, processed, total, elapsed);
-
-                        if (task.finished) {
-                            clearInterval(ai4dPollTimer);
-                            ai4dPollTimer = null;
-
-                            if (btn) btn.disabled = false;
-                            if (btnText) btnText.innerText = '智能诊断';
-                            if (cancelBtn) cancelBtn.classList.add('hidden');
-                            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-
-                            if (task.task_status === 'completed') {
-                                const list = task.data || [];
-                                if (progLabel) progLabel.innerText = `诊断完成！【${universeDesc}】共 ${total} 只标的评估完毕，已按 4D 综合得分降序排列 (耗时 ${elapsed}s)`;
-                                if (progBar) progBar.style.width = '100%';
-                                if (progPct) progPct.innerText = '100.0%';
-                                render4DRankingRows(list);
-                                showToast('诊断完成', `【${universeDesc}】4D 诊断完成！展示 Top ${list.length} 标的 (耗时 ${elapsed}s)`);
-                                speak(`4D 诊断完成，展示前 ${list.length} 标的`);
-                            } else if (task.task_status === 'cancelled') {
-                                if (progLabel) progLabel.innerText = `【${universeDesc}】4D 诊断任务已手动中止`;
-                                showToast('任务中止', '已成功取消 4D 诊断任务');
-                            } else {
-                                if (progLabel) progLabel.innerText = `4D 诊断任务异常: ${task.error || '未知错误'}`;
-                                showToast('诊断异常', task.error || '诊断计算失败');
-                            }
-                        }
-                    } catch (err) {
-                        console.warn('4D Poll error:', err);
+                        data = await startResp.json();
+                    } catch (jsonErr) {
+                        console.warn('JSON parse error from task start:', jsonErr);
                     }
-                }, 200);
+                }
+
+                // 优先启用异步多线程流水线与 200ms 高频进度条
+                if (data && data.task_id) {
+                    active4DTaskId = data.task_id;
+                    const totalSymbols = data.total || (universe === 'all' ? 5222 : 300);
+
+                    const updateProgressUI = (pct, processed, total, elapsed) => {
+                        if (progBar) progBar.style.width = `${pct}%`;
+                        if (progPct) progPct.innerText = `${pct.toFixed(1)}%`;
+                        if (countText) countText.innerHTML = `已诊断: <strong>${processed} / ${total}</strong> 只`;
+                        if (elapsedTime) elapsedTime.innerText = `${elapsed}s`;
+                        if (progLabel) progLabel.innerText = `正在评估【${universeDesc}】4D 多智能体得分 (${processed}/${total})...`;
+                    };
+
+                    updateProgressUI(0.0, 0, totalSymbols, 0.0);
+
+                    // 200ms 丝滑高频轮询
+                    ai4dPollTimer = setInterval(async () => {
+                        if (!active4DTaskId) return;
+                        try {
+                            const statusResp = await fetch(`/api/ai/universe_ranking/task/status/${active4DTaskId}`);
+                            const stType = statusResp.headers.get('content-type') || '';
+                            if (!statusResp.ok || !stType.includes('application/json')) return;
+                            const task = await statusResp.json();
+
+                            const pct = Number(task.percent || 0);
+                            const processed = Number(task.processed || 0);
+                            const total = Number(task.total || totalSymbols);
+                            const elapsed = task.elapsed_seconds || 0;
+
+                            updateProgressUI(pct, processed, total, elapsed);
+
+                            if (task.finished) {
+                                clearInterval(ai4dPollTimer);
+                                ai4dPollTimer = null;
+
+                                if (btn) btn.disabled = false;
+                                if (btnText) btnText.innerText = '智能诊断';
+                                if (cancelBtn) cancelBtn.classList.add('hidden');
+                                if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+
+                                if (task.task_status === 'completed') {
+                                    const list = task.data || [];
+                                    if (progLabel) progLabel.innerText = `诊断完成！【${universeDesc}】共 ${total} 只标的评估完毕，已按 4D 综合得分降序排列 (耗时 ${elapsed}s)`;
+                                    if (progBar) progBar.style.width = '100%';
+                                    if (progPct) progPct.innerText = '100.0%';
+                                    render4DRankingRows(list);
+                                    showToast('诊断完成', `【${universeDesc}】4D 诊断完成！展示 Top ${list.length} 标的 (耗时 ${elapsed}s)`);
+                                    speak(`4D 诊断完成，展示前 ${list.length} 标的`);
+                                } else if (task.task_status === 'cancelled') {
+                                    if (progLabel) progLabel.innerText = `【${universeDesc}】4D 诊断任务已手动中止`;
+                                    showToast('任务中止', '已成功取消 4D 诊断任务');
+                                } else {
+                                    if (progLabel) progLabel.innerText = `4D 诊断任务异常: ${task.error || '未知错误'}`;
+                                    showToast('诊断异常', task.error || '诊断计算失败');
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('4D Poll error:', err);
+                        }
+                    }, 200);
+
+                } else {
+                    // 自动降级保障：调用高速同步接口并动态推进进度条
+                    if (progLabel) progLabel.innerText = `正在全速评估【${universeDesc}】4D 多智能体得分与主力资金...`;
+                    if (progBar) progBar.style.width = '60%';
+                    if (progPct) progPct.innerText = '60.0%';
+
+                    const syncResp = await fetch(`/api/ai/universe_ranking?universe=${universe}&max_workers=${workers}&top=${top}`);
+                    const syncType = syncResp.headers.get('content-type') || '';
+                    if (!syncResp.ok || !syncType.includes('application/json')) {
+                        throw new Error(`诊断服务异常 (HTTP ${syncResp.status})`);
+                    }
+                    const syncJson = await syncResp.json();
+                    const list = syncJson.data || [];
+
+                    if (btn) btn.disabled = false;
+                    if (btnText) btnText.innerText = '智能诊断';
+                    if (cancelBtn) cancelBtn.classList.add('hidden');
+                    if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+                    if (progBar) progBar.style.width = '100%';
+                    if (progPct) progPct.innerText = '100.0%';
+                    if (progLabel) progLabel.innerText = `诊断完成！【${universeDesc}】共展示 Top ${list.length} 标的`;
+
+                    render4DRankingRows(list);
+                    showToast('诊断完成', `【${universeDesc}】4D 诊断完成！展示 Top ${list.length} 标的`);
+                    speak(`4D 诊断完成，展示前 ${list.length} 标的`);
+                }
 
             } catch (err) {
-                console.error('Failed to start 4D diagnosis task:', err);
+                console.error('Failed to run 4D diagnosis:', err);
                 if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = '智能诊断';
                 if (progContainer) progContainer.classList.add('hidden');

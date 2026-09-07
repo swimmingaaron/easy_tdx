@@ -316,18 +316,23 @@ def _create_app(
         from starlette.responses import FileResponse
 
         class SPAStaticFiles(StaticFiles):
-            """StaticFiles + SPA fallback：404 时返回 index.html。"""
+            """StaticFiles + SPA fallback：404 时返回 index.html（仅对前端 HTML 页面导航 GET 请求生效，严格排除 /api/* 与非 GET 请求）。"""
 
             async def get_response(self, path: str, scope):  # type: ignore[no-untyped-def]
+                if scope.get("type") == "http":
+                    method = scope.get("method", "GET")
+                    raw_path = scope.get("path", "")
+                    # API 请求与非 GET 请求绝不能 fallback 到 index.html
+                    if method != "GET" or raw_path.startswith("/api") or path.startswith("api"):
+                        return await super().get_response(path, scope)
                 try:
                     return await super().get_response(path, scope)
                 except Exception:
-                    # 任何 404（路径非文件）都返回 index.html，让前端路由处理。
-                    # 仅对 GET 请求生效；API 路径 (/api/v1/*) 已在前面注册，
-                    # 不会走到这里。
-                    index = _Path(str(self.directory)) / "index.html"
-                    if index.is_file():
-                        return FileResponse(str(index))
+                    # 仅对前端 GET 路由导航返回 index.html
+                    if scope.get("method", "GET") == "GET":
+                        index = _Path(str(self.directory)) / "index.html"
+                        if index.is_file():
+                            return FileResponse(str(index))
                     raise
 
         app.mount("/", SPAStaticFiles(directory=str(dist_dir), html=True), name="web-ui")
