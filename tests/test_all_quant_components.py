@@ -10,15 +10,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import pytest
+import numpy as np
 import pandas as pd
 from easy_tdx.strategies.registry import list_all_strategies, get_strategy
-from easy_tdx.screener.scanner import generate_mock_kline, scan_market_strategy
+from easy_tdx.screener.scanner import scan_market_strategy
 from easy_tdx.ai.agents.decision_agent import decision_agent
 from easy_tdx.ai.market_reviewer import market_reviewer
 from easy_tdx.ai.strategy_agent import strategy_agent
 from easy_tdx.market_pulse.emotion_meter import emotion_meter
 from easy_tdx.market_pulse.abnormal_radar import abnormal_radar
 from easy_tdx.stock_lookup import search_stocks, get_stock_name
+
+def generate_mock_kline(symbol: str = "000001", n_bars: int = 60) -> pd.DataFrame:
+    dates = pd.date_range(end=pd.Timestamp.today(), periods=n_bars, freq="B")
+    np.random.seed(42)
+    base = 10.0
+    returns = np.random.normal(0.001, 0.02, size=n_bars)
+    prices = base * np.cumprod(1 + returns)
+    df = pd.DataFrame({
+        "open": prices * (1 + np.random.normal(0, 0.005, size=n_bars)),
+        "high": prices * (1 + np.abs(np.random.normal(0, 0.01, size=n_bars))),
+        "low": prices * (1 - np.abs(np.random.normal(0, 0.01, size=n_bars))),
+        "close": prices,
+        "volume": np.random.randint(10000, 500000, size=n_bars),
+        "amount": np.random.randint(100000, 5000000, size=n_bars)
+    }, index=dates)
+    return df
 
 def test_strategies_count():
     strategies = list_all_strategies()

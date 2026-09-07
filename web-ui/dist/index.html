@@ -2226,6 +2226,25 @@
                         </div>
                     </div>
 
+                    <!-- 4D 诊断并发进度状态条 -->
+                    <div id="ai-4d-progress-container" class="hidden mb-3 p-3 bg-slate-900/90 rounded-xl border border-cyan-500/30 shadow-lg space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2">
+                                <span id="ai-4d-status-dot" class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+                                <span id="ai-4d-progress-label" class="text-slate-200 font-medium">正在并发评估全池标的 4D 综合得分...</span>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span id="ai-4d-count-text" class="text-slate-400 font-mono text-[11px]">已诊断: <strong>0 / 0</strong> 只</span>
+                                <span id="ai-4d-elapsed-hint" class="text-slate-400 font-mono text-[11px]">耗时: <strong id="ai-4d-elapsed-time" class="text-cyan-400 font-mono">0.0s</strong></span>
+                                <span id="ai-4d-progress-pct" class="text-cyan-400 font-bold font-mono text-sm">0.0%</span>
+                                <button id="btn-cancel-4d-task" onclick="cancelCurrent4DTask()" class="hidden px-2 py-0.5 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 text-[11px] font-medium transition cursor-pointer">中止</button>
+                            </div>
+                        </div>
+                        <div class="w-full bg-slate-950/80 rounded-full h-2 overflow-hidden border border-slate-800 shadow-inner">
+                            <div id="ai-4d-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 via-cyan-500 to-emerald-400 transition-all duration-150 rounded-full shadow-[0_0_12px_rgba(6,182,212,0.6)]" style="width: 0%"></div>
+                        </div>
+                    </div>
+
                     <!-- 诊断结果排行榜表格 (响应式 X 轴滚动) -->
                     <div class="overflow-x-auto rounded-xl border border-slate-800/80">
                         <table class="w-full text-left border-collapse text-xs">
@@ -9951,158 +9970,270 @@
 
         
                 // ==================== AI 4D Universe Stock Ranking & Screening ==================== //
+        let active4DTaskId = null;
+        let ai4dPollTimer = null;
+
+        async function cancelCurrent4DTask() {
+            if (!active4DTaskId) return;
+            try {
+                await fetch(`/api/ai/universe_ranking/task/cancel/${active4DTaskId}`, { method: 'POST' });
+                showToast('中止请求', '已向后台发送 4D 诊断任务取消指令...');
+            } catch (e) {
+                console.error('Cancel 4D task error:', e);
+            }
+        }
+
         async function run4DUniverseDiagnosis() {
             const universeSelect = document.getElementById('ai-4d-universe-select');
             const workersSelect = document.getElementById('ai-4d-workers-select');
             const topSelect = document.getElementById('ai-4d-top-select');
             
             const universe = universeSelect ? universeSelect.value : 'hs300';
-            const workers = workersSelect ? workersSelect.value : '16';
-            const top = topSelect ? topSelect.value : '20';
+            const workers = parseInt(workersSelect ? workersSelect.value : '16', 10);
+            const top = parseInt(topSelect ? topSelect.value : '20', 10);
 
+            const universeNameMap = {
+                'core': '核心龙头 (159只)',
+                'hs300': '沪深 300 (300只)',
+                'zz500': '中证 500 (500只)',
+                'zz1000': '中证 1000 (1000只)',
+                'all': '全市场 (5000+全量A股)'
+            };
+            const universeDesc = universeNameMap[universe] || universe;
+
+            const btn = document.getElementById('btn-run-4d-universe');
             const btnText = document.getElementById('btn-4d-universe-text');
             const tbody = document.getElementById('ai-4d-ranking-tbody');
+            const progContainer = document.getElementById('ai-4d-progress-container');
+            const progBar = document.getElementById('ai-4d-progress-bar');
+            const progPct = document.getElementById('ai-4d-progress-pct');
+            const progLabel = document.getElementById('ai-4d-progress-label');
+            const countText = document.getElementById('ai-4d-count-text');
+            const elapsedTime = document.getElementById('ai-4d-elapsed-time');
+            const cancelBtn = document.getElementById('btn-cancel-4d-task');
+            const statusDot = document.getElementById('ai-4d-status-dot');
 
-            if (btnText) btnText.innerText = '⚡ 诊断计算中...';
-            showToast('4D 全池智能诊断', `正在对【${universe}】股票池启动 4D 多智能体深度诊断...`);
+            if (ai4dPollTimer) {
+                clearInterval(ai4dPollTimer);
+                ai4dPollTimer = null;
+            }
+
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerText = '⚡ 诊断中...';
+            if (progContainer) progContainer.classList.remove('hidden');
+            if (cancelBtn) cancelBtn.classList.remove('hidden');
+            if (progBar) progBar.style.width = '0%';
+            if (progPct) progPct.innerText = '0.0%';
+            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】4D 多智能体全池深度诊断...`;
+            if (countText) countText.innerHTML = `已诊断: <strong>0 / 0</strong> 只`;
+            if (elapsedTime) elapsedTime.innerText = '0.0s';
+            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
 
             if (tbody) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="15" class="py-10 text-center text-slate-400 font-mono animate-pulse">
-                            ⚡ 正在对 ${universe} 股票池进行 4D 多智能体全量深度诊断与实时资金流向计算，请稍候...
+                        <td colspan="15" class="py-10 text-center text-slate-400 font-mono">
+                            <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>
+                            正在对【${universeDesc}】进行 4D 多智能体深度诊断与资金流向计算，实时进度见上方进度条...
                         </td>
                     </tr>
                 `;
+                lucide.createIcons();
             }
 
-            try {
-                const resp = await fetch(`/api/ai/universe_ranking?universe=${universe}&max_workers=${workers}&top=${top}`);
-                if (!resp.ok) {
-                    throw new Error(`HTTP ${resp.status}`);
+            showToast('4D 全池智能诊断', `正在对【${universeDesc}】启动 4D 多智能体深度诊断...`);
+
+            // 辅助函数: 判定涨跌幅及资金流向颜色 (正数红颜色，负数绿颜色)
+            function getSignedColor(val, str) {
+                if (typeof str === 'string') {
+                    const trimmed = str.trim();
+                    if (trimmed.startsWith('+')) return 'stock-up';
+                    if (trimmed.startsWith('-')) return 'stock-down';
                 }
-                const json = await resp.json();
-                const list = json.data || [];
+                const num = Number(val || 0);
+                if (num > 0) return 'stock-up';
+                if (num < 0) return 'stock-down';
+                return 'text-slate-500 font-normal';
+            }
 
-                if (btnText) btnText.innerText = '智能诊断';
-
-                if (list.length === 0) {
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500">未获取到有效的诊断打分结果</td></tr>`;
+            function render4DRankingRows(list) {
+                if (!tbody) return;
+                if (!list || list.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500">未获取到有效的诊断打分结果</td></tr>`;
                     return;
                 }
 
-                // 辅助函数: 判定涨跌幅及资金流向颜色 (正数红颜色，负数绿颜色)
-                function getSignedColor(val, str) {
-                    if (typeof str === 'string') {
-                        const trimmed = str.trim();
-                        if (trimmed.startsWith('+')) return 'stock-up';
-                        if (trimmed.startsWith('-')) return 'stock-down';
+                tbody.innerHTML = list.map((item, idx) => {
+                    const scoreVal = (item.overall_score || 0.0).toFixed(1);
+
+                    // 交易评级样式
+                    let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
+                    if (scoreVal >= 86.0) badgeClass = 'bg-rose-950/80 text-rose-400 border-rose-800';
+                    else if (scoreVal >= 76.0) badgeClass = 'bg-emerald-950/80 text-emerald-400 border-emerald-800';
+                    else if (scoreVal >= 65.0) badgeClass = 'bg-cyan-950/80 text-cyan-400 border-cyan-800';
+
+                    const safeName = (item.name || '').replace(/'/g, "\\'");
+
+                    // 正红负绿精确判定
+                    const chgColor = getSignedColor(item.change_pct, item.change_pct_str);
+                    const inflow1dColor = getSignedColor(item.main_net_amount, item.inflow_1d_str);
+                    const inflow3dColor = getSignedColor(item.main_net_3d, item.inflow_3d_str);
+                    const inflow5dColor = getSignedColor(item.main_net_5d, item.inflow_5d_str);
+
+                    // 所属行业板块
+                    let boardBadgeHtml = '<span class="text-slate-500 font-sans text-xs">--</span>';
+                    const bCode = item.board_code || '';
+                    const bName = item.board_name || item.industry || '';
+                    if (bName && bName !== '--') {
+                        if (bCode) {
+                            boardBadgeHtml = `<button onclick="openKlineModal('${bCode}', '${bName}')" class="text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 hover:underline cursor-pointer transition font-sans font-medium" title="点击查看【${bName}】(${bCode}) 板块K线">${bName}</button>`;
+                        } else {
+                            boardBadgeHtml = `<span class="text-slate-700 dark:text-slate-300 font-sans font-medium">${bName}</span>`;
+                        }
                     }
-                    const num = Number(val || 0);
-                    if (num > 0) return 'stock-up';
-                    if (num < 0) return 'stock-down';
-                    return 'text-slate-500 font-normal';
+
+                    return `
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="py-2.5 px-3 font-mono text-center text-slate-400">${idx + 1}</td>
+                            
+                            <!-- 股票代码: 点击弹出该股 K线 窗口 -->
+                            <td class="py-2.5 px-3 font-mono font-bold whitespace-nowrap">
+                                <button onclick="openKlineModal('${item.code}', '${safeName}')" 
+                                        class="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline cursor-pointer transition font-mono font-bold tracking-wide" 
+                                        title="点击查看 ${item.code} ${item.name} K线走势">
+                                    ${item.code}
+                                </button>
+                            </td>
+
+                            <!-- 股票名称: 点击弹出该股 K线 窗口 -->
+                            <td class="py-2.5 px-3 font-sans font-bold whitespace-nowrap">
+                                <button onclick="openKlineModal('${item.code}', '${safeName}')" 
+                                        class="text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer transition text-left" 
+                                        title="点击查看 ${item.code} ${item.name} K线走势">
+                                    ${item.name}
+                                </button>
+                            </td>
+                            
+                            <!-- 4D 综合得分: 点击根据代码调用个股 4D 深度诊断当前页面 -->
+                            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                <button onclick="jumpToSingle4DDiagnosis('${item.code}', '${safeName}')" 
+                                        class="px-2.5 py-1 rounded-lg bg-cyan-950/90 text-cyan-300 border border-cyan-800 hover:border-cyan-400 hover:bg-cyan-900 font-mono font-bold transition shadow-sm cursor-pointer" 
+                                        title="点击直接载入 ${item.code} ${item.name} 到个股 4D 智能诊断">
+                                    ${scoreVal}
+                                </button>
+                            </td>
+
+                            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                <span class="px-2 py-0.5 rounded text-[11px] font-bold border ${badgeClass}">
+                                    ${item.signal_display || '持有'}
+                                </span>
+                            </td>
+
+                            <td class="py-2.5 px-3 whitespace-nowrap">${boardBadgeHtml}</td>
+                            <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.market_cap_str || '--'}</td>
+                            <td class="py-2.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-100 text-right whitespace-nowrap">${item.price_str || '--'}</td>
+                            
+                            <!-- 涨跌幅: 正数红颜色，负数绿颜色 -->
+                            <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${chgColor}">${item.change_pct_str || '0.00%'}</td>
+                            <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.amount_wan_str || '0.0'}</td>
+                            
+                            <!-- 资金流向: 正数红颜色，负数绿颜色 -->
+                            <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow1dColor}">${item.inflow_1d_str || '0.0万'}</td>
+                            <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow3dColor}">${item.inflow_3d_str || '0.0万'}</td>
+                            <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow5dColor}">${item.inflow_5d_str || '0.0万'}</td>
+
+                            <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(item.patterns, item.pattern)}</td>
+
+                            <!-- 操作 -->
+                            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                <div class="flex items-center justify-center space-x-1.5">
+                                    <button onclick="openKlineModal('${item.code}', '${safeName}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">K线</button>
+                                    <button onclick="quickBacktest('${item.code}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">回测</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                lucide.createIcons();
+            }
+
+            try {
+                const resp = await fetch('/api/ai/universe_ranking/task/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ universe: universe, max_workers: workers, top: top })
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`启动 4D 诊断任务失败 (HTTP ${resp.status})`);
                 }
 
-                if (tbody) {
-                    tbody.innerHTML = list.map((item, idx) => {
-                        const scoreVal = (item.overall_score || 0.0).toFixed(1);
+                const data = await resp.json();
+                active4DTaskId = data.task_id;
+                const totalSymbols = data.total || (universe === 'all' ? 5222 : 300);
 
-                        // 交易评级样式
-                        let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
-                        if (scoreVal >= 86.0) badgeClass = 'bg-rose-950/80 text-rose-400 border-rose-800';
-                        else if (scoreVal >= 76.0) badgeClass = 'bg-emerald-950/80 text-emerald-400 border-emerald-800';
-                        else if (scoreVal >= 65.0) badgeClass = 'bg-cyan-950/80 text-cyan-400 border-cyan-800';
+                const updateProgressUI = (pct, processed, total, elapsed) => {
+                    if (progBar) progBar.style.width = `${pct}%`;
+                    if (progPct) progPct.innerText = `${pct.toFixed(1)}%`;
+                    if (countText) countText.innerHTML = `已诊断: <strong>${processed} / ${total}</strong> 只`;
+                    if (elapsedTime) elapsedTime.innerText = `${elapsed}s`;
+                    if (progLabel) progLabel.innerText = `正在评估【${universeDesc}】4D 多智能体得分 (${processed}/${total})...`;
+                };
 
-                        const safeName = (item.name || '').replace(/'/g, "\'");
+                updateProgressUI(0.0, 0, totalSymbols, 0.0);
 
-                        // 正红负绿精确判定
-                        const chgColor = getSignedColor(item.change_pct, item.change_pct_str);
-                        const inflow1dColor = getSignedColor(item.main_net_amount, item.inflow_1d_str);
-                        const inflow3dColor = getSignedColor(item.main_net_3d, item.inflow_3d_str);
-                        const inflow5dColor = getSignedColor(item.main_net_5d, item.inflow_5d_str);
+                // 200ms 丝滑高频轮询
+                ai4dPollTimer = setInterval(async () => {
+                    if (!active4DTaskId) return;
+                    try {
+                        const statusResp = await fetch(`/api/ai/universe_ranking/task/status/${active4DTaskId}`);
+                        if (!statusResp.ok) return;
+                        const task = await statusResp.json();
 
-                        // 参考自选监控实时行情池，精准渲染所属行业板块并支持点击查看板块K线
-                        let boardBadgeHtml = '<span class="text-slate-500 font-sans text-xs">--</span>';
-                        const bCode = item.board_code || '';
-                        const bName = item.board_name || item.industry || '';
-                        if (bName && bName !== '--') {
-                            if (bCode) {
-                                boardBadgeHtml = `<button onclick="openKlineModal('${bCode}', '${bName}')" class="text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 hover:underline cursor-pointer transition font-sans font-medium" title="点击查看【${bName}】(${bCode}) 板块K线">${bName}</button>`;
+                        const pct = Number(task.percent || 0);
+                        const processed = Number(task.processed || 0);
+                        const total = Number(task.total || totalSymbols);
+                        const elapsed = task.elapsed_seconds || 0;
+
+                        updateProgressUI(pct, processed, total, elapsed);
+
+                        if (task.finished) {
+                            clearInterval(ai4dPollTimer);
+                            ai4dPollTimer = null;
+
+                            if (btn) btn.disabled = false;
+                            if (btnText) btnText.innerText = '智能诊断';
+                            if (cancelBtn) cancelBtn.classList.add('hidden');
+                            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+
+                            if (task.task_status === 'completed') {
+                                const list = task.data || [];
+                                if (progLabel) progLabel.innerText = `诊断完成！【${universeDesc}】共 ${total} 只标的评估完毕，已按 4D 综合得分降序排列 (耗时 ${elapsed}s)`;
+                                if (progBar) progBar.style.width = '100%';
+                                if (progPct) progPct.innerText = '100.0%';
+                                render4DRankingRows(list);
+                                showToast('诊断完成', `【${universeDesc}】4D 诊断完成！展示 Top ${list.length} 标的 (耗时 ${elapsed}s)`);
+                                speak(`4D 诊断完成，展示前 ${list.length} 标的`);
+                            } else if (task.task_status === 'cancelled') {
+                                if (progLabel) progLabel.innerText = `【${universeDesc}】4D 诊断任务已手动中止`;
+                                showToast('任务中止', '已成功取消 4D 诊断任务');
                             } else {
-                                boardBadgeHtml = `<span class="text-slate-700 dark:text-slate-300 font-sans font-medium">${bName}</span>`;
+                                if (progLabel) progLabel.innerText = `4D 诊断任务异常: ${task.error || '未知错误'}`;
+                                showToast('诊断异常', task.error || '诊断计算失败');
                             }
                         }
+                    } catch (err) {
+                        console.warn('4D Poll error:', err);
+                    }
+                }, 200);
 
-                        return `
-                            <tr class="hover:bg-slate-800/40 transition">
-                                <td class="py-2.5 px-3 font-mono text-center text-slate-400">${idx + 1}</td>
-                                
-                                <!-- 股票代码: 点击弹出该股 K线 窗口 -->
-                                <td class="py-2.5 px-3 font-mono font-bold whitespace-nowrap">
-                                    <button onclick="openKlineModal('${item.code}', '${safeName}')" 
-                                            class="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300 hover:underline cursor-pointer transition font-mono font-bold tracking-wide" 
-                                            title="点击查看 ${item.code} ${item.name} K线走势">
-                                        ${item.code}
-                                    </button>
-                                </td>
-
-                                <!-- 股票名称: 点击弹出该股 K线 窗口 -->
-                                <td class="py-2.5 px-3 font-sans font-bold whitespace-nowrap">
-                                    <button onclick="openKlineModal('${item.code}', '${safeName}')" 
-                                            class="text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer transition text-left" 
-                                            title="点击查看 ${item.code} ${item.name} K线走势">
-                                        ${item.name}
-                                    </button>
-                                </td>
-                                
-                                <!-- 4D 综合得分: 点击根据代码调用个股 4D 深度诊断当前页面 -->
-                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                                    <button onclick="jumpToSingle4DDiagnosis('${item.code}', '${safeName}')" 
-                                            class="px-2.5 py-1 rounded-lg bg-cyan-950/90 text-cyan-300 border border-cyan-800 hover:border-cyan-400 hover:bg-cyan-900 font-mono font-bold transition shadow-sm cursor-pointer" 
-                                            title="点击直接载入 ${item.code} ${item.name} 到个股 4D 智能诊断">
-                                        ${scoreVal}
-                                    </button>
-                                </td>
-
-                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                                    <span class="px-2 py-0.5 rounded text-[11px] font-bold border ${badgeClass}">
-                                        ${item.signal_display || '持有'}
-                                    </span>
-                                </td>
-
-                                <td class="py-2.5 px-3 whitespace-nowrap">${boardBadgeHtml}</td>
-                                <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.market_cap_str || '--'}</td>
-                                <td class="py-2.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-100 text-right whitespace-nowrap">${item.price_str || '--'}</td>
-                                
-                                <!-- 涨跌幅: 正数红颜色，负数绿颜色 -->
-                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${chgColor}">${item.change_pct_str || '0.00%'}</td>
-                                <td class="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-200 text-right whitespace-nowrap">${item.amount_wan_str || '0.0'}</td>
-                                
-                                <!-- 资金流向: 正数红颜色，负数绿颜色 -->
-                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow1dColor}">${item.inflow_1d_str || '0.0万'}</td>
-                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow3dColor}">${item.inflow_3d_str || '0.0万'}</td>
-                                <td class="py-2.5 px-3 font-mono text-right whitespace-nowrap ${inflow5dColor}">${item.inflow_5d_str || '0.0万'}</td>
-
-                                <td class="py-2.5 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(item.patterns, item.pattern)}</td>
-
-                                <!-- 操作 -->
-                                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                                    <div class="flex items-center justify-center space-x-1.5">
-                                        <button onclick="openKlineModal('${item.code}', '${safeName}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">K线</button>
-                                        <button onclick="quickBacktest('${item.code}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">回测</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `;
-                    }).join('');
-                }
-
-                showToast('诊断完成', `对【${universe}】池已完成 4D 智能诊断，匹配并展示 Top ${list.length} 标的`);
-            } catch (e) {
-                console.error('4D Universe Ranking Error:', e);
+            } catch (err) {
+                console.error('Failed to start 4D diagnosis task:', err);
+                if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = '智能诊断';
-                showToast('诊断失败', '请求发生网络或系统异常');
+                if (progContainer) progContainer.classList.add('hidden');
+                if (cancelBtn) cancelBtn.classList.add('hidden');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-rose-400">启动 4D 诊断任务失败: ${err.message}</td></tr>`;
             }
         }
 

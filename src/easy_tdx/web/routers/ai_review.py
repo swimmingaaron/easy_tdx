@@ -1,7 +1,14 @@
 """AI Multi-Agent Stock Diagnosis, Market Review & Chat Assistant API Endpoints."""
 from __future__ import annotations
+import logging
+import os
+import time
+import uuid
+import threading
+import json
+from datetime import datetime
 from typing import Any
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from easy_tdx.ai.market_reviewer import market_reviewer
 from easy_tdx.ai.strategy_agent import strategy_agent
@@ -9,6 +16,7 @@ from easy_tdx.ai.agents.decision_agent import decision_agent
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 class AIChatRequest(BaseModel):
@@ -102,48 +110,103 @@ def api_ai_chat(req: AIChatRequest):
     }
 
 
-@router.get("/universe_ranking")
-def get_universe_4d_ranking(
-    universe: str = Query("hs300", description="core | hs300 | zz500 | zz1000 | all"),
-    max_workers: int = Query(16, description="Parallel thread count"),
-    top: int = Query(20, description="Top N ranked stocks to return")
-):
-    """Run batch 4D Multi-Agent diagnosis across stock universe with quote & capital inflow enrichment."""
-    from concurrent.futures import ThreadPoolExecutor
-    from easy_tdx.screener.universe import get_universe_symbols
-    from easy_tdx.screener.scanner import enrich_stocks_with_inflows
+# ── 4D Multi-Agent Universe Ranking & Async Task Pipeline ──────────────────────
 
-    symbols = get_universe_symbols(universe)
-    if not symbols:
-        return {"status": "success", "universe": universe, "count": 0, "total_scanned": 0, "data": []}
+import os
+import json
+import uuid
+import logging
+import threading
+from datetime import date
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from fastapi import HTTPException
+from easy_tdx.screener.universe import get_universe_symbols
+from easy_tdx.screener.scanner import _get_or_fetch_daily_kline, enrich_stocks_with_inflows
+from easy_tdx.web.routers.quotes import _resolve_stock_board_info
 
-    def _score_one(sym: str):
-        clean_sym = sym.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "").zfill(6)
-        if not clean_sym:
-            return None
-        df = fetch_security_kline(clean_sym, count=60)
-        if df is None or df.empty or len(df) < 15:
-            return None
+logger = logging.getLogger(__name__)
+
+_ASYNC_4D_TASKS: dict[str, dict[str, Any]] = {}
+_4D_LOCK = threading.Lock()
+
+INTRADAY_4D_CACHE_TTL_SEC: float = 180.0  # 3 minutes during trading hours
+POST_MARKET_4D_CACHE_TTL_SEC: float = 43200.0  # 12 hours post-market
+
+class Universe4DTaskStartRequest(BaseModel):
+    universe: str = "hs300"
+    max_workers: int = 16
+    top: int = 20
+    force_refresh: bool = False
+
+def _get_4d_cache_file(universe: str) -> Path:
+    today_str = date.today().strftime("%Y%m%d")
+    base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "screener_cache"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"ai_4d_{universe}_{today_str}.json"
+
+def _load_4d_cache(universe: str, expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
+    if force_refresh:
+        return None
+    cache_f = _get_4d_cache_file(universe)
+    if cache_f.exists():
+        try:
+            mtime = os.path.getmtime(cache_f)
+            age = time.time() - mtime
+            from easy_tdx.market_overview import is_trading_time
+            max_age = INTRADAY_4D_CACHE_TTL_SEC if is_trading_time() else POST_MARKET_4D_CACHE_TTL_SEC
+            if age < max_age:
+                with open(cache_f, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and "data" in data and "total_count" in data:
+                        cached_total = data.get("total_count", 0)
+                        if expected_total > 0 and (cached_total <= 0 or abs(cached_total - expected_total) > max(10, int(expected_total * 0.10))):
+                            return None
+                        return data["data"]
+        except Exception as e:
+            logger.warning(f"Failed to read 4D cache {cache_f}: {e}")
+    return None
+
+def _save_4d_cache(universe: str, total_count: int, items: list[dict[str, Any]]) -> None:
+    try:
+        cache_f = _get_4d_cache_file(universe)
+        payload = {
+            "universe": universe,
+            "total_count": total_count,
+            "date": date.today().strftime("%Y%m%d"),
+            "timestamp": time.time(),
+            "count": len(items),
+            "data": items
+        }
+        with open(cache_f, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save 4D diagnosis cache: {e}")
+
+def _score_one_stock_fast(sym: str) -> dict[str, Any] | None:
+    clean_sym = sym.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "").zfill(6)
+    if not clean_sym:
+        return None
+    
+    # 极速获取：优先复用当日内存日K缓存与 32 路 TDX 连接池
+    df = _get_or_fetch_daily_kline(clean_sym, force_refresh=False)
+    if df is None or len(df) < 15:
+        return None
+
+    try:
         res = decision_agent.analyze(clean_sym, df)
-        
         last_close = float(df["close"].iloc[-1])
         prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else last_close
         chg_pct = round((last_close / prev_close - 1.0) * 100.0, 2) if prev_close > 0 else 0.0
         amt_wan = round(float(df["amount"].iloc[-1]) / 10000.0, 1) if "amount" in df.columns else 0.0
-        
+
         tech_info = res.get("agents_detail", {}).get("technical", {})
         intel_info = res.get("agents_detail", {}).get("intel", {})
-        
+
         pattern = tech_info.get("trend_status", "多头排列")
         theme = intel_info.get("theme", "主线题材")
-        
-        # 参考自选监控实时行情池，从 TDX MAC 解析真实的所属行业板块
-        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
-        b_info = _resolve_stock_board_info(clean_sym)
-        b_code = b_info.get("board_code", "")
-        b_name = b_info.get("board_name", "")
-        ind = b_name if (b_name and b_name != "--") else (theme.split("/")[0] if "/" in theme else theme)
-        
+        ind = theme.split("/")[0] if "/" in theme else theme
+
         patterns = tech_info.get("patterns") or ([pattern] if pattern else ["震荡整理"])
         pattern_str = " · ".join(patterns) if isinstance(patterns, list) else pattern
 
@@ -156,7 +219,7 @@ def get_universe_4d_ranking(
             "signal": res.get("signal", ""),
             "badge_color": res.get("badge_color", "cyan"),
             "industry": ind,
-            "board_code": b_code,
+            "board_code": "",
             "board_name": ind,
             "price": last_close,
             "price_str": f"¥{last_close:.2f}",
@@ -166,21 +229,259 @@ def get_universe_4d_ranking(
             "amount_wan_str": f"{amt_wan:,.1f}",
             "pattern": pattern_str,
             "patterns": patterns,
-            "summary": res.get("summary", "")
+            "summary": res.get("summary", ""),
+            "main_net_amount": 0.0,
+            "main_net_3d": 0.0,
+            "main_net_5d": 0.0,
+            "market_cap_str": "--",
+            "inflow_1d_str": "0.0万",
+            "inflow_3d_str": "0.0万",
+            "inflow_5d_str": "0.0万",
+        }
+    except Exception:
+        return None
+
+def _run_async_4d_worker(task_id: str, universe: str, max_workers: int, top: int, force_refresh: bool = False):
+    with _4D_LOCK:
+        task = _ASYNC_4D_TASKS.get(task_id)
+        if not task:
+            return
+        stop_event: threading.Event = task["stop_event"]
+
+    try:
+        symbols = get_universe_symbols(universe)
+        total_count = len(symbols)
+        with _4D_LOCK:
+            if task_id in _ASYNC_4D_TASKS:
+                _ASYNC_4D_TASKS[task_id]["total"] = total_count
+
+        # 1. Check disk cache
+        if not force_refresh:
+            cached = _load_4d_cache(universe, expected_total=total_count)
+            if cached is not None:
+                with _4D_LOCK:
+                    t = _ASYNC_4D_TASKS.get(task_id)
+                    if t:
+                        t["status"] = "completed"
+                        t["percent"] = 100.0
+                        t["processed"] = total_count
+                        t["data"] = cached[:top]
+                        t["finished_at"] = time.time()
+                return
+
+        workers = min(32, max(4, max_workers))
+        processed = 0
+        all_scored: list[dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(_score_one_stock_fast, sym): sym for sym in symbols}
+            for fut in as_completed(futures):
+                if stop_event.is_set():
+                    for f in futures:
+                        f.cancel()
+                    break
+
+                processed += 1
+                try:
+                    res = fut.result()
+                    if res is not None:
+                        all_scored.append(res)
+                except Exception:
+                    pass
+
+                # High frequency progress updates
+                if processed == 1 or processed % 3 == 0 or processed == total_count:
+                    pct = round((processed / total_count) * 100.0, 1)
+                    with _4D_LOCK:
+                        t = _ASYNC_4D_TASKS.get(task_id)
+                        if t:
+                            t["processed"] = processed
+                            t["percent"] = pct
+
+        if stop_event.is_set():
+            with _4D_LOCK:
+                t = _ASYNC_4D_TASKS.get(task_id)
+                if t:
+                    t["status"] = "cancelled"
+                    t["finished_at"] = time.time()
+            return
+
+        # Sort all scored stocks descending by overall_score
+        all_scored.sort(key=lambda x: x.get("overall_score", 0.0), reverse=True)
+
+        # 极速富化：只针对 Top N (最多 100 只) 候选股票富化板块与 MAC 资金流向，极速完成！
+        top_slice = all_scored[:max(top, 100)]
+        for item in top_slice:
+            c = item["code"]
+            b_info = _resolve_stock_board_info(c)
+            b_code = b_info.get("board_code", "")
+            b_name = b_info.get("board_name", "")
+            if b_name and b_name != "--":
+                item["board_code"] = b_code
+                item["board_name"] = b_name
+                item["industry"] = b_name
+
+        enrich_stocks_with_inflows(top_slice)
+
+        # 保存至磁盘缓存
+        _save_4d_cache(universe, total_count, all_scored[:max(top, 100)])
+
+        with _4D_LOCK:
+            t = _ASYNC_4D_TASKS.get(task_id)
+            if t:
+                t["status"] = "completed"
+                t["percent"] = 100.0
+                t["processed"] = total_count
+                t["data"] = all_scored[:top]
+                t["finished_at"] = time.time()
+
+    except Exception as e:
+        logger.exception(f"4D Diagnosis task {task_id} failed: {e}")
+        with _4D_LOCK:
+            t = _ASYNC_4D_TASKS.get(task_id)
+            if t:
+                t["status"] = "failed"
+                t["error"] = str(e)
+                t["finished_at"] = time.time()
+
+@router.post("/universe_ranking/task/start")
+def api_start_4d_diagnosis_task(req: Universe4DTaskStartRequest):
+    """Start an asynchronous 4D Multi-Agent Universe Diagnosis task with live progress tracking."""
+    task_id = f"ai4d_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    symbols = get_universe_symbols(req.universe)
+    stop_event = threading.Event()
+
+    task_info = {
+        "task_id": task_id,
+        "universe": req.universe,
+        "max_workers": req.max_workers,
+        "top": req.top,
+        "status": "running",
+        "total": len(symbols),
+        "processed": 0,
+        "percent": 0.0,
+        "data": [],
+        "error": None,
+        "started_at": time.time(),
+        "finished_at": None,
+        "stop_event": stop_event,
+    }
+
+    if not req.force_refresh:
+        cached = _load_4d_cache(req.universe, expected_total=len(symbols))
+        if cached is not None:
+            task_info["status"] = "completed"
+            task_info["processed"] = len(symbols)
+            task_info["percent"] = 100.0
+            task_info["data"] = cached[:req.top]
+            task_info["finished_at"] = time.time()
+            with _4D_LOCK:
+                _ASYNC_4D_TASKS[task_id] = task_info
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "universe": req.universe,
+                "total": len(symbols),
+                "message": f"4D 多智能体全池诊断命中缓存 (Top {min(req.top, len(cached))} 已即时加载)"
+            }
+
+    with _4D_LOCK:
+        _ASYNC_4D_TASKS[task_id] = task_info
+
+    th = threading.Thread(
+        target=_run_async_4d_worker,
+        args=(task_id, req.universe, req.max_workers, req.top, req.force_refresh),
+        daemon=True
+    )
+    th.start()
+
+    return {
+        "status": "success",
+        "task_id": task_id,
+        "universe": req.universe,
+        "total": len(symbols),
+        "message": f"4D 多智能体全池诊断任务已启动，总计评估 {len(symbols)} 只标的"
+    }
+
+@router.get("/universe_ranking/task/status/{task_id}")
+def api_get_4d_task_status(task_id: str):
+    """Query background 4D diagnosis progress and results."""
+    with _4D_LOCK:
+        task = _ASYNC_4D_TASKS.get(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        return {
+            "status": "success",
+            "task_id": task["task_id"],
+            "task_status": task["status"],
+            "universe": task["universe"],
+            "total": task["total"],
+            "processed": task["processed"],
+            "percent": task["percent"],
+            "data": task["data"] if task["status"] == "completed" else [],
+            "error": task["error"],
+            "elapsed_seconds": round(time.time() - task["started_at"], 1),
+            "finished": task["status"] in ("completed", "failed", "cancelled")
         }
 
-    # Parallel score computation
-    workers = min(32, max(1, max_workers))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        items = [r for r in pool.map(_score_one, symbols) if r is not None]
+@router.post("/universe_ranking/task/cancel/{task_id}")
+def api_cancel_4d_task(task_id: str):
+    """Cancel a running 4D diagnosis task."""
+    with _4D_LOCK:
+        task = _ASYNC_4D_TASKS.get(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        task["stop_event"].set()
+        task["status"] = "cancelling"
+        return {
+            "status": "success",
+            "message": "已向 4D 诊断任务发送中止指令"
+        }
 
-    # Enrich with real-time 1d/3d/5d capital inflows & total market cap
-    enrich_stocks_with_inflows(items)
-    
-    # Sort descending by overall score
+@router.get("/universe_ranking")
+def get_universe_4d_ranking(
+    universe: str = Query("hs300", description="core | hs300 | zz500 | zz1000 | all"),
+    max_workers: int = Query(16, description="Parallel thread count"),
+    top: int = Query(20, description="Top N ranked stocks to return"),
+    force_refresh: bool = Query(False, description="Force fresh calculation")
+):
+    """Run batch 4D Multi-Agent diagnosis across stock universe (Synchronous endpoint)."""
+    symbols = get_universe_symbols(universe)
+    if not symbols:
+        return {"status": "success", "universe": universe, "count": 0, "total_scanned": 0, "data": []}
+
+    # Check cache
+    if not force_refresh:
+        cached = _load_4d_cache(universe, expected_total=len(symbols))
+        if cached is not None:
+            return {
+                "status": "success",
+                "universe": universe,
+                "count": min(top, len(cached)),
+                "total_scanned": len(symbols),
+                "data": cached[:top]
+            }
+
+    workers = min(32, max(4, max_workers))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        items = [r for r in pool.map(_score_one_stock_fast, symbols) if r is not None]
+
     items.sort(key=lambda x: x.get("overall_score", 0.0), reverse=True)
-    
-    # Format and return Top N
+    top_slice = items[:max(top, 100)]
+    for item in top_slice:
+        c = item["code"]
+        b_info = _resolve_stock_board_info(c)
+        b_code = b_info.get("board_code", "")
+        b_name = b_info.get("board_name", "")
+        if b_name and b_name != "--":
+            item["board_code"] = b_code
+            item["board_name"] = b_name
+            item["industry"] = b_name
+
+    enrich_stocks_with_inflows(top_slice)
+    _save_4d_cache(universe, len(symbols), items[:max(top, 100)])
+
     top_items = items[:top]
     return {
         "status": "success",
@@ -189,4 +490,5 @@ def get_universe_4d_ranking(
         "total_scanned": len(items),
         "data": top_items
     }
+
 
