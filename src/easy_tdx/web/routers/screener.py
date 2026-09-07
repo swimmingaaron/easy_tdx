@@ -36,7 +36,7 @@ class ScreenerScanRequest(BaseModel):
 
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str
-    universe: str = "all"
+    universe: str = "core"
     lookback_bars: int = 20
     force_refresh: bool = False
 

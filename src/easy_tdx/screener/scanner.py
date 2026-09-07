@@ -54,18 +54,18 @@ def _load_cache(strategy_name: str, universe: str, expected_total: int = 0, forc
             if age < max_age:
                 with open(cache_f, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, dict) and "matches" in data:
+                    if isinstance(data, dict) and "matches" in data and "total_count" in data:
                         cached_total = data.get("total_count", 0)
-                        # Verify cached total_count matches expected universe scope
-                        if expected_total > 0 and cached_total > 0 and abs(cached_total - expected_total) > max(10, expected_total * 0.15):
+                        # Strict universe scope validation: cached total must match expected total (e.g. 5222 vs 159/300)
+                        if expected_total > 0 and (cached_total <= 0 or abs(cached_total - expected_total) > max(10, int(expected_total * 0.10))):
                             logger.info(f"Cache {cache_f.name} total_count mismatch ({cached_total} vs expected {expected_total}), discarding stale cache.")
                             return None
                         matches = data["matches"]
                         logger.info(f"Loaded {len(matches)} cached screener results from {cache_f.name} (age={age:.1f}s, scanned={cached_total})")
                         return matches
-                    elif isinstance(data, list):
-                        logger.info(f"Loaded {len(data)} cached screener results from {cache_f.name} (age={age:.1f}s)")
-                        return data
+                    else:
+                        logger.info(f"Cache {cache_f.name} is missing total_count metadata, discarding legacy cache.")
+                        return None
         except Exception as e:
             logger.warning(f"Failed to read cache {cache_f}: {e}")
     return None
@@ -407,9 +407,9 @@ def scan_market_strategy(
     if not is_custom_symbols and use_cache and not force_refresh:
         cached = _load_cache(strategy_name, universe, expected_total=total_count, force_refresh=force_refresh)
         if cached is not None:
-            enrich_stocks_with_inflows(cached)
             if progress_callback:
                 progress_callback(total_count, total_count, len(cached), 100.0)
+            enrich_stocks_with_inflows(cached)
             return cached
 
     matched: list[dict[str, Any]] = []
@@ -444,7 +444,7 @@ def scan_market_strategy(
                 logger.debug(f"Strategy eval worker exception: {e}")
 
             # Throttled progress callback
-            if progress_callback and (processed % 4 == 0 or processed == total_count or processed % 50 == 0):
+            if progress_callback and (processed == 1 or processed % 2 == 0 or processed == total_count):
                 pct = round((processed / total_count) * 100.0, 1)
                 progress_callback(processed, total_count, len(matched), pct)
 

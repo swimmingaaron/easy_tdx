@@ -1942,7 +1942,7 @@
                 <!-- Async Progress Bar (Hidden by default, shows during scanning) -->
                 <div id="screener-progress-container" class="hidden space-y-1.5">
                     <div class="flex justify-between text-[11px] font-mono text-slate-400">
-                        <span id="screener-progress-label">全市场并发扫描进度: 0 / 5207</span>
+                        <span id="screener-progress-label">全市场并发扫描进度: 0 / 5222</span>
                         <span id="screener-progress-pct" class="text-cyan-400 font-bold">0%</span>
                     </div>
                     <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -2856,14 +2856,14 @@
 
     <!-- 投资大师名言警句轮播弹窗 (QuoteCarousel Modal) -->
     <div id="quote-carousel-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 transition-opacity duration-300">
-        <div class="relative max-w-[580px] w-full bg-[#151924] border border-slate-700/80 rounded-2xl p-8 sm:p-10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <!-- 顶部动态橙色循环进度条 -->
+        <div class="relative max-w-[620px] w-full bg-[#151924] border border-slate-700/80 rounded-2xl p-7 sm:p-9 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 space-y-4">
+            <!-- 顶部动态橙色循环进度条 (名言轮播切换指示) -->
             <div class="absolute top-0 left-0 right-0 h-[3px] bg-slate-800/80 overflow-hidden">
                 <div id="quote-progress-bar" class="h-full w-full bg-gradient-to-r from-amber-500 to-orange-600 origin-left"></div>
             </div>
 
-            <!-- 右上角小关闭按钮 (可提前手动关闭弹窗) -->
-            <button onclick="closeQuoteModal()" class="absolute top-3 right-3 text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition cursor-pointer" title="关闭弹窗继续在后台等待">
+            <!-- 右上角小关闭按钮 (可随时关闭弹窗在后台静默运行) -->
+            <button onclick="closeQuoteModal()" class="absolute top-3 right-3 text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800/80 transition cursor-pointer" title="关闭弹窗并在后台继续运行">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
 
@@ -2871,24 +2871,51 @@
             <div class="absolute top-3 left-6 text-6xl font-serif leading-none text-amber-500/25 select-none pointer-events-none">“</div>
 
             <!-- 名言内容区 -->
-            <div class="relative z-10 pt-4">
-                <blockquote id="modal-quote-text" class="text-xl sm:text-2xl font-medium text-slate-100 leading-relaxed tracking-wide min-h-[72px] flex items-center transition-all duration-300 font-sans">
+            <div class="relative z-10 pt-2">
+                <blockquote id="modal-quote-text" class="text-xl sm:text-2xl font-medium text-slate-100 leading-relaxed tracking-wide min-h-[64px] flex items-center transition-all duration-300 font-sans">
                     截断亏损，让利润奔跑。
                 </blockquote>
-                <div class="text-right mt-4">
+                <div class="text-right mt-3">
                     <footer id="modal-quote-author" class="text-amber-500 font-bold text-sm sm:text-base tracking-wider transition-all duration-300">
                         — 杰西·利弗莫尔
                     </footer>
                 </div>
             </div>
 
-            <!-- 虚线分隔线 -->
-            <div class="border-t border-dashed border-slate-700/60 my-6"></div>
+            <!-- 实时选股高精度任务进度卡片 -->
+            <div id="modal-screener-progress-card" class="bg-slate-900/90 border border-slate-700/80 rounded-xl p-3.5 space-y-2 mt-4 shadow-inner">
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-2">
+                        <span id="modal-screener-pulse-dot" class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                        <span id="modal-screener-task-title" class="font-bold text-slate-200">全市场策略扫描进行中</span>
+                    </div>
+                    <span id="modal-screener-pct" class="font-mono font-bold text-cyan-400 text-sm">0.0%</span>
+                </div>
 
-            <!-- 底部提示语与微动呼吸小圆点 -->
-            <div class="flex items-center justify-center space-x-2 text-xs text-slate-400 font-sans">
-                <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                <span id="modal-quote-hint">后台寻优进行中，大师智慧伴你等待...</span>
+                <!-- 进度条本体 (平滑流动渐变) -->
+                <div class="w-full bg-slate-800/90 rounded-full h-2.5 overflow-hidden p-[1px]">
+                    <div id="modal-screener-bar" class="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 rounded-full transition-all duration-150 ease-out" style="width: 0%"></div>
+                </div>
+
+                <div class="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-0.5">
+                    <span id="modal-screener-count">已扫描: <strong>0 / 5222</strong> 只</span>
+                    <span id="modal-screener-matched">已匹配: <strong class="text-amber-400 font-bold">0</strong> 只标的</span>
+                    <span id="modal-screener-elapsed" class="text-slate-500">耗时: 0.0s</span>
+                </div>
+            </div>
+
+            <!-- 虚线分隔线 -->
+            <div class="border-t border-dashed border-slate-700/60 my-3"></div>
+
+            <!-- 底部提示语与后台运行按钮 -->
+            <div class="flex items-center justify-between text-xs text-slate-400 font-sans">
+                <div class="flex items-center space-x-2 truncate max-w-[380px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                    <span id="modal-quote-hint" class="truncate text-[11px] text-slate-400">后台 32 线程并发扫描中，大师智慧伴你等待...</span>
+                </div>
+                <button onclick="closeQuoteModal()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition cursor-pointer shrink-0">
+                    后台运行 (查看表格)
+                </button>
             </div>
         </div>
     </div>
@@ -8806,11 +8833,33 @@
             }
         }
 
-        function openQuoteModal(hintText = '后台寻优进行中，大师智慧伴你等待...') {
+        function openQuoteModal(hintText = '后台寻优进行中，大师智慧伴你等待...', showProgressCard = false, taskTitle = '全市场策略扫描进行中', totalCount = 5222) {
             const modal = document.getElementById('quote-carousel-modal');
             if (!modal) return;
             const hintEl = document.getElementById('modal-quote-hint');
             if (hintEl) hintEl.innerText = hintText;
+
+            const card = document.getElementById('modal-screener-progress-card');
+            if (card) {
+                if (showProgressCard) {
+                    card.classList.remove('hidden');
+                    const titleEl = document.getElementById('modal-screener-task-title');
+                    const pctEl = document.getElementById('modal-screener-pct');
+                    const barEl = document.getElementById('modal-screener-bar');
+                    const countEl = document.getElementById('modal-screener-count');
+                    const matchEl = document.getElementById('modal-screener-matched');
+                    const elapsedEl = document.getElementById('modal-screener-elapsed');
+
+                    if (titleEl) titleEl.innerText = taskTitle;
+                    if (pctEl) pctEl.innerText = '0.0%';
+                    if (barEl) barEl.style.width = '0%';
+                    if (countEl) countEl.innerHTML = `已扫描: <strong>0 / ${totalCount}</strong> 只`;
+                    if (matchEl) matchEl.innerHTML = `已匹配: <strong class="text-amber-400 font-bold">0</strong> 只标的`;
+                    if (elapsedEl) elapsedEl.innerText = '耗时: 0.0s';
+                } else {
+                    card.classList.add('hidden');
+                }
+            }
 
             const bar = document.getElementById('quote-progress-bar');
             if (bar) bar.classList.add('quote-progress-active');
@@ -9607,87 +9656,7 @@
             renderScreenerTableRows(matches, strategyName, universeDesc);
         }
 
-        async function runScreenerScan() {
-            const stSelect = document.getElementById('screener-strategy-select');
-            const uniSelect = document.getElementById('screener-universe-select');
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
-            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-            const universe = uniSelect ? uniSelect.value : 'core';
-
-            // Plan B: If user selected 'all', run full market async task
-            if (universe === 'all') {
-                runFullMarketAsyncTask();
-                return;
-            }
-
-            const uniMap = {
-                'core': '核心龙头池 (159只)',
-                'hs300': '沪深300指数池 (300只)',
-                'zz500': '中证500成长主力 (500只)',
-                'zz1000': '中证1000活跃小盘 (1000只)'
-            };
-            const uniDesc = uniMap[universe] || universe;
-
-            const tbody = document.getElementById('screener-results-table');
-            const btn = document.getElementById('btn-screener-scan');
-            const btnText = document.getElementById('btn-screener-scan-text');
-            const statusDot = document.getElementById('screener-status-dot');
-            const statusText = document.getElementById('screener-status-text');
-            const matchCountEl = document.getElementById('screener-match-count');
-            const elapsedHint = document.getElementById('screener-elapsed-hint');
-            const elapsedTimeEl = document.getElementById('screener-elapsed-time');
-
-            if (btn) btn.disabled = true;
-            if (btnText) btnText.innerText = '选股中...';
-            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
-            if (statusText) statusText.innerText = `正在对【${uniDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${uniDesc}】执行 [${strategyName}] 战法策略扫描，请稍候...</td></tr>`;
-            lucide.createIcons();
-
-            // Open Quote Carousel Modal
-            openQuoteModal(`正在对【${uniDesc}】并发执行【${strategyName}】战法选股扫描...`);
-            const t0 = performance.now();
-
-            try {
-                const resp = await fetch(`/api/screener/scan?strategy=${encodeURIComponent(strategy)}&universe=${encodeURIComponent(universe)}`);
-                const t1 = performance.now();
-                const elapsed = ((t1 - t0) / 1000).toFixed(1);
-
-                if (resp.ok) {
-                    const json = await resp.json();
-                    const matches = json.matches || json.data || [];
-                    
-                    if (matchCountEl) matchCountEl.innerText = matches.length;
-                    if (elapsedHint) elapsedHint.classList.remove('hidden');
-                    if (elapsedTimeEl) elapsedTimeEl.innerText = `${elapsed}s`;
-                    if (statusText) statusText.innerText = `选股完成：【${uniDesc}】共命中 ${matches.length} 只标的，耗时 ${elapsed}s`;
-                    if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-
-                    renderScreenerTable(matches, strategyName, uniDesc);
-                    showToast('选股完成', `【${uniDesc}】共命中 ${matches.length} 只符合【${strategyName}】战法的强势标的 (耗时 ${elapsed}s)`);
-                    speak(`选股扫描完成，命中 ${matches.length} 只标的`);
-                } else {
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">选股服务响应异常，请重试</td></tr>`;
-                }
-            } catch (e) {
-                console.error('Screener scan error:', e);
-                if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">选股扫描异常: ${e.message}</td></tr>`;
-            } finally {
-                closeQuoteModal();
-                if (btn) btn.disabled = false;
-                if (btnText) btnText.innerText = '开始选股';
-            }
-        }
-
-        async function runFullMarketAsyncTask() {
-            const stSelect = document.getElementById('screener-strategy-select');
-            const uniSelect = document.getElementById('screener-universe-select');
-            if (uniSelect) uniSelect.value = 'all';
-
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
-            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-
-            // Clear previous polling
+        async function startScreenerTask(strategy, universe, strategyName, universeDesc) {
             if (screenerPollTimer) {
                 clearInterval(screenerPollTimer);
                 screenerPollTimer = null;
@@ -9704,36 +9673,71 @@
             const matchCountEl = document.getElementById('screener-match-count');
             const elapsedHint = document.getElementById('screener-elapsed-hint');
             const elapsedTimeEl = document.getElementById('screener-elapsed-time');
+            const btn = document.getElementById('btn-screener-scan');
+            const btnText = document.getElementById('btn-screener-scan-text');
 
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerText = '选股中...';
             if (progContainer) progContainer.classList.remove('hidden');
             if (cancelBtn) cancelBtn.classList.remove('hidden');
             if (progBar) progBar.style.width = '0%';
-            if (progPct) progPct.innerText = '0%';
-            if (progLabel) progLabel.innerText = '全市场并发扫描初始化中...';
-            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping';
-            if (statusText) statusText.innerText = `全市场 5,200+ 只 A 股深度并发扫描中：【${strategyName}】`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-amber-400"></i>全市场 5,200+ 只 A 股后台并发扫描中，您可以随时查看实时进度或在后台静默运行...</td></tr>`;
+            if (progPct) progPct.innerText = '0.0%';
+            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】多线程选股扫描...`;
+            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
+            if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】战法选股扫描...`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
             lucide.createIcons();
 
-            // Open Quote Modal
-            openQuoteModal(`全市场 5,200+ 只 A 股全量深度扫描中：【${strategyName}】战法`);
-            showToast('全市场后台选股', `已启动 5,200+ 只 A 股多线程后台扫描任务`);
+            const taskTitle = `【${universeDesc}】${strategyName} 选股扫描`;
+            openQuoteModal(`正在对【${universeDesc}】全速并发执行【${strategyName}】战法扫描...`, true, taskTitle, 5222);
+            showToast('选股扫描已启动', `正在对【${universeDesc}】执行多线程后台扫描任务`);
 
             try {
                 const resp = await fetch('/api/screener/task/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ strategy: strategy, universe: 'all' })
+                    body: JSON.stringify({ strategy: strategy, universe: universe })
                 });
 
                 if (!resp.ok) {
-                    throw new Error('启动后台扫描任务失败');
+                    throw new Error(`启动选股任务失败 (HTTP ${resp.status})`);
                 }
 
                 const data = await resp.json();
                 activeScreenerTaskId = data.task_id;
+                const totalSymbols = data.total || (universe === 'all' ? 5222 : 159);
 
-                // Start polling
+                const updateUIProgress = (pct, processed, total, matchesCount, elapsed) => {
+                    // 1. 主页面选股状态栏与进度条更新
+                    if (progBar) progBar.style.width = `${pct}%`;
+                    if (progPct) progPct.innerText = `${pct.toFixed(1)}%`;
+                    if (progLabel) progLabel.innerText = `并发扫描进度: ${processed} / ${total} 只 (已发现 ${matchesCount} 只符合标的)`;
+                    if (matchCountEl) matchCountEl.innerText = matchesCount;
+                    if (elapsedHint) elapsedHint.classList.remove('hidden');
+                    if (elapsedTimeEl) elapsedTimeEl.innerText = `${elapsed}s`;
+
+                    // 2. 投资名言弹窗内的真实进度卡片更新
+                    const mBar = document.getElementById('modal-screener-bar');
+                    const mPct = document.getElementById('modal-screener-pct');
+                    const mCount = document.getElementById('modal-screener-count');
+                    const mMatched = document.getElementById('modal-screener-matched');
+                    const mElapsed = document.getElementById('modal-screener-elapsed');
+                    const modalHint = document.getElementById('modal-quote-hint');
+
+                    if (mBar) mBar.style.width = `${pct}%`;
+                    if (mPct) mPct.innerText = `${pct.toFixed(1)}%`;
+                    if (mCount) mCount.innerHTML = `已扫描: <strong>${processed} / ${total}</strong> 只`;
+                    if (mMatched) mMatched.innerHTML = `已匹配: <strong class="text-amber-400 font-bold">${matchesCount}</strong> 只标的`;
+                    if (mElapsed) mElapsed.innerText = `耗时: ${elapsed}s`;
+                    if (modalHint) {
+                        modalHint.innerText = `• 策略扫描进行中：已扫描 ${processed} / ${total} 只 (${pct.toFixed(1)}%)，已匹配 ${matchesCount} 只标的...`;
+                    }
+                };
+
+                // 初始进度设定
+                updateUIProgress(0.0, 0, totalSymbols, 0, 0.0);
+
+                // 200ms 高频丝滑轮询
                 screenerPollTimer = setInterval(async () => {
                     if (!activeScreenerTaskId) return;
                     try {
@@ -9741,59 +9745,82 @@
                         if (!statusResp.ok) return;
                         const task = await statusResp.json();
 
-                        const pct = task.percent || 0;
-                        const processed = task.processed || 0;
-                        const total = task.total || 5207;
-                        const matchesCount = task.matched_count || 0;
+                        const pct = Number(task.percent || 0);
+                        const processed = Number(task.processed || 0);
+                        const total = Number(task.total || totalSymbols);
+                        const matchesCount = Number(task.matched_count || 0);
                         const elapsed = task.elapsed_seconds || 0;
 
-                        if (progBar) progBar.style.width = `${pct}%`;
-                        if (progPct) progPct.innerText = `${pct.toFixed(1)}%`;
-                        if (progLabel) progLabel.innerText = `全市场并发扫描进度: ${processed} / ${total} 只 (已发现 ${matchesCount} 只符合标的)`;
-                        if (matchCountEl) matchCountEl.innerText = matchesCount;
-                        if (elapsedHint) elapsedHint.classList.remove('hidden');
-                        if (elapsedTimeEl) elapsedTimeEl.innerText = `${elapsed}s`;
-
-                        // Update quote modal hint live
-                        const modalHint = document.getElementById('modal-quote-hint');
-                        if (modalHint) {
-                            modalHint.innerText = `• 全市场深度扫描进行中：已扫描 ${processed} / ${total} 只 (${pct.toFixed(1)}%)，已匹配 ${matchesCount} 只标的...`;
-                        }
+                        updateUIProgress(pct, processed, total, matchesCount, elapsed);
 
                         if (task.finished) {
                             clearInterval(screenerPollTimer);
                             screenerPollTimer = null;
                             closeQuoteModal();
 
+                            if (btn) btn.disabled = false;
+                            if (btnText) btnText.innerText = '开始选股';
                             if (cancelBtn) cancelBtn.classList.add('hidden');
                             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
 
                             if (task.task_status === 'completed') {
                                 const matches = task.matches || [];
-                                if (statusText) statusText.innerText = `全市场全量扫描完成！总扫描 ${total} 只 A 股，共选出 ${matches.length} 只标的 (耗时 ${elapsed}s)`;
-                                renderScreenerTable(matches, strategyName, '全市场全A股');
-                                showToast('全市场扫描完成', `全市场 5,200+ 只标的扫描完成！共命中 ${matches.length} 只符合【${strategyName}】的标的`);
-                                speak(`全市场选股完成，共选出 ${matches.length} 只标的`);
+                                if (statusText) statusText.innerText = `选股完成！【${universeDesc}】总计扫描 ${total} 只标的，共命中 ${matches.length} 只符合【${strategyName}】战法 (耗时 ${elapsed}s)`;
+                                renderScreenerTable(matches, strategyName, universeDesc);
+                                showToast('选股扫描完成', `【${universeDesc}】扫描完成！共选出 ${matches.length} 只符合【${strategyName}】的标的 (耗时 ${elapsed}s)`);
+                                speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                             } else if (task.task_status === 'cancelled') {
-                                if (statusText) statusText.innerText = '全市场扫描任务已手动中止';
-                                showToast('任务中止', '已成功取消后台全市场扫描');
+                                if (statusText) statusText.innerText = `【${universeDesc}】选股扫描任务已手动中止`;
+                                showToast('任务中止', '已成功取消后台选股任务');
                             } else {
-                                if (statusText) statusText.innerText = `全市场扫描任务异常: ${task.error || '未知错误'}`;
+                                if (statusText) statusText.innerText = `选股任务异常: ${task.error || '未知错误'}`;
                                 showToast('任务异常', task.error || '扫描失败');
                             }
                         }
                     } catch (err) {
                         console.warn('Poll error:', err);
                     }
-                }, 800);
+                }, 200);
 
             } catch (err) {
-                console.error('Failed to start async screener task:', err);
+                console.error('Failed to start screener task:', err);
                 closeQuoteModal();
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = '开始选股';
                 if (progContainer) progContainer.classList.add('hidden');
                 if (cancelBtn) cancelBtn.classList.add('hidden');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="py-10 text-center text-rose-400 text-xs">启动全市场任务失败: ${err.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">启动选股任务失败: ${err.message}</td></tr>`;
             }
+        }
+
+        async function runScreenerScan() {
+            const stSelect = document.getElementById('screener-strategy-select');
+            const uniSelect = document.getElementById('screener-universe-select');
+            const strategy = stSelect ? stSelect.value : 'zig_breakout';
+            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
+            const universe = uniSelect ? uniSelect.value : 'core';
+
+            const uniMap = {
+                'core': '核心龙头池 (159只)',
+                'hs300': '沪深300指数池 (300只)',
+                'zz500': '中证500成长主力 (500只)',
+                'zz1000': '中证1000活跃小盘 (1000只)',
+                'all': '全市场全A股 (5222只)'
+            };
+            const uniDesc = uniMap[universe] || universe;
+
+            await startScreenerTask(strategy, universe, strategyName, uniDesc);
+        }
+
+        async function runFullMarketAsyncTask() {
+            const stSelect = document.getElementById('screener-strategy-select');
+            const uniSelect = document.getElementById('screener-universe-select');
+            if (uniSelect) uniSelect.value = 'all';
+
+            const strategy = stSelect ? stSelect.value : 'zig_breakout';
+            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
+
+            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)');
         }
 
         async function cancelCurrentScreenerTask() {
