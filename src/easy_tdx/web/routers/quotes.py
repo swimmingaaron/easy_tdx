@@ -583,7 +583,9 @@ def get_kline(
             m10_real = float(row_q.get("main_net_10d_amount") or 0.0)
 
             # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
-            if bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
+            # Only apply multi-day macro capital flow calibration when period is DAY/DAILY
+            is_daily_period = str(period).upper() in ("DAY", "DAILY")
+            if is_daily_period and bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
                 bars_data[-1]["net_inflow"] = round(m1_real, 2)
 
                 # Calibrate 3-day window
