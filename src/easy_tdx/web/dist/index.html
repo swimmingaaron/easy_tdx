@@ -4924,17 +4924,7 @@
             const inColor = netInflowVal >= 0 ? '#f04438' : '#12b76a';
 
             const isMinute = ['1M', '5M', '15M', '30M', '60M', '120M'].includes(currentKpPeriod);
-            let diffHtml = '';
-            if (isMinute && bar.inflow_diff !== undefined) {
-                const diffVal = Number(bar.inflow_diff || 0);
-                const diffSign = diffVal >= 0 ? '+' : '';
-                let diffStr = '0.00万';
-                if (Math.abs(diffVal) >= 1e8) diffStr = `${diffSign}${(diffVal / 1e8).toFixed(2)}亿`;
-                else if (Math.abs(diffVal) >= 1e4) diffStr = `${diffSign}${(diffVal / 1e4).toFixed(0)}万`;
-                else if (diffVal !== 0) diffStr = `${diffSign}${diffVal.toFixed(0)}元`;
-                const diffClr = diffVal >= 0 ? '#f04438' : '#12b76a';
-                diffHtml = `<span style="color:#8E8E96; margin-left:6px;">净流差</span><span style="color:${diffClr}; font-weight:700;">${diffStr}</span>`;
-            }
+            const sumPeriodUnit = isMinute ? '周期' : '日';
 
             let subMaLine = '';
             if (currentKpSub === 'vol') {
@@ -4985,12 +4975,10 @@
                 `;
             }
 
-            const sumPeriodUnit = isMinute ? '周期' : '日';
-            const maPrefix = isMinute ? '差额' : '流入';
             subMaLine += `
-                <span style="color:#FACC15; margin-left:6px;">${maPrefix}MA3:${formatFlowStr(bar.inflow_ma3)}</span>
-                <span style="color:#38BDF8">${maPrefix}MA5:${formatFlowStr(bar.inflow_ma5)}</span>
-                <span style="color:#C084FC">${maPrefix}MA10:${formatFlowStr(bar.inflow_ma10)}</span>
+                <span style="color:#FACC15; margin-left:6px;">流入MA3:${formatFlowStr(bar.inflow_ma3)}</span>
+                <span style="color:#38BDF8">流入MA5:${formatFlowStr(bar.inflow_ma5)}</span>
+                <span style="color:#C084FC">流入MA10:${formatFlowStr(bar.inflow_ma10)}</span>
                 <span style="color:#94a3b8; font-size:10px; margin-left:4px;">(3${sumPeriodUnit}和:${formatFlowStr(bar.inflow_sum3)} 5${sumPeriodUnit}和:${formatFlowStr(bar.inflow_sum5)} 10${sumPeriodUnit}和:${formatFlowStr(bar.inflow_sum10)})</span>
             `;
 
@@ -5014,7 +5002,6 @@
                     <span style="color:#38bdf8; font-weight:600;">${amtStr}</span>
                     <span style="color:#8E8E96; margin-left:6px;">资金净流入</span>
                     <span style="color:${inColor}; font-weight:700;">${inStr}</span>
-                    ${diffHtml}
                 </div>
                 <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap no-scrollbar h-[18px]">
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>
@@ -5462,45 +5449,43 @@
             });
 
             // Calculate Inflow Series Data (Bottom pane, permanently fixed)
-            // For minute periods (1M/5M/15M/30M/60M/120M), render the difference between consecutive periods as requested
-            const isMinutePeriod = ['1M', '5M', '15M', '30M', '60M', '120M'].includes(currentKpPeriod);
             const netInflowVals = bars.map(b => Number(b.net_inflow || 0));
-            const inflowDiffVals = bars.map((b, i) => {
-                if (i === 0) return 0;
-                return Number(b.net_inflow || 0) - Number(bars[i - 1].net_inflow || 0);
-            });
-
-            const bottomBarVals = isMinutePeriod ? inflowDiffVals : netInflowVals;
-            const bottomBarName = isMinutePeriod ? '净流入差额' : '资金净流入';
+            const bottomBarVals = netInflowVals;
+            const bottomBarName = '资金净流入';
 
             const inflowMa3 = bars.map((b, i) => {
+                if (b.inflow_ma3 !== undefined && b.inflow_ma3 !== null) return b.inflow_ma3;
                 if (i < 2) return null;
                 let s = 0; for (let j = i - 2; j <= i; j++) s += bottomBarVals[j]; return s / 3;
             });
             const inflowMa5 = bars.map((b, i) => {
+                if (b.inflow_ma5 !== undefined && b.inflow_ma5 !== null) return b.inflow_ma5;
                 if (i < 4) return null;
                 let s = 0; for (let j = i - 4; j <= i; j++) s += bottomBarVals[j]; return s / 5;
             });
             const inflowMa10 = bars.map((b, i) => {
+                if (b.inflow_ma10 !== undefined && b.inflow_ma10 !== null) return b.inflow_ma10;
                 if (i < 9) return null;
                 let s = 0; for (let j = i - 9; j <= i; j++) s += bottomBarVals[j]; return s / 10;
             });
             const inflowSum3 = bars.map((b, i) => {
+                if (b.inflow_sum3 !== undefined && b.inflow_sum3 !== null) return b.inflow_sum3;
                 if (i < 2) return null;
                 let s = 0; for (let j = i - 2; j <= i; j++) s += bottomBarVals[j]; return s;
             });
             const inflowSum5 = bars.map((b, i) => {
+                if (b.inflow_sum5 !== undefined && b.inflow_sum5 !== null) return b.inflow_sum5;
                 if (i < 4) return null;
                 let s = 0; for (let j = i - 4; j <= i; j++) s += bottomBarVals[j]; return s;
             });
             const inflowSum10 = bars.map((b, i) => {
+                if (b.inflow_sum10 !== undefined && b.inflow_sum10 !== null) return b.inflow_sum10;
                 if (i < 9) return null;
                 let s = 0; for (let j = i - 9; j <= i; j++) s += bottomBarVals[j]; return s;
             });
 
             bars.forEach((b, i) => {
                 b.net_inflow = netInflowVals[i];
-                b.inflow_diff = inflowDiffVals[i];
                 b.bottom_bar_val = bottomBarVals[i];
                 b.inflow_ma3 = inflowMa3[i];
                 b.inflow_ma5 = inflowMa5[i];
@@ -5780,7 +5765,7 @@
                     barWidth: '60%'
                 },
                 {
-                    name: isMinutePeriod ? '差额MA3' : '流入MA3',
+                    name: '流入MA3',
                     type: 'line',
                     xAxisIndex: 2,
                     yAxisIndex: 2,
@@ -5790,7 +5775,7 @@
                     itemStyle: { color: '#FACC15' }
                 },
                 {
-                    name: isMinutePeriod ? '差额MA5' : '流入MA5',
+                    name: '流入MA5',
                     type: 'line',
                     xAxisIndex: 2,
                     yAxisIndex: 2,
@@ -5800,7 +5785,7 @@
                     itemStyle: { color: '#38BDF8' }
                 },
                 {
-                    name: isMinutePeriod ? '差额MA10' : '流入MA10',
+                    name: '流入MA10',
                     type: 'line',
                     xAxisIndex: 2,
                     yAxisIndex: 2,
@@ -5918,18 +5903,6 @@
                             }
                             const netInflowColor = netInflow >= 0 ? '#ef4444' : '#10b981';
 
-                            let diffTooltipRow = '';
-                            if (['1M', '5M', '15M', '30M', '60M', '120M'].includes(currentKpPeriod)) {
-                                const diffV = Number(bar.inflow_diff !== undefined ? bar.inflow_diff : (idx > 0 ? (Number(bar.net_inflow || 0) - Number(bars[idx - 1].net_inflow || 0)) : 0));
-                                const diffS = diffV >= 0 ? '+' : '';
-                                let diffText = '0.00万';
-                                if (Math.abs(diffV) >= 1e8) diffText = `${diffS}${(diffV / 1e8).toFixed(2)}亿`;
-                                else if (Math.abs(diffV) >= 1e4) diffText = `${diffS}${(diffV / 1e4).toFixed(2)}万`;
-                                else diffText = `${diffS}${diffV.toFixed(2)}元`;
-                                const diffClr = diffV >= 0 ? '#ef4444' : '#10b981';
-                                diffTooltipRow = `<span style="color: ${labelColor};">净流差:</span><span style="color: ${diffClr}; font-weight: 700; text-align: right;">${diffText}</span>`;
-                            }
-
                             // Format Amplitude (振幅)
                             const ampVal = (bar.amplitude_pct !== undefined && bar.amplitude_pct !== null)
                                 ? Number(bar.amplitude_pct)
@@ -5980,7 +5953,6 @@
                                         <span style="color: ${labelColor};">量比:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${volRatio}</span>
                                         <span style="color: ${labelColor};">成交额:</span><span style="color: ${amtColor}; font-weight: 700; text-align: right;">${amtStr}</span>
                                         <span style="color: ${labelColor};">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
-                                        ${diffTooltipRow}
                                     </div>
                                     ${tdHtml}
                                 </div>

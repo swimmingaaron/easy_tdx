@@ -583,8 +583,9 @@ def get_kline(
             m10_real = float(row_q.get("main_net_10d_amount") or 0.0)
 
             # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
-            # Only apply multi-day macro capital flow calibration when period is DAY/DAILY
             is_daily_period = str(period).upper() in ("DAY", "DAILY")
+            is_minute_period = any(p in str(period).upper() for p in ("1M", "5M", "15M", "30M", "60M", "120M", "MIN")) or str(period) in ("1", "5", "15", "30", "60", "120")
+
             if is_daily_period and bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
                 bars_data[-1]["net_inflow"] = round(m1_real, 2)
 
@@ -639,6 +640,118 @@ def get_kline(
                 if m10_real != 0.0:
                     bars_data[-1]["inflow_sum10"] = round(m10_real, 2)
                     bars_data[-1]["inflow_ma10"] = round(m10_real / 10.0, 2)
+
+            elif is_minute_period and bars_data:
+                # Calibrate minute bars per day so that the sum of minute net inflows matches daily net inflow
+                from collections import defaultdict
+                minute_days = list(dict.fromkeys(b["datetime"].split(" ")[0] for b in bars_data))
+                day_target_flows: dict[str, float] = {}
+                try:
+                    df_day = fetch_security_kline(raw_sym, count=max(15, len(minute_days) + 5), period="DAY")
+                    if df_day is not None and not df_day.empty:
+                        d_c = df_day["close"].values
+                        d_h = df_day["high"].values
+                        d_l = df_day["low"].values
+                        d_amt = df_day["amount"].values.astype(float) if "amount" in df_day.columns else (d_c * df_day["volume"].values).astype(float)
+                        d_len = len(df_day)
+                        d_net_flows = np.zeros(d_len, dtype=float)
+                        for d_i in range(d_len):
+                            c_val = float(d_c[d_i])
+                            o_val = float(df_day["open"].iloc[d_i])
+                            h_val = float(d_h[d_i])
+                            l_val = float(d_l[d_i])
+                            amt_val = float(d_amt[d_i])
+                            pre_c = float(d_day_close := df_day["close"].iloc[d_i - 1]) if d_i > 0 else o_val
+                            hl_d = max(0.001, h_val - l_val)
+                            b_r = (c_val - o_val) / hl_d
+                            p_r = (c_val - l_val) / hl_d - 0.5
+                            cg_r = ((c_val / max(0.01, pre_c)) - 1.0) * 10.0
+                            fl_r = max(-0.20, min(0.20, b_r * 0.08 + p_r * 0.06 + cg_r * 0.10))
+                            d_net_flows[d_i] = round(amt_val * fl_r, 2)
+
+                        # Apply daily Level-2 macro flow calibration on daily bars
+                        if m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0:
+                            d_net_flows[-1] = round(m1_real, 2)
+                            if d_len >= 3 and m3_real != 0.0:
+                                diff_3 = m3_real - m1_real
+                                a_p1 = float(d_amt[-2]) if d_len >= 2 else 1.0
+                                a_p2 = float(d_amt[-3]) if d_len >= 3 else 1.0
+                                tot_a_3 = max(1.0, a_p1 + a_p2)
+                                d_net_flows[-2] = round(diff_3 * (a_p1 / tot_a_3), 2)
+                                d_net_flows[-3] = round(diff_3 * (a_p2 / tot_a_3), 2)
+                            if d_len >= 5 and m5_real != 0.0:
+                                diff_5 = m5_real - (m3_real if m3_real != 0.0 else (m1_real * 3.0))
+                                a_p3 = float(d_amt[-4]) if d_len >= 4 else 1.0
+                                a_p4 = float(d_amt[-5]) if d_len >= 5 else 1.0
+                                tot_a_5 = max(1.0, a_p3 + a_p4)
+                                d_net_flows[-4] = round(diff_5 * (a_p3 / tot_a_5), 2)
+                                d_net_flows[-5] = round(diff_5 * (a_p4 / tot_a_5), 2)
+                            if d_len >= 10 and m10_real != 0.0:
+                                diff_10 = m10_real - (m5_real if m5_real != 0.0 else (m1_real * 5.0))
+                                sub_amts = [float(d_amt[-(k+1)]) for k in range(5, min(10, d_len))]
+                                tot_a_10 = max(1.0, sum(sub_amts))
+                                for k in range(5, min(10, d_len)):
+                                    d_net_flows[-(k+1)] = round(diff_10 * (float(d_amt[-(k+1)]) / tot_a_10), 2)
+
+                        for d_i in range(d_len):
+                            d_str = str(df_day["datetime"].iloc[d_i]).split(" ")[0]
+                            day_target_flows[d_str] = float(d_net_flows[d_i])
+                except Exception as e_day:
+                    logger.debug(f"Failed to fetch daily bars for minute flow calibration: {e_day}")
+
+                # For the latest day, always ground to m1_real if available
+                if minute_days and m1_real != 0.0:
+                    latest_day = minute_days[-1]
+                    day_target_flows[latest_day] = float(m1_real)
+
+                # Group minute bars by day and calibrate
+                day_to_indices = defaultdict(list)
+                for b_i, b in enumerate(bars_data):
+                    d_key = b["datetime"].split(" ")[0]
+                    day_to_indices[d_key].append(b_i)
+
+                for d_key, idx_list in day_to_indices.items():
+                    if d_key not in day_target_flows:
+                        continue
+                    target_f = day_target_flows[d_key]
+                    day_amts = [float(bars_data[i].get("amount") or 0.0) for i in idx_list]
+                    tot_day_amt = sum(day_amts)
+                    raw_flows = [float(bars_data[i].get("net_inflow") or 0.0) for i in idx_list]
+                    sum_raw_flows = sum(raw_flows)
+
+                    calib_day_flows = []
+                    for i_pos, i_bar in enumerate(idx_list):
+                        amt_j = day_amts[i_pos]
+                        weight = (amt_j / tot_day_amt) if tot_day_amt > 0 else (1.0 / len(idx_list))
+                        base_alloc = weight * target_f
+                        price_action_diff = raw_flows[i_pos] - weight * sum_raw_flows
+                        f_calib = round(base_alloc + price_action_diff, 2)
+                        calib_day_flows.append(f_calib)
+
+                    # Fix precision rounding discrepancy on the bar with largest trading amount
+                    rounding_diff = round(target_f - sum(calib_day_flows), 2)
+                    max_amt_idx = max(range(len(idx_list)), key=lambda k: day_amts[k])
+                    calib_day_flows[max_amt_idx] = round(calib_day_flows[max_amt_idx] + rounding_diff, 2)
+
+                    for i_pos, i_bar in enumerate(idx_list):
+                        bars_data[i_bar]["net_inflow"] = calib_day_flows[i_pos]
+
+                # Recompute MAs and SUMs for minute bars based on calibrated net_inflow
+                calib_flows = [b["net_inflow"] for b in bars_data]
+                rec_flows_arr = np.array(calib_flows, dtype=float)
+                rec_ma3 = MA(rec_flows_arr, 3)
+                rec_ma5 = MA(rec_flows_arr, 5)
+                rec_ma10 = MA(rec_flows_arr, 10)
+                rec_sum3 = SUM(rec_flows_arr, 3)
+                rec_sum5 = SUM(rec_flows_arr, 5)
+                rec_sum10 = SUM(rec_flows_arr, 10)
+                for b_idx, b in enumerate(bars_data):
+                    b["inflow_ma3"] = safe_float(rec_ma3[b_idx])
+                    b["inflow_ma5"] = safe_float(rec_ma5[b_idx])
+                    b["inflow_ma10"] = safe_float(rec_ma10[b_idx])
+                    b["inflow_sum3"] = safe_float(rec_sum3[b_idx])
+                    b["inflow_sum5"] = safe_float(rec_sum5[b_idx])
+                    b["inflow_sum10"] = safe_float(rec_sum10[b_idx])
     except Exception as e:
         logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
