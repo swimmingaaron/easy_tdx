@@ -8026,13 +8026,31 @@
             if (_isMasterPolling) return;
             _isMasterPolling = true;
             try {
-                // 1. Dashboard UI (全景宏观指标、情绪温度、涨跌分布、行业资金流、自选监控实时行情池)
-                // 2. 所有 K线 UI (K线预览弹窗、回测单标的K线图)
-                await Promise.allSettled([
-                    loadDashboardData(),
-                    loadRealtimeQuotes(),
-                    tickAllKlinesOnce()
-                ]);
+                const kpModal = document.getElementById('kline-preview-modal');
+                const isKlineModalActive = kpModal && !kpModal.classList.contains('hidden') && !!currentKpSymbol;
+
+                const dashboardView = document.getElementById('view-dashboard');
+                // 当且仅当 界面为 Dashboard (且未被 K线弹窗遮挡) 时，自动刷新 Dashboard 页面数据
+                const isDashboardActive = dashboardView && !dashboardView.classList.contains('hidden') && !isKlineModalActive;
+
+                const tasks = [];
+
+                // 1. 当且仅当 界面为 Dashboard 时，5s 自动刷新 Dashboard 页面数据 (大盘全景指标 + 自选监控实时行情池)
+                if (isDashboardActive) {
+                    tasks.push(loadDashboardData());
+                    tasks.push(loadRealtimeQuotes());
+                }
+
+                // 2. 当且仅当 界面为 K 线弹窗时，5s 自动刷新 K 线页面数据
+                if (isKlineModalActive) {
+                    if (!currentKpReplayTimer) {
+                        tasks.push(refreshKpData(false));
+                    }
+                }
+
+                if (tasks.length > 0) {
+                    await Promise.allSettled(tasks);
+                }
             } catch (err) {
                 console.debug('Master 5s background polling error:', err);
             } finally {
