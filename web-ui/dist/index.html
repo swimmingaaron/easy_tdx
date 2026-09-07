@@ -3412,6 +3412,7 @@
 
             updateKpWatchlistButton();
             updateTradingStatusUI();
+            startDashboardAutoRefresh();
 
             // Reset range months buttons state
             [2, 6, 12].forEach(val => {
@@ -7894,6 +7895,7 @@
         }
 
         let _masterBgTimer = null;
+        let _statusClockTimer = null;
         let _isMasterPolling = false;
 
         function isTradeSession() {
@@ -7920,14 +7922,18 @@
             const pulseDot = document.getElementById('dashboard-pulse-dot');
             const staticDot = document.getElementById('dashboard-static-dot');
             if (badgeEl) {
+                badgeEl.onclick = () => manualRefreshDashboard();
+                badgeEl.style.cursor = 'pointer';
                 if (inSession) {
-                    badgeEl.className = 'px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold';
+                    badgeEl.className = 'px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold cursor-pointer';
                     badgeEl.innerText = '交易中 · 5s 自动刷新';
+                    badgeEl.title = 'A股交易时间 5s 自动刷新开启中 (点击可立即手动刷新)';
                     if (pulseDot) { pulseDot.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75'; pulseDot.style.display = ''; }
                     if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500';
                 } else {
-                    badgeEl.className = 'px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[11px] font-medium';
+                    badgeEl.className = 'px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[11px] font-medium cursor-pointer';
                     badgeEl.innerText = '休市中 · 自动刷新已暂停';
+                    badgeEl.title = '非交易时段 自动刷新已休眠 (点击可手动刷新最新盘后数据)';
                     if (pulseDot) pulseDot.style.display = 'none';
                     if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-500';
                 }
@@ -7939,15 +7945,20 @@
             const kpPulseDot = document.getElementById('kp-pulse-dot');
             const kpStaticDot = document.getElementById('kp-static-dot');
             if (kpBadge && kpText) {
+                kpBadge.onclick = () => {
+                    manualRefreshDashboard();
+                    if (currentKpSymbol) refreshKpData(true);
+                };
+                kpBadge.style.cursor = 'pointer';
                 if (inSession) {
-                    kpBadge.className = 'flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 font-mono text-[10px] font-bold shrink-0 select-none cursor-default';
-                    kpBadge.title = 'A股交易时间 5s 自动刷新 (交易中)';
+                    kpBadge.className = 'flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 font-mono text-[10px] font-bold shrink-0 select-none cursor-pointer';
+                    kpBadge.title = 'A股交易时间 5s 自动刷新 (交易中，点击可立即手动刷新)';
                     kpText.innerText = '5s 实时';
                     if (kpPulseDot) kpPulseDot.style.display = '';
                     if (kpStaticDot) kpStaticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
                 } else {
-                    kpBadge.className = 'flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-default';
-                    kpBadge.title = 'A股非交易时段 自动刷新已暂停 (休市中)';
+                    kpBadge.className = 'flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                    kpBadge.title = 'A股非交易时段 自动刷新已暂停 (休市中，点击可立即手动刷新)';
                     kpText.innerText = '休市';
                     if (kpPulseDot) kpPulseDot.style.display = 'none';
                     if (kpStaticDot) kpStaticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
@@ -8029,12 +8040,25 @@
             }
         }
 
-        function startDashboardAutoRefresh() {
+        async function startDashboardAutoRefresh() {
             updateTradingStatusUI();
-            if (_masterBgTimer) clearInterval(_masterBgTimer);
+            if (!_statusClockTimer) {
+                _statusClockTimer = setInterval(updateTradingStatusUI, 1000);
+            }
+            // 首次启动时无论是否开市均加载一次最新盘后或盘中数据
+            try {
+                await Promise.allSettled([
+                    loadDashboardData(),
+                    loadRealtimeQuotes()
+                ]);
+            } catch (_) {}
+
+            if (_masterBgTimer) return;
             _masterBgTimer = setInterval(tickMasterBackgroundOnce, 5000);
-            // 独立 1 秒级时钟实时巡检交易时段并刷新状态胶囊
-            setInterval(updateTradingStatusUI, 1000);
+            // 交易时段内立即触发一次后台巡检刷新
+            if (isTradeSession()) {
+                setTimeout(tickMasterBackgroundOnce, 80);
+            }
         }
 
 
@@ -9977,6 +10001,7 @@
             initKpContextMenu();
             initKpStockSearch();
             initBtKlineSearch();
+            startDashboardAutoRefresh();
         });
     </script>
 </body>
