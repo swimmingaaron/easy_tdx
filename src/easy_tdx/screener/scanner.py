@@ -39,7 +39,7 @@ def _get_cache_file(strategy_name: str, universe: str) -> Path:
     today_str = date.today().strftime("%Y%m%d")
     return _get_cache_dir() / f"{strategy_name}_{universe}_{today_str}.json"
 
-def _load_cache(strategy_name: str, universe: str, force_refresh: bool = False) -> list[dict[str, Any]] | None:
+def _load_cache(strategy_name: str, universe: str, expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
     if force_refresh:
         return None
     cache_f = _get_cache_file(strategy_name, universe)
@@ -54,19 +54,37 @@ def _load_cache(strategy_name: str, universe: str, force_refresh: bool = False) 
             if age < max_age:
                 with open(cache_f, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, list):
+                    if isinstance(data, dict) and "matches" in data:
+                        cached_total = data.get("total_count", 0)
+                        # Verify cached total_count matches expected universe scope
+                        if expected_total > 0 and cached_total > 0 and abs(cached_total - expected_total) > max(10, expected_total * 0.15):
+                            logger.info(f"Cache {cache_f.name} total_count mismatch ({cached_total} vs expected {expected_total}), discarding stale cache.")
+                            return None
+                        matches = data["matches"]
+                        logger.info(f"Loaded {len(matches)} cached screener results from {cache_f.name} (age={age:.1f}s, scanned={cached_total})")
+                        return matches
+                    elif isinstance(data, list):
                         logger.info(f"Loaded {len(data)} cached screener results from {cache_f.name} (age={age:.1f}s)")
                         return data
         except Exception as e:
             logger.warning(f"Failed to read cache {cache_f}: {e}")
     return None
 
-def _save_cache(strategy_name: str, universe: str, matches: list[dict[str, Any]]) -> None:
+def _save_cache(strategy_name: str, universe: str, total_count: int, matches: list[dict[str, Any]]) -> None:
     try:
         cache_f = _get_cache_file(strategy_name, universe)
+        payload = {
+            "strategy": strategy_name,
+            "universe": universe,
+            "total_count": total_count,
+            "date": date.today().strftime("%Y%m%d"),
+            "timestamp": time.time(),
+            "matches_count": len(matches),
+            "matches": matches
+        }
         with open(cache_f, "w", encoding="utf-8") as f:
-            json.dump(matches, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved {len(matches)} screener matches to cache {cache_f.name}")
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(matches)} screener matches (total={total_count}) to cache {cache_f.name}")
     except Exception as e:
         logger.warning(f"Failed to save screener cache: {e}")
 
@@ -379,21 +397,21 @@ def scan_market_strategy(
     """
     st = get_strategy(strategy_name)
     
-    is_custom_symbols = (symbols is not None)
-    
-    # 1. Check disk cache if symbols is not custom and not force_refresh
-    if not is_custom_symbols and use_cache and not force_refresh:
-        cached = _load_cache(strategy_name, universe, force_refresh=force_refresh)
-        if cached is not None:
-            enrich_stocks_with_inflows(cached)
-            if progress_callback:
-                progress_callback(len(cached), len(cached), len(cached), 100.0)
-            return cached
-
     if not symbols:
         symbols = get_universe_symbols(universe)
         
     total_count = len(symbols)
+    is_custom_symbols = (symbols is not None and not isinstance(universe, str))
+
+    # 1. Check disk cache if symbols is not custom and not force_refresh
+    if not is_custom_symbols and use_cache and not force_refresh:
+        cached = _load_cache(strategy_name, universe, expected_total=total_count, force_refresh=force_refresh)
+        if cached is not None:
+            enrich_stocks_with_inflows(cached)
+            if progress_callback:
+                progress_callback(total_count, total_count, len(cached), 100.0)
+            return cached
+
     matched: list[dict[str, Any]] = []
 
     # Dynamic thread pool sizing
@@ -437,6 +455,6 @@ def scan_market_strategy(
 
     # Save to disk cache if full universe scan completed without abortion
     if (stop_event is None or not stop_event.is_set()) and not is_custom_symbols:
-        _save_cache(strategy_name, universe, matched)
+        _save_cache(strategy_name, universe, total_count, matched)
 
     return matched

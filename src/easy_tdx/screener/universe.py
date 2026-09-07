@@ -191,12 +191,13 @@ _CACHED_ALL_ASHARES: list[str] = []
 def _load_all_ashares() -> list[str]:
     """Load cached 5,200+ A-share codes."""
     global _CACHED_ALL_ASHARES
-    if _CACHED_ALL_ASHARES:
+    if _CACHED_ALL_ASHARES and len(_CACHED_ALL_ASHARES) > 1000:
         return _CACHED_ALL_ASHARES
     
-    # Try easy_tdx data dir
+    # 1. Try local data directories and TDX security cache
     possible_paths = [
         Path(__file__).resolve().parent.parent.parent.parent / "data" / "ashares_universe.json",
+        Path.home() / ".easy_tdx" / "security_list_all.json",
         Path("c:/Users/aaron/Documents/stock_data/easy_tdx/data/ashares_universe.json"),
         Path("c:/Users/aaron/Documents/stock_data/stock_quant/data/ashares_universe.json"),
     ]
@@ -204,13 +205,39 @@ def _load_all_ashares() -> list[str]:
         if p.exists():
             try:
                 with open(p, "r", encoding="utf-8") as f:
-                    codes = json.load(f)
-                    if isinstance(codes, list) and len(codes) > 1000:
-                        _CACHED_ALL_ASHARES = [str(c).zfill(6) for c in codes]
+                    content = json.load(f)
+                    if isinstance(content, dict) and "data" in content:
+                        codes = [str(item.get("code", "")).strip().zfill(6) for item in content["data"] if item.get("code")]
+                    elif isinstance(content, list):
+                        codes = [str(c).strip().zfill(6) for c in content]
+                    else:
+                        codes = []
+                        
+                    if len(codes) > 1000:
+                        _CACHED_ALL_ASHARES = codes
                         logger.info(f"Loaded {len(_CACHED_ALL_ASHARES)} A-share codes from {p}")
                         return _CACHED_ALL_ASHARES
             except Exception as e:
                 logger.warning(f"Error loading {p}: {e}")
+
+    # 2. Dynamic live fallback: query TDX client directly
+    try:
+        from easy_tdx.client import TdxClient
+        with TdxClient.from_best_host() as c:
+            df_all = c.get_security_list_all()
+            if df_all is not None and not df_all.empty:
+                codes = [str(r["code"]).strip().zfill(6) for _, r in df_all.iterrows() if r.get("code")]
+                if len(codes) > 1000:
+                    _CACHED_ALL_ASHARES = codes
+                    try:
+                        save_p = Path(__file__).resolve().parent.parent.parent.parent / "data" / "ashares_universe.json"
+                        save_p.parent.mkdir(parents=True, exist_ok=True)
+                        save_p.write_text(json.dumps(codes, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
+                    return _CACHED_ALL_ASHARES
+    except Exception as e:
+        logger.warning(f"Failed to fetch live security list from TDX: {e}")
 
     # Fallback to core universe
     return CORE_UNIVERSE
