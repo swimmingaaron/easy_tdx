@@ -4001,7 +4001,7 @@
                 }
             }
             const lastA2 = a2[n - 1];
-            if (lastA2 >= 1 && lastA2 <= N) {
+            if (lastA2 >= 3 && lastA2 <= N) {
                 const start = Math.max(0, n - 1 - lastA2 + 1);
                 for (let j = start; j < n; j++) {
                     tdHigh[j] = a2[j];
@@ -4025,7 +4025,7 @@
                 }
             }
             const lastB2 = b2[n - 1];
-            if (lastB2 >= 1 && lastB2 <= N) {
+            if (lastB2 >= 3 && lastB2 <= N) {
                 const start = Math.max(0, n - 1 - lastB2 + 1);
                 for (let j = start; j < n; j++) {
                     tdLow[j] = b2[j];
@@ -5341,8 +5341,8 @@
                     const hVal = tdHighArr[i];
                     const lVal = tdLowArr[i];
 
-                    // 上升九转 (高九/高十三，见顶预警，数字标注在顶部)
-                    if (hVal > 0) {
+                    // 上升九转 (高九/高十三，见顶预警，从第3根日线起标注在顶部)
+                    if (hVal >= 3) {
                         const isCompleted = (hVal === mVal);
                         if (isCompleted) {
                             // 第 9 或 13 根：通达信标准绿色高亮徽章图标
@@ -5370,7 +5370,7 @@
                                 z: 90
                             });
                         } else {
-                            // 1~8: 通达信洋红小字 (COLORFF00FF)
+                            // 3~8: 通达信洋红小字 (COLORFF00FF)
                             markPointData.push({
                                 name: `高${hVal}`,
                                 coord: [b.datetime, b.high],
@@ -5391,8 +5391,8 @@
                         }
                     }
 
-                    // 下跌九转 (低九/低十三，抄底买点，数字标注在底部)
-                    if (lVal > 0) {
+                    // 下跌九转 (低九/低十三，抄底买点，从第3根日线起标注在底部)
+                    if (lVal >= 3) {
                         const isCompleted = (lVal === mVal);
                         if (isCompleted) {
                             // 第 9 或 13 根：通达信标准洋红/玫瑰红高亮徽章图标
@@ -6004,14 +6004,14 @@
                                     const mVal = (mode === '13') ? 13 : 9;
                                     const tdH = (mVal === 13) ? (bar.td13_high || 0) : (bar.td9_high || 0);
                                     const tdL = (mVal === 13) ? (bar.td13_low || 0) : (bar.td9_low || 0);
-                                    if (tdH > 0) {
+                                    if (tdH >= 3) {
                                         if (tdH === mVal) {
                                             tdHtml += `<div style="color: #22c55e; font-weight: 700; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信${mVal}转：高${tdH} 见顶警示/反转点</div>`;
                                         } else {
                                             tdHtml += `<div style="color: #ff00ff; font-weight: 500; font-size: 11px; margin-top: 3px;">九转高序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
                                         }
                                     }
-                                    if (tdL > 0) {
+                                    if (tdL >= 3) {
                                         if (tdL === mVal) {
                                             tdHtml += `<div style="color: #f43f5e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信${mVal}转：低${tdL} 超跌支撑/抄底买点</div>`;
                                         } else {

@@ -243,20 +243,20 @@ def _evaluate_stock_for_strategy(
 
         if strategy_name == "td_sequential":
             # 严格以 K 线显示的 TD_SEQUENTIAL 算法为单一基准：
-            # 必须保证最新一根 K 线的上升九转序列真实点亮且处于高序列中 (td9_h[-1] >= 1)，
-            # 严格过滤掉未点亮/已中断 (td9_h[-1] == 0) 或已转为下跌低序列 (td9_l[-1] > 0) 的股票
+            # 必须保证最新一根 K 线的上升九转序列真实点亮且在第3根日线及以上 (td9_h[-1] >= 3)，
+            # 在第3根日线时开始标注，严格过滤掉未达3根 (td9_h[-1] < 3)、未点亮/已中断 (td9_h[-1] == 0) 或已转为下跌低序列 (td9_l[-1] > 0) 的股票
             c_vals = sig_df["close"].values
             td9_h, td9_l = TD_SEQUENTIAL(c_vals, 9)
             cur_h_seq = int(td9_h[-1])
             cur_l_seq = int(td9_l[-1])
-            if cur_h_seq <= 0 or cur_l_seq > 0:
+            if cur_h_seq < 3 or cur_l_seq > 0:
                 return None
 
-            days_ago = cur_h_seq - 1
+            days_ago = cur_h_seq - 3
             if lookback_bars > 0 and days_ago >= lookback_bars:
                 return None
 
-            trigger_loc = max(0, len(sig_df) - cur_h_seq)
+            trigger_loc = max(0, len(sig_df) - 1 - days_ago)
             trigger_bar = sig_df.iloc[trigger_loc]
             trigger_idx = sig_df.index[trigger_loc]
         else:
@@ -306,8 +306,8 @@ def _evaluate_stock_for_strategy(
             signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
 
         if strategy_name == "td_sequential":
-            if cur_h_seq == 1:
-                status_label = "今日高1序列"
+            if cur_h_seq == 3:
+                status_label = "今日高3序列"
             elif cur_h_seq == 9:
                 status_label = "高9序列 (见顶警示)"
             elif cur_h_seq == 13:
@@ -341,8 +341,8 @@ def _evaluate_stock_for_strategy(
                 trigger_patterns = ["震荡整理"]
 
         if strategy_name == "td_sequential":
-            if "高1序列" not in trigger_patterns:
-                trigger_patterns = ["高1序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
+            if "高3序列" not in trigger_patterns:
+                trigger_patterns = ["高3序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
 
         trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
 
