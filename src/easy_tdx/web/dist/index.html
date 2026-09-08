@@ -2041,6 +2041,13 @@
                             </select>
                         </div>
 
+                        <!-- Data Source Mode Checkbox: Live Server vs Cache -->
+                        <label class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800 cursor-pointer text-slate-400 hover:text-slate-200 select-none text-xs transition" title="未勾选时优先使用本地Cache缓存数据（极速秒出）；勾选后强制从通达信服务器获取最新实时K线重新扫描">
+                            <input type="checkbox" id="screener-force-refresh" onchange="onScreenerRefreshModeChange(this)" class="rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5">
+                            <span class="text-[11px] whitespace-nowrap">从服务器获取最新数据</span>
+                            <span id="screener-cache-tag" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">使用Cache</span>
+                        </label>
+
                         <!-- Sync Scan Button -->
                         <button onclick="runScreenerScan()" id="btn-screener-scan" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-semibold text-xs hover:opacity-90 shadow-md flex items-center space-x-1.5 transition cursor-pointer">
                             <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
@@ -2422,9 +2429,10 @@
                                 </select>
                             </div>
 
-                            <label class="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-inner cursor-pointer text-slate-400 hover:text-slate-200 select-none text-xs">
-                                <input type="checkbox" id="ai-4d-force-refresh" class="rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5">
-                                <span class="text-[11px]">重新计算</span>
+                            <label class="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-inner cursor-pointer text-slate-400 hover:text-slate-200 select-none text-xs transition" title="未勾选时优先使用本地Cache数据（秒级返回）；勾选后强制从通达信服务器获取最新实时数据重新计算">
+                                <input type="checkbox" id="ai-4d-force-refresh" onchange="on4DRefreshModeChange(this)" class="rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5">
+                                <span class="text-[11px] whitespace-nowrap">从服务器获取最新数据</span>
+                                <span id="ai-4d-cache-tag" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">使用Cache</span>
                             </label>
 
                             <button id="btn-run-4d-universe" onclick="run4DUniverseDiagnosis()" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold text-xs transition cursor-pointer shadow-md flex items-center">
@@ -9840,6 +9848,22 @@
 
             setupStockAutocomplete('bt-symbol', 'bt-symbol-dropdown', () => runBacktest());
             setupStockAutocomplete('diag-symbol', 'diag-symbol-dropdown', () => runDiagnosis());
+
+            // Restore saved refresh mode preferences (Live Server vs Cache)
+            try {
+                const savedScr = localStorage.getItem('easy_tdx_screener_force_refresh') === 'true';
+                const scrInput = document.getElementById('screener-force-refresh');
+                if (scrInput) {
+                    scrInput.checked = savedScr;
+                    onScreenerRefreshModeChange(scrInput);
+                }
+                const saved4D = localStorage.getItem('easy_tdx_4d_force_refresh') === 'true';
+                const f4dInput = document.getElementById('ai-4d-force-refresh');
+                if (f4dInput) {
+                    f4dInput.checked = saved4D;
+                    on4DRefreshModeChange(f4dInput);
+                }
+            } catch (_) {}
         }
 
         let activeScreenerTaskId = null;
@@ -9847,6 +9871,7 @@
 
         function onScreenerParamsChange() {
             const uniSel = document.getElementById('screener-universe-select');
+            const forceInput = document.getElementById('screener-force-refresh');
             const uni = uniSel ? uniSel.value : 'core';
             const hintMap = {
                 'core': '当前范围：⭐ 核心龙头池 (159只) · 秒级快速选股 (~2-3s)',
@@ -9857,8 +9882,46 @@
             };
             const textEl = document.getElementById('screener-status-text');
             if (textEl) {
-                textEl.innerText = hintMap[uni] || '就绪';
+                const modeStr = (forceInput && forceInput.checked) ? ' · 模式：从服务器获取最新数据' : ' · 模式：优先使用Cache数据';
+                textEl.innerText = (hintMap[uni] || '就绪') + modeStr;
             }
+        }
+
+        function onScreenerRefreshModeChange(el) {
+            const tag = document.getElementById('screener-cache-tag');
+            if (tag) {
+                if (el.checked) {
+                    tag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-bold';
+                    tag.innerText = '服务器最新';
+                    el.parentElement.title = '当前模式：从服务器获取最新数据（跳过本地Cache缓存）';
+                } else {
+                    tag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono';
+                    tag.innerText = '使用Cache';
+                    el.parentElement.title = '当前模式：优先使用本地Cache缓存数据（极速秒出）';
+                }
+            }
+            try {
+                localStorage.setItem('easy_tdx_screener_force_refresh', el.checked ? 'true' : 'false');
+            } catch (_) {}
+            onScreenerParamsChange();
+        }
+
+        function on4DRefreshModeChange(el) {
+            const tag = document.getElementById('ai-4d-cache-tag');
+            if (tag) {
+                if (el.checked) {
+                    tag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-bold';
+                    tag.innerText = '服务器最新';
+                    el.parentElement.title = '当前模式：从服务器获取最新数据重新计算（跳过本地Cache缓存）';
+                } else {
+                    tag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono';
+                    tag.innerText = '使用Cache';
+                    el.parentElement.title = '当前模式：优先使用本地Cache缓存数据（秒级返回）';
+                }
+            }
+            try {
+                localStorage.setItem('easy_tdx_4d_force_refresh', el.checked ? 'true' : 'false');
+            } catch (_) {}
         }
 
         let screenerSortCol = null;
@@ -10005,10 +10068,15 @@
             renderScreenerTableRows(matches, strategyName, universeDesc);
         }
 
-        async function startScreenerTask(strategy, universe, strategyName, universeDesc) {
+        async function startScreenerTask(strategy, universe, strategyName, universeDesc, forceRefresh = null) {
             if (screenerPollTimer) {
                 clearInterval(screenerPollTimer);
                 screenerPollTimer = null;
+            }
+
+            if (forceRefresh === null || forceRefresh === undefined) {
+                const forceInput = document.getElementById('screener-force-refresh');
+                forceRefresh = forceInput ? forceInput.checked : false;
             }
 
             const progContainer = document.getElementById('screener-progress-container');
@@ -10031,21 +10099,26 @@
             if (cancelBtn) cancelBtn.classList.remove('hidden');
             if (progBar) progBar.style.width = '0%';
             if (progPct) progPct.innerText = '0.0%';
-            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】多线程选股扫描...`;
+            const modeTextInit = forceRefresh ? '【从服务器获取最新数据】' : '【优先使用Cache数据】';
+            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】多线程选股扫描 ${modeTextInit}...`;
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
-            if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
+            if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】战法选股扫描 ${modeTextInit}...`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中 ${modeTextInit}，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
             lucide.createIcons();
 
-            const taskTitle = `【${universeDesc}】${strategyName} 选股扫描`;
+            const taskTitle = `【${universeDesc}】${strategyName} 选股扫描 ${modeTextInit}`;
             openQuoteModal(`正在对【${universeDesc}】全速并发执行【${strategyName}】战法扫描...`, true, taskTitle, 5222);
-            showToast('选股扫描已启动', `正在对【${universeDesc}】执行多线程后台扫描任务`);
+            showToast('选股扫描已启动', `正在对【${universeDesc}】执行多线程后台扫描任务 (${forceRefresh ? '从服务器获取最新数据' : '复用本地Cache数据'})`);
 
             try {
                 const resp = await fetch('/api/screener/task/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ strategy: strategy, universe: universe })
+                    body: JSON.stringify({ 
+                        strategy: strategy, 
+                        universe: universe,
+                        force_refresh: forceRefresh 
+                    })
                 });
 
                 if (!resp.ok) {
@@ -10114,9 +10187,10 @@
 
                             if (task.task_status === 'completed') {
                                 const matches = task.matches || [];
-                                if (statusText) statusText.innerText = `选股完成！【${universeDesc}】总计扫描 ${total} 只标的，共命中 ${matches.length} 只符合【${strategyName}】战法 (耗时 ${elapsed}s)`;
+                                const modeDesc = forceRefresh ? '服务器实时数据' : '本地Cache数据';
+                                if (statusText) statusText.innerText = `选股完成！【${universeDesc}】总计扫描 ${total} 只标的，共命中 ${matches.length} 只符合【${strategyName}】战法 (${modeDesc} · 耗时 ${elapsed}s)`;
                                 renderScreenerTable(matches, strategyName, universeDesc);
-                                showToast('选股扫描完成', `【${universeDesc}】扫描完成！共选出 ${matches.length} 只符合【${strategyName}】的标的 (耗时 ${elapsed}s)`);
+                                showToast('选股扫描完成', `【${universeDesc}】扫描完成！共选出 ${matches.length} 只符合【${strategyName}】的标的 (${modeDesc} · 耗时 ${elapsed}s)`);
                                 speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                             } else if (task.task_status === 'cancelled') {
                                 if (statusText) statusText.innerText = `【${universeDesc}】选股扫描任务已手动中止`;
@@ -10145,9 +10219,11 @@
         async function runScreenerScan() {
             const stSelect = document.getElementById('screener-strategy-select');
             const uniSelect = document.getElementById('screener-universe-select');
+            const forceInput = document.getElementById('screener-force-refresh');
             const strategy = stSelect ? stSelect.value : 'zig_breakout';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const universe = uniSelect ? uniSelect.value : 'core';
+            const forceRefresh = forceInput ? forceInput.checked : false;
 
             const uniMap = {
                 'core': '核心龙头池 (159只)',
@@ -10158,18 +10234,20 @@
             };
             const uniDesc = uniMap[universe] || universe;
 
-            await startScreenerTask(strategy, universe, strategyName, uniDesc);
+            await startScreenerTask(strategy, universe, strategyName, uniDesc, forceRefresh);
         }
 
         async function runFullMarketAsyncTask() {
             const stSelect = document.getElementById('screener-strategy-select');
             const uniSelect = document.getElementById('screener-universe-select');
+            const forceInput = document.getElementById('screener-force-refresh');
             if (uniSelect) uniSelect.value = 'all';
 
             const strategy = stSelect ? stSelect.value : 'zig_breakout';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
+            const forceRefresh = forceInput ? forceInput.checked : false;
 
-            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)');
+            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)', forceRefresh);
         }
 
         async function cancelCurrentScreenerTask() {
