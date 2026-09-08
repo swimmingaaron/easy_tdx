@@ -830,33 +830,51 @@
         }
 
         /* 股票代码列: 纯黑/深灰色（与股票名称、所属板块风格完全一致，沉稳统一） */
-        .stock-code-link {
+        /* 股票代码: 链接样式适配（雪球超链接） */
+        .stock-code-link,
+        a.stock-code-link {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
             font-weight: 600 !important;
             cursor: pointer;
             transition: all 0.15s ease-in-out;
+            text-decoration: none !important;
+            display: inline-block;
         }
         html.light .stock-code-link,
-        html.light #screener-results-table td:first-child span,
-        html.light #realtime-quotes-table td:first-child span,
-        html.light #ai-4d-ranking-tbody td:nth-child(2) {
+        html.light a.stock-code-link,
+        html.light #screener-results-table td:first-child a,
+        html.light #realtime-quotes-table td:first-child a,
+        html.light #sector-stocks-table td:first-child a,
+        html.light #ai-4d-ranking-tbody td:nth-child(2) a {
             color: #0f172a !important;
         }
         html:not(.light) .stock-code-link,
-        html:not(.light) #screener-results-table td:first-child span,
-        html:not(.light) #realtime-quotes-table td:first-child span,
-        html:not(.light) #ai-4d-ranking-tbody td:nth-child(2) {
+        html:not(.light) a.stock-code-link,
+        html:not(.light) #screener-results-table td:first-child a,
+        html:not(.light) #realtime-quotes-table td:first-child a,
+        html:not(.light) #sector-stocks-table td:first-child a,
+        html:not(.light) #ai-4d-ranking-tbody td:nth-child(2) a {
             color: #f8fafc !important;
         }
         .stock-code-link:hover,
-        html.light #screener-results-table td:first-child span:hover,
-        html.light #realtime-quotes-table td:first-child span:hover,
-        html.light #ai-4d-ranking-tbody td:nth-child(2):hover {
+        a.stock-code-link:hover,
+        html.light #screener-results-table td:first-child a:hover,
+        html.light #realtime-quotes-table td:first-child a:hover,
+        html.light #sector-stocks-table td:first-child a:hover,
+        html.light #ai-4d-ranking-tbody td:nth-child(2) a:hover {
             color: #0284c7 !important;
             text-decoration: underline !important;
         }
+        html:not(.light) .stock-code-link:hover,
+        html:not(.light) a.stock-code-link:hover,
+        html:not(.light) #screener-results-table td:first-child a:hover,
+        html:not(.light) #realtime-quotes-table td:first-child a:hover,
+        html:not(.light) #sector-stocks-table td:first-child a:hover,
+        html:not(.light) #ai-4d-ranking-tbody td:nth-child(2) a:hover {
+            color: #38bdf8 !important;
+            text-decoration: underline !important;
+        }
 
-        /* 所属板块: 纯文本黑色，无小图标，支持悬浮与点击 */
         .board-link {
             color: #000000 !important;
             font-weight: 600;
@@ -3679,6 +3697,30 @@
         function initKpDragScroll() {
             enableHorizontalDragScroll(document.getElementById('kp-period-scroll-container'));
             enableHorizontalDragScroll(document.getElementById('kp-indicator-scroll-container'));
+        }
+
+        
+        // 雪球行情与讨论超级链接生成器
+        // 规则: 6开头 SH, 0和3开头 SZ, 9开头 (及北交所8/4) BJ
+        function getXueqiuUrl(rawCode) {
+            if (!rawCode) return '#';
+            let c = String(rawCode).trim().toUpperCase();
+            c = c.replace(/\.(SH|SZ|BJ|SS)$/, '');
+            if (/^(SH|SZ|BJ)\d{6}$/.test(c)) {
+                return `https://xueqiu.com/S/${c}`;
+            }
+            const m = c.match(/\d{6}/);
+            const code = m ? m[0] : c;
+
+            let prefix = 'SH';
+            if (code.startsWith('6')) {
+                prefix = 'SH';
+            } else if (code.startsWith('0') || code.startsWith('3')) {
+                prefix = 'SZ';
+            } else if (code.startsWith('9') || code.startsWith('8') || code.startsWith('4')) {
+                prefix = 'BJ';
+            }
+            return `https://xueqiu.com/S/${prefix}${code}`;
         }
 
         function openKlineModal(sym, name) {
@@ -7930,7 +7972,7 @@
 
                         return `
                         <tr class="hover:bg-slate-800/40 transition group">
-                            <td class="py-2.5 px-2.5 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-code-link font-mono">${q.code}</span></td>
+                            <td class="py-2.5 px-2.5 font-semibold whitespace-nowrap"><a href="${getXueqiuUrl(q.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono hover:underline" title="在雪球查看 ${q.code} ${q.name || ''} 行情与讨论">${q.code}</a></td>
                             <td class="py-2.5 px-2.5 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
                             <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${boardBadgeHtml}</td>
                             <td class="py-2.5 px-2 font-mono text-slate-300 font-medium text-right whitespace-nowrap">${totalMvStr}</td>
@@ -9052,7 +9094,7 @@
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-code-link cursor-pointer">${s.code}</span></td>
+                    <td class="py-2 font-mono"><a href="${getXueqiuUrl(s.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link cursor-pointer hover:underline" title="在雪球查看 ${s.code} ${s.name || ''} 行情与讨论">${s.code}</a></td>
                     <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-slate-300 font-medium whitespace-nowrap">${totalMvStr}</td>
                     <td class="py-2 text-right font-mono text-white font-semibold">¥${Number(s.price).toFixed(2)}</td>
@@ -10033,7 +10075,7 @@
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-3 pl-3 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-code-link font-mono">${m.symbol || m.code}</span></td>
+                    <td class="py-3 pl-3 font-semibold whitespace-nowrap"><a href="${getXueqiuUrl(m.symbol || m.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono hover:underline" title="在雪球查看 ${m.symbol || m.code} ${m.name || ''} 行情与讨论">${m.symbol || m.code}</a></td>
                     <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
                     <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap">
                         ${canClickBoard 
@@ -10563,10 +10605,10 @@
                     return `
                         <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
                             <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-500">${idx + 1}</td>
-                            <td class="py-2.5 px-3 font-mono font-semibold stock-code-link cursor-pointer hover:underline transition" 
-                                onclick="openKlineModal('${item.code}', '${item.name || ''}')"
-                                title="点击查看【${item.code} ${item.name || ''}】实时K线与深度技术指标">
-                                ${item.code}
+                            <td class="py-2.5 px-3 font-mono font-semibold whitespace-nowrap">
+                                <a href="${getXueqiuUrl(item.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link cursor-pointer hover:underline transition" title="在雪球查看 ${item.code} ${item.name || ''} 行情与讨论">
+                                    ${item.code}
+                                </a>
                             </td>
                             <td class="py-2.5 px-3 font-semibold text-slate-200 cursor-pointer hover:text-cyan-300 hover:underline transition" 
                                 onclick="openKlineModal('${item.code}', '${item.name || ''}')"
