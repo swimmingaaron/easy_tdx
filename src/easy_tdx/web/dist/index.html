@@ -4714,8 +4714,82 @@
             const sumLoss = Math.abs(lossTrades.reduce((acc, t) => acc + t.pnlPct, 0));
             const profitFactor = sumLoss > 0 ? (sumWin / sumLoss) : (sumWin > 0 ? 99.9 : 1.0);
 
+            // 收集所有已确认的波峰(顶点)与波谷(底点)
+            const allTurns = [];
+            for (const t of troughs) {
+                allTurns.push({ idx: t.troughIdx, type: 'TROUGH', price: t.troughPrice, confirmIdx: t.confirmIdx });
+            }
+            for (const p of peaks) {
+                allTurns.push({ idx: p.peakIdx, type: 'PEAK', price: p.peakPrice, confirmIdx: p.confirmIdx });
+            }
+            allTurns.sort((a, b) => a.idx - b.idx);
+
+            // 计算从反转之日算起的第几天：从顶点反转变成负数(-1, -2...)，从谷底反转为正数(+1, +2...)
+            const zigDays = new Array(n).fill(0);
             for (let i = 0; i < n; i++) {
-                bars[i].zig = zigArr[i];
+                let lastTurn = null;
+                for (let k = allTurns.length - 1; k >= 0; k--) {
+                    if (allTurns[k].idx <= i) {
+                        lastTurn = allTurns[k];
+                        break;
+                    }
+                }
+                if (lastTurn) {
+                    const elapsed = i - lastTurn.idx + 1;
+                    zigDays[i] = (lastTurn.type === 'PEAK') ? -elapsed : elapsed;
+                } else if (allTurns.length > 0) {
+                    const firstTurn = allTurns[0];
+                    const dist = firstTurn.idx - i + 1;
+                    zigDays[i] = (firstTurn.type === 'TROUGH') ? -dist : dist;
+                } else {
+                    zigDays[i] = 0;
+                }
+            }
+
+            // 确保所有已确认的顶点和底点都包含在 anchorPeaks 和 anchorTroughs 中
+            for (const p of peaks) {
+                if (p.peakIdx > 0 && p.peakIdx < n && !anchorPeaks.some(ap => ap.datetime === bars[p.peakIdx].datetime)) {
+                    anchorPeaks.push({
+                        datetime: bars[p.peakIdx].datetime,
+                        price: p.peakPrice,
+                        confirmDate: bars[p.confirmIdx] ? bars[p.confirmIdx].datetime : '',
+                        reason: '波峰定位点'
+                    });
+                }
+            }
+            for (const t of troughs) {
+                if (t.troughIdx > 0 && t.troughIdx < n && !anchorTroughs.some(at => at.datetime === bars[t.troughIdx].datetime)) {
+                    anchorTroughs.push({
+                        datetime: bars[t.troughIdx].datetime,
+                        price: t.troughPrice,
+                        confirmDate: bars[t.confirmIdx] ? bars[t.confirmIdx].datetime : '',
+                        reason: '波谷底定位'
+                    });
+                }
+            }
+
+            // 构造日线下方的短竖线指示数据：dim0=datetime, dim1=close(保持真实股价范围，防止破坏K线Y轴), dim2=拐点类型(1:波峰顶->绿色, -1:波谷底->红色)
+            const turnLines = [];
+            for (const p of peaks) {
+                if (p.peakIdx > 0 && p.peakIdx < n) {
+                    turnLines.push({
+                        value: [bars[p.peakIdx].datetime, bars[p.peakIdx].close, 1, p.peakIdx]
+                    });
+                }
+            }
+            for (const t of troughs) {
+                if (t.troughIdx > 0 && t.troughIdx < n) {
+                    turnLines.push({
+                        value: [bars[t.troughIdx].datetime, bars[t.troughIdx].close, -1, t.troughIdx]
+                    });
+                }
+            }
+            turnLines.sort((a, b) => a.value[3] - b.value[3]);
+
+            for (let i = 0; i < n; i++) {
+                bars[i].zig = zigDays[i];
+                bars[i].zig_days = zigDays[i];
+                bars[i].zig_price = zigArr[i];
                 bars[i].zig_buy = buySignals[i];
                 bars[i].zig_sell = sellSignals[i];
                 bars[i].zig_trough = anchorTroughs.some(at => at.datetime === bars[i].datetime);
@@ -4724,6 +4798,8 @@
 
             return {
                 zigArr,
+                zigDays,
+                turnLines,
                 trades,
                 anchorTroughs,
                 anchorPeaks,
@@ -5345,8 +5421,8 @@
                     <span style="color:#8B5CF6">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
                     ${subMaLine}
-                    ${isZigActive && bar.zig ? `
-                        <span style="color:#06B6D4; font-weight:600;">ZIG:${Number(bar.zig).toFixed(2)}</span>
+                    ${isZigActive && bar.zig !== undefined && bar.zig !== null ? `
+                        <span style="color:${bar.zig >= 0 ? '#f04438' : '#12b76a'}; font-weight:700;">ZIG:${bar.zig > 0 ? '+' : ''}${bar.zig}</span>
                         ${bar.zig_trough ? ' <span style="color:#38BDF8; font-weight:600;">[波谷底]</span>' : ''}
                         ${bar.zig_buy ? ' <span style="color:#f04438; font-weight:600;">[买点]</span>' : ''}
                         ${bar.zig_peak ? ' <span style="color:#F59E0B; font-weight:600;">[波峰顶]</span>' : ''}
@@ -6342,19 +6418,40 @@
                     { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
                     ...middleSeries,
                     ...bottomInflowSeries,
-                    ...(isZigActive && zigResult && zigResult.zigArr && zigResult.zigArr.length > 0 ? [{
-                        name: 'ZIG转向线',
-                        type: 'line',
+                    ...(isZigActive && zigResult && zigResult.turnLines && zigResult.turnLines.length > 0 ? [{
+                        name: 'ZIG拐点竖线',
+                        type: 'custom',
                         xAxisIndex: 0,
                         yAxisIndex: 0,
-                        data: zigResult.zigArr,
-                        showSymbol: false,
-                        lineStyle: {
-                            width: 1.8,
-                            color: '#06B6D4',
-                            type: 'dashed'
+                        clip: true,
+                        silent: true,
+                        encode: {
+                            x: 0,
+                            y: 1
                         },
-                        z: 4
+                        renderItem: function (params, api) {
+                            const pt = api.coord([api.value(0), api.value(1)]) || api.coord([api.value(3), api.value(1)]);
+                            if (!pt) return;
+                            const x = pt[0];
+                            const yBottom = (params.coordSys && params.coordSys.height) ? (params.coordSys.y + params.coordSys.height) : api.coord([0, 0])[1];
+                            const lineLen = 20;
+                            const isPeak = api.value(2) > 0;
+                            return {
+                                type: 'line',
+                                shape: {
+                                    x1: x,
+                                    y1: yBottom,
+                                    x2: x,
+                                    y2: yBottom - lineLen
+                                },
+                                style: {
+                                    stroke: isPeak ? '#10b981' : '#ef4444', // 顶点: 绿, 底点: 红 (修复反色)
+                                    lineWidth: 2
+                                },
+                                z: 6
+                            };
+                        },
+                        data: zigResult.turnLines
                     }] : [])
                 ]
             };
