@@ -829,6 +829,33 @@
             font-weight: 700 !important;
         }
 
+        /* 股票代码列: 纯黑/深灰色（与股票名称、所属板块风格完全一致，沉稳统一） */
+        .stock-code-link {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+            font-weight: 600 !important;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+        }
+        html.light .stock-code-link,
+        html.light #screener-results-table td:first-child span,
+        html.light #realtime-quotes-table td:first-child span,
+        html.light #ai-4d-ranking-tbody td:nth-child(2) {
+            color: #0f172a !important;
+        }
+        html:not(.light) .stock-code-link,
+        html:not(.light) #screener-results-table td:first-child span,
+        html:not(.light) #realtime-quotes-table td:first-child span,
+        html:not(.light) #ai-4d-ranking-tbody td:nth-child(2) {
+            color: #f8fafc !important;
+        }
+        .stock-code-link:hover,
+        html.light #screener-results-table td:first-child span:hover,
+        html.light #realtime-quotes-table td:first-child span:hover,
+        html.light #ai-4d-ranking-tbody td:nth-child(2):hover {
+            color: #0284c7 !important;
+            text-decoration: underline !important;
+        }
+
         /* 所属板块: 纯文本黑色，无小图标，支持悬浮与点击 */
         .board-link {
             color: #000000 !important;
@@ -2056,24 +2083,26 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm min-w-[1240px]">
                         <colgroup>
-                            <col style="width: 7%;">
-                            <col style="width: 8%;">
-                            <col style="width: 10%;">
-                            <col style="width: 7%;">
                             <col style="width: 6.5%;">
-                            <col style="width: 7%;">
-                            <col style="width: 7%;">
-                            <col style="width: 7.5%;">
                             <col style="width: 7.5%;">
                             <col style="width: 7.5%;">
                             <col style="width: 9.5%;">
-                            <col style="width: 12.5%;">
+                            <col style="width: 6.5%;">
                             <col style="width: 6%;">
+                            <col style="width: 6.5%;">
+                            <col style="width: 6.5%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 9%;">
+                            <col style="width: 11.5%;">
+                            <col style="width: 5.5%;">
                         </colgroup>
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
                             <tr>
                                 <th class="pb-3 pl-3">股票代码</th>
                                 <th class="pb-3 px-2">股票名称</th>
+                                <th class="pb-3 px-2">所属板块</th>
                                 <th class="pb-3 px-2">触发战法</th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('cap')" title="点击按市值排序">市值<span id="screener-sort-cap" class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="pb-3 px-2 text-right cursor-pointer hover:text-cyan-400 select-none transition" onclick="sortScreenerTable('price')" title="点击按最新价排序">最新价<span id="screener-sort-price" class="ml-1 text-[10px] text-slate-500"></span></th>
@@ -2088,7 +2117,7 @@
                             </tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
-                            <tr><td colspan="13" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
+                            <tr><td colspan="14" class="py-8 text-center text-slate-500 text-xs">请选择战法策略与选股范围后，点击上方「开始选股」</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -7821,7 +7850,7 @@
 
                         return `
                         <tr class="hover:bg-slate-800/40 transition group">
-                            <td class="py-2.5 px-2.5 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-cyan-400 font-mono">${q.code}</span></td>
+                            <td class="py-2.5 px-2.5 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-code-link font-mono">${q.code}</span></td>
                             <td class="py-2.5 px-2.5 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${q.code}', '${q.name}')" class="stock-click-link text-white">${q.name}</span></td>
                             <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${boardBadgeHtml}</td>
                             <td class="py-2.5 px-2 font-mono text-slate-300 font-medium text-right whitespace-nowrap">${totalMvStr}</td>
@@ -8863,7 +8892,7 @@
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-cyan-400 font-bold cursor-pointer">${s.code}</span></td>
+                    <td class="py-2 font-mono"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-code-link cursor-pointer">${s.code}</span></td>
                     <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-slate-300 font-medium whitespace-nowrap">${totalMvStr}</td>
                     <td class="py-2 text-right font-mono text-white font-semibold">¥${Number(s.price).toFixed(2)}</td>
@@ -9745,7 +9774,7 @@
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 return;
             }
 
@@ -9781,10 +9810,21 @@
                 const inflow3dColor = getStockInflowColor(m3);
                 const inflow5dColor = getStockInflowColor(m5);
 
+                const boardName = m.board_name || m.industry || '--';
+                const boardCode = m.board_code || '';
+                const canClickBoard = (boardName && boardName !== '--');
+                const boardClick = canClickBoard ? `onclick="openKlineModal('${boardCode || boardName}', '${boardName}')"` : '';
+                const boardTitle = canClickBoard ? `title="点击查看【${boardName} (${boardCode || ''})】板块实时K线行情与多周期技术分析"` : '';
+
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-3 pl-3 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-cyan-400 font-mono">${m.symbol || m.code}</span></td>
+                    <td class="py-3 pl-3 font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-code-link font-mono">${m.symbol || m.code}</span></td>
                     <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
+                    <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap">
+                        ${canClickBoard 
+                            ? `<span ${boardClick} ${boardTitle} class="stock-click-link text-white cursor-pointer">${boardName}</span>` 
+                            : `<span class="text-slate-500 font-mono text-xs">--</span>`}
+                    </td>
                     <td class="py-3 px-2 font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span></td>
                     <td class="py-3 px-2 text-right font-mono font-medium text-slate-200 whitespace-nowrap">${capStr}</td>
                     <td class="py-3 px-2 text-right font-bold text-white font-mono whitespace-nowrap">¥${Number(m.price).toFixed(2)}</td>
@@ -9842,7 +9882,7 @@
             if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】多线程选股扫描...`;
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
             if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】战法选股扫描...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
             lucide.createIcons();
 
             const taskTitle = `【${universeDesc}】${strategyName} 选股扫描`;
@@ -9946,7 +9986,7 @@
                 if (btnText) btnText.innerText = '开始选股';
                 if (progContainer) progContainer.classList.add('hidden');
                 if (cancelBtn) cancelBtn.classList.add('hidden');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="py-10 text-center text-rose-400 text-xs">启动选股任务失败: ${err.message}</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-rose-400 text-xs">启动选股任务失败: ${err.message}</td></tr>`;
             }
         }
 
@@ -10293,7 +10333,7 @@
                     return `
                         <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
                             <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-500">${idx + 1}</td>
-                            <td class="py-2.5 px-3 font-mono font-bold text-cyan-300 cursor-pointer hover:underline hover:text-cyan-200 transition" 
+                            <td class="py-2.5 px-3 font-mono font-semibold stock-code-link cursor-pointer hover:underline transition" 
                                 onclick="openKlineModal('${item.code}', '${item.name || ''}')"
                                 title="点击查看【${item.code} ${item.name || ''}】实时K线与深度技术指标">
                                 ${item.code}

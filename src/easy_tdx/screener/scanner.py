@@ -137,6 +137,23 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                     
         for s in stocks:
             c = s.get("code") or s.get("symbol", "")
+            if not s.get("board_name") or not s.get("board_code"):
+                try:
+                    from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+                    b_info = _resolve_stock_board_info(c)
+                    b_code = b_info.get("board_code", "")
+                    b_name = b_info.get("board_name", "")
+                    if b_code:
+                        s["board_code"] = b_code
+                    if b_name and b_name != "--":
+                        s["board_name"] = b_name
+                        s["industry"] = b_name
+                except Exception:
+                    pass
+            s.setdefault("board_code", "")
+            s.setdefault("board_name", "--")
+            s.setdefault("industry", s.get("board_name", "--"))
+
             if not s.get("patterns"):
                 try:
                     from easy_tdx.pattern_recognition import detect_stock_patterns
@@ -188,6 +205,24 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
     except Exception as e:
         logger.debug(f"Failed to enrich screener stocks with inflows: {e}")
         for s in stocks:
+            c = s.get("code") or s.get("symbol", "")
+            if not s.get("board_name") or not s.get("board_code"):
+                try:
+                    from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+                    b_info = _resolve_stock_board_info(c)
+                    b_code = b_info.get("board_code", "")
+                    b_name = b_info.get("board_name", "")
+                    if b_code:
+                        s["board_code"] = b_code
+                    if b_name and b_name != "--":
+                        s["board_name"] = b_name
+                        s["industry"] = b_name
+                except Exception:
+                    pass
+            s.setdefault("board_code", "")
+            s.setdefault("board_name", "--")
+            s.setdefault("industry", s.get("board_name", "--"))
+
             if not s.get("patterns"):
                 s["patterns"] = ["震荡整理"]
                 s["pattern_status"] = "震荡整理"
