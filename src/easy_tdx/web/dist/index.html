@@ -3240,17 +3240,37 @@
 
         async function loadStockProfile(symbol) {
             try {
-                const cleanSym = String(symbol || '').replace(/[^0-9a-zA-Z]/g, '');
-                if (!cleanSym) return;
+                const rawSym = String(symbol || '').trim();
+                const digitMatch = rawSym.match(/\d{6}/);
+                const querySym = digitMatch ? digitMatch[0] : rawSym.replace(/[^0-9a-zA-Z]/g, '');
+                if (!querySym) return;
 
                 const tbody = document.getElementById('kp-financials-tbody');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="py-2 text-center text-slate-500 font-sans">正在加载 ${cleanSym} 最新财报数据...</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在加载 ${querySym} 最新财报数据...</td></tr>`;
 
-                const resp = await fetch(`/api/quotes/stock_profile?symbol=${cleanSym}`);
-                if (!resp.ok) return;
+                const shTbody = document.getElementById('kp-shareholders-tbody');
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 股东人数历史数据...</td></tr>`;
+
+                const resp = await fetch(`/api/quotes/stock_profile?symbol=${querySym}`);
+                if (!resp.ok) {
+                    if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-amber-500/80 font-sans">股东人数获取异常 (HTTP ${resp.status})</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-amber-500/80 font-sans">财报数据获取异常 (HTTP ${resp.status})</td></tr>`;
+                    return;
+                }
                 const json = await resp.json();
                 const d = json.data;
                 if (!d) return;
+
+                // If this is an index or industry/concept board
+                if (d.is_index_or_board) {
+                    if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-3 text-center text-slate-400 font-sans">板块 / 指数无需统计股东户数变动</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-3 text-center text-slate-400 font-sans">板块 / 指数无个股财报数据</td></tr>`;
+                    const secContainer = document.getElementById('kp-sectors-container');
+                    if (secContainer) secContainer.innerHTML = `<span class="text-xs text-indigo-300 font-sans bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-700/60">板块/指数标的</span>`;
+                    const secCountEl = document.getElementById('kp-sector-count');
+                    if (secCountEl) secCountEl.innerText = `指数/板块`;
+                    return;
+                }
 
                 // 1. Shareholders
                 const sh = d.shareholders || {};
@@ -3310,7 +3330,7 @@
                 const fins = Array.isArray(d.financials) ? d.financials : [];
                 if (tbody) {
                     if (fins.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="7" class="py-2 text-center text-slate-500 font-sans">暂无财务报表数据</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">暂无财务报表数据</td></tr>`;
                     } else {
                         tbody.innerHTML = fins.map(f => {
                             const formatChg = (val) => {
@@ -3343,7 +3363,6 @@
                 }
 
                 // 5. Shareholder History Table (Recent 4 Quarters, QoQ changes only)
-                const shTbody = document.getElementById('kp-shareholders-tbody');
                 const shList = Array.isArray(d.shareholder_history) ? d.shareholder_history : [];
                 if (shTbody) {
                     if (shList.length === 0) {
@@ -3366,16 +3385,22 @@
                                 return `<span class="${color}">${isUp ? '+' : ''}${num.toFixed(2)}%</span>`;
                             };
 
-                            const focusTag = item.focus && item.focus !== '--'
-                                ? `<span class="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950/70 text-cyan-300 border border-cyan-800/60">${item.focus}</span>`
-                                : '<span class="text-slate-500">--</span>';
+                            let focusTag = '<span class="text-slate-500">--</span>';
+                            if (item.focus && item.focus !== '--') {
+                                const fText = String(item.focus);
+                                const isConcentrated = fText.includes('集中');
+                                const badgeColor = isConcentrated 
+                                    ? 'bg-rose-950/70 text-rose-300 border-rose-800/60'
+                                    : 'bg-cyan-950/70 text-cyan-300 border-cyan-800/60';
+                                focusTag = `<span class="text-[10px] px-1.5 py-0.2 rounded border ${badgeColor}">${fText}</span>`;
+                            }
 
                             return `
                                 <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">
                                     <td class="py-1.5 px-1 text-slate-300 font-sans font-medium">${item.period_title || item.period}</td>
                                     <td class="py-1.5 px-1 text-right font-bold text-cyan-400">${item.holder_count ? Number(item.holder_count).toLocaleString() + ' 户' : '--'}</td>
                                     <td class="py-1.5 px-1 text-right">${formatHolderQoq(item.holder_qoq)}</td>
-                                    <td class="py-1.5 px-1 text-right font-bold text-slate-200">${item.avg_shares_wan ? item.avg_shares_wan + ' 万' : '--'}</td>
+                                    <td class="py-1.5 px-1 text-right font-bold text-slate-200">${item.avg_shares_wan ? item.avg_shares_wan + ' 万' : (item.avg_shares ? item.avg_shares + ' 股' : '--')}</td>
                                     <td class="py-1.5 px-1 text-right">${formatAvgSharesQoq(item.avg_shares_qoq)}</td>
                                     <td class="py-1.5 px-1 text-right font-sans">${focusTag}</td>
                                 </tr>
@@ -3385,6 +3410,10 @@
                 }
             } catch (err) {
                 console.error('loadStockProfile err:', err);
+                const shTbody = document.getElementById('kp-shareholders-tbody');
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东人数获取异常，请重试</td></tr>`;
+                const tbody = document.getElementById('kp-financials-tbody');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-rose-400/80 font-sans">财报数据获取异常，请重试</td></tr>`;
             }
         }
 
