@@ -829,6 +829,105 @@
             font-weight: 700 !important;
         }
 
+        /* 所属板块: 纯文本黑色，无小图标，支持悬浮与点击 */
+        .board-link {
+            color: #000000 !important;
+            font-weight: 600;
+        }
+        html.light .board-link {
+            color: #000000 !important;
+        }
+        html:not(.light) .board-link {
+            color: #e2e8f0 !important;
+        }
+        .board-link:hover {
+            color: #0284c7 !important;
+            text-decoration: underline;
+        }
+
+        /* 形态特征: 上涨信号红色，下跌信号绿色，震荡中性灰色 */
+        .pattern-bullish {
+            color: #e11d48 !important;
+            font-weight: 600 !important;
+        }
+        html:not(.light) .pattern-bullish {
+            color: #f43f5e !important;
+        }
+        .pattern-bearish {
+            color: #059669 !important;
+            font-weight: 600 !important;
+        }
+        html:not(.light) .pattern-bearish {
+            color: #10b981 !important;
+        }
+        .pattern-neutral {
+            color: #64748b !important;
+        }
+        html:not(.light) .pattern-neutral {
+            color: #94a3b8 !important;
+        }
+
+        /* 交易评级专精样式 (A股标准: 买入红, 卖出绿, 观望灰, 持有橙) */
+        .trade-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+            line-height: 1.3;
+        }
+        .trade-badge-strong-buy {
+            color: #e11d48 !important;
+            background: rgba(225, 29, 72, 0.08) !important;
+            border: 1px solid rgba(225, 29, 72, 0.3) !important;
+        }
+        html:not(.light) .trade-badge-strong-buy {
+            color: #f43f5e !important;
+            background: rgba(244, 63, 94, 0.15) !important;
+            border: 1px solid rgba(244, 63, 94, 0.35) !important;
+        }
+        .trade-badge-buy {
+            color: #e11d48 !important;
+            background: rgba(225, 29, 72, 0.06) !important;
+            border: 1px solid rgba(225, 29, 72, 0.2) !important;
+        }
+        html:not(.light) .trade-badge-buy {
+            color: #f43f5e !important;
+            background: rgba(244, 63, 94, 0.12) !important;
+            border: 1px solid rgba(244, 63, 94, 0.25) !important;
+        }
+        .trade-badge-hold {
+            color: #d97706 !important;
+            background: rgba(217, 119, 6, 0.08) !important;
+            border: 1px solid rgba(217, 119, 6, 0.25) !important;
+        }
+        html:not(.light) .trade-badge-hold {
+            color: #fbbf24 !important;
+            background: rgba(251, 191, 36, 0.12) !important;
+            border: 1px solid rgba(251, 191, 36, 0.25) !important;
+        }
+        .trade-badge-wait {
+            color: #475569 !important;
+            background: rgba(100, 116, 139, 0.08) !important;
+            border: 1px solid rgba(100, 116, 139, 0.2) !important;
+        }
+        html:not(.light) .trade-badge-wait {
+            color: #94a3b8 !important;
+            background: rgba(148, 163, 184, 0.12) !important;
+            border: 1px solid rgba(148, 163, 184, 0.2) !important;
+        }
+        .trade-badge-sell {
+            color: #059669 !important;
+            background: rgba(5, 150, 105, 0.08) !important;
+            border: 1px solid rgba(5, 150, 105, 0.25) !important;
+        }
+        html:not(.light) .trade-badge-sell {
+            color: #10b981 !important;
+            background: rgba(16, 185, 129, 0.15) !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        }
+
         /* Universal Autocomplete Dropdown High Contrast Fix */
         .dropdown-menu,
         #kp-search-dropdown,
@@ -10100,43 +10199,116 @@
             function render4DRankingRows(list) {
                 if (!tbody) return;
                 if (!list || list.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500">未获取到有效的诊断打分结果</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500 font-sans">未获取到有效的诊断打分结果</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = list.map((item, idx) => {
                     const score = Number(item.overall_score || 0).toFixed(1);
-                    const grade = item.action_grade || '观望';
+                    const rawGrade = String(item.action_grade || item.signal_display || item.signal || '观望');
+                    // 交易评级优化: 剔除括号及其内部内容，展示紧凑干练的评级文字
+                    let displayGrade = rawGrade.replace(/[\(（].*?[\)）]/g, '').trim();
+                    if (!displayGrade) displayGrade = rawGrade;
+
+                    let gradeBadgeClass = 'trade-badge trade-badge-wait';
+                    if (rawGrade.includes('强烈买入') || rawGrade.includes('STRONG_BUY')) {
+                        gradeBadgeClass = 'trade-badge trade-badge-strong-buy';
+                    } else if (rawGrade.includes('买入') || rawGrade.includes('看多') || rawGrade.includes('做多') || rawGrade.includes('BUY')) {
+                        gradeBadgeClass = 'trade-badge trade-badge-buy';
+                    } else if (rawGrade.includes('持有') || rawGrade.includes('HOLD')) {
+                        gradeBadgeClass = 'trade-badge trade-badge-hold';
+                    } else if (rawGrade.includes('卖出') || rawGrade.includes('看空') || rawGrade.includes('减仓') || rawGrade.includes('避险') || rawGrade.includes('SELL')) {
+                        gradeBadgeClass = 'trade-badge trade-badge-sell';
+                    }
+                    const gradeBadge = `<span class="${gradeBadgeClass}" title="${rawGrade}">${displayGrade}</span>`;
+
                     const changePct = item.change_pct != null ? (item.change_pct >= 0 ? `+${Number(item.change_pct).toFixed(2)}%` : `${Number(item.change_pct).toFixed(2)}%`) : '--';
                     const changeClass = getSignedColor(item.change_pct, changePct);
-                    const flow1d = item.flow_1d_str || '--';
-                    const flow3d = item.flow_3d_str || '--';
-                    const flow5d = item.flow_5d_str || '--';
+
+                    const flow1d = item.flow_1d_str || item.inflow_1d_str || '--';
+                    const flow3d = item.flow_3d_str || item.inflow_3d_str || '--';
+                    const flow5d = item.flow_5d_str || item.inflow_5d_str || '--';
                     const flow1dClass = getSignedColor(0, flow1d);
                     const flow3dClass = getSignedColor(0, flow3d);
                     const flow5dClass = getSignedColor(0, flow5d);
 
-                    let gradeBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">${grade}</span>`;
-                    if (grade.includes('强烈买入') || grade.includes('积极看多')) {
-                        gradeBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700 animate-pulse">${grade}</span>`;
-                    } else if (grade.includes('看多') || grade.includes('买入')) {
-                        gradeBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-700">${grade}</span>`;
-                    } else if (grade.includes('看空') || grade.includes('卖出')) {
-                        gradeBadge = `<span class="px-2 py-0.5 rounded text-xs font-bold bg-rose-950/80 text-rose-300 border border-rose-700">${grade}</span>`;
+                    let mktCapStr = '--';
+                    if (item.market_cap_str && item.market_cap_str !== '--') {
+                        mktCapStr = item.market_cap_str;
+                    } else {
+                        const mv = Number(item.total_mv ?? item.total_mv_yi ?? item.market_cap_yi ?? 0);
+                        if (mv > 0) {
+                            mktCapStr = mv >= 10000 ? `${(mv / 10000).toFixed(1)}万亿` : `${mv.toFixed(1)}亿`;
+                        }
                     }
 
-                    const mktCapStr = item.total_mv ? (item.total_mv >= 10000 ? `${(item.total_mv / 10000).toFixed(1)}万亿` : `${item.total_mv.toFixed(0)}亿`) : '--';
-                    const amountStr = item.amount ? (item.amount >= 10000 ? `${(item.amount / 10000).toFixed(2)}亿` : `${item.amount.toFixed(0)}万`) : '--';
+                    let amountStr = '--';
+                    const amt = Number(item.amount ?? item.amount_wan ?? 0);
+                    if (amt > 0) {
+                        amountStr = amt >= 10000 ? `${(amt / 10000).toFixed(2)}亿` : `${amt.toFixed(0)}万`;
+                    } else if (item.amount_wan_str && item.amount_wan_str !== '0.0' && item.amount_wan_str !== '--') {
+                        amountStr = `${item.amount_wan_str}万`;
+                    }
+
+                    const patFeature = item.pattern_feature || item.pattern || item.pattern_status || (Array.isArray(item.patterns) ? item.patterns.join(' · ') : '') || '--';
+
+                    function formatPatternFeatures(patStr, patList) {
+                        let items = [];
+                        if (Array.isArray(patList) && patList.length > 0) {
+                            items = patList;
+                        } else if (typeof patStr === 'string' && patStr && patStr !== '--') {
+                            items = patStr.split(/[·,，/]/).map(s => s.trim()).filter(Boolean);
+                        }
+                        if (items.length === 0) return '--';
+
+                        const bearKeywords = [
+                            '空头', '死叉', '跌破', '下跌', '滞涨', '顶背离', '见顶', '顶分型', 
+                            '死蜘蛛', '价压', '乌鸦', '乌云', '倾盆大雨', '阴包阳', '黄昏之星', 
+                            '下降三法', '射击之星', '吊颈线', '空方炮', '向下跳空', '超买', '弱势'
+                        ];
+                        const bullKeywords = [
+                            '多头', '金叉', '突破', '上涨', '企稳', '底背离', '见底', '底分型', 
+                            '金蜘蛛', '价托', '启明星', '曙光', '旭日', '阳包阴', '锤子', '多方炮', 
+                            '红三兵', '上升三法', '出水芙蓉', '蛟龙出海', '向上跳空', '超卖', '回踩',
+                            '蓄势', '支撑', '创新高', '红'
+                        ];
+
+                        return items.map(p => {
+                            if (bearKeywords.some(k => p.includes(k))) {
+                                return `<span class="pattern-bearish inline-block" style="color: #059669; font-weight: 600;">${p}</span>`;
+                            } else if (bullKeywords.some(k => p.includes(k))) {
+                                return `<span class="pattern-bullish inline-block" style="color: #e11d48; font-weight: 600;">${p}</span>`;
+                            }
+                            return `<span class="pattern-neutral inline-block" style="color: #64748b;">${p}</span>`;
+                        }).join('<span style="color: #94a3b8; margin: 0 3px;">·</span>');
+                    }
+                    const patFeatureHtml = formatPatternFeatures(patFeature, item.patterns);
+
                     const boardName = item.board_name || item.industry || '--';
+                    const boardCode = item.board_code || '';
+                    const canClickBoard = boardCode || (boardName && boardName !== '--');
+                    const boardClick = canClickBoard ? `onclick="openKlineModal('${boardCode || boardName}', '${boardName}')"` : '';
+                    const boardTitle = canClickBoard ? `title="点击查看【${boardName} (${boardCode || ''})】板块实时K线行情与多周期技术分析"` : '';
 
                     return `
                         <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
                             <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-500">${idx + 1}</td>
-                            <td class="py-2.5 px-3 font-mono font-bold text-cyan-300 cursor-pointer hover:underline" onclick="showStockQuote('${item.code}', '${item.name || ''}')">${item.code}</td>
-                            <td class="py-2.5 px-3 font-semibold text-slate-200 cursor-pointer hover:text-cyan-300 transition" onclick="showStockQuote('${item.code}', '${item.name || ''}')">${item.name || '--'}</td>
-                            <td class="py-2.5 px-3 font-bold font-mono text-amber-400">${score}</td>
-                            <td class="py-2.5 px-3">${gradeBadge}</td>
-                            <td class="py-2.5 px-3 text-slate-300"><span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">${boardName}</span></td>
+                            <td class="py-2.5 px-3 font-mono font-bold text-cyan-300 cursor-pointer hover:underline hover:text-cyan-200 transition" 
+                                onclick="openKlineModal('${item.code}', '${item.name || ''}')"
+                                title="点击查看【${item.code} ${item.name || ''}】实时K线与深度技术指标">
+                                ${item.code}
+                            </td>
+                            <td class="py-2.5 px-3 font-semibold text-slate-200 cursor-pointer hover:text-cyan-300 hover:underline transition" 
+                                onclick="openKlineModal('${item.code}', '${item.name || ''}')"
+                                title="点击查看【${item.code} ${item.name || ''}】实时K线与深度技术指标">
+                                ${item.name || '--'}
+                            </td>
+                            <td class="py-2.5 px-3 font-bold font-mono text-center text-amber-400">${score}</td>
+                            <td class="py-2.5 px-3 text-center">${gradeBadge}</td>
+                            <td class="py-2.5 px-3 font-semibold text-slate-200 cursor-pointer hover:text-cyan-300 hover:underline transition whitespace-nowrap"
+                                ${boardClick} ${boardTitle}>
+                                ${boardName}
+                            </td>
                             <td class="py-2.5 px-3 font-mono text-slate-400 text-right">${mktCapStr}</td>
                             <td class="py-2.5 px-3 font-mono font-bold text-right ${changeClass}">¥${item.price != null ? Number(item.price).toFixed(2) : '--'}</td>
                             <td class="py-2.5 px-3 font-mono font-bold text-right ${changeClass}">${changePct}</td>
@@ -10144,11 +10316,11 @@
                             <td class="py-2.5 px-3 font-mono text-right font-medium ${flow1dClass}">${flow1d}</td>
                             <td class="py-2.5 px-3 font-mono text-right font-medium ${flow3dClass}">${flow3d}</td>
                             <td class="py-2.5 px-3 font-mono text-right font-medium ${flow5dClass}">${flow5d}</td>
-                            <td class="py-2.5 px-3 text-slate-400 text-[11px] max-w-[140px] truncate" title="${item.pattern_feature || ''}">${item.pattern_feature || '--'}</td>
-                            <td class="py-2.5 px-3 text-center">
+                            <td class="py-2.5 px-3 text-[11px] min-w-[140px] max-w-[240px] whitespace-normal break-words leading-relaxed font-sans" title="${patFeature}">${patFeatureHtml}</td>
+                            <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                 <div class="flex items-center justify-center space-x-1.5">
-                                    <button onclick="showStockQuote('${item.code}', '${item.name || ''}')" class="px-2 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 text-[11px] font-medium border border-cyan-800 transition cursor-pointer">诊断</button>
-                                    <button onclick="quickBacktest('${item.code}')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer">回测</button>
+                                    <button onclick="jumpToSingle4DDiagnosis('${item.code}', '${item.name || ''}')" class="px-2.5 py-0.5 rounded bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 text-[11px] font-medium border border-indigo-800 transition cursor-pointer shrink-0" title="进入单股 4D 五大智能体全维度深度研报">诊断</button>
+                                    <button onclick="quickBacktest('${item.code}')" class="px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-medium border border-slate-700 transition cursor-pointer shrink-0" title="针对该标的启动智能回测">回测</button>
                                 </div>
                             </td>
                         </tr>

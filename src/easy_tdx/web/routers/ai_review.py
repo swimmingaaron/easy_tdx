@@ -218,14 +218,18 @@ def _score_one_stock_fast(sym: str) -> dict[str, Any] | None:
 
         patterns = tech_info.get("patterns") or ([pattern] if pattern else ["震荡整理"])
         pattern_str = " · ".join(patterns) if isinstance(patterns, list) else pattern
+        sig_disp = res.get("signal_display", "")
+        sig = res.get("signal", "")
+        act_grade = sig_disp or sig or "观望"
 
         return {
             "code": clean_sym,
             "symbol": clean_sym,
             "name": get_stock_name(clean_sym),
             "overall_score": res.get("overall_score", 0.0),
-            "signal_display": res.get("signal_display", ""),
-            "signal": res.get("signal", ""),
+            "signal_display": sig_disp,
+            "signal": sig,
+            "action_grade": act_grade,
             "badge_color": res.get("badge_color", "cyan"),
             "industry": ind,
             "board_code": "",
@@ -234,18 +238,27 @@ def _score_one_stock_fast(sym: str) -> dict[str, Any] | None:
             "price_str": f"¥{last_close:.2f}",
             "change_pct": chg_pct,
             "change_pct_str": f"{chg_pct:+.2f}%",
+            "amount": amt_wan,
             "amount_wan": amt_wan,
             "amount_wan_str": f"{amt_wan:,.1f}",
+            "total_mv": 0.0,
+            "total_mv_yi": 0.0,
+            "market_cap_yi": 0.0,
+            "market_cap_str": "--",
             "pattern": pattern_str,
             "patterns": patterns,
+            "pattern_feature": pattern_str,
+            "pattern_status": pattern_str,
             "summary": res.get("summary", ""),
             "main_net_amount": 0.0,
             "main_net_3d": 0.0,
             "main_net_5d": 0.0,
-            "market_cap_str": "--",
             "inflow_1d_str": "0.0万",
             "inflow_3d_str": "0.0万",
             "inflow_5d_str": "0.0万",
+            "flow_1d_str": "0.0万",
+            "flow_3d_str": "0.0万",
+            "flow_5d_str": "0.0万",
         }
     except Exception:
         return None
@@ -325,10 +338,15 @@ def _run_async_4d_worker(task_id: str, universe: str, max_workers: int, top: int
             b_info = _resolve_stock_board_info(c)
             b_code = b_info.get("board_code", "")
             b_name = b_info.get("board_name", "")
-            if b_name and b_name != "--":
+            if b_code:
                 item["board_code"] = b_code
+            if b_name and b_name != "--":
                 item["board_name"] = b_name
                 item["industry"] = b_name
+            if not item.get("action_grade"):
+                item["action_grade"] = item.get("signal_display") or item.get("signal") or "观望"
+            if not item.get("pattern_feature"):
+                item["pattern_feature"] = item.get("pattern") or (item.get("patterns") and " · ".join(item["patterns"])) or "--"
 
         enrich_stocks_with_inflows(top_slice)
 
@@ -483,10 +501,15 @@ def get_universe_4d_ranking(
         b_info = _resolve_stock_board_info(c)
         b_code = b_info.get("board_code", "")
         b_name = b_info.get("board_name", "")
-        if b_name and b_name != "--":
+        if b_code:
             item["board_code"] = b_code
+        if b_name and b_name != "--":
             item["board_name"] = b_name
             item["industry"] = b_name
+        if not item.get("action_grade"):
+            item["action_grade"] = item.get("signal_display") or item.get("signal") or "观望"
+        if not item.get("pattern_feature"):
+            item["pattern_feature"] = item.get("pattern") or (item.get("patterns") and " · ".join(item["patterns"])) or "--"
 
     enrich_stocks_with_inflows(top_slice)
     _save_4d_cache(universe, len(symbols), items[:max(top, 100)])

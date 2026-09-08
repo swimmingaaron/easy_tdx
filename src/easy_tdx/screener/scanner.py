@@ -149,27 +149,42 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                     s["pattern_status"] = "震荡整理"
                     s["status"] = "震荡整理"
 
+            pat_str = s.get("pattern_status") or (s.get("patterns") and " · ".join(s["patterns"])) or "震荡整理"
+            s.setdefault("pattern_feature", pat_str)
+            s.setdefault("pattern", pat_str)
+
             if c in inflow_map:
                 m1, m3, m5, mv_yi = inflow_map[c]
                 s["main_net_amount"] = m1
                 s["main_net_3d"] = m3
                 s["main_net_5d"] = m5
+                s["total_mv"] = mv_yi
                 s["total_mv_yi"] = mv_yi
                 s["market_cap_yi"] = mv_yi
                 s["market_cap_str"] = f"{mv_yi:.2f}亿" if mv_yi > 0 else "--"
-                s["inflow_1d_str"] = _fmt_pool_money(m1)
-                s["inflow_3d_str"] = _fmt_pool_money(m3)
-                s["inflow_5d_str"] = _fmt_pool_money(m5)
+                f1 = _fmt_pool_money(m1)
+                f3 = _fmt_pool_money(m3)
+                f5 = _fmt_pool_money(m5)
+                s["inflow_1d_str"] = f1
+                s["inflow_3d_str"] = f3
+                s["inflow_5d_str"] = f5
+                s["flow_1d_str"] = f1
+                s["flow_3d_str"] = f3
+                s["flow_5d_str"] = f5
             else:
                 s.setdefault("main_net_amount", 0.0)
                 s.setdefault("main_net_3d", 0.0)
                 s.setdefault("main_net_5d", 0.0)
+                s.setdefault("total_mv", 0.0)
                 s.setdefault("total_mv_yi", 0.0)
                 s.setdefault("market_cap_yi", 0.0)
                 s.setdefault("market_cap_str", "--")
                 s.setdefault("inflow_1d_str", "0.0万")
                 s.setdefault("inflow_3d_str", "0.0万")
                 s.setdefault("inflow_5d_str", "0.0万")
+                s.setdefault("flow_1d_str", "0.0万")
+                s.setdefault("flow_3d_str", "0.0万")
+                s.setdefault("flow_5d_str", "0.0万")
     except Exception as e:
         logger.debug(f"Failed to enrich screener stocks with inflows: {e}")
         for s in stocks:
@@ -177,15 +192,22 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
                 s["patterns"] = ["震荡整理"]
                 s["pattern_status"] = "震荡整理"
                 s["status"] = "震荡整理"
+            pat_str = s.get("pattern_status") or "震荡整理"
+            s.setdefault("pattern_feature", pat_str)
+            s.setdefault("pattern", pat_str)
             s.setdefault("main_net_amount", 0.0)
             s.setdefault("main_net_3d", 0.0)
             s.setdefault("main_net_5d", 0.0)
+            s.setdefault("total_mv", 0.0)
             s.setdefault("total_mv_yi", 0.0)
             s.setdefault("market_cap_yi", 0.0)
             s.setdefault("market_cap_str", "--")
             s.setdefault("inflow_1d_str", "0.0万")
             s.setdefault("inflow_3d_str", "0.0万")
             s.setdefault("inflow_5d_str", "0.0万")
+            s.setdefault("flow_1d_str", "0.0万")
+            s.setdefault("flow_3d_str", "0.0万")
+            s.setdefault("flow_5d_str", "0.0万")
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
