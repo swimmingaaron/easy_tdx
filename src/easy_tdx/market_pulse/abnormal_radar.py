@@ -21,4 +21,8 @@ class AbnormalRadar:
         anomalies = fetch_realtime_anomalies()
         return anomalies.get("deviation", [])
 
+    def get_live_stream(self) -> list[dict[str, Any]]:
+        anomalies = fetch_realtime_anomalies()
+        return anomalies.get("stream", [])
+
 abnormal_radar = AbnormalRadar()

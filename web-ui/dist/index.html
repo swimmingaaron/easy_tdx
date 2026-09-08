@@ -2247,18 +2247,90 @@
 
         <!-- 5. Abnormal Radar View -->
         <section id="view-abnormal" class="space-y-6 hidden">
+            <!-- 顶部标题与状态卡片 -->
+            <div class="glass-card p-6 rounded-2xl space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                        <h3 class="text-xl font-black text-white flex items-center tracking-wide">
+                            <i data-lucide="radar" class="w-5 h-5 mr-2 text-rose-500"></i>通达信原生全市场雷达异动 (0x1237)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            直连通达信行情总线 0x1237 异动协议，全天候并发监测沪深全市场 5,000+ 标的：早盘竞价试盘、盘中主力大单、急涨放量拉升、封板冲击及 3 日异动偏离值监管红线。
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2.5 py-1 rounded-lg text-xs bg-cyan-950/80 text-cyan-300 border border-cyan-800/80 font-mono flex items-center">
+                            <i data-lucide="server" class="w-3.5 h-3.5 mr-1.5 text-cyan-400"></i>数据源: easy_tdx 原生接口
+                        </span>
+                        <span class="text-xs text-slate-400 font-mono flex items-center">
+                            <i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-slate-500"></i>更新于: <strong id="anomalies-update-ts" class="ml-1 text-slate-200">--:--:--</strong>
+                        </span>
+                        <button onclick="loadAnomaliesData(true)" class="p-1.5 rounded-lg text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition cursor-pointer" title="手动立即刷新雷达异动">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="anomalies-refresh-icon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 三栏异动核心板块 -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="glass-card p-5 rounded-2xl space-y-4">
-                    <h4 class="text-sm font-semibold text-rose-400 flex items-center"><i data-lucide="sunrise" class="w-4 h-4 mr-2"></i>集合竞价超预期 / 弱转强</h4>
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-rose-400 flex items-center"><i data-lucide="sunrise" class="w-4 h-4 mr-2"></i>集合竞价超预期 / 弱转强</h4>
+                        <span class="text-[10px] text-slate-500 font-mono" id="auction-count-badge">8 项监测</span>
+                    </div>
                     <div class="space-y-3" id="auction-anomalies-list"></div>
                 </div>
                 <div class="glass-card p-5 rounded-2xl space-y-4">
-                    <h4 class="text-sm font-semibold text-amber-400 flex items-center"><i data-lucide="flame" class="w-4 h-4 mr-2"></i>盘中放量急涨 / 主力大单</h4>
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-amber-400 flex items-center"><i data-lucide="flame" class="w-4 h-4 mr-2"></i>盘中放量急涨 / 主力大单</h4>
+                        <span class="text-[10px] text-slate-500 font-mono" id="intraday-count-badge">8 项监测</span>
+                    </div>
                     <div class="space-y-3" id="intraday-anomalies-list"></div>
                 </div>
                 <div class="glass-card p-5 rounded-2xl space-y-4">
-                    <h4 class="text-sm font-semibold text-indigo-400 flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>交易所异动偏离值合规监控</h4>
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-indigo-400 flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>交易所异动偏离值合规监控</h4>
+                        <span class="text-[10px] text-slate-500 font-mono" id="deviation-count-badge">8 项监测</span>
+                    </div>
                     <div class="space-y-3" id="deviation-limits-list"></div>
+                </div>
+            </div>
+
+            <!-- 全市场实时异动流水明细表格 -->
+            <div class="glass-card p-5 rounded-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h4 class="text-sm font-bold text-white flex items-center">
+                        <i data-lucide="activity" class="w-4 h-4 mr-2 text-cyan-400"></i>全市场实时雷达异动流水明细 (Live Stream)
+                    </h4>
+                    <span class="text-xs text-slate-400 font-mono" id="stream-count-badge">实时捕捉 40+ 笔异动 (通达信 0x1237)</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm min-w-[700px]">
+                        <colgroup>
+                            <col style="width: 12%;">
+                            <col style="width: 8%;">
+                            <col style="width: 14%;">
+                            <col style="width: 16%;">
+                            <col style="width: 20%;">
+                            <col style="width: 18%;">
+                            <col style="width: 12%;">
+                        </colgroup>
+                        <thead class="text-xs text-slate-400 border-b border-slate-800 font-sans">
+                            <tr>
+                                <th class="pb-3 pl-3">发生时间</th>
+                                <th class="pb-3 px-2">市场</th>
+                                <th class="pb-3 px-2">股票代码</th>
+                                <th class="pb-3 px-2">股票名称</th>
+                                <th class="pb-3 px-2">异动类型</th>
+                                <th class="pb-3 px-2">异动参数/数值</th>
+                                <th class="pb-3 pr-3 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="anomalies-stream-table" class="divide-y divide-slate-800/60 font-mono">
+                            <tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs">正在连接通达信原生异动服务器实时加载...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
@@ -8138,7 +8210,9 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        async function loadAnomaliesData() {
+        async function loadAnomaliesData(isManual = false) {
+            const refreshIcon = document.getElementById('anomalies-refresh-icon');
+            if (refreshIcon && isManual) refreshIcon.classList.add('animate-spin');
             try {
                 const resp = await fetch('/api/quotes/anomalies');
                 if (resp.ok) {
@@ -8147,48 +8221,119 @@
                     const auction = data.auction || [];
                     const intraday = data.intraday || [];
                     const deviation = data.deviation || [];
+                    const stream = data.stream || [];
+
+                    const tsEl = document.getElementById('anomalies-update-ts');
+                    if (tsEl) {
+                        const d = new Date();
+                        tsEl.innerText = d.toTimeString().split(' ')[0];
+                    }
 
                     // 1. 集合竞价超预期 / 弱转强
-                    if (auction.length > 0) {
-                        document.getElementById('auction-anomalies-list').innerHTML = auction.map(item => `
-                            <div onclick="openKlineModal('${item.sym}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-rose-900/40 space-y-1 transition group">
-                                <div class="flex justify-between font-mono text-xs items-center">
-                                    <span class="text-rose-400 font-bold group-hover:text-rose-300">${item.sym} ${item.name}</span>
-                                    <span class="text-rose-500 font-bold bg-rose-950/80 px-2 py-0.5 rounded border border-rose-900">${item.tag || item.chg}</span>
+                    const auctionBadge = document.getElementById('auction-count-badge');
+                    if (auctionBadge) auctionBadge.innerText = `${auction.length} 项监测`;
+                    const auctionListEl = document.getElementById('auction-anomalies-list');
+                    if (auctionListEl) {
+                        if (auction.length === 0) {
+                            auctionListEl.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs font-mono">暂无集合竞价异动</div>`;
+                        } else {
+                            auctionListEl.innerHTML = auction.map(item => `
+                                <div onclick="openKlineModal('${item.sym || item.code}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-rose-900/40 space-y-1 transition group">
+                                    <div class="flex justify-between font-mono text-xs items-center">
+                                        <span class="stock-code-link group-hover:text-rose-300 font-semibold">${item.sym || item.code} <span class="text-white font-sans font-semibold">${item.name}</span></span>
+                                        <span class="text-rose-400 font-bold bg-rose-950/80 px-2 py-0.5 rounded border border-rose-900 text-[11px]">${item.tag || item.chg}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
                                 </div>
-                                <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
-                            </div>
-                        `).join('');
+                            `).join('');
+                        }
                     }
 
                     // 2. 盘中放量急涨 / 主力大单
-                    if (intraday.length > 0) {
-                        document.getElementById('intraday-anomalies-list').innerHTML = intraday.map(item => `
-                            <div onclick="openKlineModal('${item.sym}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-amber-900/40 space-y-1 transition group">
-                                <div class="flex justify-between font-mono text-xs items-center">
-                                    <span class="text-amber-400 font-bold group-hover:text-amber-300">${item.sym} ${item.name}</span>
-                                    <span class="text-amber-500 font-mono text-[11px] bg-amber-950/80 px-2 py-0.5 rounded border border-amber-900">${item.time}</span>
+                    const intradayBadge = document.getElementById('intraday-count-badge');
+                    if (intradayBadge) intradayBadge.innerText = `${intraday.length} 项监测`;
+                    const intradayListEl = document.getElementById('intraday-anomalies-list');
+                    if (intradayListEl) {
+                        if (intraday.length === 0) {
+                            intradayListEl.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs font-mono">暂无盘中急涨异动</div>`;
+                        } else {
+                            intradayListEl.innerHTML = intraday.map(item => `
+                                <div onclick="openKlineModal('${item.sym || item.code}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-amber-900/40 space-y-1 transition group">
+                                    <div class="flex justify-between font-mono text-xs items-center">
+                                        <span class="stock-code-link group-hover:text-amber-300 font-semibold">${item.sym || item.code} <span class="text-white font-sans font-semibold">${item.name}</span></span>
+                                        <span class="text-amber-400 font-mono text-[11px] bg-amber-950/80 px-2 py-0.5 rounded border border-amber-900">${item.time}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
                                 </div>
-                                <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
-                            </div>
-                        `).join('');
+                            `).join('');
+                        }
                     }
 
                     // 3. 交易所偏离值合规监控
-                    if (deviation.length > 0) {
-                        document.getElementById('deviation-limits-list').innerHTML = deviation.map(item => `
-                            <div onclick="openKlineModal('${item.sym}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-indigo-900/40 space-y-1 transition group">
-                                <div class="flex justify-between font-mono text-xs items-center">
-                                    <span class="text-indigo-400 font-bold group-hover:text-indigo-300">${item.sym} ${item.name}</span>
-                                    <span class="${item.is_warning ? 'text-rose-400 bg-rose-950/80 border-rose-800' : 'text-amber-400 bg-amber-950/80 border-amber-800'} font-bold px-2 py-0.5 rounded border text-[11px]">${item.dev_ratio}</span>
+                    const devBadge = document.getElementById('deviation-count-badge');
+                    if (devBadge) devBadge.innerText = `${deviation.length} 项监测`;
+                    const devListEl = document.getElementById('deviation-limits-list');
+                    if (devListEl) {
+                        if (deviation.length === 0) {
+                            devListEl.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs font-mono">暂无偏离值监管预警标的</div>`;
+                        } else {
+                            devListEl.innerHTML = deviation.map(item => `
+                                <div onclick="openKlineModal('${item.sym || item.code}', '${item.name}')" class="bg-slate-900/80 hover:bg-slate-800/90 cursor-pointer p-3 rounded-xl border border-indigo-900/40 space-y-1 transition group">
+                                    <div class="flex justify-between font-mono text-xs items-center">
+                                        <span class="stock-code-link group-hover:text-indigo-300 font-semibold">${item.sym || item.code} <span class="text-white font-sans font-semibold">${item.name}</span></span>
+                                        <span class="${item.is_warning ? 'text-rose-400 bg-rose-950/80 border-rose-800' : 'text-amber-400 bg-amber-950/80 border-amber-800'} font-bold px-2 py-0.5 rounded border text-[11px]">${item.dev_ratio}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
                                 </div>
-                                <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
-                            </div>
-                        `).join('');
+                            `).join('');
+                        }
+                    }
+
+                    // 4. 全市场实时异动流水明细
+                    const streamBadge = document.getElementById('stream-count-badge');
+                    if (streamBadge) streamBadge.innerText = `实时捕捉 ${stream.length} 笔异动 (通达信 0x1237)`;
+                    const streamTbody = document.getElementById('anomalies-stream-table');
+                    if (streamTbody) {
+                        if (stream.length === 0) {
+                            streamTbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs">暂未捕捉到全市场最新异动</td></tr>`;
+                        } else {
+                            streamTbody.innerHTML = stream.map(item => {
+                                let badgeClass = 'bg-slate-800 text-slate-300 border border-slate-700';
+                                if (item.desc.includes('涨停') || item.desc.includes('拉升') || item.desc.includes('反弹') || item.desc.includes('买入')) {
+                                    badgeClass = 'bg-rose-950 text-rose-400 border border-rose-800 font-bold';
+                                } else if (item.desc.includes('跌停') || item.desc.includes('下跌') || item.desc.includes('卖出') || item.desc.includes('跳水')) {
+                                    badgeClass = 'bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold';
+                                } else if (item.desc.includes('放量') || item.desc.includes('托盘') || item.desc.includes('压盘')) {
+                                    badgeClass = 'bg-amber-950 text-amber-400 border border-amber-800 font-bold';
+                                }
+                                return `
+                                <tr class="hover:bg-slate-800/40 transition">
+                                    <td class="py-2.5 pl-3 text-slate-400 font-mono text-xs whitespace-nowrap">${item.time}</td>
+                                    <td class="py-2.5 px-2 text-slate-400 text-xs whitespace-nowrap">${item.market}</td>
+                                    <td class="py-2.5 px-2 font-mono whitespace-nowrap">
+                                        <span onclick="openKlineModal('${item.code}', '${item.name}')" class="stock-code-link font-semibold">${item.code}</span>
+                                    </td>
+                                    <td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap">
+                                        <span onclick="openKlineModal('${item.code}', '${item.name}')" class="stock-click-link text-white cursor-pointer">${item.name}</span>
+                                    </td>
+                                    <td class="py-2.5 px-2 font-sans whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded text-xs ${badgeClass}">${item.desc}</span>
+                                    </td>
+                                    <td class="py-2.5 px-2 font-mono text-xs text-slate-300 whitespace-nowrap">${item.val || '--'}</td>
+                                    <td class="py-2.5 pr-3 text-right whitespace-nowrap">
+                                        <button onclick="openKlineModal('${item.code}', '${item.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                    </td>
+                                </tr>
+                                `;
+                            }).join('');
+                        }
                     }
                 }
             } catch (e) {
                 console.error('Failed to load anomalies data:', e);
+            } finally {
+                if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+                if (window.lucide) lucide.createIcons();
             }
         }
 
@@ -8344,6 +8489,13 @@
                     if (!currentKpReplayTimer) {
                         tasks.push(refreshKpData(false));
                     }
+                }
+
+                // 3. 当且仅当 界面为 异动雷达 时，5s 自动刷新 雷达异动与流水数据
+                const abnormalView = document.getElementById('view-abnormal');
+                const isAbnormalActive = abnormalView && !abnormalView.classList.contains('hidden') && !isKlineModalActive;
+                if (isAbnormalActive) {
+                    tasks.push(loadAnomaliesData(false));
                 }
 
                 if (tasks.length > 0) {

@@ -45,3 +45,12 @@ def get_deviation_limits():
         "status": "success",
         "data": abnormal_radar.get_deviation_limits()
     }
+
+@router.get("/stream")
+def get_unusual_stream():
+    """Get real-time full market unusual event stream from easy_tdx."""
+    return {
+        "status": "success",
+        "data": abnormal_radar.get_live_stream()
+    }
+
