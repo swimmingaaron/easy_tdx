@@ -371,20 +371,20 @@ class TdxClient:
         """
         try:
             result = self._conn.execute(cmd)
-        except TdxConnectionError:
+        except (TdxConnectionError, OSError) as initial_err:
             if not self._auto_reconnect:
                 raise
             # 连接失败：当前主机降权
             record_failure(self._host)
-            last_exc: TdxConnectionError | None = None
+            last_exc: Exception = initial_err
             for delay in _RETRY_DELAYS:
                 time.sleep(delay)
-                self._reconnect()
                 try:
+                    self._reconnect()
                     result = self._conn.execute(cmd)
                     record_success(self._host)
                     return result
-                except TdxConnectionError as e:
+                except (TdxConnectionError, OSError) as e:
                     last_exc = e
                     record_failure(self._host)
             # 第二阶段：跨主机故障转移——重新测速切到另一台服务器再试一次
@@ -397,15 +397,17 @@ class TdxClient:
                 self._host,
             )
             if new_host is not None:
-                self._reconnect(new_host)
                 try:
+                    self._reconnect(new_host)
                     result = self._conn.execute(cmd)
                     record_success(self._host)
                     return result
-                except TdxConnectionError as e:
+                except (TdxConnectionError, OSError) as e:
                     last_exc = e
                     record_failure(self._host)
-            raise last_exc  # type: ignore[misc]
+            if isinstance(last_exc, TdxConnectionError):
+                raise last_exc
+            raise TdxConnectionError(f"通信重连失败: {last_exc}") from last_exc
         else:
             record_success(self._host)
             return result

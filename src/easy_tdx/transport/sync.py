@@ -159,13 +159,15 @@ class TdxConnection:
         self._sock = sock
         try:
             self._send_setup()
-        except Exception:
+        except Exception as e:
             try:
                 sock.close()
             except OSError:
                 pass
             self._sock = None
-            raise
+            if isinstance(e, TdxConnectionError):
+                raise
+            raise TdxConnectionError(f"握手失败 {self.host}:{self.port}: {e}") from e
 
     def close(self) -> None:
         """关闭连接。"""
@@ -182,8 +184,8 @@ class TdxConnection:
         with self._lock:
             self._last_active = time.monotonic()
             self._consecutive_heartbeats = 0
-            if self._sock is None:
-                raise TdxConnectionError("未连接，请先调用 connect()")
+            if self._sock is None or getattr(self._sock, "fileno", lambda: -1)() == -1:
+                raise TdxConnectionError("未连接或套接字已失效，请先调用 connect()")
             request = cmd.build_request()
             try:
                 self._sock.sendall(request)

@@ -33,6 +33,22 @@ PRIMARY_HOSTS = [
 ]
 
 
+def _is_socket_alive(cli: TdxClient | None) -> bool:
+    """Check if the client's underlying socket is genuinely open and valid."""
+    if cli is None:
+        return False
+    try:
+        conn = getattr(cli, "_conn", None)
+        if conn is None:
+            return False
+        sock = getattr(conn, "_sock", None)
+        if sock is None:
+            return False
+        return sock.fileno() != -1
+    except Exception:
+        return False
+
+
 class TdxConnectionPool:
     """Thread-safe connection pool for parallel high-throughput market data fetching."""
 
@@ -46,11 +62,10 @@ class TdxConnectionPool:
         with self._lock:
             while self._pool:
                 cli = self._pool.pop()
-                conn = getattr(cli, "_conn", None)
-                if conn is not None and getattr(conn, "_sock", None) is not None:
+                if _is_socket_alive(cli):
                     return cli
                 try:
-                    cli.disconnect()
+                    cli.close()
                 except Exception:
                     pass
             self._counter += 1
@@ -60,13 +75,13 @@ class TdxConnectionPool:
         n_hosts = len(PRIMARY_HOSTS)
         for attempt in range(min(6, n_hosts)):
             host = PRIMARY_HOSTS[(idx + attempt) % n_hosts]
-            cli = TdxClient(host=host, port=7709, timeout=2.0, auto_reconnect=False)
+            cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=True)
             try:
                 cli.connect()
                 return cli
             except Exception:
                 try:
-                    cli.disconnect()
+                    cli.close()
                 except Exception:
                     pass
 
@@ -77,9 +92,9 @@ class TdxConnectionPool:
         if cli is None:
             return
         # If client failed or socket closed, do not return to pool!
-        if not success:
+        if not success or not _is_socket_alive(cli):
             try:
-                cli.disconnect()
+                cli.close()
             except Exception:
                 pass
             return
@@ -89,7 +104,7 @@ class TdxConnectionPool:
                 self._pool.append(cli)
             else:
                 try:
-                    cli.disconnect()
+                    cli.close()
                 except Exception:
                     pass
 
@@ -98,7 +113,7 @@ class TdxConnectionPool:
             while self._pool:
                 cli = self._pool.pop()
                 try:
-                    cli.disconnect()
+                    cli.close()
                 except Exception:
                     pass
 
@@ -162,12 +177,19 @@ def _is_index_symbol(clean_sym: str, market: Market) -> bool:
 def _get_or_create_client() -> TdxClient:
     global _TDX_CLIENT
     with _CLIENT_LOCK:
-        if _TDX_CLIENT is not None:
+        if _TDX_CLIENT is not None and _is_socket_alive(_TDX_CLIENT):
             return _TDX_CLIENT
             
+        if _TDX_CLIENT is not None:
+            try:
+                _TDX_CLIENT.close()
+            except Exception:
+                pass
+            _TDX_CLIENT = None
+
         for host in PRIMARY_HOSTS:
             try:
-                cli = TdxClient(host=host, port=7709, timeout=2.5)
+                cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=True)
                 cli.connect()
                 _TDX_CLIENT = cli
                 logger.info(f"TDX client connected successfully to {host}:7709")
@@ -176,7 +198,7 @@ def _get_or_create_client() -> TdxClient:
                 logger.warning(f"Failed to connect to TDX host {host}: {e}")
                 
         # Default fallback
-        _TDX_CLIENT = TdxClient(host="180.153.18.170", port=7709, timeout=2.5)
+        _TDX_CLIENT = TdxClient(host="180.153.18.170", port=7709, timeout=2.5, auto_reconnect=True)
         try:
             _TDX_CLIENT.connect()
         except Exception:
@@ -185,23 +207,32 @@ def _get_or_create_client() -> TdxClient:
 
 # Thread-safe MAC client singleton
 _MAC_CLIENT = None
-_MAC_LOCK = threading.Lock()
+_MAC_LOCK = threading.RLock()
 
 def _get_or_create_mac_client():
-    """Get or create singleton MacClient for board index K-lines."""
+    """Get or create singleton MacClient for K-lines."""
     global _MAC_CLIENT
     with _MAC_LOCK:
-        if _MAC_CLIENT is not None:
+        if _MAC_CLIENT is not None and _is_socket_alive(_MAC_CLIENT):
             return _MAC_CLIENT
-        from easy_tdx.mac.client import MacClient
-        try:
-            _MAC_CLIENT = MacClient.from_best_host()
-            _MAC_CLIENT.connect()
-            logger.info("MacClient connected for board K-lines")
-        except Exception as e:
-            logger.warning(f"Failed to connect MacClient.from_best_host(): {e}")
-            _MAC_CLIENT = MacClient()
+        if _MAC_CLIENT is not None:
             try:
+                _MAC_CLIENT.close()
+            except Exception:
+                pass
+            _MAC_CLIENT = None
+        from easy_tdx.mac.client import MacClient
+        from easy_tdx.config import get_best_mac_host
+        try:
+            host = get_best_mac_host()
+            _MAC_CLIENT = MacClient(host=host, port=7709, timeout=2.5, auto_reconnect=True)
+            _MAC_CLIENT.connect()
+            logger.info(f"MacClient connected to {host} for K-lines")
+            return _MAC_CLIENT
+        except Exception as e:
+            logger.warning(f"Failed to connect MacClient to best host: {e}")
+            try:
+                _MAC_CLIENT = MacClient.from_best_host(ping_timeout=2.0, auto_reconnect=True)
                 _MAC_CLIENT.connect()
             except Exception:
                 pass
@@ -269,70 +300,58 @@ def fetch_security_kline(
 
     from easy_tdx.mac.enums import Period as MacPeriod
 
-    # 1. Check if 120M requested: MacClient supports native 120M (times=120)
-    if is_120m:
-        try:
+    # 1. Fetch real K-lines via high-speed MacClient (covers all A-shares, indices, boards, and 120M)
+    try:
+        mac_period_map = {
+            KlineCategory.DAY: MacPeriod.DAILY,
+            KlineCategory.WEEK: MacPeriod.WEEKLY,
+            KlineCategory.MONTH: MacPeriod.MONTHLY,
+            KlineCategory.SEASON: MacPeriod.QUARTERLY,
+            KlineCategory.YEAR: MacPeriod.YEARLY,
+            KlineCategory.MIN_60: MacPeriod.MIN_60,
+            KlineCategory.MIN_30: MacPeriod.MIN_30,
+            KlineCategory.MIN_15: MacPeriod.MIN_15,
+            KlineCategory.MIN_5: MacPeriod.MIN_5,
+            KlineCategory.MIN_1: MacPeriod.MIN_1,
+        }
+        mac_p = mac_period_map.get(category, MacPeriod.DAILY)
+        with _MAC_LOCK:
             mac = _get_or_create_mac_client()
-            mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88")) else 0
-            bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count)
-            if bdf is not None and not bdf.empty and len(bdf) > 0:
-                res_df = pd.DataFrame()
-                res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 16)
-                res_df["open"] = pd.to_numeric(bdf["open"], errors="coerce").fillna(0.0).round(2)
-                res_df["high"] = pd.to_numeric(bdf["high"], errors="coerce").fillna(0.0).round(2)
-                res_df["low"] = pd.to_numeric(bdf["low"], errors="coerce").fillna(0.0).round(2)
-                res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
-                res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
-                res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
-                res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
-                _CACHE[cache_key] = (now, res_df)
-                return res_df.copy()
-        except Exception as e:
-            logger.warning(f"Failed to fetch native 120M via MacClient: {e}")
+            mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88") or clean_sym.startswith("9")) else 0
+            if is_120m:
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count)
+            else:
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, mac_p, count=count)
+        if bdf is not None and not bdf.empty and len(bdf) > 0:
+            res_df = pd.DataFrame()
+            is_intraday = is_120m or category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30, KlineCategory.MIN_60)
+            if "datetime" in bdf.columns:
+                slice_len = 16 if is_intraday else 10
+                res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, slice_len)
+            else:
+                res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(bdf), freq="B")]
 
-    # 2. Check if this is an industry/concept board index (e.g. 881376, 881422, etc.)
-    if _is_board_symbol(clean_sym):
-        try:
-            mac_period_map = {
-                KlineCategory.DAY: MacPeriod.DAILY,
-                KlineCategory.WEEK: MacPeriod.WEEKLY,
-                KlineCategory.MONTH: MacPeriod.MONTHLY,
-                KlineCategory.SEASON: MacPeriod.QUARTERLY,
-                KlineCategory.YEAR: MacPeriod.YEARLY,
-                KlineCategory.MIN_60: MacPeriod.MIN_60,
-                KlineCategory.MIN_30: MacPeriod.MIN_30,
-                KlineCategory.MIN_15: MacPeriod.MIN_15,
-                KlineCategory.MIN_5: MacPeriod.MIN_5,
-                KlineCategory.MIN_1: MacPeriod.MIN_1,
-            }
-            mac_p = mac_period_map.get(category, MacPeriod.DAILY)
-            mac = _get_or_create_mac_client()
-            bdf = mac.get_stock_kline(1, clean_sym, mac_p, count=count)
-            if bdf is not None and not bdf.empty and len(bdf) > 0:
-                res_df = pd.DataFrame()
-                if "datetime" in bdf.columns:
-                    # Daily/weekly/monthly/season/year is YYYY-MM-DD; intraday contains HH:MM
-                    if mac_p in (MacPeriod.DAILY, MacPeriod.WEEKLY, MacPeriod.MONTHLY, MacPeriod.QUARTERLY, MacPeriod.YEARLY):
-                        res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 10)
-                    else:
-                        res_df["datetime"] = bdf["datetime"].astype(str).str.slice(0, 16)
-                else:
-                    res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(bdf), freq="B")]
-                    
-                res_df["open"] = pd.to_numeric(bdf["open"], errors="coerce").fillna(0.0).round(2)
-                res_df["high"] = pd.to_numeric(bdf["high"], errors="coerce").fillna(0.0).round(2)
-                res_df["low"] = pd.to_numeric(bdf["low"], errors="coerce").fillna(0.0).round(2)
-                res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
-                res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
-                res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
-                res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
-                
-                _CACHE[cache_key] = (now, res_df)
-                return res_df.copy()
-        except Exception as e:
-            logger.warning(f"Failed to fetch MAC board K-line for {clean_sym}: {e}")
-            
-    # 3. Try fetching real data from standard TDX client
+            res_df["open"] = pd.to_numeric(bdf["open"], errors="coerce").fillna(0.0).round(2)
+            res_df["high"] = pd.to_numeric(bdf["high"], errors="coerce").fillna(0.0).round(2)
+            res_df["low"] = pd.to_numeric(bdf["low"], errors="coerce").fillna(0.0).round(2)
+            res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
+            res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
+            res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
+            res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
+            _CACHE[cache_key] = (now, res_df)
+            return res_df.copy()
+    except Exception as e:
+        logger.debug(f"Failed to fetch K-line via MacClient for {clean_sym}: {e}, trying standard TDX client")
+        with _MAC_LOCK:
+            global _MAC_CLIENT
+            if _MAC_CLIENT is not None:
+                try:
+                    _MAC_CLIENT.close()
+                except Exception:
+                    pass
+                _MAC_CLIENT = None
+
+    # 2. Secondary fallback: standard TDX client
     try:
         with _CLIENT_LOCK:
             client = _get_or_create_client()
@@ -381,6 +400,14 @@ def fetch_security_kline(
             return res_df.copy()
     except Exception as e:
         logger.warning(f"Failed to fetch live TDX bars for {clean_sym}: {e}, falling back to generator.")
+        with _CLIENT_LOCK:
+            global _TDX_CLIENT
+            if _TDX_CLIENT is not None:
+                try:
+                    _TDX_CLIENT.close()
+                except Exception:
+                    pass
+                _TDX_CLIENT = None
         
     # Fallback to realistic bars if TDX connection fails
     return _generate_fallback_bars(clean_sym, n_bars=count)
@@ -391,7 +418,7 @@ def fetch_kline_with_pool(
     category: KlineCategory | str = KlineCategory.DAY, 
     count: int = 140
 ) -> pd.DataFrame | None:
-    """Fetch historical K-line bars using connection pool for high-concurrency multi-threading."""
+    """Fetch historical K-line bars using high-speed cached fetch_security_kline."""
     clean_sym = (
         symbol.strip().upper()
         .replace("SH", "").replace("SZ", "").replace("BJ", "")
@@ -408,51 +435,10 @@ def fetch_kline_with_pool(
         if now - ts < CACHE_TTL_SEC:
             return cached_df.copy()
 
-    if _is_board_symbol(clean_sym):
-        return fetch_security_kline(symbol, category=category, count=count)
-
-    cli = _TDX_POOL.acquire()
-    raw_res = None
-    try:
-        cat = category if isinstance(category, KlineCategory) else (KlineCategory.DAY if str(category).upper() in ("DAY", "DAILY") else KlineCategory.DAY)
-        if _is_index_symbol(clean_sym, market):
-            raw_res = cli.get_index_bars(market, clean_sym, cat, 0, count)
-        else:
-            raw_res = cli.get_security_bars(market, clean_sym, cat, 0, count)
-        _TDX_POOL.release(cli, success=True)
-    except Exception as e:
-        _TDX_POOL.release(cli, success=False)
-        logger.debug(f"fetch_kline_with_pool error for {clean_sym}: {e}, falling back to fetch_security_kline")
-        return fetch_security_kline(symbol, category=category, count=count)
-
-    if raw_res is None or len(raw_res) == 0:
-        return fetch_security_kline(symbol, category=category, count=count)
-
-    if isinstance(raw_res, pd.DataFrame):
-        df = raw_res.copy()
-        if "date" in df.columns and "datetime" not in df.columns:
-            df["datetime"] = df["date"]
-        if "vol" in df.columns and "volume" not in df.columns:
-            df["volume"] = df["vol"]
-        if "amount" not in df.columns:
-            df["amount"] = (df["volume"] * df["close"]).round(2)
-        df = df.sort_values(by="datetime").reset_index(drop=True)
-        _CACHE[cache_key] = (now, df)
+    df = fetch_security_kline(symbol, category=category, count=count)
+    if df is not None and not df.empty:
         return df.copy()
-
-    # List of SecurityBar objects
-    df = pd.DataFrame([{
-        "datetime": f"{b.year:04d}-{b.month:02d}-{b.day:02d}" if hasattr(b, "year") else str(getattr(b, "datetime", "")),
-        "open": round(b.open, 2),
-        "high": round(b.high, 2),
-        "low": round(b.low, 2),
-        "close": round(b.close, 2),
-        "volume": int(getattr(b, "vol", getattr(b, "volume", 0))),
-        "amount": round(getattr(b, "amount", 0.0), 2)
-    } for b in raw_res])
-    df = df.sort_values(by="datetime").reset_index(drop=True)
-    _CACHE[cache_key] = (now, df)
-    return df.copy()
+    return None
 
 def _generate_fallback_bars(symbol: str, n_bars: int = 120) -> pd.DataFrame:
     """Deterministic fallback bars generator without circular dependencies."""
