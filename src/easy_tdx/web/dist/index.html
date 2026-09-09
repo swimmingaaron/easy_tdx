@@ -1107,6 +1107,7 @@
             <button onclick="switchTab('abnormal')" id="tab-abnormal" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="activity" class="w-3.5 h-3.5 inline mr-1"></i>异动雷达</button>
             <button onclick="switchTab('aireview')" id="tab-aireview" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="bot" class="w-3.5 h-3.5 inline mr-1"></i>AI 4D诊股与复盘</button>
             <button onclick="switchTab('aichat')" id="tab-aichat" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="message-square" class="w-3.5 h-3.5 inline mr-1"></i>AI 量化投研助手</button>
+            <button onclick="switchTab('tradingsystem')" id="tab-tradingsystem" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="crosshair" class="w-3.5 h-3.5 inline mr-1"></i>交易系统</button>
         </nav>
 
         <div class="flex items-center space-x-2.5">
@@ -1392,7 +1393,8 @@
                             </table>
                         </div>
                     </div>
-                </main>
+            
+        
             </div>
         </section>
 
@@ -2553,6 +2555,177 @@
                 </div>
             </div>
         </section>
+
+                <!-- ==================== 交易系统 (Trading System) 顶层视图 ==================== -->
+        <section id="view-tradingsystem" class="space-y-4 hidden">
+            <!-- 主表格面板 (完全对齐 自选监控实时行情池 的背景与布局) -->
+            <div class="glass-card p-5 rounded-2xl space-y-4 shadow-sm">
+                <!-- 顶层工具栏: 左侧标的与状态, 右侧搜索与控制 -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 border-b border-slate-200 dark:border-slate-800/80 pb-3.5">
+                    <div class="flex items-center space-x-3">
+                        <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center">
+                            <i data-lucide="crosshair" class="w-4 h-4 mr-2 text-amber-500"></i>
+                            <span>交易系统实时行情池</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400 font-normal ml-2 font-mono">easy_tdx 原生量化引擎</span>
+                        </h4>
+                        <span id="ts-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80">
+                            159 只标的
+                        </span>
+                    </div>
+
+                    <!-- 操作控制区: 对齐自选监控池风格 -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- 子视图切换按钮组 -->
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <button id="ts-subtab-dashboard" onclick="switchTsSubTab('dashboard')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-cyan-500 text-black shadow-sm transition cursor-pointer">
+                                <i data-lucide="layout-grid" class="w-3.5 h-3.5 inline mr-1"></i>信号看板
+                            </button>
+                            <button id="ts-subtab-screener" onclick="switchTsSubTab('screener')" class="px-3 py-1 rounded-lg text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
+                                <i data-lucide="target" class="w-3.5 h-3.5 inline mr-1"></i>共振选股 (5大指标)
+                            </button>
+                        </div>
+
+                        <!-- 搜索框 -->
+                        <div class="relative flex items-center">
+                            <input type="text" id="ts-search-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
+                                   class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 w-52 sm:w-60 font-mono transition"
+                                   oninput="handleTsSearch(this.value)">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none"></i>
+                        </div>
+
+                        <!-- 选股范围 (参考图一标准样式) -->
+                        <div class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm">
+                            <span class="text-xs text-slate-600 dark:text-slate-400 select-none">选股范围:</span>
+                            <select id="ts-universe-select" onchange="onTsUniverseChange(this.value)" class="bg-transparent text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer">
+                                <option value="core" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">核心龙头 (159只)</option>
+                                <option value="hs300" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">沪深 300 (300只)</option>
+                                <option value="zz500" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 500 (500只)</option>
+                                <option value="zz1000" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 1000 (1000只)</option>
+                                <option value="all" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">全市场 (5000+全量A股)</option>
+                            </select>
+                        </div>
+
+                        <!-- 从服务器获取最新数据 / 使用Cache 控制器 (对齐设计图样式) -->
+                        <div id="ts-cache-control-wrap" class="flex items-center space-x-2 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm select-none" title="当前模式：优先使用Cache数据（秒级极速展现）">
+                            <label class="flex items-center space-x-1.5 cursor-pointer">
+                                <input type="checkbox" id="ts-force-refresh" onchange="onTsRefreshModeChange(this)" class="rounded border-slate-300 dark:border-slate-700 text-cyan-600 focus:ring-0 cursor-pointer">
+                                <span class="text-xs text-slate-700 dark:text-slate-300">从服务器获取最新数据</span>
+                            </label>
+                            <button type="button" id="ts-cache-tag" onclick="toggleTsCacheMode()" class="text-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800/90 hover:border-cyan-500 transition cursor-pointer font-medium">使用Cache</button>
+                        </div>
+
+                        <!-- 行业分类 -->
+                        <select id="ts-industry-filter" onchange="onTsIndustryChange(this.value)" class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 max-w-[110px] cursor-pointer">
+                            <option value="全部">全部行业</option>
+                        </select>
+
+                        <!-- 最低买入分 -->
+                        <select id="ts-min-buy" onchange="onTsFilterChange()" class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                            <option value="0">买入分: 不限</option>
+                            <option value="5">买入分 ≥ 5</option>
+                            <option value="8">买入分 ≥ 8 (重点)</option>
+                            <option value="10">买入分 ≥ 10 (强烈)</option>
+                        </select>
+
+                        <!-- 仅看自选 -->
+                        <label class="flex items-center space-x-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700/80 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-900/90">
+                            <input type="checkbox" id="ts-chk-my-optional" onchange="onTsFilterChange()" class="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0 cursor-pointer">
+                            <span>仅看自选</span>
+                        </label>
+
+                        <!-- 5大指标指南折叠按钮 -->
+                        <button onclick="toggleTsStrategyGuide()" class="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center space-x-1 cursor-pointer">
+                            <i data-lucide="book-open" class="w-3.5 h-3.5 text-cyan-500"></i>
+                            <span>5大指南</span>
+                        </button>
+
+                        <!-- 立即运行/刷新 -->
+                        <button onclick="onTsRefreshClick()" title="立即刷新" class="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-600 transition cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5大实战选股指标执行指南折叠面板 -->
+                                <!-- 交易系统实时量化计算进度条 (Progress Bar) -->
+                <div id="ts-progress-container" class="hidden transition-all duration-300">
+                    <div class="p-3 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 dark:from-cyan-950/50 dark:via-blue-950/40 dark:to-indigo-950/40 backdrop-blur-md shadow-sm space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></div>
+                                <span class="font-bold text-cyan-700 dark:text-cyan-300 flex items-center">
+                                    <i data-lucide="cpu" class="w-3.5 h-3.5 mr-1 text-cyan-500"></i>
+                                    <span id="ts-progress-status-text">正在并行评估股票池量化模型与战法共振...</span>
+                                </span>
+                                <span id="ts-progress-stock-name" class="text-slate-600 dark:text-slate-300 font-mono text-[11px] font-semibold bg-white/70 dark:bg-slate-900/70 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800"></span>
+                            </div>
+                            <div class="flex items-center space-x-3 font-mono text-xs">
+                                <span id="ts-progress-count" class="text-slate-600 dark:text-slate-300 font-semibold">0 / 0</span>
+                                <span id="ts-progress-pct" class="font-black text-cyan-600 dark:text-cyan-400 text-sm">0.0%</span>
+                            </div>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-800/90 overflow-hidden relative shadow-inner">
+                            <div id="ts-progress-bar-fill" class="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 rounded-full transition-all duration-150 ease-out shadow-sm" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ts-strategy-guide" class="hidden p-4 rounded-xl border border-cyan-300 dark:border-cyan-800/40 bg-cyan-50/40 dark:bg-slate-950/80 text-xs text-slate-700 dark:text-slate-300 space-y-2.5 leading-relaxed">
+                    <div class="flex items-center justify-between text-cyan-700 dark:text-cyan-400 font-bold border-b border-slate-200 dark:border-slate-800 pb-1.5">
+                        <span class="flex items-center"><i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>《5 大实战选股指标执行指南》核心量化哲学</span>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-400 font-normal">多周期技术共振 · 过滤杂波 · 锁定主力</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-3 pt-1">
+                        <div class="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div class="text-rose-600 dark:text-rose-400 font-semibold mb-1">1. 均线多头 (EMA10>20>30)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">中短期趋势向上发散，拒绝左侧探底，顺应主力推动力与顺势波段拉升。</div>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div class="text-amber-600 dark:text-amber-400 font-semibold mb-1">2. 量价回踩 (放量突破缩量踩)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">15日内曾放量大阳启动(≥4%且≥1.8倍均量)，回踩不破突破最低价，缩量企稳介入。</div>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div class="text-emerald-600 dark:text-emerald-400 font-semibold mb-1">3. 拒绝僵尸 (换手活跃拒死寂)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">日换手率≥1.5%或60日振幅≥2.5%，确保资金关注与筹码流动性，避免流动性折价。</div>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div class="text-cyan-600 dark:text-cyan-400 font-semibold mb-1">4. MACD吸筹 (零轴低位金叉/反弹)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">DIF处于零轴附近蓄势，近12日阳线居多，主力底部温和吸筹且未大幅拉升。</div>
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <div class="text-purple-600 dark:text-purple-400 font-semibold mb-1">5. 布林护盘 (中轨之上开口发散)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400">收盘站稳布林中轨之上，极限压缩收口后向上张嘴突破，主升浪初期黄金买点。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 宽表呈现区域 (与 自选监控实时行情池 统一滚动、表头与列样式) -->
+                <div class="overflow-x-auto max-h-[700px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead id="ts-table-head" class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none bg-slate-50/95 dark:bg-slate-950/95 sticky top-0 z-20">
+                            <!-- 动态生成表头 -->
+                        </thead>
+                        <tbody id="ts-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                            <tr>
+                                <td colspan="30" class="py-12 text-center text-slate-400 font-sans">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
+                                        <span>正在连接 easy_tdx 原生接口载入全市场量化行情...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 底部统计与免责说明 -->
+                <div class="p-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+                    <div>⚠️ 本系统打分模型与 5 大指标策略仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</div>
+                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的</div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
@@ -3222,7 +3395,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem'];
 
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
@@ -3260,6 +3433,10 @@
                                 window._HAS_SCREENED = true;
                                 setTimeout(() => runScreenerScan(), 100);
                             }
+                        } else if (t === 'tradingsystem') {
+                            setTimeout(() => {
+                                if (typeof loadTradingSystemData === 'function') loadTradingSystemData();
+                            }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
                             runDiagnosis();
@@ -11032,5 +11209,868 @@
             startDashboardAutoRefresh();
         });
     </script>
+
+    <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
+    <div id="ts-fina-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3">
+        <div class="glass-card bg-[#0b0f19] border border-slate-700/80 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
+                <div class="flex items-center space-x-2">
+                    <span class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400"><i data-lucide="activity" class="w-4 h-4"></i></span>
+                    <h3 id="ts-modal-title" class="text-sm font-bold text-white font-sans">📈 业绩诊断加载中...</h3>
+                </div>
+                <button onclick="closeTsFinaModal()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">&times;</button>
+            </div>
+
+            <!-- Modal Tabs -->
+            <div class="px-4 pt-3 bg-slate-950/50 border-b border-slate-800/80 flex space-x-2 text-xs">
+                <button id="ts-mtab-btn-ai" onclick="switchTsModalTab('ai')" class="px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition">
+                    🤖 AI 深度业绩体检
+                </button>
+                <button id="ts-mtab-btn-data" onclick="switchTsModalTab('data')" class="px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition">
+                    📊 近8期核心财报对照
+                </button>
+            </div>
+
+            <!-- Modal Content Body -->
+            <div class="p-5 overflow-y-auto flex-1 text-xs space-y-4">
+                <!-- AI Markdown 视图 -->
+                <div id="ts-modal-pane-ai" class="space-y-3 leading-relaxed text-slate-300">
+                    <div class="py-12 text-center text-slate-500">正在分析财务数据...</div>
+                </div>
+
+                <!-- 财报数据大表视图 -->
+                <div id="ts-modal-pane-data" class="hidden space-y-3">
+                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                        <table class="w-full text-left border-collapse text-[11px] whitespace-nowrap">
+                            <thead class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="p-2.5">报告期</th>
+                                    <th class="p-2.5 text-right">营业总收入</th>
+                                    <th class="p-2.5 text-right">营收同比</th>
+                                    <th class="p-2.5 text-right">归母净利润</th>
+                                    <th class="p-2.5 text-right">净利同比</th>
+                                    <th class="p-2.5 text-right">ROE %</th>
+                                    <th class="p-2.5 text-right">毛利率 %</th>
+                                    <th class="p-2.5 text-right">EPS (元)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ts-fina-table-body" class="divide-y divide-slate-800/60 font-mono">
+                                <!-- 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-[10px] text-slate-500">
+                <span id="ts-modal-industry-label">所属行业：-</span>
+                <button onclick="closeTsFinaModal()" class="px-3 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 交易系统：全网最佳模型 Hover 浮层 Tooltip ==================== -->
+    <div id="ts-global-tooltip" class="fixed z-[99999] hidden pointer-events-none p-3.5 rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl backdrop-blur-md text-xs leading-relaxed max-w-sm">
+        <div class="text-rose-400 font-bold mb-1.5 text-[12px] flex items-center"><i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1"></i>🔴 全网最佳量价共振买入模型</div>
+        <div class="text-slate-300 space-y-1 mb-2 text-[11px]">
+            <div>★ <span class="text-rose-400 font-semibold">满分突破(+2分)</span>：换手5~10%且量比2~3，大涨>4%，MACD金叉</div>
+            <div>★ <span class="text-rose-400 font-semibold">极品回踩(+2分)</span>：量比&lt;0.8且换手&lt;3%，微跌，ZIG反转首日</div>
+            <div>★ <span class="text-rose-400 font-semibold">高控盘连阳(+2分)</span>：量比&lt;1.0且换手&lt;5%，连涨≥3天</div>
+            <div class="text-slate-600 border-t border-slate-800 pt-1"></div>
+            <div>※ <span class="text-amber-400">黄金阶段(+3分)</span>：换手5~10% 且 量比3~5</div>
+            <div>※ <span class="text-amber-400">启动信号(+2分)</span>：换手>5% 且 量比2~3</div>
+            <div>※ <span class="text-amber-400">低位试错(+1分)</span>：换手>10% 且 量比>5 且 连涨≤1天</div>
+        </div>
+        <div class="text-emerald-400 font-bold mb-1.5 text-[12px] border-t border-slate-800 pt-2 flex items-center"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1"></i>🟢 全网最佳卖出预警模型</div>
+        <div class="text-slate-300 space-y-1 text-[11px]">
+            <div>★ <span class="text-emerald-400 font-semibold">天量滞涨/爆量(+3分)</span>：量比>4.0 且 换手>15% 且 涨幅&lt;1%</div>
+            <div>★ <span class="text-emerald-400 font-semibold">资金出逃(+3分)</span>：换手>10% 且 量比&lt;1.0 (虚假虚高)</div>
+            <div>★ <span class="text-emerald-400 font-semibold">高位派发(+2分)</span>：换手>10% 且 量比>5 且 连涨>2天</div>
+        </div>
+    </div>
+
+
+    <!-- ==================== 交易系统 (Trading System) 交互核心脚本 ==================== -->
+    <script>
+    let currentTsMode = 'dashboard';
+    let tsSortCol = 'buy_score';
+    let tsSortDir = 'desc';
+    let tsWatchlist = new Set();
+    let tsRowsData = [];
+
+    
+    
+    function onTsRefreshModeChange(el) {
+        const isChecked = el ? el.checked : false;
+        const tag = document.getElementById('ts-cache-tag');
+        const wrap = document.getElementById('ts-cache-control-wrap');
+        if (tag) {
+            if (isChecked) {
+                tag.className = 'text-xs px-2 py-0.5 rounded border border-cyan-500/50 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 font-bold transition cursor-pointer';
+                tag.innerText = '服务器最新';
+                if (wrap) wrap.title = '当前模式：强制从服务器获取最新数据（跳过本地Cache缓存）';
+            } else {
+                tag.className = 'text-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800/90 hover:border-cyan-500 transition cursor-pointer font-medium';
+                tag.innerText = '使用Cache';
+                if (wrap) wrap.title = '当前模式：优先使用本地Cache缓存数据（秒级极速展现）';
+            }
+        }
+        try {
+            localStorage.setItem('easy_tdx_ts_force_refresh', isChecked ? 'true' : 'false');
+        } catch (_) {}
+    }
+
+    function toggleTsCacheMode() {
+        const chk = document.getElementById('ts-force-refresh');
+        if (chk) {
+            chk.checked = !chk.checked;
+            onTsRefreshModeChange(chk);
+        }
+    }
+
+    function onTsRefreshClick() {
+        const force = document.getElementById('ts-force-refresh')?.checked || false;
+        loadTradingSystemData(force);
+    }
+    try {
+        const savedTsForce = localStorage.getItem('easy_tdx_ts_force_refresh');
+        const tsChk = document.getElementById('ts-force-refresh');
+        if (tsChk && savedTsForce === 'true') {
+            tsChk.checked = true;
+            onTsRefreshModeChange(tsChk);
+        }
+    } catch (_) {}
+
+
+    function onTsUniverseChange(val) {
+        const force = document.getElementById('ts-force-refresh')?.checked || false;
+        loadTradingSystemData(force);
+    }
+    function onTsIndustryChange(val) {
+        loadTradingSystemData(false);
+    }
+    function onTsFilterChange() {
+        loadTradingSystemData(false);
+    }
+    let tsSearchTimer = null;
+    function handleTsSearch(val) {
+        if (tsSearchTimer) clearTimeout(tsSearchTimer);
+        tsSearchTimer = setTimeout(() => {
+            loadTradingSystemData(false);
+        }, 300);
+    }
+
+    function switchTsSubTab(mode) {
+        currentTsMode = mode;
+        const btnDash = document.getElementById('ts-subtab-dashboard');
+        const btnScr = document.getElementById('ts-subtab-screener');
+        const fltDash = document.getElementById('ts-filter-dashboard');
+        const fltScr = document.getElementById('ts-filter-screener');
+
+        if (mode === 'dashboard') {
+            if (btnDash) btnDash.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-sm transition cursor-pointer';
+            if (btnScr) btnScr.className = 'px-4 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white transition cursor-pointer';
+            if (fltDash) fltDash.classList.remove('hidden');
+            if (fltScr) fltScr.classList.add('hidden');
+            tsSortCol = 'buy_score';
+            tsSortDir = 'desc';
+        } else {
+            if (btnScr) btnScr.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-sm transition cursor-pointer';
+            if (btnDash) btnDash.className = 'px-4 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white transition cursor-pointer';
+            if (fltDash) fltDash.classList.add('hidden');
+            if (fltScr) fltScr.classList.remove('hidden');
+            tsSortCol = 'matched_count';
+            tsSortDir = 'desc';
+        }
+        loadTradingSystemData();
+    }
+
+    function toggleTsStrategyGuide() {
+        const p = document.getElementById('ts-strategy-guide');
+        if (p) p.classList.toggle('hidden');
+    }
+
+    function fmtMoneyTs(v) {
+        if (v === null || v === undefined || isNaN(v) || v === 0) return "-";
+        let absV = Math.abs(v);
+        if (absV >= 1e8) return (v / 1e8).toFixed(2) + "亿";
+        if (absV >= 1e4) return (v / 1e4).toFixed(2) + "万";
+        return Number(v).toFixed(2);
+    }
+
+    function fmtPctTs(v, colored=true) {
+        if (v === null || v === undefined || isNaN(v)) return "-";
+        let num = Number(v);
+        let color = num > 0 ? "text-rose-400" : (num < 0 ? "text-emerald-400" : "text-slate-400");
+        let sign = num > 0 ? "+" : "";
+        let str = sign + num.toFixed(2) + "%";
+        return colored ? `<span class="${color}">${str}</span>` : str;
+    }
+
+    function renderScoreBadgeTs(score, kind='buy') {
+        score = Number(score) || 0;
+        if (kind === 'buy') {
+            if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-sm">10+ 强烈买入</span>`;
+            if (score >= 8) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-sm">${score}分 买入</span>`;
+            if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white">${score}分 关注</span>`;
+            return `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">${score}分 观望</span>`;
+        } else {
+            // 卖出分列不用动态闪烁 (静态醒目徽章)
+            if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-sm">▲ ${score}分 顶危</span>`;
+            if (score >= 3) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">${score}分 卖出</span>`;
+            return `<span class="text-slate-400 dark:text-slate-500 font-mono">-</span>`;
+        }
+    }
+
+    function renderPatternFeaturesTs(r) {
+        let items = [];
+
+        // 优先读取 pattern_recognition.py 识别出的形态
+        if (r.patterns && Array.isArray(r.patterns) && r.patterns.length > 0) {
+            r.patterns.forEach(p => {
+                if (p.score > 0 || p.type === 'up') {
+                    // 上涨信号 红色 (纯文本，不用框框，无 +1)
+                    items.push(`<span class="text-rose-600 dark:text-rose-400 font-medium whitespace-nowrap mr-2" title="${p.name} (看涨形态)">${p.name}</span>`);
+                } else if (p.score < 0 || p.type === 'down') {
+                    // 下跌信号 绿色 (纯文本，不用框框，无 -1)
+                    items.push(`<span class="text-emerald-600 dark:text-emerald-400 font-medium whitespace-nowrap mr-2" title="${p.name} (看跌形态)">${p.name}</span>`);
+                } else {
+                    // 中性形态 灰色 (纯文本，不用框框)
+                    items.push(`<span class="text-slate-400 dark:text-slate-500 whitespace-nowrap mr-2" title="${p.name}">${p.name}</span>`);
+                }
+            });
+        }
+
+        if (items.length === 0) {
+            return `<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>`;
+        }
+
+        let pScore = r.pattern_score !== undefined ? r.pattern_score : 0;
+        let scoreTitle = `形态净得分: ${pScore > 0 ? '+' + pScore : pScore} 分 (点击表头可排序)`;
+        return `<div class="flex flex-wrap items-center text-xs cursor-help select-none py-0.5" title="${scoreTitle}">${items.join('')}</div>`;
+    }
+
+    function renderPatternBadgeTs(val, label) {
+        if (val && val > 0) {
+            return `<span class="text-rose-600 dark:text-rose-400 font-medium">${label}</span>`;
+        }
+        return `<span class="text-slate-400 dark:text-slate-600">-</span>`;
+    }
+
+    function renderRuleBadgeTs(val) {
+        if (val && val > 0) {
+            return `<span class="text-emerald-600 dark:text-emerald-400 font-bold">✓ 满足</span>`;
+        }
+        return `<span class="text-slate-400 dark:text-slate-600 font-mono">-</span>`;
+    }
+
+    function renderResonanceBadgeTs(count) {
+        count = Number(count) || 0;
+        if (count >= 5) return `<span class="font-black text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 px-2 py-0.5 rounded-full text-xs">5/5 满分共振</span>`;
+        if (count >= 4) return `<span class="font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded-full text-xs">4/5 高度共振</span>`;
+        if (count >= 3) return `<span class="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 px-2 py-0.5 rounded-full text-xs">3/5 黄金共振</span>`;
+        return `<span class="text-slate-400 font-mono text-xs">${count}/5</span>`;
+    }
+
+    function renderHolderTs(code) {
+        let pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : 'SZ';
+        let link = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
+        // 字体颜色优化: 高对比度靛蓝，在浅色与深色下均清晰美观
+        return `<a href="${link}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline font-medium inline-flex items-center justify-center text-xs" title="在雪球查看股东人数与筹码透视">筹码透视<i data-lucide="external-link" class="w-3 h-3 ml-0.5 inline"></i></a>`;
+    }
+
+    
+    let tsProgressTimer = null;
+
+    function showTsProgress(universeName) {
+        const c = document.getElementById('ts-progress-container');
+        const fill = document.getElementById('ts-progress-bar-fill');
+        const pct = document.getElementById('ts-progress-pct');
+        const cnt = document.getElementById('ts-progress-count');
+        const stock = document.getElementById('ts-progress-stock-name');
+        const status = document.getElementById('ts-progress-status-text');
+
+        if (c) c.classList.remove('hidden');
+        if (fill) fill.style.width = '3%';
+        if (pct) pct.innerText = '3.0%';
+        if (cnt) cnt.innerText = '准备扫描...';
+        if (stock) stock.innerText = universeName || '全量标的';
+        if (status) status.innerText = '正在启动多线程量化引擎扫描指标与战法形态...';
+    }
+
+    function updateTsProgress(completed, total, curPct, stockName) {
+        const fill = document.getElementById('ts-progress-bar-fill');
+        const pct = document.getElementById('ts-progress-pct');
+        const cnt = document.getElementById('ts-progress-count');
+        const stock = document.getElementById('ts-progress-stock-name');
+
+        let p = Math.min(100, Math.max(0, curPct || 0));
+        if (fill) fill.style.width = `${p}%`;
+        if (pct) pct.innerText = `${p.toFixed(1)}%`;
+        if (cnt && total > 0) cnt.innerText = `${completed} / ${total}`;
+        if (stock && stockName) stock.innerText = stockName;
+    }
+
+    function hideTsProgress(delay=350) {
+        if (tsProgressTimer) {
+            clearInterval(tsProgressTimer);
+            tsProgressTimer = null;
+        }
+        const fill = document.getElementById('ts-progress-bar-fill');
+        const pct = document.getElementById('ts-progress-pct');
+        const status = document.getElementById('ts-progress-status-text');
+        if (fill) fill.style.width = '100%';
+        if (pct) pct.innerText = '100.0%';
+        if (status) status.innerText = '评估完成，视图就绪！';
+
+        setTimeout(() => {
+            const c = document.getElementById('ts-progress-container');
+            if (c) c.classList.add('hidden');
+        }, delay);
+    }
+
+    async function loadTradingSystemData(force=null) {
+        if (force === null || force === undefined) {
+            force = document.getElementById('ts-force-refresh')?.checked || false;
+        }
+        const tbody = document.getElementById('ts-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = `<tr><td colspan="30" class="py-12 text-center text-slate-500"><div class="flex items-center justify-center space-x-2"><div class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div><span>正在全量计算量价打分与战法形态...</span></div></td></tr>`;
+
+        const uniSelect = document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe');
+        const uniLabel = uniSelect ? (uniSelect.options[uniSelect.selectedIndex]?.text || uniSelect.value) : '标的池';
+        if (force) { showTsProgress(uniLabel); } else { hideTsProgress(); }
+
+        const activeUni = uniSelect ? uniSelect.value : 'core';
+        if (tsProgressTimer) clearInterval(tsProgressTimer);
+        let pollStep = 0;
+        tsProgressTimer = setInterval(async () => {
+            pollStep++;
+            try {
+                const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
+                const pData = await pRes.json();
+                if (pData && pData.total > 0 && pData.status === 'running') {
+                    updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock);
+                } else if (pData && pData.status === 'done') {
+                    updateTsProgress(pData.total, pData.total, 100.0, '计算完成');
+                } else {
+                    let sim = Math.min(96, 5 + pollStep * 12);
+                    const fill = document.getElementById('ts-progress-bar-fill');
+                    if (fill && parseFloat(fill.style.width) < sim) {
+                        fill.style.width = `${sim}%`;
+                        const pct = document.getElementById('ts-progress-pct');
+                        if (pct) pct.innerText = `${sim.toFixed(1)}%`;
+                    }
+                }
+            } catch (err) {}
+        }, 180);
+
+        let url = '';
+        if (currentTsMode === 'dashboard') {
+            const minBuy = (document.getElementById('ts-min-buy') || document.getElementById('ts-filter-min-buy'))?.value || '0';
+            const maxSell = '10';
+            const ind = (document.getElementById('ts-industry-filter') || document.getElementById('ts-filter-industry'))?.value || '';
+            const uni = (document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe'))?.value || 'core';
+            const myOpt = (document.getElementById('ts-chk-my-optional') || document.getElementById('ts-filter-my-opt'))?.checked || false;
+            const search = ((document.getElementById('ts-search-input') || document.getElementById('ts-filter-search'))?.value || '').trim();
+
+            url = `/api/trading_system/dashboard?min_buy=${minBuy}&max_sell=${maxSell}&industry=${encodeURIComponent(ind)}&universe=${uni}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
+        } else {
+            const minRules = document.getElementById('ts-screener-min-rules')?.value || '3';
+            const f1 = document.getElementById('ts-chk-r1')?.checked || false;
+            const f2 = document.getElementById('ts-chk-r2')?.checked || false;
+            const f3 = document.getElementById('ts-chk-r3')?.checked || false;
+            const f4 = document.getElementById('ts-chk-r4')?.checked || false;
+            const f5 = document.getElementById('ts-chk-r5')?.checked || false;
+            const ind = (document.getElementById('ts-industry-filter') || document.getElementById('ts-filter-industry'))?.value || '';
+            const uni = (document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe'))?.value || 'core';
+            const myOpt = (document.getElementById('ts-chk-my-optional') || document.getElementById('ts-filter-my-opt'))?.checked || false;
+            const search = ((document.getElementById('ts-search-input') || document.getElementById('ts-filter-search'))?.value || '').trim();
+
+            url = `/api/trading_system/screener?min_rules=${minRules}&f_trend=${f1}&f_vol_price=${f2}&f_zombie=${f3}&f_macd=${f4}&f_boll=${f5}&industry=${encodeURIComponent(ind)}&universe=${uni}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
+        }
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.success) {
+                tbody.innerHTML = `<tr><td colspan="30" class="py-8 text-center text-rose-400">计算失败: ${data.detail || data.error}</td></tr>`;
+                return;
+            }
+
+            // 更新行业下拉
+            if (data.industries && data.industries.length > 0) {
+                const indSelect = document.getElementById('ts-industry-filter') || document.getElementById('ts-filter-industry');
+                if (indSelect) {
+                    const curVal = indSelect.value;
+                    let optHtml = '<option value="全部">全部行业</option>';
+                    data.industries.forEach(ind => {
+                        optHtml += `<option value="${ind}" ${ind === curVal ? 'selected' : ''}>${ind}</option>`;
+                    });
+                    indSelect.innerHTML = optHtml;
+                }
+            }
+
+            tsWatchlist = new Set(data.watchlist || []);
+            tsRowsData = data.rows || [];
+
+            // 更新统计看板
+            const stat = data.stat || {};
+            const elTotal = document.getElementById('ts-stat-total');
+            const elStrongBuy = document.getElementById('ts-stat-strong-buy');
+            const elBuy = document.getElementById('ts-stat-buy');
+            const elWatch = document.getElementById('ts-stat-watch');
+            const elDanger = document.getElementById('ts-stat-danger');
+            const elStarBuy = document.getElementById('ts-stat-star-buy');
+            const elStarSell = document.getElementById('ts-stat-star-sell');
+            const elFooterCount = document.getElementById('ts-table-footer-count');
+
+            if (elTotal) elTotal.innerText = stat.total || 0;
+            if (elStrongBuy) elStrongBuy.innerText = stat.strong_buy || 0;
+            if (elBuy) elBuy.innerText = stat.buy || 0;
+            if (elWatch) elWatch.innerText = stat.watch || 0;
+            if (elDanger) elDanger.innerText = stat.danger || 0;
+            if (elStarBuy) elStarBuy.innerText = stat.star_buy !== undefined ? stat.star_buy : (stat.r5_cnt || 0);
+            if (elStarSell) elStarSell.innerText = stat.star_sell !== undefined ? stat.star_sell : 0;
+            if (elFooterCount) elFooterCount.innerText = `共检索到 ${data.total_count || 0} 只标的`;
+
+            hideTsProgress(350);
+            renderTsTable(tsRowsData, currentTsMode);
+            const elCountBadge = document.getElementById('ts-count-badge');
+            if (elCountBadge) elCountBadge.innerText = `${data.total_count || tsRowsData.length} 只标的`;
+        } catch (e) {
+            hideTsProgress(0);
+            tbody.innerHTML = `<tr><td colspan="30" class="py-8 text-center text-rose-400">网络异常: ${e.message}</td></tr>`;
+        }
+    }
+
+    function renderTsTable(rows, mode) {
+        const thead = document.getElementById('ts-table-head');
+        const tbody = document.getElementById('ts-table-body');
+        if (!thead || !tbody) return;
+
+        if (mode === 'dashboard') {
+            thead.innerHTML = `
+                <tr>
+                    <th class="py-2.5 px-2 text-center w-8 font-semibold">#</th>
+                    <th class="py-2.5 px-2 text-center w-12 font-semibold">诊断</th>
+                    <th class="py-2.5 px-2 text-center w-10 font-semibold">自选</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_code')">代码</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_name')">名称</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('industry')">行业</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')">买入分 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sell_score')">卖出分 ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('mkt_capt')">总市值 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('close')">现价</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pct')">涨幅% ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('dde_net')">主力净流入 ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('consec_days')">连续净流入 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('v_rate')">量比 ★</th>
+                    <th class="py-2.5 px-2 text-right font-semibold ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('t_rate')">换手% ★</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold">成交额</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('days')">连涨天</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')">ZIG</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('ystz')">营业同比 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sjltz')">净利润同比 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pe_percentile')">PE(3年分位) ↕</th>
+                    <th class="py-2.5 px-2.5 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('holder_ratio')">股东集中度 ↕</th>
+                    <th class="py-2.5 px-2.5 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('holders_num')">股东人数 ↕</th>
+                    <th class="py-2.5 px-3 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pattern_score')">形态特征 ↕</th>
+                </tr>
+            `;
+        } else {
+            thead.innerHTML = `
+                <tr>
+                    <th class="py-2.5 px-2 text-center w-8 font-semibold">#</th>
+                    <th class="py-2.5 px-2 text-center w-12 font-semibold">诊断</th>
+                    <th class="py-2.5 px-2 text-center w-10 font-semibold">自选</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_code')">代码</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_name')">名称</th>
+                    <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('industry')">行业</th>
+                    <th class="py-2.5 px-2.5 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('matched_count')">满足指标数 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold">1.均线多头</th>
+                    <th class="py-2.5 px-2 text-center font-semibold">2.量价回踩</th>
+                    <th class="py-2.5 px-2 text-center font-semibold">3.拒绝僵尸</th>
+                    <th class="py-2.5 px-2 text-center font-semibold">4.MACD吸筹</th>
+                    <th class="py-2.5 px-2 text-center font-semibold">5.布林护盘</th>
+                    <th class="py-2.5 px-3 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pattern_score')">形态特征 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')">买入分 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sell_score')">卖出分 ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('mkt_capt')">总市值 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('close')">现价</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pct')">涨幅% ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('dde_net')">主力净流入 ↕</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('consec_days')">连续净流入 ↕</th>
+                    <th class="py-2.5 px-2 text-right ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('v_rate')">量比 ★</th>
+                    <th class="py-2.5 px-2 text-right ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('t_rate')">换手% ★</th>
+                    <th class="py-2.5 px-2.5 text-right font-semibold">成交额</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('days')">连涨天</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')">ZIG</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('ystz')">营业同比 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sjltz')">净利润同比 ↕</th>
+                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pe_percentile')">PE(3年分位) ↕</th>
+                    <th class="py-2.5 px-2.5 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('holder_ratio')">股东集中度 ↕</th>
+                    <th class="py-2.5 px-2.5 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('holders_num')">股东人数 ↕</th>
+                </tr>
+            `;
+        }
+
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="35" class="py-12 text-center text-slate-400 font-sans">当前筛选条件下暂无匹配股票</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        rows.forEach((r, idx) => {
+            let code = r.stock_code;
+            let name = r.stock_name || code;
+            let pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : ((code.startsWith('8') || code.startsWith('4')) ? 'BJ' : 'SZ');
+            let xqLink = `https://xueqiu.com/S/${pfx}${code}`;
+            let isChecked = tsWatchlist.has(code) ? 'checked' : '';
+
+            let starBuyHtml = r.star_buy ? `<span class="text-rose-500 font-bold text-xs ml-1" title="符合全网最佳量价共振买入模型">★</span>` : '';
+            let starSellHtml = r.star_sell ? `<span class="text-emerald-500 font-bold text-xs ml-1" title="符合全网最佳卖出预警模型">★</span>` : '';
+
+            let zigHtml = '<span class="text-slate-400 font-mono">-</span>';
+            if (r.zig !== undefined && r.zig !== null) {
+                if (r.zig === 1) {
+                    zigHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white font-bold">反转 1</span>`;
+                } else if (r.zig === -1) {
+                    zigHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-600 text-white font-bold">见顶 -1</span>`;
+                } else if (r.zig > 1) {
+                    zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold">+${r.zig}</span>`;
+                } else if (r.zig < -1) {
+                    zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">${r.zig}</span>`;
+                }
+            }
+
+            // 1. 不要灰白交替: 纯净统一背景，无奇偶色差，仅保留柔和 hover 动效
+            let trBg = 'hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group border-b border-slate-100 dark:border-slate-800/60';
+
+            // 成交额与市值格式化
+            let amountStr = r.amount ? fmtMoneyTs(r.amount) : '-';
+            let mktCaptVal = r.mkt_capt || r.total_mv || 0;
+            let mktCaptStr = mktCaptVal > 0 ? fmtMoneyTs(mktCaptVal) : '-';
+            let mktCaptTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">${mktCaptStr}</td>`;
+
+            // 诊断: 优雅微胶囊按钮 (indigo)
+            let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>`;
+            
+            // 1. 代码: 专业金融高对比度黑白加粗字体，直达雪球 (用户需求 1)
+            let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
+            
+            // 2. 名称: 高对比度平滑微链接，点击弹出 K 线 (用户需求 2)
+            let nameLink = `<span onclick="openKlineModal('${code}', '${name}')" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
+
+            // 3. 行业: 点击弹出对应板块/行业 K 线 (用户需求 3)
+            let indName = r.industry || '--';
+            let indClick = (indName !== '--') ? `onclick="openKlineModal('${r.board_code || indName}', '${indName}')" title="点击弹出【${indName}】行业板块K线"` : '';
+            let indClass = (indName !== '--') ? 'stock-click-link cursor-pointer text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium' : 'text-slate-400';
+            let indLink = `<span ${indClick} class="${indClass} font-sans text-xs">${indName}</span>`;
+
+            // 4. 主力净流入 (用户需求 4: DDE净额改为主力净流入)
+            let ddeClass = r.dde_net > 0 ? 'text-rose-600 dark:text-rose-500' : (r.dde_net < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400');
+            let ddeHtml = `<td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${ddeClass}">${fmtMoneyTs(r.dde_net)}</td>`;
+
+            // 5. 连续净流入 (用户需求 5: 连续流入天数之和红色/流出天数之和绿色)
+            let consecHtml = '<span class="text-slate-400 font-mono">-</span>';
+            if (r.consec_days !== undefined && r.consec_days !== null && r.consec_days !== 0) {
+                let cAmtStr = r.consec_amount ? fmtMoneyTs(r.consec_amount) : '';
+                if (r.consec_days > 0) {
+                    consecHtml = `<span class="text-rose-600 dark:text-rose-400 font-semibold font-mono" title="连续 ${r.consec_days} 天主力净流入，累计净流入: ${cAmtStr}">+${r.consec_days}天 (${cAmtStr})</span>`;
+                } else {
+                    consecHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono" title="连续 ${Math.abs(r.consec_days)} 天主力净流出，累计净流出: ${cAmtStr}">${r.consec_days}天 (${cAmtStr})</span>`;
+                }
+            }
+            let consecTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${consecHtml}</td>`;
+
+            // 6. 营业同比与净利润同比 外链 (用户需求 6)
+            let ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;
+            let ystzHtml = '<span class="text-slate-400 font-mono">-</span>';
+            if (r.ystz !== undefined && r.ystz !== null && r.ystz !== 0) {
+                let yColor = r.ystz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                ystzHtml = `<a href="${ystzLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-semibold hover:underline ${yColor}" title="点击在雪球查看【${name}】主要财务指标">${r.ystz > 0 ? '+' : ''}${r.ystz.toFixed(2)}%</a>`;
+            }
+            let ystzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${ystzHtml}</td>`;
+
+            let sjltzLink = `https://a.13145188.xyz/sina_html/sina_${code}.html`;
+            let sjltzHtml = '<span class="text-slate-400 font-mono">-</span>';
+            if (r.sjltz !== undefined && r.sjltz !== null && r.sjltz !== 0) {
+                let sColor = r.sjltz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                sjltzHtml = `<a href="${sjltzLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-semibold hover:underline ${sColor}" title="点击在新浪查看【${name}】财务分析">${r.sjltz > 0 ? '+' : ''}${r.sjltz.toFixed(2)}%</a>`;
+            }
+            let sjltzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${sjltzHtml}</td>`;
+
+            // 7. PE(3年分位) (用户需求 7)
+            let peHtml = '<span class="text-slate-400 font-mono">-</span>';
+            if (r.pe_percentile !== undefined && r.pe_percentile !== null) {
+                let pVal = Number(r.pe_percentile);
+                let pColor = pVal <= 20 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : (pVal >= 80 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-semibold');
+                peHtml = `<span class="font-mono ${pColor}" title="当前股价处于近3年估值区间的 ${pVal.toFixed(1)}% 分位">${pVal.toFixed(1)}%</span>`;
+            }
+            let peTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${peHtml}</td>`;
+
+            // 8. 股东集中度 (用户需求 8)
+            let hText = '-';
+            if (r.holder_ratio && r.holder_ratio > 0) {
+                hText = `${r.holder_ratio.toFixed(1)}%` + (r.holder_ratio >= 70 ? ' 🔥' : '');
+            } else if (r.holders_str && r.holders_str !== '--') {
+                hText = r.holders_str;
+            }
+            let hTitle = `股东户数: ${r.holders_str || '-'}, 十大股东集中度: ${r.holder_ratio ? r.holder_ratio + '%' : '-'}, 集中度评价: ${r.holder_focus || '-'}`;
+            let holderTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold" title="${hTitle}">${hText}</td>`;
+
+            // 股东人数 列 (用户需求 2: 股东集中度后面增加股东人数列，并显示最近3次同比数据，增加红色减少绿色，链接到 https://xueqiu.com/snowman/S/{pfx}{code}/detail#/GDRS)
+            let gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
+            let holdersNumText = r.holders_str || '-';
+            let holdersChangesHtml = '';
+            if (r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0) {
+                let changeSpans = r.holders_changes.slice(0, 3).map(c => {
+                    let chgVal = Number(c.ratio) || 0;
+                    let chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400');
+                    let sign = chgVal > 0 ? '+' : '';
+                    let numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
+                    let dateStr = c.date || '';
+                    return `<span class="${chgColor}" title="${dateStr}: 同比变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                });
+                holdersChangesHtml = `<span class="text-[10px] space-x-1 ml-1 select-none font-mono">(${changeSpans.join(' ')})</span>`;
+            }
+            let holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center space-x-1 cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
+                <span class="font-bold text-slate-800 dark:text-slate-100">${holdersNumText}</span>
+                ${holdersChangesHtml}
+            </a>`;
+            let holdersNumTd = `<td class="py-2.5 px-2.5 text-center whitespace-nowrap">${holdersNumHtml}</td>`;
+
+            if (mode === 'dashboard') {
+                html += `
+                    <tr class="${trBg}">
+                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnDiag}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">
+                            <input type="checkbox" onchange="toggleTsWatchlist('${code}', '${name}', this)" ${isChecked} title="加选/取消自选" class="cursor-pointer rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0">
+                        </td>
+                        <td class="py-2.5 px-2.5 whitespace-nowrap">${codeLink}</td>
+                        <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${nameLink}</td>
+                        <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${indLink}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy')}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.sell_score, 'sell')}</td>
+                        ${mktCaptTd}
+                        <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-slate-900 dark:text-white">¥${r.close ? r.close.toFixed(2) : '-'}</td>
+                        <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${r.pct >= 0 ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}">${r.pct >= 0 ? '+' : ''}${r.pct ? r.pct.toFixed(2) : '0.00'}%</td>
+                        ${ddeHtml}
+                        ${consecTd}
+                        <td class="py-2.5 px-2 text-right font-mono font-medium ${r.v_rate >= 2.0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300'} whitespace-nowrap ts-hover-col">${r.v_rate ? r.v_rate.toFixed(2) : '-'}${starBuyHtml}</td>
+                        <td class="py-2.5 px-2 text-right font-mono font-medium ${r.t_rate >= 10.0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300'} whitespace-nowrap ts-hover-col">${r.t_rate ? r.t_rate.toFixed(2) + '%' : '-'}${starSellHtml}</td>
+                        <td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amountStr}</td>
+                        <td class="py-2.5 px-2 text-center font-mono whitespace-nowrap ${r.days > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (r.days < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')}">${r.days > 0 ? '+' + r.days : (r.days || 0)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>
+                        ${ystzTd}
+                        ${sjltzTd}
+                        ${peTd}
+                        ${holderTd}
+                        ${holdersNumTd}
+                        <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap">${renderPatternFeaturesTs(r)}</td>
+                    </tr>
+                `;
+            } else {
+                html += `
+                    <tr class="${trBg}">
+                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnDiag}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">
+                            <input type="checkbox" onchange="toggleTsWatchlist('${code}', '${name}', this)" ${isChecked} title="加选/取消自选" class="cursor-pointer rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0">
+                        </td>
+                        <td class="py-2.5 px-2.5 whitespace-nowrap">${codeLink}</td>
+                        <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${nameLink}</td>
+                        <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${indLink}</td>
+                        <td class="py-2.5 px-2.5 text-center whitespace-nowrap">${renderResonanceBadgeTs(r.matched_count)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r1)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r2)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r3)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r4)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r5)}</td>
+                        <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap">${renderPatternFeaturesTs(r)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy')}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.sell_score, 'sell')}</td>
+                        ${mktCaptTd}
+                        <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-slate-900 dark:text-white">¥${r.close ? r.close.toFixed(2) : '-'}</td>
+                        <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${r.pct >= 0 ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}">${r.pct >= 0 ? '+' : ''}${r.pct ? r.pct.toFixed(2) : '0.00'}%</td>
+                        ${ddeHtml}
+                        ${consecTd}
+                        <td class="py-2.5 px-2 text-right font-mono font-medium ${r.v_rate >= 2.0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300'} whitespace-nowrap ts-hover-col">${r.v_rate ? r.v_rate.toFixed(2) : '-'}${starBuyHtml}</td>
+                        <td class="py-2.5 px-2 text-right font-mono font-medium ${r.t_rate >= 10.0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-700 dark:text-slate-300'} whitespace-nowrap ts-hover-col">${r.t_rate ? r.t_rate.toFixed(2) + '%' : '-'}${starSellHtml}</td>
+                        <td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amountStr}</td>
+                        <td class="py-2.5 px-2 text-center font-mono whitespace-nowrap ${r.days > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (r.days < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')}">${r.days > 0 ? '+' + r.days : (r.days || 0)}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>
+                        ${ystzTd}
+                        ${sjltzTd}
+                        ${peTd}
+                        ${holderTd}
+                        ${holdersNumTd}
+                    </tr>
+                `;
+            }
+        });
+
+        tbody.innerHTML = html;
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+    }
+
+    function changeTsSort(col) {
+        if (tsSortCol === col) {
+            tsSortDir = tsSortDir === 'desc' ? 'asc' : 'desc';
+        } else {
+            tsSortCol = col;
+            tsSortDir = 'desc';
+        }
+        loadTradingSystemData();
+    }
+
+    async function toggleTsWatchlist(code, name, chk) {
+        let status = chk.checked;
+        try {
+            const res = await fetch('/api/trading_system/toggle_watchlist', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({stock_code: code, status: status})
+            });
+            const d = await res.json();
+            if (d.success) {
+                if (status) tsWatchlist.add(code);
+                else tsWatchlist.delete(code);
+            } else {
+                chk.checked = !status;
+            }
+        } catch (e) {
+            chk.checked = !status;
+        }
+    }
+
+    function openTsFinaModal(code, name) {
+        const modal = document.getElementById('ts-fina-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        switchTsModalTab('ai');
+
+        document.getElementById('ts-modal-title').innerText = `📈 业绩诊断: ${name} (${code})`;
+        document.getElementById('ts-modal-industry-label').innerText = '所属行业：正在查询...';
+        document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="py-12 text-center text-cyan-400"><div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping inline-block mr-2"></div>正在调取 ${name} 深度财务数据与诊断模型...</div>`;
+        document.getElementById('ts-fina-table-body').innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500">正在载入财报数据...</td></tr>`;
+
+        fetch(`/api/trading_system/fina_analysis/${code}`)
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) {
+                document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-400">诊断出错: ${d.error || '无法获取财报'}</div>`;
+                return;
+            }
+
+            document.getElementById('ts-modal-title').innerText = `📈 ${d.stock_name} (${code}) - 智能投研业绩体检`;
+            document.getElementById('ts-modal-industry-label').innerText = `所属行业：${d.industry || '通用行业'}`;
+
+            let mdHtml = d.analysis_html || '';
+            mdHtml = mdHtml.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-cyan-300 mt-2 mb-1">$1</h3>')
+                           .replace(/^#### (.*$)/gim, '<h4 class="text-xs font-bold text-slate-200 mt-2 mb-1">$1</h4>')
+                           .replace(/^> (.*$)/gim, '<div class="p-2 bg-slate-900/80 border-l-2 border-cyan-500 text-slate-400 my-2">$1</div>')
+                           .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
+                           .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-slate-300">$1</li>');
+            document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
+
+            let tblHtml = '';
+            if (d.fina_data && d.fina_data.length > 0) {
+                d.fina_data.forEach(fd => {
+                    tblHtml += `
+                        <tr class="hover:bg-slate-900/50">
+                            <td class="p-2.5 font-semibold text-slate-300">${fd.qdate || fd.record_date}</td>
+                            <td class="p-2.5 text-right">${fmtMoneyTs(fd.total_operate_income)}</td>
+                            <td class="p-2.5 text-right">${fmtPctTs(fd.ystz)}</td>
+                            <td class="p-2.5 text-right">${fmtMoneyTs(fd.parent_netprofit)}</td>
+                            <td class="p-2.5 text-right">${fmtPctTs(fd.sjltz)}</td>
+                            <td class="p-2.5 text-right ${fd.weightavg_roe >= 15 ? 'text-rose-400 font-bold' : ''}">${fd.weightavg_roe ? fd.weightavg_roe.toFixed(2) + '%' : '-'}</td>
+                            <td class="p-2.5 text-right">${fd.xsmll ? fd.xsmll.toFixed(2) + '%' : '-'}</td>
+                            <td class="p-2.5 text-right font-bold text-white">${fd.basic_eps ? fd.basic_eps.toFixed(3) : '-'}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tblHtml = `<tr><td colspan="8" class="p-6 text-center text-slate-500">暂未获取到该标的财报数据</td></tr>`;
+            }
+            document.getElementById('ts-fina-table-body').innerHTML = tblHtml;
+            if (window.lucide) lucide.createIcons();
+        }).catch(e => {
+            document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-400">请求失败: ${e.message}</div>`;
+        });
+    }
+
+    function closeTsFinaModal() {
+        const modal = document.getElementById('ts-fina-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function switchTsModalTab(tabId) {
+        const btnAi = document.getElementById('ts-mtab-btn-ai');
+        const btnData = document.getElementById('ts-mtab-btn-data');
+        const paneAi = document.getElementById('ts-modal-pane-ai');
+        const paneData = document.getElementById('ts-modal-pane-data');
+
+        if (tabId === 'ai') {
+            if (btnAi) btnAi.className = 'px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition cursor-pointer';
+            if (btnData) btnData.className = 'px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition cursor-pointer';
+            if (paneAi) paneAi.classList.remove('hidden');
+            if (paneData) paneData.classList.add('hidden');
+        } else {
+            if (btnData) btnData.className = 'px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition cursor-pointer';
+            if (btnAi) btnAi.className = 'px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition cursor-pointer';
+            if (paneData) paneData.classList.remove('hidden');
+            if (paneAi) paneAi.classList.add('hidden');
+        }
+    }
+
+    document.addEventListener('mouseover', function(e) {
+        let t = e.target.closest('.ts-hover-col, .ts-hover-header');
+        let tooltip = document.getElementById('ts-global-tooltip');
+        if (t && tooltip) {
+            tooltip.classList.remove('hidden');
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            let rect = tooltip.getBoundingClientRect();
+            if (e.clientY + 20 + rect.height > window.innerHeight) {
+                tooltip.style.top = (e.clientY - rect.height - 10) + 'px';
+            } else {
+                tooltip.style.top = (e.clientY + 20) + 'px';
+            }
+        }
+    });
+
+    document.addEventListener('mouseout', function(e) {
+        let t = e.target.closest('.ts-hover-col, .ts-hover-header');
+        let tooltip = document.getElementById('ts-global-tooltip');
+        if (t && tooltip) {
+            tooltip.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        let t = e.target.closest('.ts-hover-col, .ts-hover-header');
+        let tooltip = document.getElementById('ts-global-tooltip');
+        if (t && tooltip && !tooltip.classList.contains('hidden')) {
+            let left = e.clientX + 15;
+            let rect = tooltip.getBoundingClientRect();
+            if (left + rect.width > window.innerWidth) {
+                left = e.clientX - rect.width - 15;
+            }
+            tooltip.style.left = left + 'px';
+            if (e.clientY + 20 + rect.height > window.innerHeight) {
+                tooltip.style.top = (e.clientY - rect.height - 10) + 'px';
+            } else {
+                tooltip.style.top = (e.clientY + 20) + 'px';
+            }
+        }
+    });
+    </script>
+    
 </body>
 </html>

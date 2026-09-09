@@ -496,42 +496,45 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
             + FieldBit.MAIN_NET_5D_AMOUNT
         )
         mac_pairs = [(int(_get_market(s).value), s) for s in symbols]
-        df = mac.get_stock_quotes(mac_pairs, fields=fields)
-        if df is not None and not df.empty:
-            for _, row in df.iterrows():
-                code = str(row.get("code", ""))
-                price = float(row.get("close") or 0.0)
-                pre_close = float(row.get("pre_close") or price)
-                chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
-                amt = float(row.get("amount") or 0.0)
-                t_cap = float(row.get("total_market_cap_ab") or 0.0)
-                total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
+        BATCH_SIZE = 70
+        for i in range(0, len(mac_pairs), BATCH_SIZE):
+            chunk = mac_pairs[i : i + BATCH_SIZE]
+            df = mac.get_stock_quotes(chunk, fields=fields)
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    code = str(row.get("code", ""))
+                    price = float(row.get("close") or 0.0)
+                    pre_close = float(row.get("pre_close") or price)
+                    chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
+                    amt = float(row.get("amount") or 0.0)
+                    t_cap = float(row.get("total_market_cap_ab") or 0.0)
+                    total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
 
-                m1 = float(row.get("main_net_amount") or 0.0)
-                m3 = float(row.get("main_net_3d_amount") or 0.0)
-                m5 = float(row.get("main_net_5d_amount") or 0.0)
-                
-                quotes_list.append({
-                    "symbol": code,
-                    "code": code,
-                    "price": round(price, 2),
-                    "pre_close": round(pre_close, 2),
-                    "open": round(float(row.get("open") or price), 2),
-                    "high": round(float(row.get("high") or price), 2),
-                    "low": round(float(row.get("low") or price), 2),
-                    "volume": int(row.get("vol") or 0),
-                    "turnover_wan": round(amt / 10000.0, 1),
-                    "total_mv_yi": total_mv_yi,
-                    "change_pct": chg_pct,
-                    "main_net_amount": m1,
-                    "main_net_3d": m3,
-                    "main_net_5d": m5,
-                    "inflow_1d_str": _fmt_pool_money(m1),
-                    "inflow_3d_str": _fmt_pool_money(m3),
-                    "inflow_5d_str": _fmt_pool_money(m5),
-                })
-            if quotes_list:
-                return quotes_list
+                    m1 = float(row.get("main_net_amount") or 0.0)
+                    m3 = float(row.get("main_net_3d_amount") or 0.0)
+                    m5 = float(row.get("main_net_5d_amount") or 0.0)
+                    
+                    quotes_list.append({
+                        "symbol": code,
+                        "code": code,
+                        "price": round(price, 2),
+                        "pre_close": round(pre_close, 2),
+                        "open": round(float(row.get("open") or price), 2),
+                        "high": round(float(row.get("high") or price), 2),
+                        "low": round(float(row.get("low") or price), 2),
+                        "volume": int(row.get("vol") or 0),
+                        "turnover_wan": round(amt / 10000.0, 1),
+                        "total_mv_yi": total_mv_yi,
+                        "change_pct": chg_pct,
+                        "main_net_amount": m1,
+                        "main_net_3d": m3,
+                        "main_net_5d": m5,
+                        "inflow_1d_str": _fmt_pool_money(m1),
+                        "inflow_3d_str": _fmt_pool_money(m3),
+                        "inflow_5d_str": _fmt_pool_money(m5),
+                    })
+        if quotes_list:
+            return quotes_list
     except Exception as e:
         logger.debug(f"MacClient realtime pool quotes failed, falling back to standard socket: {e}")
 
@@ -539,32 +542,36 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
     pairs = [(_get_market(s), s) for s in symbols]
     try:
         client = _get_or_create_client()
-        raw_quotes = client.get_security_quotes(pairs)
-        if raw_quotes is not None and not raw_quotes.empty:
-            for _, row in raw_quotes.iterrows():
-                code = str(row.get("code", ""))
-                price = float(row.get("price") or 0.0)
-                pre_close = float(row.get("pre_close") or price)
-                chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
-                
-                quotes_list.append({
-                    "symbol": code,
-                    "code": code,
-                    "price": round(price, 2),
-                    "pre_close": round(pre_close, 2),
-                    "open": round(float(row.get("open") or price), 2),
-                    "high": round(float(row.get("high") or price), 2),
-                    "low": round(float(row.get("low") or price), 2),
-                    "volume": int(row.get("vol") or 0),
-                    "turnover_wan": round(float(row.get("amount") or 0.0) / 10000.0, 1),
-                    "change_pct": chg_pct,
-                    "main_net_amount": 0.0,
-                    "main_net_3d": 0.0,
-                    "main_net_5d": 0.0,
-                    "inflow_1d_str": "0.0万",
-                    "inflow_3d_str": "0.0万",
-                    "inflow_5d_str": "0.0万",
-                })
+        BATCH_SIZE = 70
+        for i in range(0, len(pairs), BATCH_SIZE):
+            chunk = pairs[i : i + BATCH_SIZE]
+            raw_quotes = client.get_security_quotes(chunk)
+            if raw_quotes is not None and not raw_quotes.empty:
+                for _, row in raw_quotes.iterrows():
+                    code = str(row.get("code", ""))
+                    price = float(row.get("price") or 0.0)
+                    pre_close = float(row.get("pre_close") or price)
+                    chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
+                    
+                    quotes_list.append({
+                        "symbol": code,
+                        "code": code,
+                        "price": round(price, 2),
+                        "pre_close": round(pre_close, 2),
+                        "open": round(float(row.get("open") or price), 2),
+                        "high": round(float(row.get("high") or price), 2),
+                        "low": round(float(row.get("low") or price), 2),
+                        "volume": int(row.get("vol") or 0),
+                        "turnover_wan": round(float(row.get("amount") or 0.0) / 10000.0, 1),
+                        "total_mv_yi": 0.0,
+                        "change_pct": chg_pct,
+                        "main_net_amount": 0.0,
+                        "main_net_3d": 0.0,
+                        "main_net_5d": 0.0,
+                        "inflow_1d_str": "0.0万",
+                        "inflow_3d_str": "0.0万",
+                        "inflow_5d_str": "0.0万",
+                    })
     except Exception as e:
         logger.warning(f"Failed to fetch realtime quotes from TDX: {e}")
         

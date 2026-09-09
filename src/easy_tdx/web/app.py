@@ -244,6 +244,7 @@ def _create_app(
     from easy_tdx.web.routers.ai_review import router as ai_review_router
     from easy_tdx.web.routers.monitor import router as monitor_router
     from easy_tdx.web.routers.quotes import router as quotes_router
+    from easy_tdx.web.routers.trading_system import router as trading_system_router
 
     # Health check
     @app.get("/api/health")
@@ -258,6 +259,7 @@ def _create_app(
     # Mount unified and v1 routers
     app.include_router(stocks_router)
     app.include_router(screener_router)
+    app.include_router(trading_system_router)
     app.include_router(ai_review_router)
     app.include_router(monitor_router)
     app.include_router(quotes_router)
