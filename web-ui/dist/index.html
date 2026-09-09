@@ -2721,6 +2721,7 @@
                             <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i>
                             <span id="kp-zig-aux-pill" class="text-[10px] font-sans font-medium text-emerald-400">共振最优</span>
                         </button>
+                        <button onclick="toggleKpZigMarks()" id="kp-sub-zig-marks" class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="控制K线主图上的标记点(顶、底、买卖点)">买卖点</button>
                     </div>
                 </div>
 
@@ -4300,6 +4301,20 @@
             }
         }
 
+        let showKpZigMarks = false; // 默认关闭：控制K线上的标记点(顶、底、买卖点)
+        function toggleKpZigMarks() {
+            showKpZigMarks = !showKpZigMarks;
+            const marksEl = document.getElementById('kp-sub-zig-marks');
+            if (marksEl) {
+                marksEl.className = showKpZigMarks
+                    ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition shadow-sm cursor-pointer shrink-0'
+                    : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+            }
+            if (currentKpData) {
+                renderKpChart(currentKpData);
+            }
+        }
+
         function calcZigZagDetailed(prices, percent = 10.0) {
             const n = prices.length;
             if (n === 0) return { z: [], troughs: [], peaks: [] };
@@ -5473,168 +5488,172 @@
                 }
             }
 
-            // Mark point for extreme peak & ZIG buy/sell markers
-            let maxHighVal = -Infinity;
-            let maxHighIdx = -1;
-            bars.forEach((b, i) => {
-                if (b.high > maxHighVal) {
-                    maxHighVal = b.high;
-                    maxHighIdx = i;
-                }
-            });
+            // K线图主图标记点：由顶部【买卖点】按钮控制（默认关闭；开启时在蜡烛图上呈现【顶】、【底】、【买卖点】与【极值】标记）
             const markPointData = [];
-            if (maxHighIdx >= 0) {
-                markPointData.push({
-                    name: '极值',
-                    coord: [bars[maxHighIdx].datetime, bars[maxHighIdx].high],
-                    symbol: 'rect',
-                    symbolSize: [18, 14],
-                    symbolOffset: [0, -10],
-                    itemStyle: { color: '#3f2e00', borderColor: '#eab308', borderWidth: 1 },
-                    label: { show: true, formatter: '极', color: '#facc15', fontSize: 9, fontWeight: 'bold' }
-                });
-            }
 
-            // 方案 B 核心渲染：波谷底定位锚点 [底]
-            if (isZigActive && zigResult.anchorTroughs && zigResult.anchorTroughs.length > 0) {
-                zigResult.anchorTroughs.forEach(at => {
+            if (showKpZigMarks) {
+                // 1. 极值标记
+                let maxHighVal = -Infinity;
+                let maxHighIdx = -1;
+                bars.forEach((b, i) => {
+                    if (b.high > maxHighVal) {
+                        maxHighVal = b.high;
+                        maxHighIdx = i;
+                    }
+                });
+                if (maxHighIdx >= 0) {
                     markPointData.push({
-                        name: '波谷底定位',
-                        coord: [at.datetime, at.price],
-                        value: '底',
-                        symbol: 'circle',
-                        symbolSize: 18,
-                        symbolOffset: [0, 8],
-                        itemStyle: {
-                            color: '#0284c7',
-                            borderColor: '#38bdf8',
-                            borderWidth: 2,
-                            shadowBlur: 6,
-                            shadowColor: 'rgba(56, 189, 248, 0.7)'
-                        },
-                        label: {
-                            show: true,
-                            formatter: '底',
-                            color: '#ffffff',
-                            fontWeight: 'bold',
-                            fontSize: 9
-                        }
+                        name: '极值',
+                        coord: [bars[maxHighIdx].datetime, bars[maxHighIdx].high],
+                        symbol: 'rect',
+                        symbolSize: [18, 14],
+                        symbolOffset: [0, -10],
+                        itemStyle: { color: '#3f2e00', borderColor: '#eab308', borderWidth: 1 },
+                        label: { show: true, formatter: '极', color: '#facc15', fontSize: 9, fontWeight: 'bold' }
                     });
-                });
-            }
+                }
 
-            // 方案 B 核心渲染：波峰顶定位锚点 [顶]
-            if (isZigActive && zigResult.anchorPeaks && zigResult.anchorPeaks.length > 0) {
-                zigResult.anchorPeaks.forEach(ap => {
-                    markPointData.push({
-                        name: '波峰顶定位',
-                        coord: [ap.datetime, ap.price],
-                        value: '顶',
-                        symbol: 'circle',
-                        symbolSize: 18,
-                        symbolOffset: [0, -8],
-                        itemStyle: {
-                            color: '#b45309',
-                            borderColor: '#fde047',
-                            borderWidth: 2,
-                            shadowBlur: 6,
-                            shadowColor: 'rgba(253, 224, 71, 0.7)'
-                        },
-                        label: {
-                            show: true,
-                            formatter: '顶',
-                            color: '#ffffff',
-                            fontWeight: 'bold',
-                            fontSize: 9
-                        }
-                    });
-                });
-            }
-
-            // Mark ZIG Buy & Sell Points with Categorized Resonance Levels
-            if (isZigActive && zigResult.trades && zigResult.trades.length > 0) {
-                zigResult.trades.forEach(t => {
-                    const isBuy = (t.type === 'BUY');
-                    if (isBuy) {
-                        const isStrong = (t.subtype === 'STRONG_BUY' || t.subtype === 'CONFIRMED_BUY');
-                        const isBreakout = (t.subtype === 'BREAKOUT');
-                        const pinColor = isStrong ? '#ef4444' : (isBreakout ? '#f97316' : '#ef4444');
-                        const borderClr = isStrong ? '#991b1b' : (isBreakout ? '#c2410c' : '#991b1b');
-                        const labelText = t.label || (isStrong ? '强买' : (isBreakout ? '突破' : '买'));
-
+                // 2. 波谷底定位锚点 [底]
+                if (isZigActive && zigResult.anchorTroughs && zigResult.anchorTroughs.length > 0) {
+                    zigResult.anchorTroughs.forEach(at => {
                         markPointData.push({
-                            name: isStrong ? 'ZIG共振强买' : (isBreakout ? 'ZIG右侧突破' : 'ZIG买点'),
-                            coord: [t.datetime, t.price],
-                            value: labelText,
-                            symbol: 'pin',
-                            symbolSize: 26,
-                            symbolOffset: [0, 12],
+                            name: '波谷底定位',
+                            coord: [at.datetime, at.price],
+                            value: '底',
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, 8],
                             itemStyle: {
-                                color: pinColor,
-                                borderColor: borderClr,
-                                borderWidth: 1.5,
+                                color: '#0284c7',
+                                borderColor: '#38bdf8',
+                                borderWidth: 2,
                                 shadowBlur: 6,
-                                shadowColor: `${pinColor}99`
+                                shadowColor: 'rgba(56, 189, 248, 0.7)'
                             },
                             label: {
                                 show: true,
-                                formatter: labelText,
+                                formatter: '底',
                                 color: '#ffffff',
                                 fontWeight: 'bold',
                                 fontSize: 9
                             }
                         });
-                    } else {
-                        const isTrailing = (t.subtype === 'TRAILING_STOP');
-                        const isStopLoss = (t.subtype === 'HARD_STOP');
-                        const isProf = t.pnlPct >= 0;
-                        
-                        let pinColor = '#eab308';
-                        let borderClr = '#854d0e';
-                        let labelText = t.label || '卖';
-                        let labelColor = '#000000';
+                    });
+                }
 
-                        if (isTrailing) {
-                            pinColor = '#f59e0b';
-                            borderClr = '#b45309';
-                            labelText = '止盈';
-                            labelColor = '#000000';
-                        } else if (isStopLoss) {
-                            pinColor = '#10b981';
-                            borderClr = '#065f46';
-                            labelText = '止损';
-                            labelColor = '#ffffff';
-                        } else {
-                            pinColor = isProf ? '#f59e0b' : '#10b981';
-                            borderClr = isProf ? '#b45309' : '#065f46';
-                            labelText = isProf ? '见顶' : '卖';
-                            labelColor = isProf ? '#000000' : '#ffffff';
-                        }
-
+                // 3. 波峰顶定位锚点 [顶]
+                if (isZigActive && zigResult.anchorPeaks && zigResult.anchorPeaks.length > 0) {
+                    zigResult.anchorPeaks.forEach(ap => {
                         markPointData.push({
-                            name: isTrailing ? 'ZIG移动止盈' : (isStopLoss ? 'ZIG硬止损' : 'ZIG见顶卖点'),
-                            coord: [t.datetime, t.price],
-                            value: labelText,
-                            symbol: 'pin',
-                            symbolSize: 26,
-                            symbolOffset: [0, -12],
+                            name: '波峰顶定位',
+                            coord: [ap.datetime, ap.price],
+                            value: '顶',
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, -8],
                             itemStyle: {
-                                color: pinColor,
-                                borderColor: borderClr,
-                                borderWidth: 1.5,
+                                color: '#b45309',
+                                borderColor: '#fde047',
+                                borderWidth: 2,
                                 shadowBlur: 6,
-                                shadowColor: `${pinColor}99`
+                                shadowColor: 'rgba(253, 224, 71, 0.7)'
                             },
                             label: {
                                 show: true,
-                                formatter: labelText,
-                                color: labelColor,
+                                formatter: '顶',
+                                color: '#ffffff',
                                 fontWeight: 'bold',
                                 fontSize: 9
                             }
                         });
-                    }
-                });
+                    });
+                }
+
+                // 4. 买卖点标记与止盈止损标记
+                if (isZigActive && zigResult.trades && zigResult.trades.length > 0) {
+                    zigResult.trades.forEach(t => {
+                        const isBuy = (t.type === 'BUY');
+                        if (isBuy) {
+                            const isStrong = (t.subtype === 'STRONG_BUY' || t.subtype === 'CONFIRMED_BUY');
+                            const isBreakout = (t.subtype === 'BREAKOUT');
+                            const pinColor = isStrong ? '#ef4444' : (isBreakout ? '#f97316' : '#ef4444');
+                            const borderClr = isStrong ? '#991b1b' : (isBreakout ? '#c2410c' : '#991b1b');
+                            const labelText = t.label || (isStrong ? '强买' : (isBreakout ? '突破' : '买'));
+
+                            markPointData.push({
+                                name: isStrong ? 'ZIG共振强买' : (isBreakout ? 'ZIG右侧突破' : 'ZIG买点'),
+                                coord: [t.datetime, t.price],
+                                value: labelText,
+                                symbol: 'pin',
+                                symbolSize: 26,
+                                symbolOffset: [0, 12],
+                                itemStyle: {
+                                    color: pinColor,
+                                    borderColor: borderClr,
+                                    borderWidth: 1.5,
+                                    shadowBlur: 6,
+                                    shadowColor: `${pinColor}99`
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: labelText,
+                                    color: '#ffffff',
+                                    fontWeight: 'bold',
+                                    fontSize: 9
+                                }
+                            });
+                        } else {
+                            const isTrailing = (t.subtype === 'TRAILING_STOP');
+                            const isStopLoss = (t.subtype === 'HARD_STOP');
+                            const isProf = t.pnlPct >= 0;
+                            
+                            let pinColor = '#eab308';
+                            let borderClr = '#854d0e';
+                            let labelText = t.label || '卖';
+                            let labelColor = '#000000';
+
+                            if (isTrailing) {
+                                pinColor = '#f59e0b';
+                                borderClr = '#b45309';
+                                labelText = '止盈';
+                                labelColor = '#000000';
+                            } else if (isStopLoss) {
+                                pinColor = '#10b981';
+                                borderClr = '#065f46';
+                                labelText = '止损';
+                                labelColor = '#ffffff';
+                            } else {
+                                pinColor = isProf ? '#f59e0b' : '#10b981';
+                                borderClr = isProf ? '#b45309' : '#065f46';
+                                labelText = isProf ? '见顶' : '卖';
+                                labelColor = isProf ? '#000000' : '#ffffff';
+                            }
+
+                            markPointData.push({
+                                name: isTrailing ? 'ZIG移动止盈' : (isStopLoss ? 'ZIG硬止损' : 'ZIG见顶卖点'),
+                                coord: [t.datetime, t.price],
+                                value: labelText,
+                                symbol: 'pin',
+                                symbolSize: 26,
+                                symbolOffset: [0, -12],
+                                itemStyle: {
+                                    color: pinColor,
+                                    borderColor: borderClr,
+                                    borderWidth: 1.5,
+                                    shadowBlur: 6,
+                                    shadowColor: `${pinColor}99`
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: labelText,
+                                    color: labelColor,
+                                    fontWeight: 'bold',
+                                    fontSize: 9
+                                }
+                            });
+                        }
+                    });
+                }
             }
 
             // ── 通达信九转 / 十三转序列标记 (TD Sequential) ──
