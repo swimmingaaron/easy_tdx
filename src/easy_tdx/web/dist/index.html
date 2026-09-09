@@ -2729,7 +2729,7 @@
     </main>
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
-    <div id="kline-preview-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-0 sm:p-2 md:p-3">
+    <div id="kline-preview-modal" class="fixed inset-0 z-[70] bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-0 sm:p-2 md:p-3">
         <div class="glass-card bg-[#0b0f19]/85 border-0 sm:border sm:border-slate-700/60 rounded-none sm:rounded-2xl max-w-[1440px] xl:max-w-[1480px] w-full h-full sm:h-[94vh] max-h-screen sm:max-h-[96vh] p-2 sm:p-3.5 md:p-4 space-y-1.5 sm:space-y-2 shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl">
             
             <!-- Row 1: Stock Symbol, Name, Live Price, Strategy Status, Cap & Action Buttons (图2 Layout) -->
@@ -3894,7 +3894,10 @@
             return `https://xueqiu.com/S/${prefix}${code}`;
         }
 
-        function openKlineModal(sym, name) {
+        window.openKlineModal = openKlineModal;
+    function openKlineModal(sym, name) {
+        const kModal = document.getElementById('kline-preview-modal');
+        if (kModal) { kModal.style.zIndex = '70'; kModal.classList.remove('hidden'); }
             const rawSym = String(sym || '600123').trim();
             currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
             currentKpStockName = name || '';
@@ -11212,7 +11215,7 @@
 
     <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
     <div id="ts-fina-modal" class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5">
-        <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+        <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-5xl w-full h-[85vh] min-h-[580px] max-h-[85vh] flex flex-col shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
             <!-- Modal Header -->
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900/90">
                 <div class="flex items-center space-x-2.5">
@@ -11224,41 +11227,121 @@
                 <button onclick="closeTsFinaModal()" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center justify-center transition text-lg leading-none cursor-pointer" title="关闭">&times;</button>
             </div>
 
-            <!-- Modal Tabs -->
+            <!-- Modal Tabs (3个选项卡: AI业绩诊断 / 基础财务数据 / 同行对比) -->
             <div class="px-4 pt-3 bg-slate-50/80 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 flex space-x-2 text-xs">
                 <button id="ts-mtab-btn-ai" onclick="switchTsModalTab('ai')" class="px-3.5 py-1.5 rounded-t-lg font-semibold bg-indigo-600 dark:bg-cyan-500 text-white dark:text-slate-950 shadow-xs transition cursor-pointer">
-                    🤖 AI 深度业绩体检
+                    🤖 AI 业绩诊断
                 </button>
                 <button id="ts-mtab-btn-data" onclick="switchTsModalTab('data')" class="px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
-                    📊 近8期核心财报对照
+                    📊 基础财务数据
+                </button>
+                <button id="ts-mtab-btn-peers" onclick="switchTsModalTab('peers')" class="px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
+                    👥 同行对比
                 </button>
             </div>
 
             <!-- Modal Content Body -->
-            <div class="p-5 overflow-y-auto flex-1 text-xs space-y-4 bg-slate-50/60 dark:bg-slate-900/30">
-                <!-- AI Markdown 视图 -->
-                <div id="ts-modal-pane-ai" class="space-y-3 leading-relaxed text-slate-700 dark:text-slate-300">
+            <div class="p-4 sm:p-5 flex-1 min-h-0 flex flex-col text-xs bg-slate-50/60 dark:bg-slate-900/30 overflow-hidden">
+                <!-- 1. AI Markdown 视图 -->
+                <div id="ts-modal-pane-ai" class="h-full overflow-y-auto space-y-3 leading-relaxed text-slate-700 dark:text-slate-300 pr-1">
                     <div class="py-12 text-center text-slate-500 dark:text-slate-400">正在分析财务数据...</div>
                 </div>
 
-                <!-- 财报数据大表视图 -->
-                <div id="ts-modal-pane-data" class="hidden space-y-3">
-                    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-                        <table class="w-full text-left border-collapse text-[11px] whitespace-nowrap">
-                            <thead class="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                <!-- 2. 基础财务数据大表视图 -->
+                <div id="ts-modal-pane-data" class="hidden h-full overflow-y-auto space-y-3 pr-1">
+                    <div class="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+                        <table class="w-full text-left border-separate border-spacing-0 text-[11px] whitespace-nowrap">
+                            <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold shadow-xs">
                                 <tr>
-                                    <th class="p-2.5">报告期</th>
-                                    <th class="p-2.5 text-right">营业总收入</th>
-                                    <th class="p-2.5 text-right">营收同比</th>
-                                    <th class="p-2.5 text-right">归母净利润</th>
-                                    <th class="p-2.5 text-right">净利同比</th>
-                                    <th class="p-2.5 text-right">ROE %</th>
-                                    <th class="p-2.5 text-right">毛利率 %</th>
-                                    <th class="p-2.5 text-right">EPS (元)</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800">报告期</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">营业总收入</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">营收同比</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">归母净利润</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">净利同比</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">ROE %</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">毛利率 %</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">EPS (元)</th>
                                 </tr>
                             </thead>
                             <tbody id="ts-fina-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-700 dark:text-slate-300">
                                 <!-- 动态插入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. 同行横向对比视图 (表头全局吸顶固定) -->
+                <div id="ts-modal-pane-peers" class="hidden h-full flex flex-col min-h-0 space-y-2.5">
+                    <div class="flex items-center justify-between text-xs px-1 shrink-0">
+                        <span class="text-slate-600 dark:text-slate-400 font-medium">所属行业：<strong id="ts-peers-industry-name" class="text-slate-800 dark:text-slate-200 font-semibold">--</strong><span id="ts-peers-count-badge" class="ml-1.5 text-xs text-slate-500 dark:text-slate-400 font-normal"></span></span>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium text-xs flex items-center space-x-1">
+                            <span>★</span>
+                            <span>代表当前目标股票</span>
+                        </span>
+                    </div>
+                    <div class="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative">
+                        <table class="w-full text-left border-separate border-spacing-0 text-[11px] whitespace-nowrap">
+                            <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold shadow-xs select-none">
+                                <tr>
+                                    <th onclick="sortTsPeers('code')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按股票代码排序">
+                                        <div class="flex items-center space-x-1">
+                                            <span>股票代码</span>
+                                            <span id="ts-sort-icon-code" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('name')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按股票名称排序">
+                                        <div class="flex items-center space-x-1">
+                                            <span>股票名称</span>
+                                            <span id="ts-sort-icon-name" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-center">最新报告期</th>
+                                    <th onclick="sortTsPeers('total_operate_income')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按营业总收入排序">
+                                        <div class="flex items-center space-x-1">
+                                            <span>营业总收入</span>
+                                            <span id="ts-sort-icon-total_operate_income" class="text-[10px] text-blue-600 dark:text-cyan-400 font-bold">▼</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('ystz')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按营收同比增速排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>营收同比</span>
+                                            <span id="ts-sort-icon-ystz" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('parent_netprofit')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按净利润金额排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>净利润</span>
+                                            <span id="ts-sort-icon-parent_netprofit" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('sjltz')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按净利润同比增速排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>净利同比</span>
+                                            <span id="ts-sort-icon-sjltz" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('weightavg_roe')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按ROE净资产收益率排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>ROE %</span>
+                                            <span id="ts-sort-icon-weightavg_roe" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('xsmll')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按销售毛利率排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>毛利率 %</span>
+                                            <span id="ts-sort-icon-xsmll" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                    <th onclick="sortTsPeers('pe_percentile')" class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition" title="点击按历史3年PE估值百分位排序">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <span>PE(3年分位)</span>
+                                            <span id="ts-sort-icon-pe_percentile" class="text-[10px] text-slate-400/70">↕</span>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="ts-peers-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-700 dark:text-slate-300">
+                                <tr><td colspan="10" class="p-4 text-center text-slate-400">正在载入同行对比数据...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -11952,6 +12035,169 @@
         }
     }
 
+    window._tsCurrentPeersData = [];
+    window._tsCurrentTargetCode = '';
+    window._tsCurrentSortField = 'total_operate_income';
+    window._tsCurrentSortAsc = false;
+
+    function triggerTsKline(code, name) {
+        const kModal = document.getElementById('kline-preview-modal');
+        if (kModal) {
+            kModal.style.zIndex = '70';
+            kModal.classList.remove('hidden');
+        }
+        if (window.openKlineModal) {
+            window.openKlineModal(code, name);
+        } else if (typeof openKlineModal === 'function') {
+            openKlineModal(code, name);
+        }
+    }
+
+    function sortTsPeers(field) {
+        if (!window._tsCurrentPeersData || window._tsCurrentPeersData.length === 0) return;
+
+        if (window._tsCurrentSortField === field) {
+            window._tsCurrentSortAsc = !window._tsCurrentSortAsc;
+        } else {
+            window._tsCurrentSortField = field;
+            window._tsCurrentSortAsc = (field === 'code' || field === 'name');
+        }
+
+        const asc = window._tsCurrentSortAsc;
+        window._tsCurrentPeersData.sort((a, b) => {
+            let va = a[field];
+            let vb = b[field];
+
+            if (field === 'code' || field === 'name') {
+                va = String(va || '');
+                vb = String(vb || '');
+                return asc ? va.localeCompare(vb, 'zh-CN') : vb.localeCompare(va, 'zh-CN');
+            }
+
+            let na = (va === null || va === undefined || isNaN(Number(va))) ? (asc ? Infinity : -Infinity) : Number(va);
+            let nb = (vb === null || vb === undefined || isNaN(Number(vb))) ? (asc ? Infinity : -Infinity) : Number(vb);
+
+            return asc ? (na - nb) : (nb - na);
+        });
+
+        renderTsPeersTable();
+    }
+
+    function renderTsPeersTable() {
+        const tbody = document.getElementById('ts-peers-table-body');
+        if (!tbody) return;
+
+        const data = window._tsCurrentPeersData || [];
+        const targetCode = window._tsCurrentTargetCode || '';
+
+        // 更新表头排序箭头
+        const sortFields = ['code', 'name', 'total_operate_income', 'ystz', 'parent_netprofit', 'sjltz', 'weightavg_roe', 'xsmll', 'pe_percentile'];
+        sortFields.forEach(f => {
+            const iconEl = document.getElementById(`ts-sort-icon-${f}`);
+            if (iconEl) {
+                if (f === window._tsCurrentSortField) {
+                    iconEl.innerText = window._tsCurrentSortAsc ? '▲' : '▼';
+                    iconEl.className = 'text-[10px] text-blue-600 dark:text-cyan-400 font-bold';
+                } else {
+                    iconEl.innerText = '↕';
+                    iconEl.className = 'text-[10px] text-slate-400/60 dark:text-slate-500/60 font-normal';
+                }
+            }
+        });
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-slate-400">暂无同行业对比数据</td></tr>';
+            return;
+        }
+
+        const maxRev = Math.max(...data.map(p => p.total_operate_income || 0));
+        let peerRowsHtml = '';
+
+        data.forEach(p => {
+            const isTarget = !!p.is_target || (p.code === targetCode);
+            const pfx = (p.code.startsWith('6') || p.code.startsWith('9')) ? 'SH' : ((p.code.startsWith('4') || p.code.startsWith('8')) ? 'BJ' : 'SZ');
+            const xqUrl = `https://xueqiu.com/S/${pfx}${p.code}`;
+
+            // 营业总收入与条形图
+            const revVal = p.total_operate_income || 0;
+            const revYi = revVal > 0 ? (revVal / 1e8).toFixed(2) + '亿' : '--';
+            const barWidth = maxRev > 0 ? Math.max(4, Math.round((revVal / maxRev) * 64)) : 0;
+
+            // 营收同比
+            let ystzHtml = '--';
+            if (p.ystz !== null && p.ystz !== undefined) {
+                const ystzNum = Number(p.ystz);
+                const colorCls = ystzNum >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                ystzHtml = `<span class="${colorCls}">${ystzNum.toFixed(2)}%</span>`;
+            }
+
+            // 净利润
+            const npVal = p.parent_netprofit || 0;
+            const npYi = (p.parent_netprofit !== null && p.parent_netprofit !== undefined) ? (npVal / 1e8).toFixed(2) + '亿' : '--';
+
+            // 净利同比
+            let sjltzHtml = '--';
+            if (p.sjltz !== null && p.sjltz !== undefined) {
+                const sjltzNum = Number(p.sjltz);
+                const colorCls = sjltzNum >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                sjltzHtml = `<span class="${colorCls}">${sjltzNum.toFixed(2)}%</span>`;
+            }
+
+            // ROE %
+            const roeHtml = (p.weightavg_roe !== null && p.weightavg_roe !== undefined) ? Number(p.weightavg_roe).toFixed(2) + '%' : '--';
+
+            // 毛利率 %
+            const mllHtml = (p.xsmll !== null && p.xsmll !== undefined) ? Number(p.xsmll).toFixed(2) + '%' : '--';
+
+            // PE(3年分位)
+            let peHtml = '<span class="text-slate-400 font-mono">--</span>';
+            if (p.pe_percentile !== null && p.pe_percentile !== undefined) {
+                const pVal = Number(p.pe_percentile);
+                const peColor = pVal <= 20 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : (pVal >= 80 ? 'text-amber-600 dark:text-amber-400 font-bold' : (isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-700 dark:text-slate-300'));
+                peHtml = `<span class="${peColor}" title="历史3年估值百分位: ${pVal.toFixed(1)}%">${pVal.toFixed(1)}%</span>`;
+            }
+
+            // 行样式与目标高亮
+            let rowCls = '';
+            let codeCls = '';
+            let nameHtml = '';
+
+            if (isTarget) {
+                rowCls = 'bg-blue-50/90 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition border-y border-blue-200/80 dark:border-blue-800/80';
+                codeCls = 'text-blue-600 dark:text-blue-400 font-bold';
+                nameHtml = `<span onclick="triggerTsKline('${p.code}', '${p.name}')" class="cursor-pointer hover:underline text-blue-600 dark:text-blue-400 font-bold inline-flex items-center space-x-1" title="点击查看 ${p.name} (${p.code}) K线走势"><span>★</span><span>${p.name}</span></span>`;
+            } else {
+                rowCls = 'hover:bg-slate-50 dark:hover:bg-slate-800/50 transition';
+                codeCls = 'text-slate-700 dark:text-slate-300 font-semibold hover:text-indigo-600 dark:hover:text-cyan-400';
+                nameHtml = `<span onclick="triggerTsKline('${p.code}', '${p.name}')" class="cursor-pointer hover:underline text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-cyan-400 font-medium" title="点击查看 ${p.name} (${p.code}) K线走势">${p.name}</span>`;
+            }
+
+            peerRowsHtml += `
+                <tr class="${rowCls}">
+                    <td class="p-2.5 font-mono">
+                        <a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="${codeCls} hover:underline cursor-pointer" title="在雪球查看 ${p.code} ${p.name}">${p.code}</a>
+                    </td>
+                    <td class="p-2.5 font-sans whitespace-nowrap">${nameHtml}</td>
+                    <td class="p-2.5 text-center font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400'}">${p.qdate || '--'}</td>
+                    <td class="p-2.5 font-mono">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-16 ${isTarget ? 'font-bold' : ''}">${revYi}</span>
+                            ${barWidth > 0 ? `<div class="h-2 rounded-full bg-blue-500/90 shrink-0" style="width: ${barWidth}px;" title="营收体量对比"></div>` : ''}
+                        </div>
+                    </td>
+                    <td class="p-2.5 text-right font-mono">${ystzHtml}</td>
+                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${npYi}</td>
+                    <td class="p-2.5 text-right font-mono">${sjltzHtml}</td>
+                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${roeHtml}</td>
+                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${mllHtml}</td>
+                    <td class="p-2.5 text-right font-mono whitespace-nowrap">${peHtml}</td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = peerRowsHtml;
+    }
+
     function openTsFinaModal(code, name) {
         const modal = document.getElementById('ts-fina-modal');
         if (!modal) return;
@@ -11960,8 +12206,17 @@
 
         document.getElementById('ts-modal-title').innerText = `📈 业绩诊断: ${name} (${code})`;
         document.getElementById('ts-modal-industry-label').innerText = '所属行业：正在查询...';
-        document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="py-12 text-center text-indigo-600 dark:text-cyan-400"><div class="w-3 h-3 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping inline-block mr-2"></div>正在调取 ${name} 深度财务数据与多维量化诊断模型...</div>`;
+        if (document.getElementById('ts-peers-industry-name')) {
+            document.getElementById('ts-peers-industry-name').innerText = '正在查询...';
+        }
+        if (document.getElementById('ts-peers-count-badge')) {
+            document.getElementById('ts-peers-count-badge').innerText = '';
+        }
+        document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="py-12 text-center text-indigo-600 dark:text-cyan-400"><div class="w-3 h-3 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping inline-block mr-2"></div>正在调取 ${name} 深度财务数据、同行横向对比与多维量化诊断模型...</div>`;
         document.getElementById('ts-fina-table-body').innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 dark:text-slate-400">正在载入财报数据...</td></tr>`;
+        if (document.getElementById('ts-peers-table-body')) {
+            document.getElementById('ts-peers-table-body').innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-400">正在载入同行横向对比数据...</td></tr>`;
+        }
 
         fetch(`/api/trading_system/fina_analysis/${code}`)
         .then(r => r.json())
@@ -11971,9 +12226,18 @@
                 return;
             }
 
+            const indName = d.industry || '通用行业';
             document.getElementById('ts-modal-title').innerText = `📈 ${d.stock_name} (${code}) - 智能投研业绩体检`;
-            document.getElementById('ts-modal-industry-label').innerText = `所属行业：${d.industry || '通用行业'}`;
+            document.getElementById('ts-modal-industry-label').innerText = `所属行业：${indName}`;
+            if (document.getElementById('ts-peers-industry-name')) {
+                document.getElementById('ts-peers-industry-name').innerText = indName;
+            }
+            if (document.getElementById('ts-peers-count-badge')) {
+                const peerCount = (d.peers_data && d.peers_data.length) ? d.peers_data.length : 0;
+                document.getElementById('ts-peers-count-badge').innerText = peerCount > 0 ? `(全行业共 ${peerCount} 家上市公司)` : '';
+            }
 
+            // 1. 渲染 AI 诊断
             if (d.analysis_html && (d.analysis_html.trim().startsWith('<div') || d.analysis_html.trim().startsWith('<section'))) {
                 document.getElementById('ts-modal-pane-ai').innerHTML = d.analysis_html;
             } else {
@@ -11986,6 +12250,7 @@
                 document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
             }
 
+            // 2. 渲染基础财务数据对照表
             let tblHtml = '';
             if (d.fina_data && d.fina_data.length > 0) {
                 d.fina_data.forEach(fd => {
@@ -12006,6 +12271,13 @@
                 tblHtml = `<tr><td colspan="8" class="p-4 text-center text-slate-400">暂无近8期标准化财报数据</td></tr>`;
             }
             document.getElementById('ts-fina-table-body').innerHTML = tblHtml;
+
+            // 3. 存储并渲染同行对比大表 (全行业全部上市公司，默认按营收降序)
+            window._tsCurrentPeersData = d.peers_data || [];
+            window._tsCurrentTargetCode = code;
+            window._tsCurrentSortField = 'total_operate_income';
+            window._tsCurrentSortAsc = false;
+            renderTsPeersTable();
         })
         .catch(err => {
             document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-500 dark:text-rose-400">获取财务数据失败: ${err.message}</div>`;
@@ -12018,25 +12290,19 @@
     }
 
     function switchTsModalTab(tabId) {
-        const btnAi = document.getElementById('ts-mtab-btn-ai');
-        const btnData = document.getElementById('ts-mtab-btn-data');
-        const paneAi = document.getElementById('ts-modal-pane-ai');
-        const paneData = document.getElementById('ts-modal-pane-data');
-
+        const tabs = ['ai', 'data', 'peers'];
         const activeClass = 'px-3.5 py-1.5 rounded-t-lg font-semibold bg-indigo-600 dark:bg-cyan-500 text-white dark:text-slate-950 shadow-xs transition cursor-pointer';
         const inactiveClass = 'px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer';
 
-        if (tabId === 'ai') {
-            if (btnAi) btnAi.className = activeClass;
-            if (btnData) btnData.className = inactiveClass;
-            if (paneAi) paneAi.classList.remove('hidden');
-            if (paneData) paneData.classList.add('hidden');
-        } else {
-            if (btnData) btnData.className = activeClass;
-            if (btnAi) btnAi.className = inactiveClass;
-            if (paneData) paneData.classList.remove('hidden');
-            if (paneAi) paneAi.classList.add('hidden');
-        }
+        tabs.forEach(t => {
+            const btn = document.getElementById(`ts-mtab-btn-${t}`);
+            const pane = document.getElementById(`ts-modal-pane-${t}`);
+            if (btn) btn.className = (t === tabId) ? activeClass : inactiveClass;
+            if (pane) {
+                if (t === tabId) pane.classList.remove('hidden');
+                else pane.classList.add('hidden');
+            }
+        });
     }
 
     document.addEventListener('mouseover', function(e) {

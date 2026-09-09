@@ -16,6 +16,7 @@ import json
 import time
 import gzip
 import urllib.request
+import urllib.parse
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -663,7 +664,7 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
 
     if cache_key in _FINA_CACHE:
         ts, data = _FINA_CACHE[cache_key]
-        if now - ts < 3600:
+        if (now - ts < 3600) and data.get("peers_data") and len(data["peers_data"]) > 0:
             return data
 
     fina_list = []
@@ -748,14 +749,8 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
         except Exception as e:
             logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
 
-    # 获取行业
-    try:
-        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
-        b_info = _resolve_stock_board_info(clean_code)
-        if b_info and b_info.get("board_name") and b_info["board_name"] != "--":
-            industry = b_info["board_name"]
-    except Exception:
-        pass
+    # 获取同行业横向对比与所属行业
+    industry, peers_list = fetch_stock_peers_data(clean_code, fallback_industry=industry)
 
     # 智能诊断文本生成
     analysis_html = _generate_fina_diagnosis(clean_code, get_stock_name(clean_code), industry, fina_list)
@@ -772,6 +767,162 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
     }
     _FINA_CACHE[cache_key] = (now, result)
     return result
+
+
+_PE_PERCENTILE_CACHE: Tuple[float, Dict[str, float]] = (0.0, {})
+
+
+def _get_universe_pe_map() -> Dict[str, float]:
+    """获取全市场最近的 PE(3年分位) 映射表 (基于 universe 缓存)。"""
+    global _PE_PERCENTILE_CACHE
+    now = time.time()
+    if _PE_PERCENTILE_CACHE[1] and (now - _PE_PERCENTILE_CACHE[0] < 600):
+        return _PE_PERCENTILE_CACHE[1]
+
+    import glob
+    pe_map: Dict[str, float] = {}
+    cache_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "trading_system_cache"))
+    pattern = os.path.join(cache_dir, "universe_all_*.json")
+    files = sorted(glob.glob(pattern))
+    if not files:
+        pattern2 = os.path.join(cache_dir, "universe_*.json")
+        files = sorted(glob.glob(pattern2))
+
+    if files:
+        latest_file = files[-1]
+        try:
+            with open(latest_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for item in data:
+                    c = str(item.get("stock_code", "")).strip()
+                    p = item.get("pe_percentile")
+                    if c and p is not None:
+                        pe_map[c] = float(p)
+            _PE_PERCENTILE_CACHE = (now, pe_map)
+        except Exception as e:
+            logger.debug(f"Failed to load universe pe map from {latest_file}: {e}")
+
+    return pe_map
+
+
+def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行业") -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    获取目标个股所属行业及同行业同报告期龙头横向对比数据。
+    基于东方财富权威行业与财报数据中心（RPT_LICO_FN_CPD）。
+    包含历史 3 年 PE 百分位（PE(3年分位)）。
+    """
+    peers_list: List[Dict[str, Any]] = []
+    industry = fallback_industry
+
+    # 尝试读取本地股票的板块名称作为基础
+    try:
+        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+        b_info = _resolve_stock_board_info(clean_code)
+        if b_info and b_info.get("board_name") and b_info["board_name"] != "--":
+            industry = str(b_info["board_name"])
+    except Exception:
+        pass
+
+    pe_map = _get_universe_pe_map()
+    target_pe = pe_map.get(clean_code)
+    if target_pe is None:
+        try:
+            df_t = fetch_security_kline(clean_code, count=750)
+            if df_t is not None and len(df_t) >= 30:
+                c_v = df_t["close"].values.astype(float)
+                target_pe = round(float(np.mean(c_v < float(c_v[-1])) * 100.0), 1)
+        except Exception:
+            pass
+
+    try:
+        url_t = (
+            f"https://datacenter-web.eastmoney.com/api/data/v1/get?"
+            f"reportName=RPT_LICO_FN_CPD&columns=ALL"
+            f"&filter=(SECURITY_CODE%3D%22{clean_code}%22)"
+            f"&sortTypes=-1&sortColumns=REPORTDATE&pageSize=1"
+        )
+        req = urllib.request.Request(url_t, headers=_DEFAULT_HEADERS)
+        with urllib.request.urlopen(req, timeout=4.5) as resp:
+            raw = resp.read()
+            if raw[:2] == b"\x1f\x8b":
+                raw = gzip.decompress(raw)
+            d = json.loads(raw.decode("utf-8", errors="ignore"))
+            items = d.get("result", {}).get("data", [])
+            if not items:
+                return industry, []
+            target = items[0]
+
+        b_code = target.get("BOARD_CODE")
+        em_bname = target.get("BOARD_NAME") or target.get("PUBLISHNAME")
+        rep_date = target.get("REPORTDATE")
+        target_name = target.get("SECURITY_NAME_ABBR") or get_stock_name(clean_code)
+
+        # 行业名称判定：优先保留用户熟知的本地细分行业（如 PCB），若无则采用东财行业名
+        if industry == "通用行业" and em_bname:
+            industry = str(em_bname)
+
+        if not b_code or not rep_date:
+            return industry, []
+
+        filter_str = f'(BOARD_CODE="{b_code}")(REPORTDATE=\'{rep_date}\')'
+        url_p = (
+            f"https://datacenter-web.eastmoney.com/api/data/v1/get?"
+            f"reportName=RPT_LICO_FN_CPD&columns=ALL"
+            f"&filter={urllib.parse.quote(filter_str)}"
+            f"&sortTypes=-1&sortColumns=TOTAL_OPERATE_INCOME"
+            f"&pageNumber=1&pageSize=500"
+        )
+        req2 = urllib.request.Request(url_p, headers=_DEFAULT_HEADERS)
+        with urllib.request.urlopen(req2, timeout=5.0) as resp2:
+            raw2 = resp2.read()
+            if raw2[:2] == b"\x1f\x8b":
+                raw2 = gzip.decompress(raw2)
+            d2 = json.loads(raw2.decode("utf-8", errors="ignore"))
+            peer_items = d2.get("result", {}).get("data", [])
+
+        # 全量包含同一行业的所有股票（不进行截断，让用户可纵览全行业排位）
+        has_target = False
+
+        for it in peer_items:
+            c = str(it.get("SECURITY_CODE", ""))
+            is_tgt = (c == clean_code)
+            if is_tgt:
+                has_target = True
+            pe_val = target_pe if is_tgt else pe_map.get(c)
+            peers_list.append({
+                "code": c,
+                "name": str(it.get("SECURITY_NAME_ABBR") or get_stock_name(c)),
+                "qdate": str(it.get("QDATE") or target.get("QDATE") or "--"),
+                "total_operate_income": float(it.get("TOTAL_OPERATE_INCOME") or 0.0),
+                "ystz": round(float(it["YSTZ"]), 2) if it.get("YSTZ") is not None else None,
+                "parent_netprofit": float(it.get("PARENT_NETPROFIT") or 0.0),
+                "sjltz": round(float(it["SJLTZ"]), 2) if it.get("SJLTZ") is not None else None,
+                "weightavg_roe": round(float(it["WEIGHTAVG_ROE"]), 2) if it.get("WEIGHTAVG_ROE") is not None else None,
+                "xsmll": round(float(it["XSMLL"]), 2) if it.get("XSMLL") is not None else None,
+                "pe_percentile": pe_val,
+                "is_target": is_tgt,
+            })
+
+        # 若目标股票不在同行业已披露名单中，把目标股票自身补充在末尾
+        if not has_target:
+            peers_list.append({
+                "code": clean_code,
+                "name": str(target.get("SECURITY_NAME_ABBR") or target_name),
+                "qdate": str(target.get("QDATE") or "--"),
+                "total_operate_income": float(target.get("TOTAL_OPERATE_INCOME") or 0.0),
+                "ystz": round(float(target["YSTZ"]), 2) if target.get("YSTZ") is not None else None,
+                "parent_netprofit": float(target.get("PARENT_NETPROFIT") or 0.0),
+                "sjltz": round(float(target["SJLTZ"]), 2) if target.get("SJLTZ") is not None else None,
+                "weightavg_roe": round(float(target["WEIGHTAVG_ROE"]), 2) if target.get("WEIGHTAVG_ROE") is not None else None,
+                "xsmll": round(float(target["XSMLL"]), 2) if target.get("XSMLL") is not None else None,
+                "pe_percentile": target_pe,
+                "is_target": True,
+            })
+
+    except Exception as e:
+        logger.debug(f"Failed to fetch stock peers for {clean_code}: {e}")
+
+    return industry, peers_list
 
 
 def _generate_fina_diagnosis(code: str, name: str, industry: str, fina_data: List[Dict[str, Any]]) -> str:
