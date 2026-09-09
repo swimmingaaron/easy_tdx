@@ -23,7 +23,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import pandas as pd
 
-from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
+from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes, _TDX_POOL, _get_market
+from easy_tdx.sina import SinaClient
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.screener.universe import get_universe_symbols, CORE_UNIVERSE
 from easy_tdx.pattern_recognition import detect_patterns
@@ -109,8 +110,21 @@ def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
     })
 
 
+def _get_market_prefix(code: str) -> str:
+    c = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    if c.startswith("6") or c.startswith("9"):
+        return "SH"
+    elif c.startswith("8") or c.startswith("4"):
+        return "BJ"
+    return "SZ"
+
+
 def fetch_stock_holders(code: str) -> Dict[str, Any]:
-    """获取股东人数及前十大股东集中度（带 24 小时内存与本地缓存）。"""
+    """
+    获取股东人数及前十大股东集中度。
+    第一获取接口：从 easy_tdx 原生 TDX 接口获取最新股东人数；
+    若失败或需要历史变动及集中度，再从外部接口（东方财富等）补充/兜底抓取。
+    """
     clean_code = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     pfx = _get_market_prefix(clean_code)
     now = time.time()
@@ -127,10 +141,32 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
         "holders_changes": [],
     }
 
+    # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info
+    easy_tdx_ok = False
+    try:
+        cli = _TDX_POOL.acquire()
+        try:
+            mkt = _get_market(clean_code)
+            df = cli.get_finance_info(mkt, clean_code)
+            _TDX_POOL.release(cli, success=True)
+            if df is not None and not df.empty:
+                row = df.iloc[0]
+                num = int(row.get("gudong_renshu") or 0)
+                if num > 0:
+                    res["holders_num"] = num
+                    res["holders_str"] = f"{num / 10000:.1f}万" if num >= 10000 else str(num)
+                    easy_tdx_ok = True
+        except Exception as e:
+            _TDX_POOL.release(cli, success=False)
+            logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
+    except Exception as e:
+        logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+
+    # 2. 第二获取接口/补充接口：抓取股东集中度与近 3 期变动同比（若第一接口失败则作为完整兜底）
     try:
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
             raw_bytes = resp.read()
             if raw_bytes[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
@@ -140,11 +176,14 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
             if "gdrs" in data_json and data_json["gdrs"]:
                 gdrs = data_json["gdrs"]
                 latest = gdrs[0]
-                num = int(latest.get("HOLDER_TOTAL_NUM") or 0)
+                em_num = int(latest.get("HOLDER_TOTAL_NUM") or 0)
+                # 若第一接口 easy_tdx 未能成功获取人数，由外部兜底
+                if not easy_tdx_ok and em_num > 0:
+                    res["holders_num"] = em_num
+                    res["holders_str"] = f"{em_num / 10000:.1f}万" if em_num >= 10000 else str(em_num)
+
                 ratio = float(latest.get("HOLD_RATIO_TOTAL") or latest.get("FREEHOLD_RATIO_TOTAL") or 0.0)
                 focus = str(latest.get("HOLD_FOCUS") or "")
-
-                num_str = f"{num / 10000:.1f}万" if num >= 10000 else (str(num) if num > 0 else "--")
 
                 changes = []
                 for item in gdrs[:3]:
@@ -157,13 +196,9 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
                             "num": int(item.get("HOLDER_TOTAL_NUM") or 0)
                         })
 
-                res["holders_num"] = num
-                res["holders_str"] = num_str
                 res["holder_ratio"] = round(ratio, 2)
                 res["holder_focus"] = focus
                 res["holders_changes"] = changes
-                _HOLDERS_CACHE[clean_code] = (now, res)
-                return res
     except Exception as e:
         logger.debug(f"Eastmoney shareholder fetch failed for {clean_code}: {e}")
 
@@ -232,14 +267,6 @@ def _calculate_consecutive_flow(df: pd.DataFrame, realtime_quote: Optional[Dict[
     return int(sign_days), float(consec_amount)
 
 
-
-def _get_market_prefix(code: str) -> str:
-    c = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
-    if c.startswith("6") or c.startswith("9"):
-        return "SH"
-    elif c.startswith("8") or c.startswith("4"):
-        return "BJ"
-    return "SZ"
 
 
 def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarray, int]:
@@ -625,7 +652,9 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
 
 def fetch_stock_financials(code: str) -> Dict[str, Any]:
     """
-    抓取东方财富近 8 期财报及同行对比指标（支持 gzip 解压，带内存缓存）。
+    获取近 8 期财报及诊断指标。
+    第一获取接口：从 easy_tdx 原生接口（SinaClient 8期报表 + TDX 每股净资产）获取；
+    若获取失败或数据为空，再从外部接口（东方财富等）回退抓取。
     """
     clean_code = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     pfx = _get_market_prefix(clean_code)
@@ -641,40 +670,83 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
     peers_list = []
     industry = "通用行业"
 
+    # 1. 第一获取接口：easy_tdx 内置 SinaClient 8 期财报
     try:
-        url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
-        req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            raw_bytes = resp.read()
-            if raw_bytes[:2] == b"\x1f\x8b":
-                raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
-            else:
-                raw = raw_bytes.decode("utf-8", errors="replace")
-            data_json = json.loads(raw).get("data", [])
-            for item in data_json[:8]:
-                rep_date = str(item.get("REPORT_DATE", ""))[:10]
-                qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
-                rev = float(item.get("TOTALOPERATEREVE") or 0.0)
-                np_val = float(item.get("PARENTNETPROFIT") or 0.0)
-                roe = float(item.get("ROEJQ") or 0.0)
-                ystz = float(item.get("TOTALOPERATEREVETZ") or 0.0)
-                sjltz = float(item.get("PARENTNETPROFITTZ") or 0.0)
-                xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
-                eps = float(item.get("EPSJB") or 0.0)
+        sc = SinaClient(timeout=3.0)
+        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=8)
+
+        # 从 easy_tdx 原生 TDX 获取每股净资产以计算 ROE
+        nav = 0.0
+        try:
+            cli = _TDX_POOL.acquire()
+            df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+            _TDX_POOL.release(cli, success=True)
+            if df_tdx is not None and not df_tdx.empty:
+                nav = float(df_tdx.iloc[0].get("meigujing_zichan") or 0.0)
+        except Exception:
+            pass
+
+        if df_sina is not None and not df_sina.empty:
+            for _, r in df_sina.iterrows():
+                rep_date = str(r.get("报告期") or "")[:10]
+                qdate = rep_date
+                rev = float(r.get("营业总收入") or r.get("营业收入") or 0.0)
+                np_val = float(r.get("归属于母公司所有者的净利润") or r.get("净利润") or 0.0)
+                ystz = float(r.get("营业总收入_同比") or r.get("营业收入_同比") or 0.0) * 100.0
+                sjltz = float(r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比") or 0.0) * 100.0
+                eps = float(r.get("基本每股收益") or 0.0)
+                roe = round((eps / nav) * 100.0, 2) if nav > 0 and eps != 0 else 0.0
 
                 fina_list.append({
                     "record_date": str(rep_date),
                     "qdate": str(qdate),
                     "total_operate_income": float(rev),
                     "parent_netprofit": float(np_val),
-                    "weightavg_roe": float(round(roe, 2)),
+                    "weightavg_roe": float(roe),
                     "ystz": float(round(ystz, 2)),
                     "sjltz": float(round(sjltz, 2)),
-                    "xsmll": float(round(xsmll, 2)),
+                    "xsmll": 0.0,
                     "basic_eps": float(round(eps, 3)),
                 })
     except Exception as e:
-        logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
+        logger.debug(f"easy_tdx financial interface failed for {clean_code}: {e}")
+
+    # 2. 第二获取接口：若 easy_tdx 接口获取失败或为空，回退到东方财富抓取
+    if not fina_list:
+        try:
+            url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
+            req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                raw_bytes = resp.read()
+                if raw_bytes[:2] == b"\x1f\x8b":
+                    raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
+                else:
+                    raw = raw_bytes.decode("utf-8", errors="replace")
+                data_json = json.loads(raw).get("data", [])
+                for item in data_json[:8]:
+                    rep_date = str(item.get("REPORT_DATE", ""))[:10]
+                    qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
+                    rev = float(item.get("TOTALOPERATEREVE") or 0.0)
+                    np_val = float(item.get("PARENTNETPROFIT") or 0.0)
+                    roe = float(item.get("ROEJQ") or 0.0)
+                    ystz = float(item.get("TOTALOPERATEREVETZ") or 0.0)
+                    sjltz = float(item.get("PARENTNETPROFITTZ") or 0.0)
+                    xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
+                    eps = float(item.get("EPSJB") or 0.0)
+
+                    fina_list.append({
+                        "record_date": str(rep_date),
+                        "qdate": str(qdate),
+                        "total_operate_income": float(rev),
+                        "parent_netprofit": float(np_val),
+                        "weightavg_roe": float(round(roe, 2)),
+                        "ystz": float(round(ystz, 2)),
+                        "sjltz": float(round(sjltz, 2)),
+                        "xsmll": float(round(xsmll, 2)),
+                        "basic_eps": float(round(eps, 3)),
+                    })
+        except Exception as e:
+            logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
 
     # 获取行业
     try:
