@@ -4739,22 +4739,24 @@
             }
             allTurns.sort((a, b) => a.idx - b.idx);
 
-            // 计算从反转之日算起的第几天：从顶点反转变成负数(-1, -2...)，从谷底反转为正数(+1, +2...)
+            // 计算从反转之日算起的第几天：
+            // 顶点/底点当日仍延续原来的趋势统计(例如底点当日仍为下跌的第-7天)；
+            // 股价转向的当日(即反转首日/次日)标记为1：从谷底反转为正数(+1, +2...)，从顶点反转变成负数(-1, -2...)
             const zigDays = new Array(n).fill(0);
             for (let i = 0; i < n; i++) {
                 let lastTurn = null;
                 for (let k = allTurns.length - 1; k >= 0; k--) {
-                    if (allTurns[k].idx <= i) {
+                    if (allTurns[k].idx < i) {
                         lastTurn = allTurns[k];
                         break;
                     }
                 }
                 if (lastTurn) {
-                    const elapsed = i - lastTurn.idx + 1;
-                    zigDays[i] = (lastTurn.type === 'PEAK') ? -elapsed : elapsed;
+                    const elapsed = i - lastTurn.idx;
+                    zigDays[i] = (lastTurn.type === 'TROUGH') ? elapsed : -elapsed;
                 } else if (allTurns.length > 0) {
                     const firstTurn = allTurns[0];
-                    const dist = firstTurn.idx - i + 1;
+                    const dist = i + 1;
                     zigDays[i] = (firstTurn.type === 'TROUGH') ? -dist : dist;
                 } else {
                     zigDays[i] = 0;
@@ -4763,7 +4765,7 @@
 
             // 确保所有已确认的顶点和底点都包含在 anchorPeaks 和 anchorTroughs 中
             for (const p of peaks) {
-                if (p.peakIdx > 0 && p.peakIdx < n && !anchorPeaks.some(ap => ap.datetime === bars[p.peakIdx].datetime)) {
+                if (p.peakIdx >= 0 && p.peakIdx < n && !anchorPeaks.some(ap => ap.datetime === bars[p.peakIdx].datetime)) {
                     anchorPeaks.push({
                         datetime: bars[p.peakIdx].datetime,
                         price: p.peakPrice,
@@ -4773,7 +4775,7 @@
                 }
             }
             for (const t of troughs) {
-                if (t.troughIdx > 0 && t.troughIdx < n && !anchorTroughs.some(at => at.datetime === bars[t.troughIdx].datetime)) {
+                if (t.troughIdx >= 0 && t.troughIdx < n && !anchorTroughs.some(at => at.datetime === bars[t.troughIdx].datetime)) {
                     anchorTroughs.push({
                         datetime: bars[t.troughIdx].datetime,
                         price: t.troughPrice,
@@ -4783,19 +4785,22 @@
                 }
             }
 
-            // 构造日线下方的短竖线指示数据：dim0=datetime, dim1=close(保持真实股价范围，防止破坏K线Y轴), dim2=拐点类型(1:波峰顶->绿色, -1:波谷底->红色)
+            // 构造日线下方的短竖线指示数据：在股价转向当日(反转之日)标记并显示短竖线
+            // dim0=datetime, dim1=close(保持真实股价范围，防止破坏K线Y轴), dim2=拐点反转类型(1:波峰转向下跌->绿色, -1:波谷转向上涨->红色)
             const turnLines = [];
             for (const p of peaks) {
-                if (p.peakIdx > 0 && p.peakIdx < n) {
+                const revIdx = p.peakIdx + 1;
+                if (p.peakIdx >= 0 && revIdx < n) {
                     turnLines.push({
-                        value: [bars[p.peakIdx].datetime, bars[p.peakIdx].close, 1, p.peakIdx]
+                        value: [bars[revIdx].datetime, bars[revIdx].close, 1, revIdx]
                     });
                 }
             }
             for (const t of troughs) {
-                if (t.troughIdx > 0 && t.troughIdx < n) {
+                const revIdx = t.troughIdx + 1;
+                if (t.troughIdx >= 0 && revIdx < n) {
                     turnLines.push({
-                        value: [bars[t.troughIdx].datetime, bars[t.troughIdx].close, -1, t.troughIdx]
+                        value: [bars[revIdx].datetime, bars[revIdx].close, -1, revIdx]
                     });
                 }
             }
