@@ -81,22 +81,27 @@ def get_signal_dashboard(
     sort_dir: str = Query("desc", description="排序方向: asc, desc"),
     selected_date: str = Query("", description="选定日期"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
+    symbols: Optional[str] = Query(None, description="逗号分隔的个股代码列表"),
 ) -> Dict[str, Any]:
     """
     信号看板：包含 18 项买入打分、9 项卖出预警打分、量价红星/绿星、ZIG转向与战法识别。
     """
     try:
-        # 如果搜索了单个 6 位股票代码，直接以该股票单股多日历史或单股评估返回
         search_kw = search_stock.strip().upper()
+        symbols_set = None
         if search_kw.isdigit() and len(search_kw) == 6:
             # 优先回溯历史或精准评估该股
             single_res = evaluate_universe([search_kw], max_workers=1)
             all_stocks = single_res
+        elif symbols:
+            clean_syms = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols.split(",") if s.strip()]
+            symbols_set = set(clean_syms)
+            all_stocks = evaluate_universe(symbols=clean_syms, universe_type="custom", force_refresh=force_refresh)
         else:
-            symbols = None
+            wl_symbols = None
             if my_optional:
-                symbols = load_watchlist()
-                if not symbols:
+                wl_symbols = load_watchlist()
+                if not wl_symbols:
                     return {
                         "success": True,
                         "total_count": 0,
@@ -105,7 +110,7 @@ def get_signal_dashboard(
                         "industries": [],
                         "watchlist": [],
                     }
-            all_stocks = evaluate_universe(symbols=symbols, universe_type=universe, force_refresh=force_refresh)
+            all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=universe, force_refresh=force_refresh)
 
         watchlist_set = set(load_watchlist())
 
@@ -116,6 +121,10 @@ def get_signal_dashboard(
         # 过滤
         filtered: List[Dict[str, Any]] = []
         for s in all_stocks:
+            # 指定股票列表过滤
+            if symbols_set and s["stock_code"] not in symbols_set:
+                continue
+
             # 搜索过滤
             if search_kw:
                 code_match = search_kw in s["stock_code"]

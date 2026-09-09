@@ -131,6 +131,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             ex_client = None
     app.state.ex_client = ex_client
 
+    # --- 启动大盘全景后台刷新与预热 ---
+    try:
+        from easy_tdx.market_overview import _start_bg_overview_worker, _trigger_async_market_summary_refresh
+        _start_bg_overview_worker()
+        _trigger_async_market_summary_refresh()
+    except Exception as e:
+        logger.debug(f"Pre-warming market overview error: {e}")
+
     yield
 
     # --- 依次关闭 ---

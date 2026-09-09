@@ -615,6 +615,7 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
         "open": float(cur_open),
         "high": float(cur_high),
         "low": float(cur_low),
+        "amplitude": round(float((cur_high - cur_low) / max(0.01, pre_close) * 100.0), 2),
         "v_rate": float(v_rate),
         "t_rate": float(t_rate),
         "dde_net": float(dde_net),
@@ -1146,6 +1147,38 @@ def evaluate_universe(
     cache_f = os.path.join(_CACHE_DIR, f"universe_{universe_type}_{today_str}.json")
     mem_key = f"univ_{universe_type}"
 
+    # 自选/自定义股票池启用30秒轻量缓存与秒级实时快照刷新
+    if is_custom_symbols and not force_refresh and symbols:
+        mem_key = f"univ_custom_{','.join(sorted(symbols))}"
+        now = time.time()
+        if mem_key in _MEM_CACHE:
+            ts, cached_list = _MEM_CACHE[mem_key]
+            if now - ts < 30.0:
+                try:
+                    quotes = fetch_realtime_pool_quotes(symbols)
+                    q_map = {q["code"]: q for q in quotes}
+                    updated_list = []
+                    for item in cached_list:
+                        s_copy = dict(item)
+                        sc = s_copy.get("stock_code")
+                        if sc in q_map:
+                            q = q_map[sc]
+                            s_copy["close"] = float(q.get("price") or q.get("close") or s_copy.get("close", 0))
+                            s_copy["pct"] = float(q.get("change_pct") or s_copy.get("pct", 0))
+                            s_copy["high"] = float(q.get("high") or s_copy.get("high", 0))
+                            s_copy["low"] = float(q.get("low") or s_copy.get("low", 0))
+                            pre_c = float(q.get("pre_close") or s_copy.get("close") or 1.0)
+                            s_copy["amplitude"] = round(float((s_copy["high"] - s_copy["low"]) / max(0.01, pre_c) * 100.0), 2)
+                            s_copy["amount"] = float(q.get("amount") or s_copy.get("amount", 0))
+                            if "main_net_amount" in q:
+                                s_copy["dde_net"] = float(q["main_net_amount"])
+                            if "total_val_yi" in q and q["total_val_yi"]:
+                                s_copy["mkt_capt"] = float(q["total_val_yi"]) * 1e8
+                        updated_list.append(s_copy)
+                    return updated_list
+                except Exception:
+                    return [dict(x) for x in cached_list]
+
     # 仅对标准股票池启用缓存
     if not is_custom_symbols and not force_refresh:
         now = time.time()
@@ -1270,6 +1303,9 @@ def evaluate_universe(
                 json.dump(results, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"Failed to save universe cache: {e}")
+    elif is_custom_symbols and results and symbols:
+        mem_key = f"univ_custom_{','.join(sorted(symbols))}"
+        _MEM_CACHE[mem_key] = (time.time(), results)
 
     return results
 

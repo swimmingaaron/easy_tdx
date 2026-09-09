@@ -5,6 +5,9 @@ import threading
 import time
 import datetime
 from typing import Any
+import os
+import json
+from concurrent.futures import ThreadPoolExecutor
 from easy_tdx.market_data import fetch_security_kline, _get_or_create_client
 from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
 
@@ -12,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 _OVERVIEW_CACHE: tuple[float, dict[str, Any]] | None = None
 CACHE_TTL_SEC = 5.0
+
+_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+_SUMMARY_DISK_CACHE = os.path.join(_CACHE_DIR, "market_summary_latest.json")
+
+_INDUSTRIES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
+_IND_CACHE_LOCK = threading.Lock()
+
+_BOARD_MEMBERS_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_BOARD_CACHE_LOCK = threading.Lock()
 
 
 # ── MAC client singleton (for board/industry ranking APIs) ────────────
@@ -41,6 +53,13 @@ def _get_or_create_mac_client():
 
 
 def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
+    global _INDUSTRIES_CACHE
+    now = time.time()
+    with _IND_CACHE_LOCK:
+        if _INDUSTRIES_CACHE is not None:
+            ts, cached_inds = _INDUSTRIES_CACHE
+            if now - ts < 10.0 and len(cached_inds) >= min(top_n, 30):
+                return cached_inds[:top_n]
     """Fetch all industry sector rankings from native TDX MAC protocol.
 
     Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=200)`` which returns
@@ -87,6 +106,8 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
                     "member_count": int(row.get("member_count", 0)),
                 })
             if industries:
+                with _IND_CACHE_LOCK:
+                    _INDUSTRIES_CACHE = (time.time(), industries)
                 # Preload constituent stocks for the leading industry
                 try:
                     industries[0]["stocks"] = fetch_board_members(industries[0]["code"], count=25)
@@ -100,6 +121,14 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
 
 def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]]:
     """Fetch constituent stocks with real-time prices, change percentages, amounts, and 1d/3d/5d net capital inflows."""
+    cache_key = f"{board_code}_{count}"
+    now = time.time()
+    with _BOARD_CACHE_LOCK:
+        if cache_key in _BOARD_MEMBERS_CACHE:
+            ts, cached_stocks = _BOARD_MEMBERS_CACHE[cache_key]
+            if now - ts < 15.0:
+                return [dict(x) for x in cached_stocks]
+
     from easy_tdx.stock_lookup import get_stock_name
     from easy_tdx.codec.bitmap import FieldBit, PresetField
     stocks: list[dict[str, Any]] = []
@@ -159,6 +188,9 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
                     "vol": int(row.get("vol", 0)),
                 })
             stocks.sort(key=lambda x: -x["change_pct"])
+            if stocks:
+                with _BOARD_CACHE_LOCK:
+                    _BOARD_MEMBERS_CACHE[cache_key] = (time.time(), stocks)
     except Exception as e:
         logger.warning(f"Failed to fetch board members for {board_code}: {e}")
     return stocks
@@ -258,11 +290,10 @@ def _build_market_summary() -> dict[str, Any]:
         from easy_tdx.models import Market, KlineCategory
         mkt_map = {1: Market.SH, 0: Market.SZ}
         cli = _get_or_create_client()
-        for code, name, ex, def_close, def_pc, def_pct, def_amt, mkt_flag in target_indices:
-            cur_close = def_close
-            cur_pc = def_pc
-            cur_pct = def_pct
-            cur_amt = def_amt
+
+        def _fetch_single_index(item):
+            code, name, ex, def_close, def_pc, def_pct, def_amt, mkt_flag = item
+            cur_close, cur_pc, cur_pct, cur_amt = def_close, def_pc, def_pct, def_amt
             sparkline = []
             try:
                 mkt = mkt_map.get(mkt_flag, Market.SH)
@@ -275,20 +306,12 @@ def _build_market_summary() -> dict[str, Any]:
                     cur_pct = round(((cur_close / max(0.01, cur_pc)) - 1.0) * 100, 2)
                     cur_amt = round(float(last_b.get("amount", 0.0)) / 100000000.0, 2)
                 
-                # Fetch 1-minute intraday bars (up to 300 bars) and filter to single latest trading day
-                mb = cli.get_index_bars(mkt, code, KlineCategory.MIN_1, 0, 300)
+                mb = cli.get_index_bars(mkt, code, KlineCategory.MIN_1, 0, 120)
                 if mb is not None and not mb.empty:
-                    mb['date_str'] = mb['datetime'].astype(str).str.split(' ').str[0]
-                    latest_date = mb['date_str'].iloc[-1]
-                    day_mb = mb[mb['date_str'] == latest_date]
-                    if not day_mb.empty:
-                        sparkline = [round(float(x), 2) for x in day_mb["close"].tolist()]
-                    else:
-                        sparkline = [round(float(x), 2) for x in mb["close"].tail(240).tolist()]
+                    sparkline = [round(float(x), 2) for x in mb["close"].tail(60).tolist()]
             except Exception as e:
                 logger.debug(f"Failed to fetch index {code} ({name}): {e}")
-            
-            major_indices.append({
+            return {
                 "code": code,
                 "symbol": f"{code}.{'SH' if mkt_flag == 1 else 'SZ'}",
                 "name": name,
@@ -298,7 +321,10 @@ def _build_market_summary() -> dict[str, Any]:
                 "change_pct": cur_pct,
                 "amount_yi": cur_amt,
                 "sparkline": sparkline,
-            })
+            }
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            major_indices = list(pool.map(_fetch_single_index, target_indices))
     except Exception as e:
         logger.debug(f"Major index gathering error: {e}")
 
@@ -308,7 +334,7 @@ def _build_market_summary() -> dict[str, Any]:
     # 6. Leading industry sectors from native TDX MAC board ranking
     leading_industries = _fetch_industry_ranking_live()
 
-    return {
+    ret_summary = {
         "status": "success",
         "date": today_str,
         "update_time": update_time_str,
@@ -347,6 +373,13 @@ def _build_market_summary() -> dict[str, Any]:
         },
         "industries": leading_industries
     }
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_SUMMARY_DISK_CACHE, "w", encoding="utf-8") as f:
+            json.dump(ret_summary, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.debug(f"Failed to persist market summary to disk: {e}")
+    return ret_summary
 
 
 def is_trading_time() -> bool:
@@ -443,10 +476,44 @@ def fetch_realtime_market_summary() -> dict[str, Any]:
             _trigger_async_market_summary_refresh()
             return data
 
-    # Cache completely empty (first-time boot): synchronous compute
-    data = _build_market_summary()
+    # 1. 尝试从磁盘快照极速恢复 (首屏 <1ms 响应)
+    if os.path.exists(_SUMMARY_DISK_CACHE):
+        try:
+            with open(_SUMMARY_DISK_CACHE, "r", encoding="utf-8") as f:
+                disk_data = json.load(f)
+                if isinstance(disk_data, dict) and disk_data.get("status") == "success":
+                    with _CACHE_LOCK:
+                        _OVERVIEW_CACHE = (now, disk_data)
+                    _trigger_async_market_summary_refresh()
+                    return disk_data
+        except Exception as e:
+            logger.debug(f"Failed to load market summary disk cache: {e}")
+
+    # 2. 若首次启动尚无磁盘快照，异步触发计算并先返回极速基准快照 (避免首屏阻塞白屏)
+    _trigger_async_market_summary_refresh()
+    quick_inds = _fetch_industry_ranking_live(top_n=50)
+    baseline_data = {
+        "status": "success",
+        "date": datetime.date.today().strftime("%Y-%m-%d"),
+        "update_time": datetime.datetime.now().strftime("%H:%M:%S"),
+        "refresh_interval_ms": 5000,
+        "is_trading_time": is_trading_time(),
+        "major_indices": [
+            {"code": "000001", "symbol": "000001.SH", "name": "上证指数", "exchange": "上交所", "close": 3941.39, "pre_close": 3979.89, "change_pct": -0.97, "amount_yi": 8363.68, "sparkline": []},
+            {"code": "399001", "symbol": "399001.SZ", "name": "深证成指", "exchange": "深交所", "close": 13611.55, "pre_close": 13872.38, "change_pct": -1.88, "amount_yi": 9568.11, "sparkline": []},
+            {"code": "399006", "symbol": "399006.SZ", "name": "创业板指", "exchange": "创业板", "close": 3312.24, "pre_close": 3393.43, "change_pct": -2.39, "amount_yi": 4428.89, "sparkline": []},
+            {"code": "000688", "symbol": "000688.SH", "name": "科创50", "exchange": "科创板", "close": 1617.60, "pre_close": 1647.53, "change_pct": -1.82, "amount_yi": 643.42, "sparkline": []},
+            {"code": "000300", "symbol": "000300.SH", "name": "沪深300", "exchange": "核心宽基", "close": 4547.96, "pre_close": 4611.44, "change_pct": -1.38, "amount_yi": 4746.88, "sparkline": []},
+        ],
+        "sh_index": {"name": "上证指数", "close": 3941.39, "change_pct": -0.97, "status": "震荡整理"},
+        "sentiment": {"score": 55.0, "phase": "主升期 · 顺势参与", "advice": "多头情绪占优，积极把握主线战法低吸"},
+        "breadth": {"up_count": 2337, "down_count": 3061, "flat_count": 147, "ratio": 0.76, "distribution": [16, 153, 367, 1163, 1362, 140, 888, 701, 140, 58], "labels": ["<-7%", "-7%~-5%", "-5%~-3%", "-3%~-1%", "-1%~0%", "0%~1%", "1%~3%", "3%~5%", "5%~7%", ">7%"]},
+        "limit_stats": {"zt_count": 58, "dt_count": 11, "broken_ratio": "12.5%", "max_consecutive": "3 连板"},
+        "turnover": {"total_yi": 13023.7, "diff_yesterday": "+680 亿", "is_increase": True},
+        "industries": quick_inds,
+    }
     with _CACHE_LOCK:
-        _OVERVIEW_CACHE = (now, data)
-    return data
+        _OVERVIEW_CACHE = (now, baseline_data)
+    return baseline_data
 
 
