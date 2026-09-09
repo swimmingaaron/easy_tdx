@@ -1099,8 +1099,8 @@
         </div>
 
         <nav class="flex flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
-            <button onclick="switchTab('backtest')" id="tab-backtest" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i data-lucide="line-chart" class="w-3.5 h-3.5 inline mr-1"></i>单标的回测</button>
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
+            <button onclick="switchTab('backtest')" id="tab-backtest" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="line-chart" class="w-3.5 h-3.5 inline mr-1"></i>单标的回测</button>
             <button onclick="switchTab('optimize')" id="tab-optimize" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="sliders" class="w-3.5 h-3.5 inline mr-1"></i>参数寻优</button>
             <button onclick="switchTab('screener')" id="tab-screener" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="search" class="w-3.5 h-3.5 inline mr-1"></i>48大策略选股</button>
             <button onclick="switchTab('ladder')" id="tab-ladder" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="git-commit" class="w-3.5 h-3.5 inline mr-1"></i>连板天梯</button>
@@ -1131,7 +1131,7 @@
     <main class="flex-1 p-4 md:p-6 max-w-full w-full mx-auto space-y-6">
         
         <!-- 1. Backtest View (Original easy_tdx 单标的回测 UI layout) -->
-        <section id="view-backtest" class="space-y-6">
+        <section id="view-backtest" class="space-y-6 hidden">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
                 <!-- Left Sidebar Config Panel (width ~320px / 3 cols on 12-col grid) -->
@@ -1650,7 +1650,7 @@
         </section>
 
         <!-- 2. Dashboard View -->
-        <section id="view-dashboard" class="space-y-6 hidden">
+        <section id="view-dashboard" class="space-y-6">
             <!-- 顶部大盘全景控制条 (5s 自动刷新状态指示器与时段切换) -->
             <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 backdrop-blur-md">
                 <div class="flex items-center space-x-3">
@@ -3226,7 +3226,7 @@
 
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
-                tId = 'backtest';
+                tId = 'dashboard';
             }
             VALID_TABS.forEach(t => {
                 const btn = document.getElementById(`tab-${t}`);
@@ -3283,17 +3283,10 @@
         }
 
         function restoreInitialTab() {
-            let targetTab = 'backtest';
+            let targetTab = 'dashboard';
             const hashTab = (window.location.hash || '').replace('#', '').trim();
             if (VALID_TABS.includes(hashTab)) {
                 targetTab = hashTab;
-            } else {
-                try {
-                    const saved = localStorage.getItem('easy_tdx_active_tab');
-                    if (VALID_TABS.includes(saved)) {
-                        targetTab = saved;
-                    }
-                } catch (e) {}
             }
             switchTab(targetTab, false);
         }
@@ -11029,7 +11022,7 @@
             initECharts();
             await populateInitialData();
             restoreInitialTab();
-            const activeTab = (window.location.hash || '').replace('#', '').trim() || localStorage.getItem('easy_tdx_active_tab') || 'backtest';
+            const activeTab = (window.location.hash || '').replace('#', '').trim() || 'dashboard';
             if (activeTab === 'backtest') {
                 runBacktest();
             }

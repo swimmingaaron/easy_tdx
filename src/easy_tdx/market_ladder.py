@@ -41,7 +41,7 @@ def compute_exact_tdx_lbc(code: str) -> int:
     try:
         df = fetch_security_kline(clean, count=15)
         if df is None or df.empty or len(df) < 2:
-            return 1
+            return 0
         
         closes = df["close"].values
         lbc = 0
@@ -67,12 +67,12 @@ def compute_exact_tdx_lbc(code: str) -> int:
             else:
                 break
 
-        res_lbc = max(1, lbc)
+        res_lbc = lbc
         _LBC_CACHE[clean] = (now, res_lbc)
         return res_lbc
     except Exception as e:
         logger.debug(f"Failed to compute TDX LBC for {clean}: {e}")
-        return 1
+        return 0
 
 def compute_exact_tdx_seal_metrics(code: str) -> dict[str, Any]:
     """Compute real first seal time (FBT) and open-board count (zb_count) from 1-minute K-lines."""
@@ -442,10 +442,10 @@ def _compute_market_ladder_and_matrix() -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"Sina live limit-up fetch warning: {e}")
 
-    # Merge with default candidate pool to guarantee coverage (e.g. during market close or weekends)
-    known_codes = {s["code"] for s in raw_candidates}
-    for b in DEFAULT_CANDIDATE_POOL:
-        if b["code"] not in known_codes:
+    # Only fallback to default candidate pool if live market query yielded 0 candidates (e.g. offline/network failure)
+    if not raw_candidates:
+        logger.info("Live market candidate list empty, using default candidate pool fallback.")
+        for b in DEFAULT_CANDIDATE_POOL:
             raw_candidates.append({
                 "sym": b["code"],
                 "code": b["code"],
@@ -473,9 +473,12 @@ def _compute_market_ladder_and_matrix() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error computing exact TDX ladder metrics: {e}")
         for s in raw_candidates:
-            s["lbc"] = s.get("lbc", 1)
+            s["lbc"] = s.get("lbc", 0)
             s["fbt"] = s.get("fbt", "09:35:00")
             s["zb_count"] = s.get("zb_count", 0)
+
+    # Strictly filter candidates: only retain stocks that are legitimately in consecutive limit-up (lbc >= 1)
+    raw_candidates = [s for s in raw_candidates if s.get("lbc", 0) >= 1]
 
     max_lbc = max((s.get("lbc", 1) for s in raw_candidates), default=1)
 
