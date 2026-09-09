@@ -11211,39 +11211,41 @@
     </script>
 
     <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
-    <div id="ts-fina-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3">
-        <div class="glass-card bg-[#0b0f19] border border-slate-700/80 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
+    <div id="ts-fina-modal" class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
             <!-- Modal Header -->
-            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
-                <div class="flex items-center space-x-2">
-                    <span class="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400"><i data-lucide="activity" class="w-4 h-4"></i></span>
-                    <h3 id="ts-modal-title" class="text-sm font-bold text-white font-sans">📈 业绩诊断加载中...</h3>
+            <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900/90">
+                <div class="flex items-center space-x-2.5">
+                    <span class="p-1.5 rounded-lg bg-indigo-50 dark:bg-cyan-500/20 text-indigo-600 dark:text-cyan-400">
+                        <i data-lucide="activity" class="w-4 h-4"></i>
+                    </span>
+                    <h3 id="ts-modal-title" class="text-sm font-bold text-slate-900 dark:text-white font-sans">📈 业绩诊断加载中...</h3>
                 </div>
-                <button onclick="closeTsFinaModal()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">&times;</button>
+                <button onclick="closeTsFinaModal()" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center justify-center transition text-lg leading-none cursor-pointer" title="关闭">&times;</button>
             </div>
 
             <!-- Modal Tabs -->
-            <div class="px-4 pt-3 bg-slate-950/50 border-b border-slate-800/80 flex space-x-2 text-xs">
-                <button id="ts-mtab-btn-ai" onclick="switchTsModalTab('ai')" class="px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition">
+            <div class="px-4 pt-3 bg-slate-50/80 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 flex space-x-2 text-xs">
+                <button id="ts-mtab-btn-ai" onclick="switchTsModalTab('ai')" class="px-3.5 py-1.5 rounded-t-lg font-semibold bg-indigo-600 dark:bg-cyan-500 text-white dark:text-slate-950 shadow-xs transition cursor-pointer">
                     🤖 AI 深度业绩体检
                 </button>
-                <button id="ts-mtab-btn-data" onclick="switchTsModalTab('data')" class="px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition">
+                <button id="ts-mtab-btn-data" onclick="switchTsModalTab('data')" class="px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
                     📊 近8期核心财报对照
                 </button>
             </div>
 
             <!-- Modal Content Body -->
-            <div class="p-5 overflow-y-auto flex-1 text-xs space-y-4">
+            <div class="p-5 overflow-y-auto flex-1 text-xs space-y-4 bg-slate-50/60 dark:bg-slate-900/30">
                 <!-- AI Markdown 视图 -->
-                <div id="ts-modal-pane-ai" class="space-y-3 leading-relaxed text-slate-300">
-                    <div class="py-12 text-center text-slate-500">正在分析财务数据...</div>
+                <div id="ts-modal-pane-ai" class="space-y-3 leading-relaxed text-slate-700 dark:text-slate-300">
+                    <div class="py-12 text-center text-slate-500 dark:text-slate-400">正在分析财务数据...</div>
                 </div>
 
                 <!-- 财报数据大表视图 -->
                 <div id="ts-modal-pane-data" class="hidden space-y-3">
-                    <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
                         <table class="w-full text-left border-collapse text-[11px] whitespace-nowrap">
-                            <thead class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
+                            <thead class="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                                 <tr>
                                     <th class="p-2.5">报告期</th>
                                     <th class="p-2.5 text-right">营业总收入</th>
@@ -11255,7 +11257,7 @@
                                     <th class="p-2.5 text-right">EPS (元)</th>
                                 </tr>
                             </thead>
-                            <tbody id="ts-fina-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <tbody id="ts-fina-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-700 dark:text-slate-300">
                                 <!-- 动态插入 -->
                             </tbody>
                         </table>
@@ -11264,9 +11266,9 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-[10px] text-slate-500">
-                <span id="ts-modal-industry-label">所属行业：-</span>
-                <button onclick="closeTsFinaModal()" class="px-3 py-1 rounded bg-slate-800 text-slate-300 hover:text-white transition">关闭</button>
+            <div class="p-3.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span id="ts-modal-industry-label">所属行业：--</span>
+                <button onclick="closeTsFinaModal()" class="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-medium transition cursor-pointer">关闭</button>
             </div>
         </div>
     </div>
