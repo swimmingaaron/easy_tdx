@@ -11958,51 +11958,55 @@
 
         document.getElementById('ts-modal-title').innerText = `📈 业绩诊断: ${name} (${code})`;
         document.getElementById('ts-modal-industry-label').innerText = '所属行业：正在查询...';
-        document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="py-12 text-center text-cyan-400"><div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping inline-block mr-2"></div>正在调取 ${name} 深度财务数据与诊断模型...</div>`;
-        document.getElementById('ts-fina-table-body').innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500">正在载入财报数据...</td></tr>`;
+        document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="py-12 text-center text-indigo-600 dark:text-cyan-400"><div class="w-3 h-3 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping inline-block mr-2"></div>正在调取 ${name} 深度财务数据与多维量化诊断模型...</div>`;
+        document.getElementById('ts-fina-table-body').innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 dark:text-slate-400">正在载入财报数据...</td></tr>`;
 
         fetch(`/api/trading_system/fina_analysis/${code}`)
         .then(r => r.json())
         .then(d => {
             if (!d.success) {
-                document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-400">诊断出错: ${d.error || '无法获取财报'}</div>`;
+                document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-500 dark:text-rose-400">诊断出错: ${d.error || '无法获取财报'}</div>`;
                 return;
             }
 
             document.getElementById('ts-modal-title').innerText = `📈 ${d.stock_name} (${code}) - 智能投研业绩体检`;
             document.getElementById('ts-modal-industry-label').innerText = `所属行业：${d.industry || '通用行业'}`;
 
-            let mdHtml = d.analysis_html || '';
-            mdHtml = mdHtml.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-cyan-300 mt-2 mb-1">$1</h3>')
-                           .replace(/^#### (.*$)/gim, '<h4 class="text-xs font-bold text-slate-200 mt-2 mb-1">$1</h4>')
-                           .replace(/^> (.*$)/gim, '<div class="p-2 bg-slate-900/80 border-l-2 border-cyan-500 text-slate-400 my-2">$1</div>')
-                           .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
-                           .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-slate-300">$1</li>');
-            document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
+            if (d.analysis_html && (d.analysis_html.trim().startsWith('<div') || d.analysis_html.trim().startsWith('<section'))) {
+                document.getElementById('ts-modal-pane-ai').innerHTML = d.analysis_html;
+            } else {
+                let mdHtml = d.analysis_html || '';
+                mdHtml = mdHtml.replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-indigo-600 dark:text-cyan-300 mt-2 mb-1">$1</h3>')
+                               .replace(/^#### (.*$)/gim, '<h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 mt-2 mb-1">$1</h4>')
+                               .replace(/^> (.*$)/gim, '<div class="p-2 bg-slate-100 dark:bg-slate-900/80 border-l-2 border-indigo-500 dark:border-cyan-500 text-slate-600 dark:text-slate-400 my-2">$1</div>')
+                               .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white">$1</strong>')
+                               .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-slate-700 dark:text-slate-300">$1</li>');
+                document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
+            }
 
             let tblHtml = '';
             if (d.fina_data && d.fina_data.length > 0) {
                 d.fina_data.forEach(fd => {
                     tblHtml += `
-                        <tr class="hover:bg-slate-900/50">
-                            <td class="p-2.5 font-semibold text-slate-300">${fd.qdate || fd.record_date}</td>
-                            <td class="p-2.5 text-right">${fmtMoneyTs(fd.total_operate_income)}</td>
-                            <td class="p-2.5 text-right">${fmtPctTs(fd.ystz)}</td>
-                            <td class="p-2.5 text-right">${fmtMoneyTs(fd.parent_netprofit)}</td>
-                            <td class="p-2.5 text-right">${fmtPctTs(fd.sjltz)}</td>
-                            <td class="p-2.5 text-right ${fd.weightavg_roe >= 15 ? 'text-rose-400 font-bold' : ''}">${fd.weightavg_roe ? fd.weightavg_roe.toFixed(2) + '%' : '-'}</td>
-                            <td class="p-2.5 text-right">${fd.xsmll ? fd.xsmll.toFixed(2) + '%' : '-'}</td>
-                            <td class="p-2.5 text-right font-bold text-white">${fd.basic_eps ? fd.basic_eps.toFixed(3) : '-'}</td>
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td class="p-2.5 font-semibold text-slate-700 dark:text-slate-300">${fd.qdate || fd.record_date}</td>
+                            <td class="p-2.5 text-right font-mono">${fmtMoneyTs(fd.total_operate_income)}</td>
+                            <td class="p-2.5 text-right font-mono ${fd.ystz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">${fd.ystz ? (fd.ystz > 0 ? '+' : '') + Number(fd.ystz).toFixed(2) + '%' : '--'}</td>
+                            <td class="p-2.5 text-right font-mono">${fmtMoneyTs(fd.parent_netprofit)}</td>
+                            <td class="p-2.5 text-right font-mono ${fd.sjltz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">${fd.sjltz ? (fd.sjltz > 0 ? '+' : '') + Number(fd.sjltz).toFixed(2) + '%' : '--'}</td>
+                            <td class="p-2.5 text-right font-mono">${fd.weightavg_roe ? Number(fd.weightavg_roe).toFixed(2) + '%' : '--'}</td>
+                            <td class="p-2.5 text-right font-mono">${fd.xsmll ? Number(fd.xsmll).toFixed(2) + '%' : '--'}</td>
+                            <td class="p-2.5 text-right font-mono">${fd.basic_eps ? Number(fd.basic_eps).toFixed(3) : '--'}</td>
                         </tr>
                     `;
                 });
             } else {
-                tblHtml = `<tr><td colspan="8" class="p-6 text-center text-slate-500">暂未获取到该标的财报数据</td></tr>`;
+                tblHtml = `<tr><td colspan="8" class="p-4 text-center text-slate-400">暂无近8期标准化财报数据</td></tr>`;
             }
             document.getElementById('ts-fina-table-body').innerHTML = tblHtml;
-            if (window.lucide) lucide.createIcons();
-        }).catch(e => {
-            document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-400">请求失败: ${e.message}</div>`;
+        })
+        .catch(err => {
+            document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-500 dark:text-rose-400">获取财务数据失败: ${err.message}</div>`;
         });
     }
 
@@ -12017,14 +12021,17 @@
         const paneAi = document.getElementById('ts-modal-pane-ai');
         const paneData = document.getElementById('ts-modal-pane-data');
 
+        const activeClass = 'px-3.5 py-1.5 rounded-t-lg font-semibold bg-indigo-600 dark:bg-cyan-500 text-white dark:text-slate-950 shadow-xs transition cursor-pointer';
+        const inactiveClass = 'px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer';
+
         if (tabId === 'ai') {
-            if (btnAi) btnAi.className = 'px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition cursor-pointer';
-            if (btnData) btnData.className = 'px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition cursor-pointer';
+            if (btnAi) btnAi.className = activeClass;
+            if (btnData) btnData.className = inactiveClass;
             if (paneAi) paneAi.classList.remove('hidden');
             if (paneData) paneData.classList.add('hidden');
         } else {
-            if (btnData) btnData.className = 'px-3 py-1.5 rounded-t-lg font-semibold bg-cyan-500 text-black shadow-sm transition cursor-pointer';
-            if (btnAi) btnAi.className = 'px-3 py-1.5 rounded-t-lg text-slate-400 hover:text-white transition cursor-pointer';
+            if (btnData) btnData.className = activeClass;
+            if (btnAi) btnAi.className = inactiveClass;
             if (paneData) paneData.classList.remove('hidden');
             if (paneAi) paneAi.classList.add('hidden');
         }

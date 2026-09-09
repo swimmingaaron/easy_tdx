@@ -775,45 +775,210 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
 
 
 def _generate_fina_diagnosis(code: str, name: str, industry: str, fina_data: List[Dict[str, Any]]) -> str:
-    """基于财务报表生成高质量的结构化智能诊断。"""
+    """基于财务报表与核心基本面指标的多维度量化智能诊断算法（4大维度：成长动力、资本回报、持续性、策略映射）。"""
     if not fina_data:
-        return f"<div style='padding:20px;text-align:center;color:var(--muted);'>暂未获取到 {name} ({code}) 的历史财报数据。</div>"
+        return f"""
+        <div class="py-12 text-center text-slate-500 dark:text-slate-400 space-y-2">
+            <div class="text-2xl">📋</div>
+            <div class="text-sm font-medium">暂未获取到 {name} ({code}) 的历史财报数据</div>
+            <div class="text-xs text-slate-400 dark:text-slate-500">建议在交易日盘后或更新季报后重新诊断</div>
+        </div>
+        """
 
     latest = fina_data[0]
-    qdate = latest.get("qdate", "最新期")
-    rev = latest.get("total_operate_income", 0.0)
+    qdate = latest.get("qdate", latest.get("record_date", "最新报告期"))
+    rev = latest.get("total_operate_income", 0.0) or 0.0
     rev_yi = rev / 1e8
-    np_val = latest.get("parent_netprofit", 0.0)
+    np_val = latest.get("parent_netprofit", 0.0) or 0.0
     np_yi = np_val / 1e8
-    roe = latest.get("weightavg_roe", 0.0)
-    ystz = latest.get("ystz", 0.0)
-    sjltz = latest.get("sjltz", 0.0)
-    xsmll = latest.get("xsmll", 0.0)
+    roe = float(latest.get("weightavg_roe") or 0.0)
+    ystz = float(latest.get("ystz") or 0.0)
+    sjltz = float(latest.get("sjltz") or 0.0)
+    xsmll = float(latest.get("xsmll") or 0.0)
+    eps = float(latest.get("basic_eps") or 0.0)
 
-    # 趋势分析
-    rev_trend = "持续稳健扩张" if ystz > 15 else ("小幅增长" if ystz > 0 else "承压收缩")
-    profit_trend = "强劲爆发" if sjltz > 30 else ("稳健上升" if sjltz > 5 else "显著承压下滑")
-    roe_level = "极高（巴菲特级护城河）" if roe >= 15 else ("良好稳健" if roe >= 8 else "中等偏低")
+    # 1. 维度一：成长动力与经营杠杆评级 (Growth Dimension, 0 ~ 35分)
+    growth_score = 15  # 基准分
+    if ystz > 25: growth_score += 10
+    elif ystz > 10: growth_score += 7
+    elif ystz > 0: growth_score += 3
+    elif ystz > -10: growth_score -= 5
+    else: growth_score -= 10
 
-    diagnosis = f"""### 🎯 【{name} ({code})】基本面深度体检与诊断透视
+    if sjltz > 35: growth_score += 10
+    elif sjltz > 15: growth_score += 7
+    elif sjltz > 0: growth_score += 3
+    elif sjltz > -15: growth_score -= 5
+    else: growth_score -= 10
 
-> **报告期：{qdate} | 所属行业：{industry}**
+    # 营收净利剪刀差 (经营杠杆)
+    leverage = sjltz - ystz
+    if leverage > 5:
+        leverage_desc = "净利润增速显著超越营收增速，经营杠杆与规模效应凸显，盈利空间良性释放。"
+        growth_score += 5
+    elif leverage >= -5:
+        leverage_desc = "营收与净利润保持同频扩张，处于健康扩张稳态区间。"
+    else:
+        leverage_desc = "净利润增速滞后于营收增速（增收不增利），提示需留意期间费用、成本上升或资产减值侵蚀。"
+        growth_score -= 5
 
-#### 1. 核心成长能力诊断
-- **营业总收入**：**{rev_yi:.2f} 亿元**，同比增速 **{ystz:+.2f}%**（态势：<span style='color:{"var(--red)" if ystz>0 else "var(--green)"}'>{rev_trend}</span>）。
-- **归母净利润**：**{np_yi:.2f} 亿元**，同比增速 **{sjltz:+.2f}%**（态势：<span style='color:{"var(--red)" if sjltz>0 else "var(--green)"}'>{profit_trend}</span>）。
-- **营业健康度**：{"净利润增速跑赢营收增速，经营杠杆与规模效应凸显，盈利能力良性提升。" if sjltz > ystz else "净利润增速略低于营收增速，关注费用端控制与成本压力。"}
+    # 2. 维度二：资本回报与护城河壁垒 (Quality Dimension, 0 ~ 30分)
+    quality_score = 15
+    if roe >= 15:
+        quality_score += 10
+        roe_desc = "巴菲特级顶级护城河 (≥15%)"
+    elif roe >= 8:
+        quality_score += 6
+        roe_desc = "良性稳健回报 (8%~15%)"
+    elif roe >= 3:
+        quality_score += 2
+        roe_desc = "中等平稳回报 (3%~8%)"
+    elif roe > 0:
+        quality_score -= 3
+        roe_desc = "回报偏低 (0%~3%)"
+    else:
+        quality_score -= 8
+        roe_desc = "资本回报为负 (亏损)"
 
-#### 2. 资本回报与盈利质量
-- **加权 ROE (年化/季度)**：**{roe:.2f}%**，资本回报水平属于：**{roe_level}**。
-- **销售毛利率**：**{xsmll:.2f}%**，反映产品定价权与行业竞争壁垒。
-- **每股收益 (EPS)**：**{latest.get("basic_eps", 0.0):.3f} 元/股**。
+    if xsmll >= 35: quality_score += 5
+    elif xsmll >= 15: quality_score += 2
+    elif xsmll > 0 and xsmll < 10: quality_score -= 2
 
-#### 3. 投研操盘策略建议
-- {"🟢 **白马成长型标的**：主营业务与扣非净利强劲共振，若叠加技术面量价回踩，是高胜率波段配置良机。" if ystz > 10 and sjltz > 10 and roe > 8 else "🟡 **周期/重组震荡型标的**：短期业绩处于修复或平稳期，建议严守技术面 ZIG 与 5 大指标均线共振信号，以右侧量价突破为主。"}
-- **风险警示**：股市有风险，数据基于公开发布财报统计与量化模型推演，入市需谨慎。
-"""
-    return diagnosis
+    # 3. 维度三：多期时序持续性检验 (Consistency Dimension, 0 ~ 20分)
+    consistency_score = 10
+    pos_streak = 0
+    recent_4 = fina_data[:4]
+    for p in recent_4:
+        p_sjltz = float(p.get("sjltz") or 0.0)
+        if p_sjltz > 0:
+            pos_streak += 1
+    if pos_streak >= 4:
+        consistency_score += 10
+        streak_desc = f"近 4 期财报净利润保持连续正增长 ({pos_streak}/4 期)，盈利持续性卓越。"
+    elif pos_streak >= 2:
+        consistency_score += 5
+        streak_desc = f"近 4 期财报中有 {pos_streak} 期净利正增长，中短期盈利处于上升修复期。"
+    else:
+        consistency_score -= 5
+        streak_desc = f"近 4 期财报仅有 {pos_streak} 期正增长，业绩波动较大或处于周期承压期。"
+
+    # 综合体检总分 (0 ~ 100)
+    total_score = max(10, min(98, 15 + growth_score + quality_score + consistency_score))
+
+    # 4. 维度四：评级与量化策略映射 (Strategy Mapping)
+    if total_score >= 85:
+        level_tag = "🌟 五星卓越 · 核心白马"
+        tag_class = "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+        strategy_desc = "🟢 <strong>高景气白马成长标的</strong>：主营业务扩张与净利润释放高度共振，资本回报处于顶级梯队。若叠加技术面量价回踩均线或 ZIG 翻红，为胜率极高的波段底仓配置首选。"
+    elif total_score >= 70:
+        level_tag = "📈 四星优良 · 景气扩张"
+        tag_class = "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+        strategy_desc = "🔵 <strong>稳健扩张型优质标的</strong>：整体财务态势良性，盈利能力处于健康扩张通道。适合逢技术面均线多头回踩均线或成交量地量缩量企稳时分批低吸。"
+    elif total_score >= 55:
+        level_tag = "⚖️ 三星中性 · 周期平衡"
+        tag_class = "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+        strategy_desc = "🟡 <strong>震荡/修复型周期标的</strong>：短期业绩处于修复或平稳期，建议严守技术面 ZIG 与 5 大指标均线共振信号，以右侧量价突破操盘为主，不宜盲目左侧重仓。"
+    else:
+        level_tag = "⚠️ 警示关注 · 承压收缩"
+        tag_class = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600"
+        strategy_desc = "🔴 <strong>业绩承压收缩标的</strong>：受行业周期调整或成本费用侵蚀，净利润出现较大幅度下滑。建议保持观望，防范业绩雷与估值双杀，等待单季度拐点明确。"
+
+    rev_trend = "强劲扩张" if ystz > 20 else ("稳健增长" if ystz > 0 else "收缩承压")
+    profit_trend = "强劲爆发" if sjltz > 30 else ("良性上升" if sjltz > 0 else "显著承压下滑")
+    ystz_color = "text-rose-600 dark:text-rose-400" if ystz > 0 else "text-emerald-600 dark:text-emerald-400"
+    sjltz_color = "text-rose-600 dark:text-rose-400" if sjltz > 0 else "text-emerald-600 dark:text-emerald-400"
+
+    # 生成眼部舒适、明暗自适应的高质感卡片布局
+    html = f"""
+    <div class="space-y-3.5 text-xs text-slate-700 dark:text-slate-300 font-sans">
+        <!-- 顶部信息摘要胶囊 (温和护眼蓝灰色调) -->
+        <div class="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 shadow-xs">
+            <div class="flex items-center space-x-2.5">
+                <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white dark:bg-cyan-500 dark:text-slate-950 shadow-xs">报告期: {qdate}</span>
+                <span class="text-xs text-slate-600 dark:text-slate-400">所属行业: <strong class="text-slate-900 dark:text-slate-100 font-semibold">{industry}</strong></span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="text-xs text-slate-500 dark:text-slate-400">量化体检得分:</span>
+                <span class="text-base font-extrabold text-indigo-600 dark:text-cyan-400 font-mono">{total_score} 分</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {tag_class}">{level_tag}</span>
+            </div>
+        </div>
+
+        <!-- 卡片 1: 核心成长能力与经营杠杆 -->
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 dark:bg-cyan-400"></span>
+                    <span>1. 核心成长能力与经营杠杆 (Growth Dimension)</span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">维度评级: {growth_score}/35分</span>
+            </div>
+            <ul class="space-y-1.5 pl-1 leading-relaxed">
+                <li class="flex items-center justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">• 营业总收入：<strong class="text-slate-900 dark:text-slate-100">{rev_yi:.2f} 亿元</strong></span>
+                    <span>同比增速 <strong class="{ystz_color} font-mono">{ystz:+.2f}%</strong>（态势: {rev_trend}）</span>
+                </li>
+                <li class="flex items-center justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">• 归母净利润：<strong class="text-slate-900 dark:text-slate-100">{np_yi:.2f} 亿元</strong></span>
+                    <span>同比增速 <strong class="{sjltz_color} font-mono">{sjltz:+.2f}%</strong>（态势: {profit_trend}）</span>
+                </li>
+                <li class="pt-1 text-slate-600 dark:text-slate-400 border-t border-dashed border-slate-100 dark:border-slate-700/50">
+                    • 经营杠杆剪刀差 (净利增速 - 营收增速 = <strong class="font-mono text-slate-800 dark:text-slate-200">{leverage:+.2f}%</strong>)：{leverage_desc}
+                </li>
+            </ul>
+        </div>
+
+        <!-- 卡片 2: 资本回报与护城河壁垒 -->
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>2. 资本回报与盈利质量 (Quality Dimension)</span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">维度评级: {quality_score}/30分</span>
+            </div>
+            <ul class="space-y-1.5 pl-1 leading-relaxed">
+                <li class="flex items-center justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">• 加权 ROE (最新期/年化)：<strong class="text-slate-900 dark:text-slate-100 font-mono">{roe:.2f}%</strong></span>
+                    <span class="text-slate-500 dark:text-slate-400">资本回报率: <strong class="text-indigo-600 dark:text-cyan-400 font-medium">{roe_desc}</strong></span>
+                </li>
+                <li class="flex items-center justify-between">
+                    <span class="text-slate-600 dark:text-slate-400">• 基本每股收益 (EPS)：<strong class="text-slate-900 dark:text-slate-100 font-mono">{eps:.3f} 元/股</strong></span>
+                    <span class="text-slate-500 dark:text-slate-400">销售毛利率: <strong class="text-slate-900 dark:text-slate-100 font-mono">{xsmll:.2f}%</strong></span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 卡片 3: 连续季度趋势持续性 -->
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
+                    <span>3. 连续季度趋势持续性 (Consistency Dimension)</span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">维度评级: {consistency_score}/20分</span>
+            </div>
+            <div class="text-slate-600 dark:text-slate-400 leading-relaxed">
+                • {streak_desc}
+            </div>
+        </div>
+
+        <!-- 卡片 4: 投研操盘策略建议 -->
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-2">
+            <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span>4. 投研操盘策略指引 (Strategy Guidance)</span>
+            </div>
+            <div class="leading-relaxed text-slate-700 dark:text-slate-300">
+                {strategy_desc}
+            </div>
+            <div class="pt-2 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/50">
+                ⚖️ <strong>量化风控提示</strong>：本模型基于已公开权威财报数据与多因子量化推演，股市有风险，入市需谨慎。
+            </div>
+        </div>
+    </div>
+    """
+    return html
 
 
 def evaluate_universe(
