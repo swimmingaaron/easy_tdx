@@ -2057,6 +2057,20 @@
                             <select id="screener-strategy-select" onchange="onScreenerParamsChange()" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-44"></select>
                         </div>
 
+                        <!-- Period Selector (周期筛选: 30分 60分 120分 日线 周线 月线 季线) -->
+                        <div class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                            <span class="text-[11px] text-slate-400 font-medium">周期:</span>
+                            <select id="screener-period-select" onchange="onScreenerParamsChange()" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
+                                <option value="DAY" selected>📅 日线</option>
+                                <option value="30M">⏱️ 30分钟</option>
+                                <option value="60M">⏱️ 60分钟</option>
+                                <option value="120M">⏱️ 120分钟</option>
+                                <option value="WEEK">📊 周线</option>
+                                <option value="MONTH">📈 月线</option>
+                                <option value="SEASON">🎯 季线</option>
+                            </select>
+                        </div>
+
                         <!-- Universe Scope Selector (Plan A) -->
                         <div class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
                             <span class="text-[11px] text-slate-400 font-medium">选股范围:</span>
@@ -3903,12 +3917,18 @@
         }
 
         window.openKlineModal = openKlineModal;
-    function openKlineModal(sym, name) {
+    function openKlineModal(sym, name, preferredPeriod = null) {
         const kModal = document.getElementById('kline-preview-modal');
         if (kModal) { kModal.style.zIndex = '70'; kModal.classList.remove('hidden'); }
             const rawSym = String(sym || '600123').trim();
             currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
             currentKpStockName = name || '';
+            if (preferredPeriod && typeof preferredPeriod === 'string') {
+                const pUpper = preferredPeriod.trim().toUpperCase();
+                if (['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'].includes(pUpper)) {
+                    currentKpPeriod = pUpper;
+                }
+            }
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
             
@@ -3987,27 +4007,38 @@
             currentKpCutoffIndex = -1;
             stopKpReplay();
 
-            // Load Stock Profile in parallel
-            loadStockProfile(currentKpSymbol);
-
-            // Wait 50ms for layout to settle before init/resize ECharts and loading data
-            setTimeout(() => {
-                const dom = document.getElementById('echarts-preview-modal-container');
-                if (dom) {
-                    if (!kpEchart) {
-                        const isDark = getTheme() === 'dark';
-                        kpEchart = echarts.init(dom, isDark ? 'dark' : null);
-                        window.addEventListener('resize', () => { if (kpEchart) kpEchart.resize(); });
-                        window.addEventListener('orientationchange', () => { setTimeout(() => { if (kpEchart) kpEchart.resize(); }, 150); });
-                    } else {
-                        kpEchart.resize();
-                    }
+            // Initialize/resize ECharts immediately for 0ms layout response
+            const dom = document.getElementById('echarts-preview-modal-container');
+            if (dom) {
+                if (!kpEchart) {
+                    const isDark = getTheme() === 'dark';
+                    kpEchart = echarts.init(dom, isDark ? 'dark' : null);
+                    window.addEventListener('resize', () => { if (kpEchart) kpEchart.resize(); });
+                    window.addEventListener('orientationchange', () => { setTimeout(() => { if (kpEchart) kpEchart.resize(); }, 150); });
+                } else {
+                    kpEchart.resize();
                 }
-                loadKlinePreviewData();
-            }, 60);
+            }
 
-            // Ensure context menu is initialized
+            // Fire instant K-line render (0ms delay)
+            loadKlinePreviewData();
+
+            // Defer stock profile fetch slightly so K-line chart gets 100% priority
+            setTimeout(() => {
+                loadStockProfile(currentKpSymbol);
+            }, 150);
+
+            // Background pre-fetch popular periods for instant switching
+            setTimeout(() => {
+                if (typeof prefetchKlinePeriod === 'function') {
+                    prefetchKlinePeriod('WEEK');
+                    prefetchKlinePeriod('60M');
+                }
+            }, 300);
+
+            // Ensure context menu and hover prefetch are initialized
             initKpContextMenu();
+            initKpPeriodHover();
         }
 
         function closeKlineModal() {
@@ -5388,87 +5419,160 @@
             runDiagnosis();
         }
 
-        async function loadKlinePreviewData() {
+        window._klineCache = window._klineCache || new Map();
+        let _klineFetchSeq = 0;
+
+        function initKpPeriodHover() {
+            const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
+            periods.forEach(p => {
+                const el = document.getElementById(`kp-period-${p}`);
+                if (el && !el._hasPrefetch) {
+                    el._hasPrefetch = true;
+                    el.addEventListener('mouseenter', () => prefetchKlinePeriod(p));
+                }
+            });
+        }
+
+        function prefetchKlinePeriod(period) {
+            if (!currentKpSymbol) return;
+            const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(period);
+            const count = isDailyPlus ? (currentKpMonths * 22) : (period === '120M' ? 120 : (period === '60M' ? 160 : 240));
+            const cacheKey = `${currentKpSymbol}_${period}_${count}`;
+            if (window._klineCache && window._klineCache.has(cacheKey)) return;
+            fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${period}&months=${currentKpMonths}&count=${count}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(json => {
+                    if (json && window._klineCache) {
+                        window._klineCache.set(cacheKey, { data: json, ts: Date.now() });
+                    }
+                }).catch(() => {});
+        }
+
+        function _applyKpDataResponse(json) {
+            if (!json) return;
+            currentKpData = json;
+            currentKpFullBars = json.data || [];
+
+            // Update Headers
+            const q = json.quote || {};
+            const bTag = json.board_tag || { label: 'A股', color: '#f97316' };
+            const badgeEl = document.getElementById('kp-board-badge');
+            if (badgeEl) {
+                badgeEl.innerText = bTag.label;
+                badgeEl.style.color = bTag.color;
+                badgeEl.style.borderColor = bTag.color;
+                badgeEl.style.backgroundColor = `${bTag.color}18`;
+            }
+
+            const fullSym = json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`;
+            const sName = (json.name && !json.name.startsWith('股票_')) ? json.name : (currentKpStockName || json.name || currentKpSymbol);
+            currentKpStockName = sName;
+            if (document.getElementById('kp-full-symbol')) document.getElementById('kp-full-symbol').innerText = fullSym;
+            if (document.getElementById('kp-stock-name')) document.getElementById('kp-stock-name').innerText = sName;
+            if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
+            if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
+            updateKpWatchlistButton();
+
+            const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
+            const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
+            const turnoverStr = q.turnover_rate !== undefined && q.turnover_rate !== null ? `${Number(q.turnover_rate).toFixed(2)}%` : '--';
+            const volRatioVal = q.vol_ratio !== undefined && q.vol_ratio !== null ? Number(q.vol_ratio) : null;
+            const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
+
+            let peStr = '--';
+            if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
+                peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
+            } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
+                peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
+            }
+
+            if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = totValStr;
+            if (document.getElementById('kp-float-val')) document.getElementById('kp-float-val').innerText = fltValStr;
+            if (document.getElementById('kp-pe')) {
+                const peEl = document.getElementById('kp-pe');
+                peEl.innerText = peStr;
+                peEl.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM市盈率: ${q.pe_ttm ?? '--'}, 静态市盈率: ${q.pe_static ?? '--'}`;
+            }
+            if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = turnoverStr;
+            if (document.getElementById('kp-vol-ratio')) {
+                const vrEl = document.getElementById('kp-vol-ratio');
+                vrEl.innerText = volRatioStr;
+                if (volRatioVal !== null) {
+                    vrEl.className = volRatioVal >= 2.0 ? 'font-mono font-bold text-amber-400' : (volRatioVal >= 1.0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-slate-200');
+                }
+            }
+            if (document.getElementById('kp-main-net')) {
+                const mnEl = document.getElementById('kp-main-net');
+                const mnVal = Number(q.main_net_amount || 0);
+                const mnSign = mnVal >= 0 ? '+' : '';
+                let mnStr = '--';
+                if (Math.abs(mnVal) >= 1e8) mnStr = `${mnSign}${(mnVal / 1e8).toFixed(2)}亿`;
+                else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
+                else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
+                mnEl.innerText = mnStr;
+                mnEl.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
+                mnEl.title = `主力净流入: ${mnStr}`;
+            }
+
+            // If cutoff is unset, set to latest bar
+            if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
+                currentKpCutoffIndex = currentKpFullBars.length - 1;
+            }
+
+            // Apply cutoff and render
+            applyKpCutoffAndRender(json);
+        }
+
+        async function loadKlinePreviewData(forceRefresh = false) {
+            const reqSym = currentKpSymbol;
+            const reqPeriod = currentKpPeriod;
+            const reqMonths = currentKpMonths;
+            const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(reqPeriod);
+            const count = isDailyPlus ? (reqMonths * 22) : (reqPeriod === '120M' ? 120 : (reqPeriod === '60M' ? 160 : 240));
+            const cacheKey = `${reqSym}_${reqPeriod}_${count}`;
+            const mySeq = ++_klineFetchSeq;
+
+            // 1. Instant Cache Hit: If cached data exists, render IMMEDIATELY in 0ms!
+            if (!forceRefresh && window._klineCache && window._klineCache.has(cacheKey)) {
+                const cached = window._klineCache.get(cacheKey);
+                _applyKpDataResponse(cached.data);
+                if (Date.now() - cached.ts < 5000) {
+                    return; // Fresh enough within 5s
+                }
+            } else if (!currentKpFullBars || currentKpFullBars.length === 0) {
+                if (kpEchart) {
+                    try {
+                        kpEchart.showLoading({
+                            text: 'K线实时更新中...',
+                            color: '#06b6d4',
+                            textColor: '#94a3b8',
+                            maskColor: 'rgba(11, 15, 25, 0.4)'
+                        });
+                    } catch (e) {}
+                }
+            }
+
+            // 2. Fetch fresh data
             try {
-                const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
-                const count = isDailyPlus ? (currentKpMonths * 22) : (currentKpPeriod === '120M' ? 120 : (currentKpPeriod === '60M' ? 160 : 240));
-                const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&months=${currentKpMonths}&count=${count}`);
+                const resp = await fetch(`/api/quotes/kline?symbol=${reqSym}&period=${reqPeriod}&months=${reqMonths}&count=${count}`);
                 if (resp.ok) {
                     const json = await resp.json();
-                    currentKpData = json;
-                    currentKpFullBars = json.data || [];
-
-                    // Update Headers
-                    const q = json.quote || {};
-                    const bTag = json.board_tag || { label: '创', color: '#f97316' };
-                    const badgeEl = document.getElementById('kp-board-badge');
-                    if (badgeEl) {
-                        badgeEl.innerText = bTag.label;
-                        badgeEl.style.color = bTag.color;
-                        badgeEl.style.borderColor = bTag.color;
-                        badgeEl.style.backgroundColor = `${bTag.color}18`;
+                    if (window._klineCache) {
+                        window._klineCache.set(cacheKey, { data: json, ts: Date.now() });
                     }
-
-                    const fullSym = json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`;
-                    const sName = (json.name && !json.name.startsWith('标的_')) ? json.name : (currentKpStockName || json.name || currentKpSymbol);
-                    currentKpStockName = sName;
-                    if (document.getElementById('kp-full-symbol')) document.getElementById('kp-full-symbol').innerText = fullSym;
-                    if (document.getElementById('kp-stock-name')) document.getElementById('kp-stock-name').innerText = sName;
-                    if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
-                    if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
-                    updateKpWatchlistButton();
-
-                    const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
-                    const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
-                    const turnoverStr = q.turnover_rate !== undefined && q.turnover_rate !== null ? `${Number(q.turnover_rate).toFixed(2)}%` : '--';
-                    const volRatioVal = q.vol_ratio !== undefined && q.vol_ratio !== null ? Number(q.vol_ratio) : null;
-                    const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
-
-                    let peStr = '--';
-                    if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
-                        peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
-                    } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
-                        peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
-                    }
-
-                    if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = totValStr;
-                    if (document.getElementById('kp-float-val')) document.getElementById('kp-float-val').innerText = fltValStr;
-                    if (document.getElementById('kp-pe')) {
-                        const peEl = document.getElementById('kp-pe');
-                        peEl.innerText = peStr;
-                        peEl.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM市盈率: ${q.pe_ttm ?? '--'}, 静态市盈率: ${q.pe_static ?? '--'}`;
-                    }
-                    if (document.getElementById('kp-turnover')) document.getElementById('kp-turnover').innerText = turnoverStr;
-                    if (document.getElementById('kp-vol-ratio')) {
-                        const vrEl = document.getElementById('kp-vol-ratio');
-                        vrEl.innerText = volRatioStr;
-                        if (volRatioVal !== null) {
-                            vrEl.className = volRatioVal >= 2.0 ? 'font-mono font-bold text-amber-400' : (volRatioVal >= 1.0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-slate-200');
+                    if (mySeq === _klineFetchSeq && currentKpSymbol === reqSym && currentKpPeriod === reqPeriod) {
+                        if (kpEchart) {
+                            try { kpEchart.hideLoading(); } catch (e) {}
                         }
+                        _applyKpDataResponse(json);
                     }
-                    if (document.getElementById('kp-main-net')) {
-                        const mnEl = document.getElementById('kp-main-net');
-                        const mnVal = Number(q.main_net_amount || 0);
-                        const mnSign = mnVal >= 0 ? '+' : '';
-                        let mnStr = '--';
-                        if (Math.abs(mnVal) >= 1e8) mnStr = `${mnSign}${(mnVal / 1e8).toFixed(2)}亿`;
-                        else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
-                        else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
-                        mnEl.innerText = mnStr;
-                        mnEl.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
-                        mnEl.title = `当日主力净流入: ${mnStr}`;
-                    }
-
-                    // If cutoff is unset, set to latest bar
-                    if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
-                        currentKpCutoffIndex = currentKpFullBars.length - 1;
-                    }
-
-                    // Apply cutoff and render
-                    applyKpCutoffAndRender(json);
                 }
             } catch (e) {
                 console.error('Failed to load kline modal data:', e);
+            } finally {
+                if (mySeq === _klineFetchSeq && kpEchart) {
+                    try { kpEchart.hideLoading(); } catch (e) {}
+                }
             }
         }
 
@@ -6446,6 +6550,7 @@
             }
 
             const option = {
+                animation: false,
                 backgroundColor: 'transparent',
                 axisPointer: {
                     link: [{ xAxisIndex: 'all' }]
@@ -6661,7 +6766,7 @@
                 ]
             };
 
-            kpEchart.setOption(option, true);
+            kpEchart.setOption(option, { notMerge: true, lazyUpdate: false });
 
             // Crosshair update listener: dynamically updates the 2-line header bar above chart and tracks active hovered bar
             kpEchart.off('updateAxisPointer');
@@ -10421,7 +10526,19 @@
         function onScreenerParamsChange() {
             const uniSel = document.getElementById('screener-universe-select');
             const forceInput = document.getElementById('screener-force-refresh');
+            const periodSel = document.getElementById('screener-period-select');
             const uni = uniSel ? uniSel.value : 'core';
+            const period = periodSel ? periodSel.value : 'DAY';
+            const periodMap = {
+                '30M': '30分钟',
+                '60M': '60分钟',
+                '120M': '120分钟',
+                'DAY': '日线',
+                'WEEK': '周线',
+                'MONTH': '月线',
+                'SEASON': '季线'
+            };
+            const periodName = periodMap[period] || '日线';
             const hintMap = {
                 'core': '当前范围：⭐ 核心龙头池 (159只) · 秒级快速选股 (~2-3s)',
                 'hs300': '当前范围：📈 沪深300指数池 (300只) · 快速选股 (~6s)',
@@ -10432,7 +10549,7 @@
             const textEl = document.getElementById('screener-status-text');
             if (textEl) {
                 const modeStr = (forceInput && forceInput.checked) ? ' · 模式：从服务器获取最新数据' : ' · 模式：优先使用Cache数据';
-                textEl.innerText = (hintMap[uni] || '就绪') + modeStr;
+                textEl.innerText = (hintMap[uni] || '就绪') + ` · 周期：${periodName}` + modeStr;
             }
         }
 
@@ -10583,13 +10700,16 @@
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="py-3 pl-3 font-semibold whitespace-nowrap"><a href="${getXueqiuUrl(m.symbol || m.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono hover:underline" title="在雪球查看 ${m.symbol || m.code} ${m.name || ''} 行情与讨论">${m.symbol || m.code}</a></td>
-                    <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="stock-click-link text-white">${m.name}</span></td>
+                    <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap"><span onclick="openKlineModal('${m.symbol || m.code}', '${m.name}', '${m.period || 'DAY'}')" class="stock-click-link text-white">${m.name}</span></td>
                     <td class="py-3 px-2 font-sans font-semibold whitespace-nowrap">
                         ${canClickBoard 
                             ? `<span ${boardClick} ${boardTitle} class="stock-click-link text-white cursor-pointer">${boardName}</span>` 
                             : `<span class="text-slate-500 font-mono text-xs">--</span>`}
                     </td>
-                    <td class="py-3 px-2 font-sans whitespace-nowrap"><span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span></td>
+                    <td class="py-3 px-2 font-sans whitespace-nowrap">
+                        <span class="px-2 py-0.5 rounded text-xs bg-indigo-950 text-indigo-400 border border-indigo-800">${m.strategy || strategyName}</span>
+                        <span class="ml-1 px-1.5 py-0.5 rounded text-[11px] bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold font-mono">${m.period_name || m.period || '日线'}</span>
+                    </td>
                     <td class="py-3 px-2 text-right font-mono font-medium text-slate-200 whitespace-nowrap">${capStr}</td>
                     <td class="py-3 px-2 text-right font-bold text-white font-mono whitespace-nowrap">¥${Number(m.price).toFixed(2)}</td>
                     <td class="py-3 px-2 text-right font-mono ${chgClass} whitespace-nowrap">${chgStr}</td>
@@ -10601,7 +10721,7 @@
                     <td class="py-3 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(m.patterns, m.status || m.pattern_status, m.trigger_patterns, m.days_ago, m.signal_date, m.latest_date)}</td>
                     <td class="py-3 pr-3 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end space-x-1.5">
-                            <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>
+                            <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}', '${m.period || 'DAY'}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>
                             <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer whitespace-nowrap">回测</button>
                         </div>
                     </td>
@@ -10617,11 +10737,22 @@
             renderScreenerTableRows(matches, strategyName, universeDesc);
         }
 
-        async function startScreenerTask(strategy, universe, strategyName, universeDesc, forceRefresh = null) {
+        async function startScreenerTask(strategy, universe, strategyName, universeDesc, period = 'DAY', forceRefresh = null) {
             if (screenerPollTimer) {
                 clearInterval(screenerPollTimer);
                 screenerPollTimer = null;
             }
+
+            const periodMap = {
+                '30M': '30分钟',
+                '60M': '60分钟',
+                '120M': '120分钟',
+                'DAY': '日线',
+                'WEEK': '周线',
+                'MONTH': '月线',
+                'SEASON': '季线'
+            };
+            const periodName = periodMap[period] || period || '日线';
 
             if (forceRefresh === null || forceRefresh === undefined) {
                 const forceInput = document.getElementById('screener-force-refresh');
@@ -10649,15 +10780,15 @@
             if (progBar) progBar.style.width = '0%';
             if (progPct) progPct.innerText = '0.0%';
             const modeTextInit = forceRefresh ? '【从服务器获取最新数据】' : '【优先使用Cache数据】';
-            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】多线程选股扫描 ${modeTextInit}...`;
+            if (progLabel) progLabel.innerText = `正在启动【${universeDesc}】(${periodName}) 多线程选股扫描 ${modeTextInit}...`;
             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping';
-            if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】战法选股扫描 ${modeTextInit}...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】多线程并发扫描中 ${modeTextInit}，您可以随时在弹窗或表格上方查看实时进度...</td></tr>`;
+            if (statusText) statusText.innerText = `正在对【${universeDesc}】并发执行【${strategyName}】(${periodName}) 选股扫描 ${modeTextInit}...`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs"><i data-lucide="loader-2" class="w-5 h-5 animate-spin inline mr-2 text-cyan-400"></i>正在对【${universeDesc}】执行【${strategyName}】(${periodName}) 多线程并发扫描 ${modeTextInit}...</td></tr>`;
             lucide.createIcons();
 
-            const taskTitle = `【${universeDesc}】${strategyName} 选股扫描 ${modeTextInit}`;
-            openQuoteModal(`正在对【${universeDesc}】全速并发执行【${strategyName}】战法扫描...`, true, taskTitle, 5222);
-            showToast('选股扫描已启动', `正在对【${universeDesc}】执行多线程后台扫描任务 (${forceRefresh ? '从服务器获取最新数据' : '复用本地Cache数据'})`);
+            const taskTitle = `【${universeDesc}】${strategyName} (${periodName}) 选股扫描 ${modeTextInit}`;
+            openQuoteModal(`正在对【${universeDesc}】全速并发执行【${strategyName}】(${periodName}) 选股扫描...`, true, taskTitle, 5222);
+            showToast('选股扫描已启动', `正在对【${universeDesc}】执行【${strategyName}】(${periodName}) 扫描任务 (${forceRefresh ? '从服务器获取最新数据' : '复用本地Cache数据'})`);
 
             try {
                 const resp = await fetch('/api/screener/task/start', {
@@ -10666,6 +10797,7 @@
                     body: JSON.stringify({ 
                         strategy: strategy, 
                         universe: universe,
+                        period: period,
                         force_refresh: forceRefresh 
                     })
                 });
@@ -10737,9 +10869,9 @@
                             if (task.task_status === 'completed') {
                                 const matches = task.matches || [];
                                 const modeDesc = forceRefresh ? '服务器实时数据' : '本地Cache数据';
-                                if (statusText) statusText.innerText = `选股完成！【${universeDesc}】总计扫描 ${total} 只标的，共命中 ${matches.length} 只符合【${strategyName}】战法 (${modeDesc} · 耗时 ${elapsed}s)`;
+                                if (statusText) statusText.innerText = `选股完成！【${universeDesc}】总计扫描 ${total} 只标的，共命中 ${matches.length} 只符合【${strategyName}】(${periodName}) 战法 (${modeDesc} · 耗时 ${elapsed}s)`;
                                 renderScreenerTable(matches, strategyName, universeDesc);
-                                showToast('选股扫描完成', `【${universeDesc}】扫描完成！共选出 ${matches.length} 只符合【${strategyName}】的标的 (${modeDesc} · 耗时 ${elapsed}s)`);
+                                showToast('选股扫描完成', `【${universeDesc}】扫描完成！共选出 ${matches.length} 只符合【${strategyName}】(${periodName}) 的标的 (${modeDesc} · 耗时 ${elapsed}s)`);
                                 speak(`选股扫描完成，命中 ${matches.length} 只标的`);
                             } else if (task.task_status === 'cancelled') {
                                 if (statusText) statusText.innerText = `【${universeDesc}】选股扫描任务已手动中止`;
@@ -10768,10 +10900,12 @@
         async function runScreenerScan() {
             const stSelect = document.getElementById('screener-strategy-select');
             const uniSelect = document.getElementById('screener-universe-select');
+            const periodSelect = document.getElementById('screener-period-select');
             const forceInput = document.getElementById('screener-force-refresh');
             const strategy = stSelect ? stSelect.value : 'zig_breakout';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const universe = uniSelect ? uniSelect.value : 'core';
+            const period = periodSelect ? periodSelect.value : 'DAY';
             const forceRefresh = forceInput ? forceInput.checked : false;
 
             const uniMap = {
@@ -10783,20 +10917,22 @@
             };
             const uniDesc = uniMap[universe] || universe;
 
-            await startScreenerTask(strategy, universe, strategyName, uniDesc, forceRefresh);
+            await startScreenerTask(strategy, universe, strategyName, uniDesc, period, forceRefresh);
         }
 
         async function runFullMarketAsyncTask() {
             const stSelect = document.getElementById('screener-strategy-select');
             const uniSelect = document.getElementById('screener-universe-select');
+            const periodSelect = document.getElementById('screener-period-select');
             const forceInput = document.getElementById('screener-force-refresh');
             if (uniSelect) uniSelect.value = 'all';
 
             const strategy = stSelect ? stSelect.value : 'zig_breakout';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
+            const period = periodSelect ? periodSelect.value : 'DAY';
             const forceRefresh = forceInput ? forceInput.checked : false;
 
-            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)', forceRefresh);
+            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)', period, forceRefresh);
         }
 
         async function cancelCurrentScreenerTask() {
@@ -11241,35 +11377,7 @@
             }
         }
 
-        async function runScreenerScan() {
-            const stSelect = document.getElementById('screener-strategy-select');
-            const uniSelect = document.getElementById('screener-universe-select');
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
-            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-            const universe = uniSelect ? uniSelect.value : 'core';
-
-            const uniMap = {
-                'core': '核心龙头池 (159只)',
-                'hs300': '沪深300指数池 (300只)',
-                'zz500': '中证500成长主力 (500只)',
-                'zz1000': '中证1000活跃小盘 (1000只)',
-                'all': '全市场全A股 (5222只)'
-            };
-            const uniDesc = uniMap[universe] || universe;
-
-            await startScreenerTask(strategy, universe, strategyName, uniDesc);
-        }
-
-        async function runFullMarketAsyncTask() {
-            const stSelect = document.getElementById('screener-strategy-select');
-            const uniSelect = document.getElementById('screener-universe-select');
-            if (uniSelect) uniSelect.value = 'all';
-
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
-            const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-
-            await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)');
-        }
+        // Note: runScreenerScan and runFullMarketAsyncTask unified above with period support
 
         async function cancelCurrentScreenerTask() {
             if (!activeScreenerTaskId) return;

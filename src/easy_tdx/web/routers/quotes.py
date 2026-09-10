@@ -292,7 +292,11 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
     }
 
 _KLINE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_KLINE_BASE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_CACHE_LOCK = threading.Lock()
+
+_STOCK_MAC_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_STOCK_MAC_LOCK = threading.Lock()
 
 @router.get("/kline")
 def get_kline(
@@ -318,18 +322,31 @@ def get_kline(
         
     n_bars = max(30, min(500, count if count != 120 else (months * 22 if months else 120)))
 
-    # Check in-memory endpoint cache (5s during trade session, 300s off-hours)
+    # Check in-memory endpoint cache (5s during trade session, 3600s off-hours)
     from easy_tdx.market_overview import is_trading_time
     now = time.time()
-    effective_ttl = 5.0 if is_trading_time() else 300.0
+    effective_ttl = 5.0 if is_trading_time() else 3600.0
     cache_k = f"{clean_sym}_{period.upper()}_{n_bars}"
+    base_k = f"{clean_sym}_{period.upper()}"
     with _KLINE_CACHE_LOCK:
         if cache_k in _KLINE_CACHE:
             ts, cached_res = _KLINE_CACHE[cache_k]
             if now - ts < effective_ttl:
                 return cached_res
+        if base_k in _KLINE_BASE_CACHE:
+            ts, base_res = _KLINE_BASE_CACHE[base_k]
+            if now - ts < effective_ttl:
+                b_data = base_res.get("data", [])
+                if len(b_data) >= n_bars:
+                    sliced_data = b_data[-n_bars:]
+                    res_slice = dict(base_res)
+                    res_slice["data"] = sliced_data
+                    res_slice["count"] = len(sliced_data)
+                    _KLINE_CACHE[cache_k] = (ts, res_slice)
+                    return res_slice
     
-    df = fetch_security_kline(raw_sym, count=n_bars, period=period)
+    fetch_n = max(240, n_bars)
+    df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
     mkt, full_sym = _get_market_suffix(raw_sym)
     stock_name = _BOARD_NAME_MAP.get(clean_sym) or get_stock_name(full_sym)
     board = _get_board_tag(full_sym)
@@ -532,55 +549,98 @@ def get_kline(
     m5_real = 0.0
     m10_real = 0.0
 
-    # Real-time enrichment from TDX MAC quote protocol (total_cap, float_cap, PE, turnover, vol_ratio)
-    try:
-        from easy_tdx.market_overview import _get_or_create_mac_client
-        from easy_tdx.codec.bitmap import FieldBit, PresetField
-        mac = _get_or_create_mac_client()
-        fields = (
-            PresetField.BASIC
-            + FieldBit.AMOUNT
-            + FieldBit.VOL_RATIO
-            + FieldBit.TOTAL_MARKET_CAP_AB
-            + FieldBit.PE_DYNAMIC
-            + FieldBit.PE_TTM
-            + FieldBit.PE_STATIC
-            + FieldBit.CIRCULATING_CAPITAL_Z
-            + FieldBit.MAIN_NET_AMOUNT
-            + FieldBit.MAIN_NET_3D_AMOUNT
-            + FieldBit.MAIN_NET_5D_AMOUNT
-            + FieldBit.MAIN_NET_10D_AMOUNT
-        )
-        mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
-        df_q = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
-        if df_q is not None and not df_q.empty:
-            row_q = df_q.iloc[0]
-            t_cap = float(row_q.get("total_market_cap_ab") or 0.0)
-            if t_cap > 0:
-                total_val_yi = round(t_cap / 1e8, 2)
-            circ_z = float(row_q.get("circulating_capital_z") or 0.0)
-            if circ_z > 0:
-                float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
-                vol_shares = float(last_bar.get("volume", 0))
-                turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
-            
-            p_d = float(row_q.get("pe_dynamic") or 0.0)
-            if p_d != 0:
-                pe_dynamic = round(p_d, 1)
-            p_t = float(row_q.get("pe_ttm") or 0.0)
-            if p_t != 0:
-                pe_ttm = round(p_t, 1)
-            p_s = float(row_q.get("pe_static") or 0.0)
-            if p_s != 0:
-                pe_static = round(p_s, 1)
-            vr = float(row_q.get("vol_ratio") or 0.0)
-            if vr > 0:
-                vol_ratio = round(vr, 2)
+    # Real-time enrichment from TDX MAC quote protocol (cached to eliminate 500ms socket latency on period switches)
+    now_q = time.time()
+    mac_ttl = 10.0 if is_trading_time() else 3600.0
+    cached_mac = None
+    with _STOCK_MAC_LOCK:
+        if clean_sym in _STOCK_MAC_CACHE:
+            ts_q, c_val = _STOCK_MAC_CACHE[clean_sym]
+            if now_q - ts_q < mac_ttl:
+                cached_mac = c_val
 
-            m1_real = float(row_q.get("main_net_amount") or 0.0)
-            m3_real = float(row_q.get("main_net_3d_amount") or 0.0)
-            m5_real = float(row_q.get("main_net_5d_amount") or 0.0)
-            m10_real = float(row_q.get("main_net_10d_amount") or 0.0)
+    if cached_mac:
+        t_cap = float(cached_mac.get("total_market_cap_ab") or 0.0)
+        if t_cap > 0:
+            total_val_yi = round(t_cap / 1e8, 2)
+        circ_z = float(cached_mac.get("circulating_capital_z") or 0.0)
+        if circ_z > 0:
+            float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
+            vol_shares = float(last_bar.get("volume", 0))
+            turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
+        pe_dynamic = cached_mac.get("pe_dynamic")
+        pe_ttm = cached_mac.get("pe_ttm")
+        pe_static = cached_mac.get("pe_static")
+        vol_ratio = cached_mac.get("vol_ratio", vol_ratio)
+        m1_real = cached_mac.get("main_net_amount", 0.0)
+        m3_real = cached_mac.get("main_net_3d_amount", 0.0)
+        m5_real = cached_mac.get("main_net_5d_amount", 0.0)
+        m10_real = cached_mac.get("main_net_10d_amount", 0.0)
+    else:
+        try:
+            from easy_tdx.market_overview import _get_or_create_mac_client
+            from easy_tdx.codec.bitmap import FieldBit, PresetField
+            mac = _get_or_create_mac_client()
+            fields = (
+                PresetField.BASIC
+                + FieldBit.AMOUNT
+                + FieldBit.VOL_RATIO
+                + FieldBit.TOTAL_MARKET_CAP_AB
+                + FieldBit.PE_DYNAMIC
+                + FieldBit.PE_TTM
+                + FieldBit.PE_STATIC
+                + FieldBit.CIRCULATING_CAPITAL_Z
+                + FieldBit.MAIN_NET_AMOUNT
+                + FieldBit.MAIN_NET_3D_AMOUNT
+                + FieldBit.MAIN_NET_5D_AMOUNT
+                + FieldBit.MAIN_NET_10D_AMOUNT
+            )
+            mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
+            df_q = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
+            if df_q is not None and not df_q.empty:
+                row_q = df_q.iloc[0]
+                t_cap = float(row_q.get("total_market_cap_ab") or 0.0)
+                if t_cap > 0:
+                    total_val_yi = round(t_cap / 1e8, 2)
+                circ_z = float(row_q.get("circulating_capital_z") or 0.0)
+                if circ_z > 0:
+                    float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
+                    vol_shares = float(last_bar.get("volume", 0))
+                    turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
+                
+                p_d = float(row_q.get("pe_dynamic") or 0.0)
+                if p_d != 0:
+                    pe_dynamic = round(p_d, 1)
+                p_t = float(row_q.get("pe_ttm") or 0.0)
+                if p_t != 0:
+                    pe_ttm = round(p_t, 1)
+                p_s = float(row_q.get("pe_static") or 0.0)
+                if p_s != 0:
+                    pe_static = round(p_s, 1)
+                vr = float(row_q.get("vol_ratio") or 0.0)
+                if vr > 0:
+                    vol_ratio = round(vr, 2)
+
+                m1_real = float(row_q.get("main_net_amount") or 0.0)
+                m3_real = float(row_q.get("main_net_3d_amount") or 0.0)
+                m5_real = float(row_q.get("main_net_5d_amount") or 0.0)
+                m10_real = float(row_q.get("main_net_10d_amount") or 0.0)
+
+                with _STOCK_MAC_LOCK:
+                    _STOCK_MAC_CACHE[clean_sym] = (now_q, {
+                        "total_market_cap_ab": t_cap,
+                        "circulating_capital_z": circ_z,
+                        "pe_dynamic": pe_dynamic,
+                        "pe_ttm": pe_ttm,
+                        "pe_static": pe_static,
+                        "vol_ratio": vol_ratio,
+                        "main_net_amount": m1_real,
+                        "main_net_3d_amount": m3_real,
+                        "main_net_5d_amount": m5_real,
+                        "main_net_10d_amount": m10_real,
+                    })
+        except Exception as e:
+            logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
             # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
             is_daily_period = str(period).upper() in ("DAY", "DAILY")
@@ -752,8 +812,6 @@ def get_kline(
                     b["inflow_sum3"] = safe_float(rec_sum3[b_idx])
                     b["inflow_sum5"] = safe_float(rec_sum5[b_idx])
                     b["inflow_sum10"] = safe_float(rec_sum10[b_idx])
-    except Exception as e:
-        logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
 
     b_info = _resolve_stock_board_info(clean_sym, full_sym)
     board_lbl = board.get("label", "") if isinstance(board, dict) else str(board)
@@ -824,6 +882,15 @@ def get_kline(
     }
 
     with _KLINE_CACHE_LOCK:
+        _KLINE_BASE_CACHE[base_k] = (now, res)
+        _KLINE_CACHE[f"{clean_sym}_{period.upper()}_{len(bars_data)}"] = (now, res)
+        if len(bars_data) != n_bars:
+            sliced_data = bars_data[-n_bars:]
+            res_slice = dict(res)
+            res_slice["data"] = sliced_data
+            res_slice["count"] = len(sliced_data)
+            _KLINE_CACHE[cache_k] = (now, res_slice)
+            return res_slice
         _KLINE_CACHE[cache_k] = (now, res)
 
     return res

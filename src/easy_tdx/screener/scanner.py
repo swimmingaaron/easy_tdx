@@ -41,14 +41,15 @@ def _get_cache_dir() -> Path:
     base.mkdir(parents=True, exist_ok=True)
     return base
 
-def _get_cache_file(strategy_name: str, universe: str) -> Path:
+def _get_cache_file(strategy_name: str, universe: str, period: str = "DAY") -> Path:
     today_str = date.today().strftime("%Y%m%d")
-    return _get_cache_dir() / f"{strategy_name}_{universe}_{today_str}.json"
+    p_clean = str(period).strip().upper()
+    return _get_cache_dir() / f"{strategy_name}_{universe}_{p_clean}_{today_str}.json"
 
-def _load_cache(strategy_name: str, universe: str, expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
+def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
     if force_refresh:
         return None
-    cache_f = _get_cache_file(strategy_name, universe)
+    cache_f = _get_cache_file(strategy_name, universe, period=period)
     if cache_f.exists():
         try:
             mtime = os.path.getmtime(cache_f)
@@ -76,12 +77,13 @@ def _load_cache(strategy_name: str, universe: str, expected_total: int = 0, forc
             logger.warning(f"Failed to read cache {cache_f}: {e}")
     return None
 
-def _save_cache(strategy_name: str, universe: str, total_count: int, matches: list[dict[str, Any]]) -> None:
+def _save_cache(strategy_name: str, universe: str, total_count: int, matches: list[dict[str, Any]], period: str = "DAY") -> None:
     try:
-        cache_f = _get_cache_file(strategy_name, universe)
+        cache_f = _get_cache_file(strategy_name, universe, period=period)
         payload = {
             "strategy": strategy_name,
             "universe": universe,
+            "period": str(period).strip().upper(),
             "total_count": total_count,
             "date": date.today().strftime("%Y%m%d"),
             "timestamp": time.time(),
@@ -90,7 +92,7 @@ def _save_cache(strategy_name: str, universe: str, total_count: int, matches: li
         }
         with open(cache_f, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved {len(matches)} screener matches (total={total_count}) to cache {cache_f.name}")
+        logger.info(f"Saved {len(matches)} screener matches (total={total_count}, period={period}) to cache {cache_f.name}")
     except Exception as e:
         logger.warning(f"Failed to save screener cache: {e}")
 
@@ -257,29 +259,35 @@ def clear_screener_cache() -> None:
         logger.info("Cleared screener in-memory daily kline cache.")
 
 
-def _get_or_fetch_daily_kline(sym: str, force_refresh: bool = False) -> pd.DataFrame | None:
+def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = False) -> pd.DataFrame | None:
     today_str = date.today().strftime("%Y%m%d")
     now_ts = time.time()
+    p_clean = str(period).strip().upper()
+    cache_key = f"{sym}_{p_clean}"
     
     if not force_refresh:
         with _DAILY_KLINE_LOCK:
-            if sym in _DAILY_KLINE_CACHE:
-                d_str, cached_ts, cached_df = _DAILY_KLINE_CACHE[sym]
+            if cache_key in _DAILY_KLINE_CACHE:
+                d_str, cached_ts, cached_df = _DAILY_KLINE_CACHE[cache_key]
                 if d_str == today_str:
                     from easy_tdx.market_overview import is_trading_time
                     max_age = INTRADAY_CACHE_TTL_SEC if is_trading_time() else POST_MARKET_CACHE_TTL_SEC
                     if (now_ts - cached_ts) < max_age:
                         return cached_df
 
-    from easy_tdx.market_data import fetch_kline_with_pool, fetch_security_kline
-    df = fetch_kline_with_pool(sym, category="DAY", count=140)
-    if df is None or len(df) < 20:
-        df = fetch_security_kline(sym, category="DAY", count=140)
-    if df is not None and len(df) >= 20:
+    from easy_tdx.market_data import fetch_security_kline
+    fetch_cnt = 140 if p_clean in ("DAY", "WEEK", "MONTH", "SEASON", "YEAR") else (160 if p_clean == "60M" else 240)
+    df = fetch_security_kline(sym, count=fetch_cnt, period=p_clean)
+    if df is not None and len(df) >= 15:
         with _DAILY_KLINE_LOCK:
-            _DAILY_KLINE_CACHE[sym] = (today_str, now_ts, df)
+            _DAILY_KLINE_CACHE[cache_key] = (today_str, now_ts, df)
         return df
     return None
+
+
+def _get_or_fetch_daily_kline(sym: str, force_refresh: bool = False) -> pd.DataFrame | None:
+    """Backwards compatibility wrapper for daily kline."""
+    return _get_or_fetch_kline(sym, period="DAY", force_refresh=force_refresh)
 
 
 def _evaluate_stock_for_strategy(
@@ -287,10 +295,11 @@ def _evaluate_stock_for_strategy(
     strategy_name: str,
     st: Any,
     lookback_bars: int,
+    period: str = "DAY",
     force_refresh: bool = False
 ) -> dict[str, Any] | None:
-    df = _get_or_fetch_daily_kline(sym, force_refresh=force_refresh)
-    if df is None or len(df) < 20:
+    df = _get_or_fetch_kline(sym, period=period, force_refresh=force_refresh)
+    if df is None or len(df) < 15:
         return None
 
     try:
@@ -362,17 +371,45 @@ def _evaluate_stock_for_strategy(
         elif len(signal_date) == 8 and signal_date.isdigit():
             signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
 
+        p_clean = str(period).strip().upper()
+        period_unit_map = {
+            "30M": "根30分K",
+            "60M": "根60分K",
+            "120M": "根120分K",
+            "DAY": "日",
+            "WEEK": "周",
+            "MONTH": "月",
+            "SEASON": "季",
+            "YEAR": "年",
+        }
+        period_name_map = {
+            "30M": "30分钟",
+            "60M": "60分钟",
+            "120M": "120分钟",
+            "DAY": "日线",
+            "WEEK": "周线",
+            "MONTH": "月线",
+            "SEASON": "季线",
+            "YEAR": "年线",
+        }
+        p_unit = period_unit_map.get(p_clean, "期")
+        p_name = period_name_map.get(p_clean, p_clean)
+
         if strategy_name == "td_sequential":
             if cur_h_seq == 3:
-                status_label = "今日高3序列"
+                status_label = f"最新{p_name}高3" if p_clean != "DAY" else "今日高3序列"
             elif cur_h_seq == 9:
-                status_label = "高9序列 (见顶警示)"
+                status_label = f"{p_name}高9 (见顶警示)"
             elif cur_h_seq == 13:
-                status_label = "高13序列 (极致反转)"
+                status_label = f"{p_name}高13 (极致反转)"
             else:
-                status_label = f"高{cur_h_seq}序列 ({days_ago}日前启动)"
+                unit_text = f"{days_ago}日前启动" if p_clean == "DAY" else f"{days_ago}{p_unit}前启动"
+                status_label = f"{p_name}高{cur_h_seq}序列 ({unit_text})"
         else:
-            status_label = "今日触发" if days_ago == 0 else f"{days_ago}日前触发"
+            if days_ago == 0:
+                status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
+            else:
+                status_label = f"{days_ago}日前触发" if p_clean == "DAY" else f"{days_ago}{p_unit}前触发"
 
         try:
             from easy_tdx.pattern_recognition import detect_patterns
@@ -416,6 +453,8 @@ def _evaluate_stock_for_strategy(
             "display": f"{sym} {stock_name}",
             "strategy": st.display_name,
             "strategy_id": strategy_name,
+            "period": p_clean,
+            "period_name": p_name,
             "price": close_price,
             "change_pct": signal_change_pct,
             "signal_change_pct": signal_change_pct,
@@ -448,6 +487,7 @@ def scan_market_strategy(
     strategy_name: str, 
     symbols: list[str] | None = None,
     universe: str = "core",
+    period: str = "DAY",
     lookback_bars: int = 20,
     use_cache: bool = True,
     force_refresh: bool = False,
@@ -460,6 +500,7 @@ def scan_market_strategy(
         strategy_name: Identifier for strategy in registry
         symbols: Optional custom list of symbols. If None, loaded based on universe.
         universe: Universe tier: 'core' (35), 'hs300' (300), 'zz500' (500), 'zz1000' (1000), 'all' (5200+)
+        period: Kline period: '30M', '60M', '120M', 'DAY', 'WEEK', 'MONTH', 'SEASON'
         lookback_bars: Signal trigger lookback window
         use_cache: If True, check disk cache for today's completed scan
         force_refresh: If True, bypass all memory and disk caches and fetch fresh intraday data
@@ -476,7 +517,7 @@ def scan_market_strategy(
 
     # 1. Check disk cache if symbols is not custom and not force_refresh
     if not is_custom_symbols and use_cache and not force_refresh:
-        cached = _load_cache(strategy_name, universe, expected_total=total_count, force_refresh=force_refresh)
+        cached = _load_cache(strategy_name, universe, period=period, expected_total=total_count, force_refresh=force_refresh)
         if cached is not None:
             if progress_callback:
                 progress_callback(total_count, total_count, len(cached), 100.0)
@@ -496,7 +537,7 @@ def scan_market_strategy(
     processed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars, force_refresh): sym
+            executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars, period, force_refresh): sym
             for sym in symbols
         }
         for fut in as_completed(futures):
@@ -526,6 +567,6 @@ def scan_market_strategy(
 
     # Save to disk cache if full universe scan completed without abortion
     if (stop_event is None or not stop_event.is_set()) and not is_custom_symbols:
-        _save_cache(strategy_name, universe, total_count, matched)
+        _save_cache(strategy_name, universe, total_count, matched, period=period)
 
     return matched

@@ -332,43 +332,49 @@ def _fetch_shareholder_history_tdx(
         if mkt is None:
             _, inferred_mkt, _, _ = _parse_stock_symbol(clean_code)
             mkt = inferred_mkt
-        with TdxClient.from_best_host(timeout=2.5) as cli:
-            df = cli.get_finance_info(mkt, clean_code)
-            if df is not None and not df.empty:
-                row = df.iloc[0]
-                holders = int(row.get("gudong_renshu", 0))
-                if holders <= 0:
-                    return None
-                zong_guben = float(row.get("zong_guben", 0))
-                liutong_guben = float(row.get("liutong_guben", 0))
+        try:
+            from easy_tdx.market_data import _get_or_create_client, _CLIENT_LOCK
+            with _CLIENT_LOCK:
+                cli = _get_or_create_client()
+                df = cli.get_finance_info(mkt, clean_code)
+        except Exception:
+            with TdxClient.from_best_host(timeout=2.0) as cli:
+                df = cli.get_finance_info(mkt, clean_code)
+        if df is not None and not df.empty:
+            row = df.iloc[0]
+            holders = int(row.get("gudong_renshu", 0))
+            if holders <= 0:
+                return None
+            zong_guben = float(row.get("zong_guben", 0))
+            liutong_guben = float(row.get("liutong_guben", 0))
 
-                shares = liutong_guben if liutong_guben > 0 else zong_guben
-                if 0 < shares < 10000000:
-                    shares_total = shares * 10000.0
-                else:
-                    shares_total = shares
-                avg_shares = round(shares_total / max(1, holders), 1) if holders > 0 else None
+            shares = liutong_guben if liutong_guben > 0 else zong_guben
+            if 0 < shares < 10000000:
+                shares_total = shares * 10000.0
+            else:
+                shares_total = shares
+            avg_shares = round(shares_total / max(1, holders), 1) if holders > 0 else None
 
-                raw_up_date = str(int(row.get("updated_date", 0)))
-                if len(raw_up_date) == 8:
-                    up_date_fmt = f"{raw_up_date[:4]}-{raw_up_date[4:6]}-{raw_up_date[6:]}"
-                else:
-                    up_date_fmt = raw_up_date
+            raw_up_date = str(int(row.get("updated_date", 0)))
+            if len(raw_up_date) == 8:
+                up_date_fmt = f"{raw_up_date[:4]}-{raw_up_date[4:6]}-{raw_up_date[6:]}"
+            else:
+                up_date_fmt = raw_up_date
 
-                std_period = _resolve_quarter_end_date(up_date_fmt)
-                return {
-                    "period": std_period,
-                    "period_title": _format_period_title(std_period),
-                    "holder_count": holders,
-                    "holder_qoq": None,
-                    "avg_shares": avg_shares,
-                    "avg_shares_wan": round(avg_shares / 10000.0, 2) if avg_shares else None,
-                    "avg_shares_qoq": None,
-                    "avg_hold_amt_wan": None,
-                    "focus": "--",
-                    "source": "easy_tdx",
-                    "raw_updated_date": up_date_fmt,
-                }
+            std_period = _resolve_quarter_end_date(up_date_fmt)
+            return {
+                "period": std_period,
+                "period_title": _format_period_title(std_period),
+                "holder_count": holders,
+                "holder_qoq": None,
+                "avg_shares": avg_shares,
+                "avg_shares_wan": round(avg_shares / 10000.0, 2) if avg_shares else None,
+                "avg_shares_qoq": None,
+                "avg_hold_amt_wan": None,
+                "focus": "--",
+                "source": "easy_tdx",
+                "raw_updated_date": up_date_fmt,
+            }
     except Exception as e:
         logger.debug(f"Shareholder Tier 1 (easy_tdx) failed for {clean_code}: {e}")
     return None
@@ -491,7 +497,7 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
             if cache_key in _PROFILE_CACHE:
                 ts, cached_result = _PROFILE_CACHE[cache_key]
                 if time.time() - ts < _CACHE_TTL:
-                    return copy.deepcopy(cached_result)
+                    return dict(cached_result)
 
     result: Dict[str, Any] = {
         "code": clean_code,
@@ -512,8 +518,14 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
 
     # 1. Native TDX Finance Info (Shareholders, Capital, Listing date)
     try:
-        with TdxClient.from_best_host(timeout=2.5) as cli:
-            f = cli.get_finance_info(mkt, clean_code)
+        try:
+            from easy_tdx.market_data import _get_or_create_client, _CLIENT_LOCK
+            with _CLIENT_LOCK:
+                cli = _get_or_create_client()
+                f = cli.get_finance_info(mkt, clean_code)
+        except Exception:
+            with TdxClient.from_best_host(timeout=2.0) as cli:
+                f = cli.get_finance_info(mkt, clean_code)
         if f is not None and not f.empty:
             row = f.iloc[0]
             holders = int(row.get("gudong_renshu", 0))

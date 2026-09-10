@@ -30,6 +30,7 @@ _TASKS_LOCK = threading.Lock()
 class ScreenerScanRequest(BaseModel):
     strategy: str
     universe: str = "core"
+    period: str = "DAY"
     symbols: list[str] | None = None
     lookback_bars: int = 20
     force_refresh: bool = False
@@ -37,6 +38,7 @@ class ScreenerScanRequest(BaseModel):
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str
     universe: str = "core"
+    period: str = "DAY"
     lookback_bars: int = 20
     force_refresh: bool = False
 
@@ -72,14 +74,16 @@ def api_clear_screener_cache():
 def api_scan_get(
     strategy: str = Query("zig_breakout", description="Strategy identifier name"),
     universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all"),
+    period: str = Query("DAY", description="Period: 30M, 60M, 120M, DAY, WEEK, MONTH, SEASON"),
     force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
 ):
     """Scan market against selected strategy synchronously (GET request)."""
-    matches = scan_market_strategy(strategy, universe=universe, force_refresh=force_refresh)
+    matches = scan_market_strategy(strategy, universe=universe, period=period, force_refresh=force_refresh)
     return {
         "status": "success",
         "strategy": strategy,
         "universe": universe,
+        "period": period,
         "count": len(matches),
         "matches": matches,
         "data": matches
@@ -92,6 +96,7 @@ def api_scan_post(req: ScreenerScanRequest):
         strategy_name=req.strategy, 
         symbols=req.symbols, 
         universe=req.universe,
+        period=req.period,
         lookback_bars=req.lookback_bars,
         force_refresh=req.force_refresh
     )
@@ -99,12 +104,13 @@ def api_scan_post(req: ScreenerScanRequest):
         "status": "success",
         "strategy": req.strategy,
         "universe": req.universe,
+        "period": req.period,
         "count": len(matches),
         "matches": matches,
         "data": matches
     }
 
-def _run_async_screener_worker(task_id: str, strategy: str, universe: str, lookback_bars: int, force_refresh: bool = False):
+def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "DAY", lookback_bars: int = 20, force_refresh: bool = False):
     """Background worker for long-running screening tasks (e.g. all 5,200+ A-shares)."""
     with _TASKS_LOCK:
         task = _ASYNC_TASKS.get(task_id)
@@ -131,6 +137,7 @@ def _run_async_screener_worker(task_id: str, strategy: str, universe: str, lookb
             strategy_name=strategy,
             symbols=None,
             universe=universe,
+            period=period,
             lookback_bars=lookback_bars,
             use_cache=True,
             force_refresh=force_refresh,
@@ -167,6 +174,7 @@ def api_start_task(req: ScreenerTaskStartRequest):
         "task_id": task_id,
         "strategy": req.strategy,
         "universe": req.universe,
+        "period": req.period,
         "status": "running",
         "total": len(symbols),
         "processed": 0,
@@ -185,7 +193,7 @@ def api_start_task(req: ScreenerTaskStartRequest):
     # Launch in a daemon thread so it runs independently in the background
     th = threading.Thread(
         target=_run_async_screener_worker,
-        args=(task_id, req.strategy, req.universe, req.lookback_bars, req.force_refresh),
+        args=(task_id, req.strategy, req.universe, req.period, req.lookback_bars, req.force_refresh),
         daemon=True
     )
     th.start()
@@ -195,8 +203,9 @@ def api_start_task(req: ScreenerTaskStartRequest):
         "task_id": task_id,
         "strategy": req.strategy,
         "universe": req.universe,
+        "period": req.period,
         "total": len(symbols),
-        "message": f"异步任务已启动，总计扫描 {len(symbols)} 只标的"
+        "message": f"异步任务已启动，总计扫描 {len(symbols)} 只标的 ({req.period})"
     }
 
 @router.get("/task/status/{task_id}")
@@ -214,6 +223,7 @@ def api_get_task_status(task_id: str):
             "task_status": task["status"],
             "strategy": task["strategy"],
             "universe": task["universe"],
+            "period": task.get("period", "DAY"),
             "total": task["total"],
             "processed": task["processed"],
             "percent": task["percent"],
