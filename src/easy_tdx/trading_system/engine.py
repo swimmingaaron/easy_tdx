@@ -140,6 +140,7 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
         "holder_ratio": 0.0,
         "holder_focus": "--",
         "holders_changes": [],
+        "holders_history": [],
     }
 
     # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info
@@ -155,7 +156,7 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
                 num = int(row.get("gudong_renshu") or 0)
                 if num > 0:
                     res["holders_num"] = num
-                    res["holders_str"] = f"{num / 10000:.1f}万" if num >= 10000 else str(num)
+                    res["holders_str"] = f"{num / 10000:.2f}万" if num >= 10000 else str(num)
                     easy_tdx_ok = True
         except Exception as e:
             _TDX_POOL.release(cli, success=False)
@@ -163,11 +164,11 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
 
-    # 2. 第二获取接口/补充接口：抓取股东集中度与近 3 期变动同比（若第一接口失败则作为完整兜底）
+    # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细（若第一接口失败则作为完整兜底）
     try:
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
             raw_bytes = resp.read()
             if raw_bytes[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
@@ -178,10 +179,10 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
                 gdrs = data_json["gdrs"]
                 latest = gdrs[0]
                 em_num = int(latest.get("HOLDER_TOTAL_NUM") or 0)
-                # 若第一接口 easy_tdx 未能成功获取人数，由外部兜底
-                if not easy_tdx_ok and em_num > 0:
+                # 股东人数格式化 (优先采用东财精确总人数)
+                if em_num > 0:
                     res["holders_num"] = em_num
-                    res["holders_str"] = f"{em_num / 10000:.1f}万" if em_num >= 10000 else str(em_num)
+                    res["holders_str"] = f"{em_num / 10000:.2f}万" if em_num >= 10000 else str(em_num)
 
                 ratio = float(latest.get("HOLD_RATIO_TOTAL") or latest.get("FREEHOLD_RATIO_TOTAL") or 0.0)
                 focus = str(latest.get("HOLD_FOCUS") or "")
@@ -197,9 +198,29 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
                             "num": int(item.get("HOLDER_TOTAL_NUM") or 0)
                         })
 
+                # 完整历史变动明细 (对齐变动日期、股东总人数、较上期变动)
+                history = []
+                for item in gdrs:
+                    edate = str(item.get("END_DATE") or "")[:10]
+                    h_num = int(item.get("HOLDER_TOTAL_NUM") or 0)
+                    h_num_str = f"{h_num / 10000:.2f}万" if h_num >= 10000 else str(h_num)
+                    chg_r = item.get("TOTAL_NUM_RATIO")
+                    ratio_val = round(float(chg_r), 2) if chg_r is not None else None
+                    ratio_str = f"{ratio_val:+.2f}%" if ratio_val is not None else ""
+                    history.append({
+                        "date": edate,
+                        "num": h_num,
+                        "num_str": h_num_str,
+                        "ratio": ratio_val,
+                        "ratio_str": ratio_str,
+                        "hold_ratio": round(float(item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL") or 0.0), 2),
+                        "focus": str(item.get("HOLD_FOCUS") or ""),
+                    })
+
                 res["holder_ratio"] = round(ratio, 2)
                 res["holder_focus"] = focus
                 res["holders_changes"] = changes
+                res["holders_history"] = history
     except Exception as e:
         logger.debug(f"Eastmoney shareholder fetch failed for {clean_code}: {e}")
 
@@ -665,7 +686,7 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
 
     if cache_key in _FINA_CACHE:
         ts, data = _FINA_CACHE[cache_key]
-        if (now - ts < 3600) and data.get("peers_data") and len(data["peers_data"]) > 0:
+        if (now - ts < 3600) and data.get("peers_data") and len(data["peers_data"]) > 0 and data.get("holders_data"):
             return data
 
     fina_list = []
@@ -750,11 +771,14 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
         except Exception as e:
             logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
 
+    # 获取股东人数及历史集中度变动
+    holders_info = fetch_stock_holders(clean_code)
+
     # 获取同行业横向对比与所属行业
     industry, peers_list = fetch_stock_peers_data(clean_code, fallback_industry=industry)
 
-    # 智能诊断文本生成
-    analysis_html = _generate_fina_diagnosis(clean_code, get_stock_name(clean_code), industry, fina_list)
+    # 智能诊断文本生成 (传入 holders_info 以在顶部报告条显示股东人数)
+    analysis_html = _generate_fina_diagnosis(clean_code, get_stock_name(clean_code), industry, fina_list, holders_info=holders_info)
 
     result = {
         "success": True,
@@ -763,6 +787,7 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
         "industry": str(industry),
         "fina_data": fina_list,
         "peers_data": peers_list,
+        "holders_data": holders_info,
         "analysis_html": str(analysis_html),
         "model_name": "StockQuant 智能投研系统",
     }
@@ -926,7 +951,13 @@ def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行�
     return industry, peers_list
 
 
-def _generate_fina_diagnosis(code: str, name: str, industry: str, fina_data: List[Dict[str, Any]]) -> str:
+def _generate_fina_diagnosis(
+    code: str,
+    name: str,
+    industry: str,
+    fina_data: List[Dict[str, Any]],
+    holders_info: Optional[Dict[str, Any]] = None,
+) -> str:
     """基于财务报表与核心基本面指标的多维度量化智能诊断算法（4大维度：成长动力、资本回报、持续性、策略映射）。"""
     if not fina_data:
         return f"""
@@ -1041,13 +1072,29 @@ def _generate_fina_diagnosis(code: str, name: str, industry: str, fina_data: Lis
     sjltz_color = "text-rose-600 dark:text-rose-400" if sjltz > 0 else "text-emerald-600 dark:text-emerald-400"
 
     # 生成眼部舒适、明暗自适应的高质感卡片布局
+    holders_badge = ""
+    if holders_info and holders_info.get("holders_str") and holders_info["holders_str"] != "--":
+        h_str = holders_info["holders_str"]
+        h_changes = holders_info.get("holders_changes") or []
+        chg_text = ""
+        if h_changes:
+            r = h_changes[0].get("ratio")
+            if r is not None:
+                if r < 0:
+                    chg_text = f'<span class="text-emerald-600 dark:text-emerald-400 font-semibold">{r:.2f}%</span>'
+                elif r > 0:
+                    chg_text = f'<span class="text-rose-600 dark:text-rose-400 font-semibold">+{r:.2f}%</span>'
+        chg_span = f' (较上期 {chg_text})' if chg_text else ''
+        holders_badge = f'<span class="text-xs text-slate-600 dark:text-slate-400 border-l border-slate-300 dark:border-slate-700 pl-2.5">股东人数: <strong class="text-slate-900 dark:text-slate-100 font-semibold font-mono">{h_str}</strong>{chg_span}</span>'
+
     html = f"""
     <div class="space-y-3.5 text-xs text-slate-700 dark:text-slate-300 font-sans">
         <!-- 顶部信息摘要胶囊 (温和护眼蓝灰色调) -->
         <div class="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700/80 text-slate-800 dark:text-slate-200 shadow-xs">
-            <div class="flex items-center space-x-2.5">
+            <div class="flex flex-wrap items-center gap-2.5">
                 <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white dark:bg-cyan-500 dark:text-slate-950 shadow-xs">报告期: {qdate}</span>
                 <span class="text-xs text-slate-600 dark:text-slate-400">所属行业: <strong class="text-slate-900 dark:text-slate-100 font-semibold">{industry}</strong></span>
+                {holders_badge}
             </div>
             <div class="flex items-center space-x-2">
                 <span class="text-xs text-slate-500 dark:text-slate-400">量化体检得分:</span>

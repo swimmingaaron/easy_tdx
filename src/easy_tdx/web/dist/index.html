@@ -11447,6 +11447,9 @@
                 <button id="ts-mtab-btn-peers" onclick="switchTsModalTab('peers')" class="px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
                     👥 同行对比
                 </button>
+                <button id="ts-mtab-btn-holders" onclick="switchTsModalTab('holders')" class="px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer">
+                    👥 股东人数
+                </button>
             </div>
 
             <!-- Modal Content Body -->
@@ -11551,6 +11554,31 @@
                             </thead>
                             <tbody id="ts-peers-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-700 dark:text-slate-300">
                                 <tr><td colspan="10" class="p-4 text-center text-slate-400">正在载入同行对比数据...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 4. 股东人数历史变动大表视图 (对齐变动日期、股东总人数、较上期变动) -->
+                <div id="ts-modal-pane-holders" class="hidden h-full flex flex-col min-h-0 space-y-2.5">
+                    <div class="flex items-center justify-between px-1 shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <h3 id="ts-holders-stock-title" class="text-base font-bold text-blue-600 dark:text-blue-400 font-sans tracking-tight">--</h3>
+                            <span id="ts-holders-summary-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">--</span>
+                        </div>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">数据源：定期报告权威披露与东财机构数据</span>
+                    </div>
+                    <div class="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative">
+                        <table class="w-full text-left border-separate border-spacing-0 text-xs whitespace-nowrap">
+                            <thead class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold shadow-xs select-none border-b border-slate-200 dark:border-slate-800">
+                                <tr>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 py-2.5 px-4 border-b border-slate-200 dark:border-slate-800 font-bold">变动日期</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 py-2.5 px-4 border-b border-slate-200 dark:border-slate-800 text-center font-bold">股东总人数</th>
+                                    <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 py-2.5 px-4 border-b border-slate-200 dark:border-slate-800 text-right font-bold">较上期变动</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ts-holders-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-800 dark:text-slate-200">
+                                <tr><td colspan="3" class="py-8 text-center text-slate-400">正在载入股东人数历史记录...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -12426,6 +12454,12 @@
         if (document.getElementById('ts-peers-table-body')) {
             document.getElementById('ts-peers-table-body').innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-400">正在载入同行横向对比数据...</td></tr>`;
         }
+        if (document.getElementById('ts-holders-table-body')) {
+            document.getElementById('ts-holders-table-body').innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-400">正在载入股东人数历史记录...</td></tr>`;
+        }
+        if (document.getElementById('ts-holders-stock-title')) {
+            document.getElementById('ts-holders-stock-title').innerText = `${name} (${code})`;
+        }
 
         fetch(`/api/trading_system/fina_analysis/${code}`)
         .then(r => r.json())
@@ -12487,6 +12521,9 @@
             window._tsCurrentSortField = 'total_operate_income';
             window._tsCurrentSortAsc = false;
             renderTsPeersTable();
+
+            // 4. 渲染股东人数历史变动大表
+            renderTsHoldersTable(d, code, name);
         })
         .catch(err => {
             document.getElementById('ts-modal-pane-ai').innerHTML = `<div class="p-4 text-rose-500 dark:text-rose-400">获取财务数据失败: ${err.message}</div>`;
@@ -12498,8 +12535,66 @@
         if (modal) modal.classList.add('hidden');
     }
 
+    
+    function renderTsHoldersTable(d, code, name) {
+        const hData = d.holders_data || {};
+        const hHistory = hData.holders_history || [];
+        const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : (code.startsWith('8') || code.startsWith('4')) ? 'BJ' : 'SZ';
+        const stockTitle = `${d.stock_name || name}(${pfx}${code})`;
+
+        const titleEl = document.getElementById('ts-holders-stock-title');
+        if (titleEl) titleEl.innerText = stockTitle;
+
+        const badgeEl = document.getElementById('ts-holders-summary-badge');
+        if (badgeEl) {
+            const parts = [];
+            if (hData.holders_str && hData.holders_str !== '--') {
+                parts.push(`最新股东户数: ${hData.holders_str}`);
+            }
+            if (hData.holder_ratio) {
+                parts.push(`前十大股东占比: ${hData.holder_ratio}%`);
+            }
+            if (hData.holder_focus && hData.holder_focus !== '--') {
+                parts.push(hData.holder_focus);
+            }
+            badgeEl.innerText = parts.join(' | ') || '股东筹码监控';
+        }
+
+        let hRows = '';
+        if (hHistory.length > 0) {
+            hHistory.forEach(item => {
+                let rText = '--';
+                let rClass = 'text-slate-400 dark:text-slate-500 font-mono';
+                if (item.ratio !== null && item.ratio !== undefined) {
+                    const rVal = Number(item.ratio);
+                    if (rVal < 0) {
+                        rText = `${rVal.toFixed(2)}%`;
+                        rClass = 'text-emerald-600 dark:text-emerald-400 font-bold font-mono';
+                    } else if (rVal > 0) {
+                        rText = `+${rVal.toFixed(2)}%`;
+                        rClass = 'text-rose-600 dark:text-rose-400 font-bold font-mono';
+                    } else {
+                        rText = '0.00%';
+                        rClass = 'text-slate-400 dark:text-slate-500 font-mono';
+                    }
+                }
+                hRows += `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 px-4 text-slate-700 dark:text-slate-300 font-sans">${item.date}</td>
+                        <td class="py-2.5 px-4 text-center font-bold font-mono text-slate-900 dark:text-slate-100">${item.num_str}</td>
+                        <td class="py-2.5 px-4 text-right ${rClass}">${rText}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            hRows = `<tr><td colspan="3" class="py-10 text-center text-slate-400">暂未获取到历史股东人数记录</td></tr>`;
+        }
+        const tbody = document.getElementById('ts-holders-table-body');
+        if (tbody) tbody.innerHTML = hRows;
+    }
+
     function switchTsModalTab(tabId) {
-        const tabs = ['ai', 'data', 'peers'];
+        const tabs = ['ai', 'data', 'peers', 'holders'];
         const activeClass = 'px-3.5 py-1.5 rounded-t-lg font-semibold bg-indigo-600 dark:bg-cyan-500 text-white dark:text-slate-950 shadow-xs transition cursor-pointer';
         const inactiveClass = 'px-3.5 py-1.5 rounded-t-lg font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer';
 
