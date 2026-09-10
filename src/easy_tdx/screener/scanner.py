@@ -50,6 +50,15 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
     if force_refresh:
         return None
     cache_f = _get_cache_file(strategy_name, universe, period=period)
+    if not cache_f.exists():
+        p_clean = str(period).strip().upper()
+        cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
+        if not cands:
+            cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+        if cands:
+            cache_f = cands[0]
+            logger.info(f"Fallback to most recent screener cache: {cache_f.name}")
+
     if cache_f.exists():
         try:
             mtime = os.path.getmtime(cache_f)

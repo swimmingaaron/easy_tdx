@@ -1309,24 +1309,33 @@ def evaluate_universe(
                     "stock": f"命中内存Cache ({len(cached_list)} 只标的)",
                 }
                 return [dict(x) for x in cached_list]
-        # 2. 磁盘缓存 (当日有效，用户未勾选“从服务器获取最新数据”时优先秒级复用)
-        if os.path.exists(cache_f):
+        # 2. 磁盘缓存 (优先当日缓存；若跨午夜、周末或开盘前尚未生成当日新缓存，自动秒级复用最近一次有效缓存)
+        target_cache_f = cache_f
+        if not os.path.exists(target_cache_f):
+            import glob
+            pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_*.json")
+            cand_files = sorted(glob.glob(pattern), reverse=True)
+            if cand_files:
+                target_cache_f = cand_files[0]
+                logger.info(f"Using most recent universe cache: {target_cache_f}")
+
+        if os.path.exists(target_cache_f):
             try:
-                with open(cache_f, "r", encoding="utf-8") as f:
+                with open(target_cache_f, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list) and len(data) > 0:
                         _MEM_CACHE[mem_key] = (now, data)
-                        logger.info(f"Loaded {len(data)} stocks from today cache: {cache_f}")
+                        logger.info(f"Loaded {len(data)} stocks from disk cache: {target_cache_f}")
                         _EVAL_PROGRESS[universe_type] = {
                             "status": "done",
                             "total": len(data),
                             "completed": len(data),
                             "pct": 100.0,
-                            "stock": f"命中今日磁盘Cache ({len(data)} 只标的)",
+                            "stock": f"命中磁盘Cache ({len(data)} 只标的)",
                         }
                         return data
             except Exception as e:
-                logger.warning(f"Failed to read cache {cache_f}: {e}")
+                logger.warning(f"Failed to read cache {target_cache_f}: {e}")
 
 
     if not symbols:
