@@ -1233,6 +1233,13 @@ def evaluate_universe(
         if mem_key in _MEM_CACHE:
             ts, cached_list = _MEM_CACHE[mem_key]
             if now - ts < 600.0:  # 10分钟内存缓存
+                _EVAL_PROGRESS[universe_type] = {
+                    "status": "done",
+                    "total": len(cached_list),
+                    "completed": len(cached_list),
+                    "pct": 100.0,
+                    "stock": f"命中内存Cache ({len(cached_list)} 只标的)",
+                }
                 return [dict(x) for x in cached_list]
         # 2. 磁盘缓存 (当日有效，用户未勾选“从服务器获取最新数据”时优先秒级复用)
         if os.path.exists(cache_f):
@@ -1242,6 +1249,13 @@ def evaluate_universe(
                     if isinstance(data, list) and len(data) > 0:
                         _MEM_CACHE[mem_key] = (now, data)
                         logger.info(f"Loaded {len(data)} stocks from today cache: {cache_f}")
+                        _EVAL_PROGRESS[universe_type] = {
+                            "status": "done",
+                            "total": len(data),
+                            "completed": len(data),
+                            "pct": 100.0,
+                            "stock": f"命中今日磁盘Cache ({len(data)} 只标的)",
+                        }
                         return data
             except Exception as e:
                 logger.warning(f"Failed to read cache {cache_f}: {e}")

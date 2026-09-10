@@ -11806,7 +11806,7 @@
     
     let tsProgressTimer = null;
 
-    function showTsProgress(universeName) {
+    function showTsProgress(universeName, isForce = true) {
         const c = document.getElementById('ts-progress-container');
         const fill = document.getElementById('ts-progress-bar-fill');
         const pct = document.getElementById('ts-progress-pct');
@@ -11815,11 +11815,13 @@
         const status = document.getElementById('ts-progress-status-text');
 
         if (c) c.classList.remove('hidden');
-        if (fill) fill.style.width = '3%';
-        if (pct) pct.innerText = '3.0%';
-        if (cnt) cnt.innerText = '准备扫描...';
+        if (fill) fill.style.width = isForce ? '3%' : '20%';
+        if (pct) pct.innerText = isForce ? '3.0%' : '20.0%';
+        if (cnt) cnt.innerText = isForce ? '准备全量重算...' : '读取Cache数据...';
         if (stock) stock.innerText = universeName || '全量标的';
-        if (status) status.innerText = '正在启动多线程量化引擎扫描指标与战法形态...';
+        if (status) status.innerText = isForce 
+            ? '正在启动多线程量化引擎全量重算指标与战法形态 (从服务器获取最新数据)...' 
+            : '正在从本地高速Cache载入量化指标与多因子共振数据 (优先使用Cache)...';
     }
 
     function updateTsProgress(completed, total, curPct, stockName) {
@@ -11845,7 +11847,9 @@
         const status = document.getElementById('ts-progress-status-text');
         if (fill) fill.style.width = '100%';
         if (pct) pct.innerText = '100.0%';
-        if (status) status.innerText = '评估完成，视图就绪！';
+        const cnt = document.getElementById('ts-progress-count');
+        if (cnt) cnt.innerText = '加载就绪';
+        if (status) status.innerText = '数据解析完成，视图就绪！';
 
         setTimeout(() => {
             const c = document.getElementById('ts-progress-container');
@@ -11863,7 +11867,9 @@
 
         const uniSelect = document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe');
         const uniLabel = uniSelect ? (uniSelect.options[uniSelect.selectedIndex]?.text || uniSelect.value) : '标的池';
-        if (force) { showTsProgress(uniLabel); } else { hideTsProgress(); }
+        
+        // 无论是否强制刷新还是使用 Cache，均展示高质感进度条
+        showTsProgress(uniLabel, force);
 
         const activeUni = uniSelect ? uniSelect.value : 'core';
         if (tsProgressTimer) clearInterval(tsProgressTimer);
@@ -11871,23 +11877,36 @@
         tsProgressTimer = setInterval(async () => {
             pollStep++;
             try {
-                const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
-                const pData = await pRes.json();
-                if (pData && pData.total > 0 && pData.status === 'running') {
-                    updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock);
-                } else if (pData && pData.status === 'done') {
-                    updateTsProgress(pData.total, pData.total, 100.0, '计算完成');
+                if (force) {
+                    const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
+                    const pData = await pRes.json();
+                    if (pData && pData.total > 0 && pData.status === 'running') {
+                        updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock);
+                    } else if (pData && pData.status === 'done') {
+                        updateTsProgress(pData.total, pData.total, 100.0, '计算完成');
+                    } else {
+                        let sim = Math.min(96, 5 + pollStep * 12);
+                        const fill = document.getElementById('ts-progress-bar-fill');
+                        if (fill && parseFloat(fill.style.width) < sim) {
+                            fill.style.width = `${sim}%`;
+                            const pct = document.getElementById('ts-progress-pct');
+                            if (pct) pct.innerText = `${sim.toFixed(1)}%`;
+                        }
+                    }
                 } else {
-                    let sim = Math.min(96, 5 + pollStep * 12);
+                    // 使用 Cache 时的平滑快速进度反馈
+                    let sim = Math.min(95, 20 + pollStep * 18);
                     const fill = document.getElementById('ts-progress-bar-fill');
                     if (fill && parseFloat(fill.style.width) < sim) {
                         fill.style.width = `${sim}%`;
-                        const pct = document.getElementById('ts-progress-pct');
-                        if (pct) pct.innerText = `${sim.toFixed(1)}%`;
                     }
+                    const pct = document.getElementById('ts-progress-pct');
+                    if (pct) pct.innerText = `${sim.toFixed(1)}%`;
+                    const cnt = document.getElementById('ts-progress-count');
+                    if (cnt) cnt.innerText = `Cache解析中 ${sim.toFixed(0)}%`;
                 }
             } catch (err) {}
-        }, 180);
+        }, 100);
 
         let url = '';
         if (currentTsMode === 'dashboard') {
@@ -11958,7 +11977,11 @@
             if (elStarSell) elStarSell.innerText = stat.star_sell !== undefined ? stat.star_sell : 0;
             if (elFooterCount) elFooterCount.innerText = `共检索到 ${data.total_count || 0} 只标的`;
 
-            hideTsProgress(350);
+            if (!force) {
+                // 使用 Cache 数据时，保证进度条平滑冲到 100% 并在肉眼可见下驻留 450ms 完成反馈
+                updateTsProgress(data.total_count || tsRowsData.length, data.total_count || tsRowsData.length, 100.0, 'Cache数据解析完成');
+            }
+            hideTsProgress(500);
             renderTsTable(tsRowsData, currentTsMode);
             const elCountBadge = document.getElementById('ts-count-badge');
             if (elCountBadge) elCountBadge.innerText = `${data.total_count || tsRowsData.length} 只标的`;
