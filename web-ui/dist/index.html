@@ -2144,8 +2144,8 @@
                             <col style="width: 7%;">
                             <col style="width: 7%;">
                             <col style="width: 9%;">
-                            <col style="width: 11.5%;">
-                            <col style="width: 5.5%;">
+                            <col style="width: 10.0%;">
+                            <col style="width: 7.0%;">
                         </colgroup>
                         <thead class="text-xs text-slate-400 border-b border-slate-800">
                             <tr>
@@ -10721,8 +10721,9 @@
                     <td class="py-3 px-3 text-center font-sans whitespace-nowrap">${renderPatternBadges(m.patterns, m.status || m.pattern_status, m.trigger_patterns, m.days_ago, m.signal_date, m.latest_date)}</td>
                     <td class="py-3 pr-3 text-right whitespace-nowrap">
                         <div class="flex items-center justify-end space-x-1.5">
-                            <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}', '${m.period || 'DAY'}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer whitespace-nowrap">K线</button>
-                            <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 text-xs hover:bg-cyan-900 transition cursor-pointer whitespace-nowrap">回测</button>
+                            <button onclick="openKlineModal('${m.symbol || m.code}', '${m.name}', '${m.period || 'DAY'}')" class="px-2 py-0.5 rounded bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-800 text-xs transition cursor-pointer whitespace-nowrap" title="点击查看【${m.name} (${m.symbol || m.code})】${m.period_name || m.period || '日线'}实时K线行情与多周期技术分析">K线</button>
+                            <button onclick="openTsFinaModal('${m.symbol || m.code}', '${m.name}')" class="px-2 py-0.5 rounded bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-800 text-xs transition cursor-pointer whitespace-nowrap" title="点击打开【${m.name} (${m.symbol || m.code})】智能投研财务与业绩诊断窗口">诊断</button>
+                            <button onclick="quickBacktest('${m.symbol || m.code}')" class="px-2 py-0.5 rounded bg-indigo-950 hover:bg-indigo-900 text-indigo-400 border border-indigo-800 text-xs transition cursor-pointer whitespace-nowrap" title="点击对【${m.name} (${m.symbol || m.code})】进行策略回测与参数寻优">回测</button>
                         </div>
                     </td>
                 </tr>`;
