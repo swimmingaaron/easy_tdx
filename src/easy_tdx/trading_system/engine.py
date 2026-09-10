@@ -831,11 +831,60 @@ def _get_universe_pe_map() -> Dict[str, float]:
     return pe_map
 
 
+def _fetch_peers_batch_quotes(stock_codes: List[str]) -> Dict[str, Dict[str, Any]]:
+    """批量从腾讯行情并发抓取股票实时行情 (总市值, 最新价, 涨跌幅)。"""
+    if not stock_codes:
+        return {}
+
+    def _chunk_pfx(code: str) -> str:
+        c = str(code).strip()
+        p = "sh" if (c.startswith("6") or c.startswith("9")) else ("bj" if (c.startswith("8") or c.startswith("4")) else "sz")
+        return f"s_{p}{c}"
+
+    q_codes = [_chunk_pfx(c) for c in stock_codes]
+    chunk_size = 70
+    chunks = [q_codes[i:i + chunk_size] for i in range(0, len(q_codes), chunk_size)]
+
+    def _fetch_chunk(chk: List[str]) -> Dict[str, Dict[str, Any]]:
+        url = "https://qt.gtimg.cn/q=" + ",".join(chk)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        res = {}
+        try:
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                text = resp.read().decode("gbk", errors="ignore")
+            for line in text.strip().split(";"):
+                line = line.strip()
+                if not line or "=" not in line:
+                    continue
+                val = line.split("=")[1].strip('"')
+                p = val.split("~")
+                if len(p) >= 10:
+                    code = p[2]
+                    price = float(p[3]) if p[3] and p[3] != "0.00" else None
+                    chg_pct = float(p[5]) if p[5] else None
+                    total_cap_yi = float(p[9]) if p[9] else None
+                    res[code] = {
+                        "price": price,
+                        "change_pct": chg_pct,
+                        "total_cap_yi": total_cap_yi,
+                    }
+        except Exception:
+            pass
+        return res
+
+    quotes_map: Dict[str, Dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        for r in pool.map(_fetch_chunk, chunks):
+            quotes_map.update(r)
+
+    return quotes_map
+
+
 def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行业") -> Tuple[str, List[Dict[str, Any]]]:
     """
     获取目标个股所属行业及同行业同报告期龙头横向对比数据。
     基于东方财富权威行业与财报数据中心（RPT_LICO_FN_CPD）。
-    包含历史 3 年 PE 百分位（PE(3年分位)）。
+    包含历史 3 年 PE 百分位（PE(3年分位)）、总市值、最新价、涨跌幅。
     """
     peers_list: List[Dict[str, Any]] = []
     industry = fallback_industry
@@ -944,6 +993,25 @@ def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行�
                 "pe_percentile": target_pe,
                 "is_target": True,
             })
+
+        # 并发极速补充实时行情数据 (总市值、最新价、涨跌幅)
+        try:
+            codes_for_quotes = [p["code"] for p in peers_list]
+            if codes_for_quotes:
+                quotes_map = _fetch_peers_batch_quotes(codes_for_quotes)
+                for p in peers_list:
+                    c = p["code"]
+                    q_info = quotes_map.get(c)
+                    if q_info:
+                        p["total_cap_yi"] = q_info.get("total_cap_yi")
+                        p["price"] = q_info.get("price")
+                        p["change_pct"] = q_info.get("change_pct")
+                    else:
+                        p["total_cap_yi"] = None
+                        p["price"] = None
+                        p["change_pct"] = None
+        except Exception as e:
+            logger.debug(f"Failed to attach live quotes to peers: {e}")
 
     except Exception as e:
         logger.debug(f"Failed to fetch stock peers for {clean_code}: {e}")
