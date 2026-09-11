@@ -2170,6 +2170,25 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- 48大策略全市场选股结果分页与统计控制栏 (每页30行) -->
+                <div id="screener-pagination-bar" class="p-2.5 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
+                    <div id="screener-table-footer-status">请选择战法策略与选股范围后，点击上方「开始选股」</div>
+                    <div id="screener-pagination" class="flex items-center gap-2">
+                        <button id="screener-page-first" onclick="goToScreenerPage(1)" class="px-2 py-1 rounded border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
+                        <button id="screener-page-prev" onclick="goToScreenerPage(screenerCurrentPage - 1)" class="px-2.5 py-1 rounded border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
+                        <span id="screener-page-info" class="font-mono font-semibold text-slate-200 px-1">第 1 / 1 页</span>
+                        <button id="screener-page-next" onclick="goToScreenerPage(screenerCurrentPage + 1)" class="px-2.5 py-1 rounded border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">下一页</button>
+                        <button id="screener-page-last" onclick="goToScreenerPage(screenerTotalPages)" class="px-2 py-1 rounded border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">尾页</button>
+                        <div class="flex items-center gap-1 ml-2">
+                            <span>跳至</span>
+                            <input id="screener-page-input" type="number" min="1" value="1" class="w-14 px-1.5 py-0.5 text-center font-mono rounded border border-slate-700 bg-slate-800 text-slate-100 text-xs focus:outline-none focus:border-cyan-500" onkeydown="if(event.key==='Enter') jumpToScreenerPage()">
+                            <span>页</span>
+                            <button onclick="jumpToScreenerPage()" class="px-2 py-1 rounded bg-indigo-950/60 text-indigo-400 border border-indigo-800 hover:bg-indigo-900/80 font-medium transition cursor-pointer">确定</button>
+                        </div>
+                    </div>
+                    <div id="screener-table-footer-count" class="font-mono font-medium text-slate-400">共命中 0 只标的 · 每页 30 行</div>
+                </div>
             </div>
         </section>
 
@@ -2740,10 +2759,26 @@
                     </table>
                 </div>
 
-                <!-- 底部统计与免责说明 -->
-                <div class="p-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-                    <div>⚠️ 本系统打分模型与 5 大指标策略仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</div>
-                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的</div>
+                <!-- 底部统计与分页控制与免责说明 -->
+                <div class="p-2.5 border-t border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500">
+                    <div class="flex items-center gap-1">
+                        <span>⚠️ 本系统打分模型与 5 大指标策略仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</span>
+                    </div>
+                    <!-- 交易系统分页组件 (每页30行) -->
+                    <div id="ts-pagination" class="flex items-center gap-2">
+                        <button id="ts-page-first" onclick="goToTsPage(1)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
+                        <button id="ts-page-prev" onclick="goToTsPage(tsCurrentPage - 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
+                        <span id="ts-page-info" class="font-mono font-semibold text-slate-800 dark:text-slate-200 px-1">第 1 / 1 页</span>
+                        <button id="ts-page-next" onclick="goToTsPage(tsCurrentPage + 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">下一页</button>
+                        <button id="ts-page-last" onclick="goToTsPage(tsTotalPages)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">尾页</button>
+                        <div class="flex items-center gap-1 ml-2">
+                            <span>跳至</span>
+                            <input id="ts-page-input" type="number" min="1" value="1" class="w-14 px-1.5 py-0.5 text-center font-mono rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:border-cyan-500" onkeydown="if(event.key==='Enter') jumpToTsPage()">
+                            <span>页</span>
+                            <button onclick="jumpToTsPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
+                        </div>
+                    </div>
+                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 30 行</div>
                 </div>
             </div>
         </section>
@@ -8372,7 +8407,7 @@
                     const bScore = Number(q.buy_score || 0);
                     let bBadge = '';
                     if (bScore >= 10) {
-                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">10+ 强买</span>`;
+                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">${bScore}分 强烈买入</span>`;
                     } else if (bScore >= 8) {
                         bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-xs">${bScore}分 买入</span>`;
                     } else if (bScore >= 5) {
@@ -10651,15 +10686,97 @@
             renderScreenerTableRows(sorted, window._lastScreenerStrategy || '', window._lastScreenerUniverse || '');
         }
 
+        
+        let screenerCurrentPage = 1;
+        const screenerPageSize = 30;
+        let screenerTotalPages = 1;
+
+        function goToScreenerPage(page) {
+            page = parseInt(page);
+            if (isNaN(page)) return;
+            if (page < 1) page = 1;
+            if (page > screenerTotalPages) page = screenerTotalPages;
+            if (page === screenerCurrentPage && window._lastScreenerMatches && window._lastScreenerMatches.length > 0) return;
+            screenerCurrentPage = page;
+            renderScreenerTablePage();
+            const tbody = document.getElementById('screener-results-table');
+            if (tbody) {
+                const container = tbody.closest('.overflow-x-auto') || tbody.parentElement;
+                if (container) container.scrollTop = 0;
+            }
+        }
+
+        function jumpToScreenerPage() {
+            const input = document.getElementById('screener-page-input');
+            if (input && input.value) {
+                goToScreenerPage(input.value);
+            }
+        }
+
+        window.goToScreenerPage = goToScreenerPage;
+        window.jumpToScreenerPage = jumpToScreenerPage;
+
+        function updateScreenerPaginationUI(totalCount, pageCount, page, totalPages, startIdx, endIdx) {
+            const pageInfo = document.getElementById('screener-page-info');
+            const btnFirst = document.getElementById('screener-page-first');
+            const btnPrev = document.getElementById('screener-page-prev');
+            const btnNext = document.getElementById('screener-page-next');
+            const btnLast = document.getElementById('screener-page-last');
+            const pageInput = document.getElementById('screener-page-input');
+            const footerCount = document.getElementById('screener-table-footer-count');
+            const footerStatus = document.getElementById('screener-table-footer-status');
+
+            if (pageInfo) pageInfo.innerText = `第 ${page} / ${totalPages} 页`;
+            if (btnFirst) btnFirst.disabled = (page <= 1);
+            if (btnPrev) btnPrev.disabled = (page <= 1);
+            if (btnNext) btnNext.disabled = (page >= totalPages);
+            if (btnLast) btnLast.disabled = (page >= totalPages);
+            if (pageInput) {
+                pageInput.value = page;
+                pageInput.max = totalPages;
+            }
+            if (footerCount) {
+                if (totalCount === 0) {
+                    footerCount.innerText = `共命中 0 只标的 · 每页 ${screenerPageSize} 行`;
+                } else {
+                    footerCount.innerText = `共命中 ${totalCount} 只标的 (第 ${startIdx + 1}-${endIdx} 只) · 每页 ${screenerPageSize} 行`;
+                }
+            }
+            if (footerStatus && totalCount > 0) {
+                footerStatus.innerText = `战法【${window._lastScreenerStrategy || ''}】筛选结果就绪`;
+            }
+        }
+
         function renderScreenerTableRows(matches, strategyName, universeDesc) {
+            window._lastScreenerMatches = matches || [];
+            if (strategyName) window._lastScreenerStrategy = strategyName;
+            if (universeDesc) window._lastScreenerUniverse = universeDesc;
+            screenerCurrentPage = 1;
+            renderScreenerTablePage();
+        }
+
+        function renderScreenerTablePage() {
+            const matches = window._lastScreenerMatches || [];
+            const strategyName = window._lastScreenerStrategy || '';
+            const universeDesc = window._lastScreenerUniverse || '';
+
+            screenerTotalPages = Math.max(1, Math.ceil(matches.length / screenerPageSize));
+            if (screenerCurrentPage > screenerTotalPages) screenerCurrentPage = screenerTotalPages;
+            if (screenerCurrentPage < 1) screenerCurrentPage = 1;
+
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                updateScreenerPaginationUI(0, 0, 1, 1, 0, 0);
                 return;
             }
 
-            tbody.innerHTML = matches.map(m => {
+            const startIdx = (screenerCurrentPage - 1) * screenerPageSize;
+            const endIdx = Math.min(startIdx + screenerPageSize, matches.length);
+            const pageMatches = matches.slice(startIdx, endIdx);
+
+            tbody.innerHTML = pageMatches.map(m => {
                 const chg = Number(m.signal_change_pct ?? m.change_pct ?? 0);
                 const isUp = chg >= 0;
                 const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
@@ -10728,7 +10845,8 @@
                     </td>
                 </tr>`;
             }).join('');
-            lucide.createIcons();
+            if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+            updateScreenerPaginationUI(matches.length, pageMatches.length, screenerCurrentPage, screenerTotalPages, startIdx, endIdx);
         }
 
         function renderScreenerTable(matches, strategyName, universeDesc) {
@@ -11865,7 +11983,7 @@
     function renderScoreBadgeTs(score, kind='buy') {
         score = Number(score) || 0;
         if (kind === 'buy') {
-            if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-sm">10+ 强烈买入</span>`;
+            if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-sm">${score}分 强烈买入</span>`;
             if (score >= 8) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-sm">${score}分 买入</span>`;
             if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white">${score}分 关注</span>`;
             return `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">${score}分 观望</span>`;
@@ -12136,7 +12254,80 @@
         }
     }
 
+    
+    let tsCurrentPage = 1;
+    const tsPageSize = 30;
+    let tsAllRows = [];
+    let tsTotalPages = 1;
+
+    function goToTsPage(page) {
+        page = parseInt(page);
+        if (isNaN(page)) return;
+        if (page < 1) page = 1;
+        if (page > tsTotalPages) page = tsTotalPages;
+        if (page === tsCurrentPage && tsAllRows.length > 0) return;
+        tsCurrentPage = page;
+        renderTsTablePage();
+        const tbody = document.getElementById('ts-table-body');
+        if (tbody) {
+            const container = tbody.closest('.overflow-x-auto') || tbody.parentElement;
+            if (container) container.scrollTop = 0;
+        }
+    }
+
+    function jumpToTsPage() {
+        const input = document.getElementById('ts-page-input');
+        if (input && input.value) {
+            goToTsPage(input.value);
+        }
+    }
+
+    window.goToTsPage = goToTsPage;
+    window.jumpToTsPage = jumpToTsPage;
+
+    function updateTsPaginationUI(totalCount, pageCount, page, totalPages, startIdx, endIdx) {
+        const pageInfo = document.getElementById('ts-page-info');
+        if (pageInfo) pageInfo.innerText = `第 ${page} / ${totalPages} 页`;
+
+        const btnFirst = document.getElementById('ts-page-first');
+        const btnPrev = document.getElementById('ts-page-prev');
+        const btnNext = document.getElementById('ts-page-next');
+        const btnLast = document.getElementById('ts-page-last');
+        const pageInput = document.getElementById('ts-page-input');
+        const footerCount = document.getElementById('ts-table-footer-count');
+
+        if (btnFirst) btnFirst.disabled = (page <= 1);
+        if (btnPrev) btnPrev.disabled = (page <= 1);
+        if (btnNext) btnNext.disabled = (page >= totalPages);
+        if (btnLast) btnLast.disabled = (page >= totalPages);
+
+        if (pageInput) {
+            pageInput.value = page;
+            pageInput.max = totalPages;
+        }
+
+        if (footerCount) {
+            if (totalCount === 0) {
+                footerCount.innerText = `共检索到 0 只标的 · 每页 ${tsPageSize} 行`;
+            } else {
+                footerCount.innerText = `共检索到 ${totalCount} 只标的 (第 ${startIdx + 1}-${endIdx} 只) · 每页 ${tsPageSize} 行`;
+            }
+        }
+    }
+
     function renderTsTable(rows, mode) {
+        tsAllRows = rows || [];
+        tsCurrentPage = 1;
+        renderTsTablePage();
+    }
+
+    function renderTsTablePage() {
+        const rows = tsAllRows || [];
+        const mode = currentTsMode;
+        tsTotalPages = Math.max(1, Math.ceil(rows.length / tsPageSize));
+        if (tsCurrentPage > tsTotalPages) tsCurrentPage = tsTotalPages;
+        if (tsCurrentPage < 1) tsCurrentPage = 1;
+
         const thead = document.getElementById('ts-table-head');
         const tbody = document.getElementById('ts-table-body');
         if (!thead || !tbody) return;
@@ -12209,11 +12400,17 @@
 
         if (!rows || rows.length === 0) {
             tbody.innerHTML = `<tr><td colspan="35" class="py-12 text-center text-slate-400 font-sans">当前筛选条件下暂无匹配股票</td></tr>`;
+            updateTsPaginationUI(0, 0, 1, 1, 0, 0);
             return;
         }
 
         let html = '';
-        rows.forEach((r, idx) => {
+        const startIdx = (tsCurrentPage - 1) * tsPageSize;
+        const endIdx = Math.min(startIdx + tsPageSize, rows.length);
+        const pageRows = rows.slice(startIdx, endIdx);
+
+        pageRows.forEach((r, idx) => {
+            const rowNumber = startIdx + idx + 1;
             let code = r.stock_code;
             let name = r.stock_name || code;
             let pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : ((code.startsWith('8') || code.startsWith('4')) ? 'BJ' : 'SZ');
@@ -12336,7 +12533,7 @@
             if (mode === 'dashboard') {
                 html += `
                     <tr class="${trBg}">
-                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${rowNumber}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnDiag}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">
                             <input type="checkbox" onchange="toggleTsWatchlist('${code}', '${name}', this)" ${isChecked} title="加选/取消自选" class="cursor-pointer rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0">
@@ -12367,7 +12564,7 @@
             } else {
                 html += `
                     <tr class="${trBg}">
-                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${idx + 1}</td>
+                        <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${rowNumber}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnDiag}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">
                             <input type="checkbox" onchange="toggleTsWatchlist('${code}', '${name}', this)" ${isChecked} title="加选/取消自选" class="cursor-pointer rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0">
@@ -12408,6 +12605,7 @@
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons();
         }
+        updateTsPaginationUI(rows.length, pageRows.length, tsCurrentPage, tsTotalPages, startIdx, endIdx);
     }
 
     function changeTsSort(col) {
