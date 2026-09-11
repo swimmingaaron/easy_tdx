@@ -12053,7 +12053,10 @@
     }
 
     
-    let tsProgressTimer = null;
+        let tsProgressTimer = null;
+    let tsMaxPct = 0.0;
+    let isPollingTsProgress = false;
+    let tsCurrentRunId = 0;
 
     function showTsProgress(universeName, isForce = true) {
         const c = document.getElementById('ts-progress-container');
@@ -12063,27 +12066,37 @@
         const stock = document.getElementById('ts-progress-stock-name');
         const status = document.getElementById('ts-progress-status-text');
 
+        tsMaxPct = isForce ? 1.0 : 15.0;
         if (c) c.classList.remove('hidden');
-        if (fill) fill.style.width = isForce ? '3%' : '20%';
-        if (pct) pct.innerText = isForce ? '3.0%' : '20.0%';
-        if (cnt) cnt.innerText = isForce ? '准备全量重算...' : '读取Cache数据...';
+        if (fill) fill.style.width = `${tsMaxPct}%`;
+        if (pct) pct.innerText = `${tsMaxPct.toFixed(1)}%`;
+        if (cnt) cnt.innerText = isForce ? '准备启动扫描...' : '载入Cache...';
         if (stock) stock.innerText = universeName || '全量标的';
         if (status) status.innerText = isForce 
-            ? '正在启动多线程量化引擎全量重算指标与战法形态 (从服务器获取最新数据)...' 
-            : '正在从本地高速Cache载入量化指标与多因子共振数据 (优先使用Cache)...';
+            ? '正在启动量化引擎扫描指标与战法形态 (从服务器获取)...' 
+            : '正在从本地高速Cache载入量化多因子共振数据 (优先使用Cache)...';
     }
 
-    function updateTsProgress(completed, total, curPct, stockName) {
+    function updateTsProgress(completed, total, curPct, stockName, statusText) {
         const fill = document.getElementById('ts-progress-bar-fill');
         const pct = document.getElementById('ts-progress-pct');
         const cnt = document.getElementById('ts-progress-count');
         const stock = document.getElementById('ts-progress-stock-name');
+        const status = document.getElementById('ts-progress-status-text');
 
-        let p = Math.min(100, Math.max(0, curPct || 0));
-        if (fill) fill.style.width = `${p}%`;
-        if (pct) pct.innerText = `${p.toFixed(1)}%`;
+        let rawP = Math.min(100, Math.max(0, curPct || 0));
+        // 单调递增保护：进度条绝不允许倒退！彻底解决进度条反复跳动问题
+        if (rawP < tsMaxPct) {
+            rawP = tsMaxPct;
+        } else {
+            tsMaxPct = rawP;
+        }
+
+        if (fill) fill.style.width = `${rawP}%`;
+        if (pct) pct.innerText = `${rawP.toFixed(1)}%`;
         if (cnt && total > 0) cnt.innerText = `${completed} / ${total}`;
         if (stock && stockName) stock.innerText = stockName;
+        if (status && statusText) status.innerText = statusText;
     }
 
     function hideTsProgress(delay=350) {
@@ -12091,12 +12104,14 @@
             clearInterval(tsProgressTimer);
             tsProgressTimer = null;
         }
+        isPollingTsProgress = false;
+        tsMaxPct = 100.0;
         const fill = document.getElementById('ts-progress-bar-fill');
         const pct = document.getElementById('ts-progress-pct');
+        const cnt = document.getElementById('ts-progress-count');
         const status = document.getElementById('ts-progress-status-text');
         if (fill) fill.style.width = '100%';
         if (pct) pct.innerText = '100.0%';
-        const cnt = document.getElementById('ts-progress-count');
         if (cnt) cnt.innerText = '加载就绪';
         if (status) status.innerText = '数据解析完成，视图就绪！';
 
@@ -12114,6 +12129,9 @@
         if (!tbody) return;
         tbody.innerHTML = `<tr><td colspan="30" class="py-12 text-center text-slate-500"><div class="flex items-center justify-center space-x-2"><div class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div><span>正在全量计算量价打分与战法形态...</span></div></td></tr>`;
 
+        tsCurrentRunId++;
+        const myRunId = tsCurrentRunId;
+
         const uniSelect = document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe');
         const uniLabel = uniSelect ? (uniSelect.options[uniSelect.selectedIndex]?.text || uniSelect.value) : '标的池';
         
@@ -12122,40 +12140,34 @@
 
         const activeUni = uniSelect ? uniSelect.value : 'core';
         if (tsProgressTimer) clearInterval(tsProgressTimer);
+        isPollingTsProgress = false;
         let pollStep = 0;
+
         tsProgressTimer = setInterval(async () => {
+            if (myRunId !== tsCurrentRunId) return;
+            if (isPollingTsProgress) return;
+            isPollingTsProgress = true;
             pollStep++;
             try {
-                if (force) {
-                    const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
-                    const pData = await pRes.json();
-                    if (pData && pData.total > 0 && pData.status === 'running') {
-                        updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock);
-                    } else if (pData && pData.status === 'done') {
-                        updateTsProgress(pData.total, pData.total, 100.0, '计算完成');
-                    } else {
-                        let sim = Math.min(96, 5 + pollStep * 12);
-                        const fill = document.getElementById('ts-progress-bar-fill');
-                        if (fill && parseFloat(fill.style.width) < sim) {
-                            fill.style.width = `${sim}%`;
-                            const pct = document.getElementById('ts-progress-pct');
-                            if (pct) pct.innerText = `${sim.toFixed(1)}%`;
-                        }
-                    }
-                } else {
-                    // 使用 Cache 时的平滑快速进度反馈
-                    let sim = Math.min(95, 20 + pollStep * 18);
-                    const fill = document.getElementById('ts-progress-bar-fill');
-                    if (fill && parseFloat(fill.style.width) < sim) {
-                        fill.style.width = `${sim}%`;
-                    }
-                    const pct = document.getElementById('ts-progress-pct');
-                    if (pct) pct.innerText = `${sim.toFixed(1)}%`;
-                    const cnt = document.getElementById('ts-progress-count');
-                    if (cnt) cnt.innerText = `Cache解析中 ${sim.toFixed(0)}%`;
+                // 统一轮询后端真实进度 (无论 force 是 true 还是 false，只要后端在计算就反馈实时进度与处理个股)
+                const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
+                if (myRunId !== tsCurrentRunId) return;
+                const pData = await pRes.json();
+                if (pData && pData.status === 'running') {
+                    const stMsg = pData.stage === 'quotes'
+                        ? '正在批量获取全市场实时行情与资金流快照...'
+                        : '正在并行评估股票池量化模型与战法共振...';
+                    updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock, stMsg);
+                } else if (!force) {
+                    // 使用 Cache 时的平滑极速过渡 (通常在 200~300ms 就会收到数据)
+                    let sim = Math.min(95, 20 + pollStep * 15);
+                    updateTsProgress(0, 0, sim, '本地Cache载入中...', '正在从本地高速Cache载入量化多因子共振数据...');
                 }
-            } catch (err) {}
-        }, 100);
+            } catch (err) {
+            } finally {
+                isPollingTsProgress = false;
+            }
+        }, 150);
 
         let url = '';
         if (currentTsMode === 'dashboard') {
@@ -12240,11 +12252,8 @@
             if (elStarSell) elStarSell.innerText = stat.star_sell !== undefined ? stat.star_sell : 0;
             if (elFooterCount) elFooterCount.innerText = `共检索到 ${data.total_count || 0} 只标的`;
 
-            if (!force) {
-                // 使用 Cache 数据时，保证进度条平滑冲到 100% 并在肉眼可见下驻留 450ms 完成反馈
-                updateTsProgress(data.total_count || tsRowsData.length, data.total_count || tsRowsData.length, 100.0, 'Cache数据解析完成');
-            }
-            hideTsProgress(500);
+            updateTsProgress(data.total_count || tsRowsData.length, data.total_count || tsRowsData.length, 100.0, force ? '全量计算完成' : 'Cache解析完成', '数据解析完成，共 ' + (data.total_count || tsRowsData.length) + ' 只标的就绪');
+            hideTsProgress(400);
             renderTsTable(tsRowsData, currentTsMode);
             const elCountBadge = document.getElementById('ts-count-badge');
             if (elCountBadge) elCountBadge.innerText = `${data.total_count || tsRowsData.length} 只标的`;

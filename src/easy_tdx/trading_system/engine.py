@@ -14,6 +14,7 @@ import logging
 import os
 import json
 import time
+import threading
 import gzip
 import urllib.request
 import urllib.parse
@@ -98,6 +99,9 @@ _MEM_CACHE: Dict[str, Tuple[float, Any]] = {}
 _FINA_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _HOLDERS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _EVAL_PROGRESS: Dict[str, Dict[str, Any]] = {}
+_EVAL_LOCK = threading.Lock()
+_ACTIVE_EVAL_EVENTS: Dict[str, threading.Event] = {}
+_ACTIVE_EVAL_RESULTS: Dict[str, Any] = {}
 
 
 def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
@@ -120,7 +124,7 @@ def _get_market_prefix(code: str) -> str:
     return "SZ"
 
 
-def fetch_stock_holders(code: str) -> Dict[str, Any]:
+def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     """
     获取股东人数及前十大股东集中度。
     第一获取接口：从 easy_tdx 原生 TDX 接口获取最新股东人数；
@@ -163,6 +167,11 @@ def fetch_stock_holders(code: str) -> Dict[str, Any]:
             logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
     except Exception as e:
         logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+
+    # 快速模式下若已成功获取股东人数，直接返回，避免对 5000+ 标的产生数万次外部外网 HTTP 抓取
+    if quick and easy_tdx_ok:
+        _HOLDERS_CACHE[clean_code] = (now, res)
+        return res
 
     # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细（若第一接口失败则作为完整兜底）
     try:
@@ -673,11 +682,12 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
     }
 
 
-def fetch_stock_financials(code: str) -> Dict[str, Any]:
+def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     """
     获取近 8 期财报及诊断指标。
     第一获取接口：从 easy_tdx 原生接口（SinaClient 8期报表 + TDX 每股净资产）获取；
     若获取失败或数据为空，再从外部接口（东方财富等）回退抓取。
+    支持 quick=True 快速模式，用于全市场5000+标的批量扫描，仅提取最近1期营收与净利同比，跳过竞品横向对比与HTML生成。
     """
     clean_code = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     pfx = _get_market_prefix(clean_code)
@@ -686,28 +696,32 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
 
     if cache_key in _FINA_CACHE:
         ts, data = _FINA_CACHE[cache_key]
-        if (now - ts < 3600) and data.get("peers_data") and len(data["peers_data"]) > 0 and data.get("holders_data"):
-            return data
+        if (now - ts < 3600):
+            if quick and data.get("fina_data"):
+                return data
+            if data.get("peers_data") and len(data["peers_data"]) > 0 and data.get("holders_data"):
+                return data
 
     fina_list = []
     peers_list = []
     industry = "通用行业"
 
-    # 1. 第一获取接口：easy_tdx 内置 SinaClient 8 期财报
+    # 1. 第一获取接口：easy_tdx 内置 SinaClient (快速模式仅取最近 2 期)
     try:
-        sc = SinaClient(timeout=3.0)
-        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=8)
+        sc = SinaClient(timeout=2.0 if quick else 3.0)
+        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=2 if quick else 8)
 
         # 从 easy_tdx 原生 TDX 获取每股净资产以计算 ROE
         nav = 0.0
-        try:
-            cli = _TDX_POOL.acquire()
-            df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
-            _TDX_POOL.release(cli, success=True)
-            if df_tdx is not None and not df_tdx.empty:
-                nav = float(df_tdx.iloc[0].get("meigujing_zichan") or 0.0)
-        except Exception:
-            pass
+        if not quick:
+            try:
+                cli = _TDX_POOL.acquire()
+                df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+                _TDX_POOL.release(cli, success=True)
+                if df_tdx is not None and not df_tdx.empty:
+                    nav = float(df_tdx.iloc[0].get("meigujing_zichan") or 0.0)
+            except Exception:
+                pass
 
         if df_sina is not None and not df_sina.empty:
             for _, r in df_sina.iterrows():
@@ -739,14 +753,15 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
         try:
             url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
             req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, timeout=4) as resp:
+            with urllib.request.urlopen(req, timeout=2.0 if quick else 4.0) as resp:
                 raw_bytes = resp.read()
                 if raw_bytes[:2] == b"\x1f\x8b":
                     raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
                 else:
                     raw = raw_bytes.decode("utf-8", errors="replace")
                 data_json = json.loads(raw).get("data", [])
-                for item in data_json[:8]:
+                max_items = 2 if quick else 8
+                for item in data_json[:max_items]:
                     rep_date = str(item.get("REPORT_DATE", ""))[:10]
                     qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
                     rev = float(item.get("TOTALOPERATEREVE") or 0.0)
@@ -770,6 +785,23 @@ def fetch_stock_financials(code: str) -> Dict[str, Any]:
                     })
         except Exception as e:
             logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
+
+    # 若为快速模式，仅需要 ystz/sjltz 同比，直接返回，避免对 5000+ 标的产生 40,000+ 次外部外网 HTTP 抓取与卡死
+    if quick:
+        quick_result = {
+            "success": True,
+            "stock_code": str(clean_code),
+            "stock_name": str(get_stock_name(clean_code)),
+            "industry": str(industry),
+            "fina_data": fina_list,
+            "peers_data": [],
+            "holders_data": {},
+            "analysis_html": "",
+            "model_name": "StockQuant 智能投研系统",
+        }
+        if fina_list:
+            _FINA_CACHE[cache_key] = (now, quick_result)
+        return quick_result
 
     # 获取股东人数及历史集中度变动
     holders_info = fetch_stock_holders(clean_code)
@@ -1338,114 +1370,167 @@ def evaluate_universe(
                 logger.warning(f"Failed to read cache {target_cache_f}: {e}")
 
 
-    if not symbols:
-        symbols = get_universe_symbols(universe_type)
+    # 跨请求并发去重：若当前已有同名股票池评估任务在运行，后至线程等待已有线程结果，防止并发冲突覆盖进度
+    is_initiator = False
+    wait_event = None
+    if not is_custom_symbols:
+        with _EVAL_LOCK:
+            if universe_type in _ACTIVE_EVAL_EVENTS:
+                wait_event = _ACTIVE_EVAL_EVENTS[universe_type]
+            else:
+                wait_event = threading.Event()
+                _ACTIVE_EVAL_EVENTS[universe_type] = wait_event
+                is_initiator = True
+
+        if not is_initiator and wait_event:
+            logger.info(f"Another thread is already evaluating {universe_type}, waiting for existing run...")
+            wait_event.wait(timeout=240.0)
+            cached_res = _ACTIVE_EVAL_RESULTS.get(universe_type)
+            if cached_res:
+                return [dict(x) for x in cached_res]
+
+    try:
         if not symbols:
-            symbols = CORE_UNIVERSE
+            symbols = get_universe_symbols(universe_type)
+            if not symbols:
+                symbols = CORE_UNIVERSE
 
-    # 批量获取快照与资金流
-    quotes = fetch_realtime_pool_quotes(symbols)
-    q_map = {q["code"]: q for q in quotes}
+        total_syms = len(symbols)
+        # 立即重置进度状态，消除上一轮残留的 done 导致的前端 100%->0% 倒退
+        _EVAL_PROGRESS[universe_type] = {
+            "status": "running",
+            "stage": "quotes",
+            "total": total_syms,
+            "completed": 0,
+            "pct": 1.0,
+            "stock": "正在获取实时行情与资金流快照...",
+        }
 
-    results: List[Dict[str, Any]] = []
-
-    def _worker(s: str):
-        try:
-            df = fetch_security_kline(s, count=750)
-            if df is not None and not df.empty and len(df) >= 20:
-                res = evaluate_kline_strategy(s, df, q_map.get(s))
-                if res:
-                    # 1. 板块代码与行业名称
-                    try:
-                        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
-                        b_info = _resolve_stock_board_info(s)
-                        if b_info and b_info.get("board_name") and b_info["board_name"] != "--":
-                            res["board_code"] = str(b_info.get("board_code") or "")
-                            res["industry"] = str(b_info["board_name"])
-                        else:
-                            res["board_code"] = ""
-                            res["industry"] = str(q_map.get(s, {}).get("board_name") or "--")
-                    except Exception:
-                        res["board_code"] = ""
-                        res["industry"] = str(q_map.get(s, {}).get("board_name") or "--")
-
-                    # 2. 财务营收/净利同比 (近一期)
-                    try:
-                        fina = fetch_stock_financials(s)
-                        latest_f = fina.get("fina_data", [{}])[0] if fina.get("fina_data") else {}
-                        res["ystz"] = float(latest_f.get("ystz", 0.0))
-                        res["sjltz"] = float(latest_f.get("sjltz", 0.0))
-                    except Exception:
-                        res["ystz"] = 0.0
-                        res["sjltz"] = 0.0
-
-                    # 3. 股东户数与集中度
-                    try:
-                        h_info = fetch_stock_holders(s)
-                        res["holders_num"] = int(h_info.get("holders_num", 0))
-                        res["holders_str"] = str(h_info.get("holders_str", "--"))
-                        res["holder_ratio"] = float(h_info.get("holder_ratio", 0.0))
-                        res["holder_focus"] = str(h_info.get("holder_focus", "--"))
-                        res["holders_changes"] = list(h_info.get("holders_changes", []))
-                    except Exception:
-                        res["holders_num"] = 0
-                        res["holders_str"] = "--"
-                        res["holder_ratio"] = 0.0
-                        res["holder_focus"] = "--"
-                        res["holders_changes"] = []
-
-                    return res
-        except Exception as e:
-            logger.debug(f"Worker failed for {s}: {e}")
-        return None
-
-    total_syms = len(symbols)
-    _EVAL_PROGRESS[universe_type] = {
-        "status": "running",
-        "total": total_syms,
-        "completed": 0,
-        "pct": 0.0,
-        "stock": "正在初始化扫描...",
-    }
-
-    done_cnt = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(_worker, s) for s in symbols]
-        for f in as_completed(futures):
-            r = f.result()
-            if r:
-                results.append(r)
-            done_cnt += 1
-            s_name = r.get("stock_name", "") if r else ""
+        # 批量获取快照与资金流，并支持进度平滑过渡 (1% ~ 10%)
+        def _quote_progress(cur, tot):
+            pct = round(1.0 + (cur / max(1, tot)) * 9.0, 1)
             _EVAL_PROGRESS[universe_type] = {
                 "status": "running",
+                "stage": "quotes",
                 "total": total_syms,
-                "completed": done_cnt,
-                "pct": round(done_cnt / max(1, total_syms) * 100, 1),
-                "stock": s_name,
+                "completed": 0,
+                "pct": pct,
+                "stock": f"获取行情快照 ({cur}/{tot})...",
             }
 
-    _EVAL_PROGRESS[universe_type] = {
-        "status": "done",
-        "total": total_syms,
-        "completed": total_syms,
-        "pct": 100.0,
-        "stock": "计算完成",
-    }
+        quotes = fetch_realtime_pool_quotes(symbols, on_progress=_quote_progress if total_syms > 200 else None)
+        q_map = {q["code"]: q for q in quotes}
 
-    # 写入缓存
-    if not is_custom_symbols and results:
-        try:
+        results: List[Dict[str, Any]] = []
+
+        def _worker(s: str):
+            try:
+                df = fetch_security_kline(s, count=750)
+                if df is not None and not df.empty and len(df) >= 20:
+                    res = evaluate_kline_strategy(s, df, q_map.get(s))
+                    if res:
+                        # 1. 板块代码与行业名称
+                        try:
+                            from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+                            b_info = _resolve_stock_board_info(s)
+                            if b_info and b_info.get("board_name") and b_info["board_name"] != "--":
+                                res["board_code"] = str(b_info.get("board_code") or "")
+                                res["industry"] = str(b_info["board_name"])
+                            else:
+                                res["board_code"] = ""
+                                res["industry"] = str(q_map.get(s, {}).get("board_name") or "--")
+                        except Exception:
+                            res["board_code"] = ""
+                            res["industry"] = str(q_map.get(s, {}).get("board_name") or "--")
+
+                        # 2. 财务营收/净利同比 (近一期, quick=True 模式秒级返回，彻底避免 40,000+ 外部请求被封禁)
+                        try:
+                            fina = fetch_stock_financials(s, quick=True)
+                            latest_f = fina.get("fina_data", [{}])[0] if fina.get("fina_data") else {}
+                            res["ystz"] = float(latest_f.get("ystz", 0.0))
+                            res["sjltz"] = float(latest_f.get("sjltz", 0.0))
+                        except Exception:
+                            res["ystz"] = 0.0
+                            res["sjltz"] = 0.0
+
+                        # 3. 股东户数与集中度 (quick=True 模式优先读取 TDX 原生股东人数)
+                        try:
+                            h_info = fetch_stock_holders(s, quick=True)
+                            res["holders_num"] = int(h_info.get("holders_num", 0))
+                            res["holders_str"] = str(h_info.get("holders_str", "--"))
+                            res["holder_ratio"] = float(h_info.get("holder_ratio", 0.0))
+                            res["holder_focus"] = str(h_info.get("holder_focus", "--"))
+                            res["holders_changes"] = list(h_info.get("holders_changes", []))
+                        except Exception:
+                            res["holders_num"] = 0
+                            res["holders_str"] = "--"
+                            res["holder_ratio"] = 0.0
+                            res["holder_focus"] = "--"
+                            res["holders_changes"] = []
+
+                        return res
+            except Exception as e:
+                logger.debug(f"Worker failed for {s}: {e}")
+            return None
+
+        _EVAL_PROGRESS[universe_type] = {
+            "status": "running",
+            "stage": "quant",
+            "total": total_syms,
+            "completed": 0,
+            "pct": 10.0,
+            "stock": "正在并行评估股票池量化模型与战法共振...",
+        }
+
+        done_cnt = 0
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_worker, s) for s in symbols]
+            for f in as_completed(futures):
+                r = f.result()
+                if r:
+                    results.append(r)
+                done_cnt += 1
+                s_name = r.get("stock_name", "") if r else ""
+                pct = round(10.0 + (done_cnt / max(1, total_syms)) * 90.0, 1)
+                _EVAL_PROGRESS[universe_type] = {
+                    "status": "running",
+                    "stage": "quant",
+                    "total": total_syms,
+                    "completed": done_cnt,
+                    "pct": min(99.9, pct),
+                    "stock": s_name,
+                }
+
+        _EVAL_PROGRESS[universe_type] = {
+            "status": "done",
+            "stage": "done",
+            "total": total_syms,
+            "completed": total_syms,
+            "pct": 100.0,
+            "stock": "计算完成",
+        }
+
+        # 写入缓存
+        if not is_custom_symbols and results:
+            try:
+                _MEM_CACHE[mem_key] = (time.time(), results)
+                with open(cache_f, "w", encoding="utf-8") as f:
+                    json.dump(results, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.warning(f"Failed to save universe cache: {e}")
+        elif is_custom_symbols and results and symbols:
+            mem_key = f"univ_custom_{','.join(sorted(symbols))}"
             _MEM_CACHE[mem_key] = (time.time(), results)
-            with open(cache_f, "w", encoding="utf-8") as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"Failed to save universe cache: {e}")
-    elif is_custom_symbols and results and symbols:
-        mem_key = f"univ_custom_{','.join(sorted(symbols))}"
-        _MEM_CACHE[mem_key] = (time.time(), results)
 
-    return results
+        if not is_custom_symbols:
+            _ACTIVE_EVAL_RESULTS[universe_type] = results
+
+        return results
+    finally:
+        if is_initiator and wait_event:
+            with _EVAL_LOCK:
+                _ACTIVE_EVAL_EVENTS.pop(universe_type, None)
+                wait_event.set()
 
 
 def evaluate_stock_history(code: str, days_count: int = 60) -> List[Dict[str, Any]]:

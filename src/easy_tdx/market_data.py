@@ -475,7 +475,7 @@ def _fmt_pool_money(v: float) -> str:
     else:
         return f"{v:+.0f}元"
 
-def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[str, Any]]:
+def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: Any = None) -> list[dict[str, Any]]:
     """Fetch real-time snapshot quotes with 1d/3d/5d net capital inflows from TDX server."""
     if not symbols:
         symbols = ["600660", "300223", "000001", "600123", "002345", "300142", "601216", "002415", "300750", "600519"]
@@ -500,6 +500,11 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None) -> list[dict[st
         for i in range(0, len(mac_pairs), BATCH_SIZE):
             chunk = mac_pairs[i : i + BATCH_SIZE]
             df = mac.get_stock_quotes(chunk, fields=fields)
+            if on_progress:
+                try:
+                    on_progress(min(len(symbols), i + len(chunk)), len(symbols))
+                except Exception:
+                    pass
             if df is not None and not df.empty:
                 for _, row in df.iterrows():
                     code = str(row.get("code", ""))
