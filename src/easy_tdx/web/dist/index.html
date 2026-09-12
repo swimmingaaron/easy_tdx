@@ -6264,7 +6264,7 @@
             const axisColor = isDark ? '#334155' : '#cbd5e1';
             const textColor = '#64748b';
             const axisPointerBg = isDark ? '#1e293b' : '#475569';
-            const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.78)';
+            const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
             const tooltipBorder = isDark ? 'rgba(71, 85, 105, 0.5)' : 'rgba(203, 213, 225, 0.7)';
             const tooltipTextColor = isDark ? '#cbd5e1' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
@@ -6611,11 +6611,11 @@
                         lineStyle: { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)', type: 'dashed' },
                         label: { backgroundColor: axisPointerBg }
                     },
-                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.94)',
+                    backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
                     borderWidth: 1,
                     padding: [8, 12],
-                    extraCssText: 'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3); border-radius: 8px; z-index: 99999; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); pointer-events: none;',
+                    extraCssText: 'box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); border-radius: 8px; z-index: 99999; pointer-events: none;',
                     formatter: (params) => {
                         try {
                             const p0 = params && params[0];
@@ -6692,23 +6692,27 @@
                                 }
                             } catch (e) {}
 
+                            const tooltipTextShadow = isDark
+                                ? 'text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(15, 23, 42, 0.9);'
+                                : 'text-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.95);';
+
                             return `
-                                <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; min-width: 175px;">
+                                <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; min-width: 175px; ${tooltipTextShadow}">
                                     <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 5px; margin-bottom: 6px;">
                                         <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${formatDatetimeWithWeekday(bar.datetime)}</span>
                                         <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                        <span style="color: ${labelColor};">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${bar.close.toFixed(2)}</span>
-                                        <span style="color: ${labelColor};">开盘:</span><span style="color: ${bar.open >= bar.close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${bar.open.toFixed(2)}</span>
-                                        <span style="color: ${labelColor};">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${bar.high.toFixed(2)}</span>
-                                        <span style="color: ${labelColor};">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${bar.low.toFixed(2)}</span>
-                                        <span style="color: ${labelColor};">涨跌额:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
-                                        <span style="color: ${labelColor};">振幅:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${ampStr}</span>
-                                        <span style="color: ${labelColor};">换手:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${turnover}</span>
-                                        <span style="color: ${labelColor};">量比:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${volRatio}</span>
-                                        <span style="color: ${labelColor};">成交额:</span><span style="color: ${amtColor}; font-weight: 700; text-align: right;">${amtStr}</span>
-                                        <span style="color: ${labelColor};">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${bar.close.toFixed(2)}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">开盘:</span><span style="color: ${bar.open >= bar.close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${bar.open.toFixed(2)}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${bar.high.toFixed(2)}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${bar.low.toFixed(2)}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">涨跌额:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">振幅:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${ampStr}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">换手:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${turnover}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">量比:</span><span style="color: ${valColor}; font-weight: 600; text-align: right;">${volRatio}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">成交额:</span><span style="color: ${amtColor}; font-weight: 700; text-align: right;">${amtStr}</span>
+                                        <span style="color: ${labelColor}; font-weight: 600;">净流入:</span><span style="color: ${netInflowColor}; font-weight: 700; text-align: right;">${netInflowStr}</span>
                                     </div>
                                     ${tdHtml}
                                 </div>
@@ -7425,7 +7429,7 @@
             const axisColor = isDark ? '#334155' : '#cbd5e1';
             const textColor = '#64748b';
             const axisPointerBg = isDark ? '#1e293b' : '#475569';
-            const tooltipBg = isDark ? '#181b22' : '#ffffff';
+            const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.25)';
             const tooltipBorder = isDark ? '#2a2e39' : '#e2e8f0';
             const tooltipTextColor = isDark ? '#d1d5db' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
@@ -7445,7 +7449,7 @@
                     borderColor: tooltipBorder,
                     borderWidth: 1,
                     padding: [8, 12],
-                    extraCssText: isDark ? 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7); border-radius: 6px;' : 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); border-radius: 6px;',
+                    extraCssText: 'box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08); border-radius: 6px; pointer-events: none;',
                     formatter: (params) => {
                         const p0 = params[0];
                         if (!p0) return '';
@@ -7483,8 +7487,12 @@
                         // Format Volume: 手 (1手 = 100股)
                         const volHands = Math.round(Number(bar.volume || 0) / 100);
 
+                        const tooltipTextShadow = isDark
+                            ? 'text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(15, 23, 42, 0.9);'
+                            : 'text-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.95);';
+
                         return `
-                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 190px;">
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 190px; ${tooltipTextShadow}">
                                 <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 1px solid ${tooltipDivider}; font-size: 13px;">
                                     ${sName} ${sCode ? '(' + sCode + ')' : ''} ${dates[idx]}
                                 </div>
