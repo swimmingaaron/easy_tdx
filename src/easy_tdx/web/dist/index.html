@@ -1108,6 +1108,7 @@
             <button onclick="switchTab('aireview')" id="tab-aireview" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="bot" class="w-3.5 h-3.5 inline mr-1"></i>AI 4D诊股与复盘</button>
             <button onclick="switchTab('aichat')" id="tab-aichat" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="message-square" class="w-3.5 h-3.5 inline mr-1"></i>AI 量化投研助手</button>
             <button onclick="switchTab('tradingsystem')" id="tab-tradingsystem" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="crosshair" class="w-3.5 h-3.5 inline mr-1"></i>交易系统</button>
+            <button onclick="switchTab('finaanalysis')" id="tab-finaanalysis" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="file-pie-chart" class="w-3.5 h-3.5 inline mr-1"></i>财报分析</button>
         </nav>
 
         <div class="flex items-center space-x-2.5">
@@ -2783,6 +2784,160 @@
             </div>
         </section>
 
+                <section id="view-finaanalysis" class="space-y-4 hidden">
+            <!-- 主表格面板 (完全对齐 交易系统实时行情池 的背景、工具栏与布局) -->
+            <div class="glass-card p-5 rounded-2xl space-y-4 shadow-sm">
+                <!-- 顶层工具栏: 左侧标的与状态, 右侧搜索与控制 -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 border-b border-slate-200 dark:border-slate-800/80 pb-3.5">
+                    <div class="flex items-center space-x-3">
+                        <h4 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center">
+                            <i data-lucide="file-pie-chart" class="w-4 h-4 mr-2 text-indigo-500"></i>
+                            <span>财务分析与基本面量化体检</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400 font-normal ml-2 font-mono">easy_tdx 原生量化引擎</span>
+                        </h4>
+                        <span id="fina-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80">
+                            159 只标的
+                        </span>
+                    </div>
+
+                    <!-- 操作控制区: 对齐交易系统池风格 -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- 搜索框 -->
+                        <div class="relative flex items-center">
+                            <input type="text" id="fina-search-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
+                                   class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-52 sm:w-60 font-mono transition"
+                                   oninput="handleFinaSearch(this.value)">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none"></i>
+                        </div>
+
+                        <!-- 选股范围 (对齐交易系统标准样式) -->
+                        <div class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm">
+                            <span class="text-xs text-slate-600 dark:text-slate-400 select-none">选股范围:</span>
+                            <select id="fina-universe-select" onchange="onFinaUniverseChange(this.value)" class="bg-transparent text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer">
+                                <option value="core" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">核心龙头 (159只)</option>
+                                <option value="hs300" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">沪深 300 (300只)</option>
+                                <option value="zz500" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 500 (500只)</option>
+                                <option value="zz1000" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 1000 (1000只)</option>
+                                <option value="all" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">全市场 (5000+全量A股)</option>
+                            </select>
+                        </div>
+
+                        <!-- 行业分类 -->
+                        <select id="fina-industry-select" onchange="onFinaIndustryChange(this.value)" class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 max-w-[110px] cursor-pointer">
+                            <option value="全部">全部行业</option>
+                        </select>
+
+                        <!-- 体检星级梯队 -->
+                        <select id="fina-score-tier-select" onchange="onFinaScoreTierChange(this.value)" class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="all">体检分: 全部</option>
+                            <option value="5star">🌟 五星卓越 (≥85分)</option>
+                            <option value="4star">📈 四星优良 (70-84分)</option>
+                            <option value="3star">⚖️ 三星中性 (55-69分)</option>
+                            <option value="alert">⚠️ 警示承压 (&lt;55分)</option>
+                        </select>
+
+                        <!-- 仅看自选 -->
+                        <label class="flex items-center space-x-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700/80 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-900/90">
+                            <input type="checkbox" id="fina-chk-my-optional" onchange="onFinaOptionalChange(this.checked)" class="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-0 cursor-pointer">
+                            <span>仅看自选</span>
+                        </label>
+
+                        <!-- 立即刷新 -->
+                        <button onclick="loadFinaAnalysisData(true)" title="立即刷新" class="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-600 transition cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 统计胶囊面板 (对齐交易系统卡片质感) -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
+                    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between shadow-sm">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">🌟 五星卓越 (≥85分)</span>
+                        <span id="fina-stat-5star" class="font-mono font-bold text-rose-600 dark:text-rose-400">0</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between shadow-sm">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">📈 四星优良 (70-84分)</span>
+                        <span id="fina-stat-4star" class="font-mono font-bold text-amber-600 dark:text-amber-400">0</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between shadow-sm">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">⚖️ 三星中性 (55-69分)</span>
+                        <span id="fina-stat-3star" class="font-mono font-bold text-cyan-600 dark:text-cyan-400">0</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between shadow-sm">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">⚠️ 警示承压 (&lt;55分)</span>
+                        <span id="fina-stat-alert" class="font-mono font-bold text-slate-600 dark:text-slate-400">0</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between shadow-sm col-span-2 sm:col-span-1">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">📊 平均体检得分</span>
+                        <span id="fina-stat-avg-score" class="font-mono font-bold text-indigo-600 dark:text-indigo-400">0.0 分</span>
+                    </div>
+                </div>
+
+                <!-- 宽表呈现区域 (与 交易系统 统一滚动、表头与列样式，严格保持22列) -->
+                <div class="overflow-x-auto max-h-[700px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                    <table class="w-full text-left text-sm border-collapse min-w-[1750px]">
+                        <thead class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none bg-slate-50/95 dark:bg-slate-950/95 sticky top-0 z-20">
+                            <tr>
+                                <th class="py-2.5 px-2 text-center w-14 font-semibold whitespace-nowrap">诊断</th>
+                                <th class="py-2.5 px-2 text-center w-10 font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('is_optional')">自选</th>
+                                <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('stock_code')">代码 ↕</th>
+                                <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('stock_name')">名称 ↕</th>
+                                <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('industry')">行业 ↕</th>
+                                <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('fina_score')">得分 ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('mkt_capt')">总市值 ↕</th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('close')">现价 ↕</th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('pct')">涨幅% ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('dde_net')">主力净流入 ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('consec_amount')">续净流入 ↕</th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('v_rate')">量比大 ↕</th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('t_rate')">换手% ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('amount')">成交额 ↕</th>
+                                <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('days')">连涨 ↕</th>
+                                <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('zig')">ZIG ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('ystz')">营业同比 ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('sjltz')">净利润同比 ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('pe_percentile')">PE(3年分位) ↕</th>
+                                <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('holder_ratio')">股东集中度 ↕</th>
+                                <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('holders_num')">股东人数 ↕</th>
+                                <th class="py-2.5 px-2.5 text-left font-semibold whitespace-nowrap">形态特征</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fina-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-xs">
+                            <tr>
+                                <td colspan="22" class="py-12 text-center text-slate-400 font-sans">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <div class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></div>
+                                        <span>正在连接 easy_tdx 原生接口载入财报量化体检数据...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 底部统计与分页控制 (1:1 像素级复刻 交易系统分页组件) -->
+                <div class="p-2.5 border-t border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500">
+                    <div class="flex items-center gap-1">
+                        <span>⚠️ 本系统打分模型与财务体检指标仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</span>
+                    </div>
+                    <div id="fina-pagination" class="flex items-center gap-2">
+                        <button id="fina-page-first" onclick="goToFinaPage(1)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
+                        <button id="fina-page-prev" onclick="goToFinaPage(finaCurrentPage - 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
+                        <span id="fina-page-info" class="font-mono font-semibold text-slate-800 dark:text-slate-200 px-1">第 1 / 1 页</span>
+                        <button id="fina-page-next" onclick="goToFinaPage(finaCurrentPage + 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">下一页</button>
+                        <button id="fina-page-last" onclick="goToFinaPage(finaTotalPages)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">尾页</button>
+                        <div class="flex items-center gap-1 ml-2">
+                            <span>跳至</span>
+                            <input id="fina-page-input" type="number" min="1" value="1" class="w-14 px-1.5 py-0.5 text-center font-mono rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:border-indigo-500" onkeydown="if(event.key==='Enter') jumpToFinaPage()">
+                            <span>页</span>
+                            <button onclick="jumpToFinaPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
+                        </div>
+                    </div>
+                    <div id="fina-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 30 行</div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
@@ -3452,7 +3607,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis'];
 
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
@@ -3493,6 +3648,10 @@
                         } else if (t === 'tradingsystem') {
                             setTimeout(() => {
                                 if (typeof loadTradingSystemData === 'function') loadTradingSystemData();
+                            }, 50);
+                        } else if (t === 'finaanalysis') {
+                            setTimeout(() => {
+                                if (typeof loadFinaAnalysisData === 'function') loadFinaAnalysisData();
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -12867,6 +13026,32 @@
                 const peerCount = (d.peers_data && d.peers_data.length) ? d.peers_data.length : 0;
                 document.getElementById('ts-peers-count-badge').innerText = peerCount > 0 ? `(全行业共 ${peerCount} 家上市公司)` : '';
             }
+            // 0. 严格以诊断中的量化体检得分为基准，实时同步更新内存表格与当前视图
+            let diagScore = Number(d.fina_score || 0);
+            if (!diagScore && d.analysis_html) {
+                const sm = d.analysis_html.match(/量化体检得分:\s*<\/span>\s*<span[^>]*>(\d+)\s*分/);
+                if (sm) diagScore = parseInt(sm[1]);
+            }
+            if (diagScore > 0) {
+                let updated = false;
+                if (window.finaAllRows && Array.isArray(window.finaAllRows)) {
+                    const row = window.finaAllRows.find(r => r.stock_code === code);
+                    if (row && row.fina_score !== diagScore) {
+                        row.fina_score = diagScore;
+                        updated = true;
+                    }
+                }
+                if (window.tsAllRows && Array.isArray(window.tsAllRows)) {
+                    const row = window.tsAllRows.find(r => r.stock_code === code);
+                    if (row && row.fina_score !== diagScore) {
+                        row.fina_score = diagScore;
+                        updated = true;
+                    }
+                }
+                if (updated && typeof renderFinaTablePage === 'function') {
+                    renderFinaTablePage();
+                }
+            }
 
             // 1. 渲染 AI 诊断
             if (d.analysis_html && (d.analysis_html.trim().startsWith('<div') || d.analysis_html.trim().startsWith('<section'))) {
@@ -13037,7 +13222,480 @@
             }
         }
     });
-    </script>
+    
+// ==================== 财报分析与基本面量化体检 (Financial Analysis) ==================== //
+let finaAllRows = [];
+let finaFilteredRows = [];
+let finaCurrentPage = 1;
+const finaPageSize = 30;
+let finaTotalPages = 1;
+let finaSortCol = 'fina_score';
+let finaSortDir = 'desc';
+let finaSearchTimer = null;
+let finaCurrentUniverse = 'core';
+let finaCurrentIndustry = '全部';
+let finaCurrentScoreTier = 'all';
+let finaOnlyOptional = false;
+let finaSearchKw = '';
+
+// 全局安全兼容别名
+window.showTradingSystemDetailModal = function(code, tab) {
+    if (typeof openTsFinaModal === 'function') {
+        openTsFinaModal(code, '');
+    }
+};
+
+async function loadFinaAnalysisData(force = false) {
+    const tbody = document.getElementById('fina-table-body');
+
+    // 1. 若本地全局行情已有数据，立即先呈现毫秒级瞬时预览，彻底杜绝空白等待
+    if ((!finaAllRows || finaAllRows.length === 0) && window.tsAllRows && window.tsAllRows.length > 0) {
+        finaAllRows = window.tsAllRows.map(r => ({ ...r, fina_score: r.fina_score || 50 }));
+        applyFinaFiltersAndSort();
+    } else if (tbody && (!finaAllRows || finaAllRows.length === 0)) {
+        tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span>正在连接 easy_tdx 原生接口载入财报量化体检数据...</span></div></td></tr>`;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    try {
+        const myOptional = (finaCurrentUniverse === 'optional');
+        const url = `/api/trading_system/dashboard?universe=${encodeURIComponent(finaCurrentUniverse)}&force_refresh=${force}&my_optional=${myOptional}&sort_col=${encodeURIComponent(finaSortCol)}&sort_dir=${encodeURIComponent(finaSortDir)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        finaAllRows = data.rows || [];
+
+        // 填充行业分类下拉选项 (若仅有一个 '全部行业')
+        const indSelect = document.getElementById('fina-industry-select');
+        if (indSelect && indSelect.options.length <= 1 && data.industries && data.industries.length > 0) {
+            data.industries.forEach(ind => {
+                const opt = document.createElement('option');
+                opt.value = ind;
+                opt.textContent = ind;
+                indSelect.appendChild(opt);
+            });
+        }
+
+        // 计算顶部统计概览
+        let c5 = 0, c4 = 0, c3 = 0, cAlert = 0, scoreSum = 0;
+        finaAllRows.forEach(r => {
+            const sc = Number(r.fina_score || 50);
+            scoreSum += sc;
+            if (sc >= 85) c5++;
+            else if (sc >= 70) c4++;
+            else if (sc >= 55) c3++;
+            else cAlert++;
+        });
+        const avg = finaAllRows.length > 0 ? (scoreSum / finaAllRows.length).toFixed(1) : '0.0';
+        const el5 = document.getElementById('fina-stat-5star');
+        const el4 = document.getElementById('fina-stat-4star');
+        const el3 = document.getElementById('fina-stat-3star');
+        const elA = document.getElementById('fina-stat-alert');
+        const elAvg = document.getElementById('fina-stat-avg-score');
+        if (el5) el5.innerText = c5;
+        if (el4) el4.innerText = c4;
+        if (el3) el3.innerText = c3;
+        if (elA) elA.innerText = cAlert;
+        if (elAvg) elAvg.innerText = `${avg} 分`;
+
+        applyFinaFiltersAndSort();
+    } catch (err) {
+        console.error('Failed to load fina analysis data:', err);
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="22" class="py-8 text-center text-rose-500 font-sans">载入财报量化体检数据失败: ${err.message}</td></tr>`;
+        }
+    }
+}
+
+function applyFinaFiltersAndSort() {
+    let rows = [...(finaAllRows || [])];
+
+    // 1. 行业筛选
+    if (finaCurrentIndustry && finaCurrentIndustry !== '全部') {
+        rows = rows.filter(r => r.industry === finaCurrentIndustry);
+    }
+
+    // 2. 得分梯队筛选
+    if (finaCurrentScoreTier === '5star') {
+        rows = rows.filter(r => Number(r.fina_score || 50) >= 85);
+    } else if (finaCurrentScoreTier === '4star') {
+        rows = rows.filter(r => Number(r.fina_score || 50) >= 70 && Number(r.fina_score || 50) < 85);
+    } else if (finaCurrentScoreTier === '3star') {
+        rows = rows.filter(r => Number(r.fina_score || 50) >= 55 && Number(r.fina_score || 50) < 70);
+    } else if (finaCurrentScoreTier === 'alert') {
+        rows = rows.filter(r => Number(r.fina_score || 50) < 55);
+    }
+
+    // 3. 仅看自选过滤
+    if (finaOnlyOptional) {
+        rows = rows.filter(r => !!r.is_optional);
+    }
+
+    // 4. 搜索框过滤 (代码或名称)
+    if (finaSearchKw) {
+        rows = rows.filter(r => (r.stock_code && r.stock_code.includes(finaSearchKw)) || (r.stock_name && r.stock_name.includes(finaSearchKw)));
+    }
+
+    // 5. 排序
+    const col = finaSortCol;
+    const isDesc = (finaSortDir === 'desc');
+    const numericCols = ['fina_score', 'mkt_capt', 'close', 'pct', 'dde_net', 'consec_amount', 'consec_days', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num'];
+
+    rows.sort((a, b) => {
+        let valA = a[col];
+        let valB = b[col];
+        if (col === 'is_optional') {
+            valA = a.is_optional ? 1 : 0;
+            valB = b.is_optional ? 1 : 0;
+        } else if (numericCols.includes(col)) {
+            valA = Number(valA || 0);
+            valB = Number(valB || 0);
+        } else {
+            valA = String(valA || '');
+            valB = String(valB || '');
+            return isDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+        }
+        return isDesc ? (valB - valA) : (valA - valB);
+    });
+
+    finaFilteredRows = rows;
+    const countBadge = document.getElementById('fina-count-badge');
+    if (countBadge) countBadge.innerText = `${finaFilteredRows.length} 只标的`;
+
+    finaCurrentPage = 1;
+    renderFinaTablePage();
+}
+
+function renderFinaTablePage() {
+    const tbody = document.getElementById('fina-table-body');
+    if (!tbody) return;
+
+    const total = finaFilteredRows.length;
+    finaTotalPages = Math.max(1, Math.ceil(total / finaPageSize));
+    if (finaCurrentPage > finaTotalPages) finaCurrentPage = finaTotalPages;
+    if (finaCurrentPage < 1) finaCurrentPage = 1;
+
+    const startIdx = (finaCurrentPage - 1) * finaPageSize;
+    const endIdx = Math.min(total, startIdx + finaPageSize);
+    const pageRows = finaFilteredRows.slice(startIdx, endIdx);
+
+    if (pageRows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans">暂无符合筛选条件的标的</td></tr>`;
+    } else {
+        tbody.innerHTML = pageRows.map(s => {
+            const code = s.stock_code || '';
+            const name = s.stock_name || '';
+            const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : (code.startsWith('4') || code.startsWith('8') ? 'BJ' : 'SZ');
+            const isOpt = !!s.is_optional;
+            const score = Number(s.fina_score || 50);
+
+            // 1. 诊断按钮 (严格调用 openTsFinaModal，100%保证弹窗响应)
+            const diagTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
+                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+            </td>`;
+
+            // 2. 自选
+            const optTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
+                <button onclick="toggleFinaWatchlist('${code}')" class="text-sm transition cursor-pointer hover:scale-125" title="${isOpt ? '移出自选' : '加入自选'}">
+                    ${isOpt ? '⭐' : '☆'}
+                </button>
+            </td>`;
+
+            // 3. 代码 (点击打开 K 线预览)
+            const codeTd = `<td class="py-2.5 px-2.5 text-left font-mono font-bold whitespace-nowrap">
+                <span onclick="openKlinePreviewModal('${code}', '${name}')" class="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">${code}</span>
+            </td>`;
+
+            // 4. 名称
+            const nameTd = `<td class="py-2.5 px-2.5 text-left font-semibold text-slate-800 dark:text-slate-200 font-sans truncate max-w-[90px] whitespace-nowrap" title="${name}">
+                ${name}
+            </td>`;
+
+            // 5. 行业
+            const indTd = `<td class="py-2.5 px-2.5 text-left text-slate-600 dark:text-slate-400 font-sans truncate max-w-[90px] whitespace-nowrap" title="${s.industry || '--'}">
+                ${s.industry || '--'}
+            </td>`;
+
+            // 6. 得分 (对齐交易系统徽章样式)
+            let scoreColor = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700';
+            let scoreTier = '警示承压';
+            if (score >= 85) {
+                scoreColor = 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 border-rose-300 dark:border-rose-800';
+                scoreTier = '五星卓越';
+            } else if (score >= 70) {
+                scoreColor = 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 border-amber-300 dark:border-amber-800';
+                scoreTier = '四星优良';
+            } else if (score >= 55) {
+                scoreColor = 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-400 border-cyan-300 dark:border-cyan-800';
+                scoreTier = '三星中性';
+            }
+            const scoreTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md font-mono font-bold text-xs border ${scoreColor}" title="${scoreTier}: ${score}分">${score}</span>
+            </td>`;
+
+            // 7. 总市值 (对齐 fmtMoneyTs 格式化)
+            const mktVal = Number(s.mkt_capt || 0);
+            const mktStr = mktVal > 0 ? (typeof fmtMoneyTs === 'function' ? fmtMoneyTs(mktVal) : (mktVal >= 1e8 ? (mktVal / 1e8).toFixed(2) + '亿' : (mktVal / 1e4).toFixed(0) + '万')) : '--';
+            const mvTd = `<td class="py-2.5 px-2.5 text-right font-mono font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">${mktStr}</td>`;
+
+            // 8. 现价
+            const price = Number(s.close || 0);
+            const pct = Number(s.pct || 0);
+            const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-400' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400');
+            const priceTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${pctColor}">${price > 0 ? price.toFixed(2) : '--'}</td>`;
+
+            // 9. 涨幅%
+            const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+            const pctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${pctColor}">${pctStr}</td>`;
+
+            // 10. 主力净流入
+            const ddeNet = Number(s.dde_net || 0);
+            const ddeColor = ddeNet > 0 ? 'text-rose-600 dark:text-rose-400' : (ddeNet < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400');
+            const ddeStr = (typeof fmtMoneyTs === 'function' && ddeNet !== 0) ? fmtMoneyTs(ddeNet) : (ddeNet > 0 ? `+${(ddeNet / 1e4).toFixed(1)}万` : `${(ddeNet / 1e4).toFixed(1)}万`);
+            const ddeTd = `<td class="py-2.5 px-2.5 text-right font-mono font-semibold whitespace-nowrap ${ddeColor}">${ddeStr}</td>`;
+
+            // 11. 续净流入
+            const consecDays = Number(s.consec_days || 0);
+            const consecAmt = Number(s.consec_amount || 0);
+            const cAmtStr = typeof fmtMoneyTs === 'function' ? fmtMoneyTs(consecAmt) : `${(consecAmt / 1e4).toFixed(1)}万`;
+            let consecHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+            if (consecDays > 0) {
+                consecHtml = `<span class="text-rose-600 dark:text-rose-400 font-semibold font-mono text-xs" title="连续 ${consecDays} 天主力净流入，累计: ${cAmtStr}">+${consecDays}天 (${cAmtStr})</span>`;
+            } else if (consecDays < 0) {
+                consecHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-xs" title="连续 ${Math.abs(consecDays)} 天主力净流出，累计: ${cAmtStr}">${consecDays}天 (${cAmtStr})</span>`;
+            }
+            const consecTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${consecHtml}</td>`;
+
+            // 12. 量比大
+            const vr = (s.v_rate != null) ? Number(s.v_rate).toFixed(2) : '--';
+            const vrClass = (Number(s.v_rate) >= 2) ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300';
+            const vrTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${vrClass}">${vr}</td>`;
+
+            // 13. 换手%
+            const tr = (s.t_rate != null) ? Number(s.t_rate).toFixed(2) + '%' : '--';
+            const trClass = (Number(s.t_rate) >= 5) ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300';
+            const trTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${trClass}">${tr}</td>`;
+
+            // 14. 成交额
+            const amt = Number(s.amount || 0);
+            const amtStr = amt > 0 ? (typeof fmtMoneyTs === 'function' ? fmtMoneyTs(amt) : `${(amt / 1e8).toFixed(2)}亿`) : '--';
+            const amtTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amtStr}</td>`;
+
+            // 15. 连涨
+            const days = Number(s.days || 0);
+            let daysHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">0天</span>';
+            if (days > 0) {
+                daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs">${days}连阳</span>`;
+            } else if (days < 0) {
+                daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs">${Math.abs(days)}连阴</span>`;
+            }
+            const daysTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${daysHtml}</td>`;
+
+            // 16. ZIG
+            const zig = Number(s.zig || 0);
+            let zigHtml = '<span class="text-slate-400 font-mono text-xs">-</span>';
+            if (zig > 0 || s.zig_status === 'buy') {
+                zigHtml = `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80">翻红▲</span>`;
+            } else if (zig < 0 || s.zig_status === 'sell') {
+                zigHtml = `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80">翻绿▼</span>`;
+            }
+            const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
+
+            // 17. 营业同比 (雪球主要指标链接)
+            const ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;
+            let ystzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+            if (s.ystz !== undefined && s.ystz !== null && s.ystz !== 0) {
+                const yColor = s.ystz > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold';
+                ystzHtml = `<a href="${ystzLink}" target="_blank" rel="noopener noreferrer" class="font-mono hover:underline ${yColor}" title="点击在雪球查看【${name}】主要财务指标">${s.ystz > 0 ? '+' : ''}${Number(s.ystz).toFixed(2)}%</a>`;
+            }
+            const ystzTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${ystzHtml}</td>`;
+
+            // 18. 净利润同比 (新浪财务分析链接)
+            const sjltzLink = `https://a.13145188.xyz/sina_html/sina_${code}.html`;
+            let sjltzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+            if (s.sjltz !== undefined && s.sjltz !== null && s.sjltz !== 0) {
+                const sColor = s.sjltz > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold';
+                sjltzHtml = `<a href="${sjltzLink}" target="_blank" rel="noopener noreferrer" class="font-mono hover:underline ${sColor}" title="点击在新浪查看【${name}】财务分析">${s.sjltz > 0 ? '+' : ''}${Number(s.sjltz).toFixed(2)}%</a>`;
+            }
+            const sjltzTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${sjltzHtml}</td>`;
+
+            // 19. PE(3年分位)
+            let peHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+            if (s.pe_percentile !== undefined && s.pe_percentile !== null) {
+                const pVal = Number(s.pe_percentile);
+                const pColor = pVal <= 20 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : (pVal >= 80 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-semibold');
+                peHtml = `<span class="font-mono ${pColor}" title="当前股价处于近3年估值区间的 ${pVal.toFixed(1)}% 分位">${pVal.toFixed(1)}%</span>`;
+            }
+            const peTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${peHtml}</td>`;
+
+            // 20. 股东集中度
+            let hRatioText = '-';
+            if (s.holder_ratio && Number(s.holder_ratio) > 0) {
+                hRatioText = `${Number(s.holder_ratio).toFixed(1)}%` + (Number(s.holder_ratio) >= 70 ? ' 🔥' : '');
+            }
+            const hTitle = `股东户数: ${s.holders_str || '-'}, 十大股东集中度: ${s.holder_ratio ? s.holder_ratio + '%' : '-'}, 评价: ${s.holder_focus || '-'}`;
+            const holderRatioTd = `<td class="py-2.5 px-2.5 text-center font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold whitespace-nowrap" title="${hTitle}">${hRatioText}</td>`;
+
+            // 21. 股东人数 (雪球股东人数链接与变动胶囊)
+            const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
+            const holdersNumText = s.holders_str || (s.holders_num ? (s.holders_num >= 10000 ? (s.holders_num / 10000).toFixed(1) + '万' : s.holders_num + '户') : '-');
+            let holdersChangesHtml = '';
+            if (s.holders_changes && Array.isArray(s.holders_changes) && s.holders_changes.length > 0) {
+                const changeSpans = s.holders_changes.slice(0, 3).map(c => {
+                    const chgVal = Number(c.ratio) || 0;
+                    const chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400');
+                    const sign = chgVal > 0 ? '+' : '';
+                    const numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
+                    const dateStr = c.date || '';
+                    return `<span class="${chgColor}" title="${dateStr}: 同比变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                });
+                holdersChangesHtml = `<span class="text-[10px] space-x-1 ml-1 select-none font-mono">(${changeSpans.join(' ')})</span>`;
+            }
+            const holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center space-x-1 cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
+                <span class="font-bold text-slate-900 dark:text-white">${holdersNumText}</span>
+                ${holdersChangesHtml}
+            </a>`;
+            const holdersNumTd = `<td class="py-2.5 px-2.5 text-center whitespace-nowrap">${holdersNumHtml}</td>`;
+
+            // 22. 形态特征
+            const patNames = (s.pattern_names && s.pattern_names.length > 0) ? s.pattern_names : (Array.isArray(s.patterns) ? s.patterns : []);
+            const patBadges = (typeof renderPatternBadges === 'function') ? renderPatternBadges(patNames, s.status) : (patNames.length > 0 ? patNames.join(', ') : '--');
+            const patternTd = `<td class="py-2.5 px-2.5 text-left font-sans whitespace-nowrap">${patBadges}</td>`;
+
+            return `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group border-b border-slate-100 dark:border-slate-800/60">
+                    ${diagTd}
+                    ${optTd}
+                    ${codeTd}
+                    ${nameTd}
+                    ${indTd}
+                    ${scoreTd}
+                    ${mvTd}
+                    ${priceTd}
+                    ${pctTd}
+                    ${ddeTd}
+                    ${consecTd}
+                    ${vrTd}
+                    ${trTd}
+                    ${amtTd}
+                    ${daysTd}
+                    ${zigTd}
+                    ${ystzTd}
+                    ${sjltzTd}
+                    ${peTd}
+                    ${holderRatioTd}
+                    ${holdersNumTd}
+                    ${patternTd}
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // 更新交易系统风格分页状态
+    const pageInfo = document.getElementById('fina-page-info');
+    if (pageInfo) {
+        pageInfo.innerText = `第 ${finaCurrentPage} / ${finaTotalPages} 页`;
+    }
+    const pageInput = document.getElementById('fina-page-input');
+    if (pageInput) {
+        pageInput.value = finaCurrentPage;
+    }
+    const firstBtn = document.getElementById('fina-page-first');
+    const prevBtn = document.getElementById('fina-page-prev');
+    const nextBtn = document.getElementById('fina-page-next');
+    const lastBtn = document.getElementById('fina-page-last');
+    if (firstBtn) firstBtn.disabled = (finaCurrentPage <= 1);
+    if (prevBtn) prevBtn.disabled = (finaCurrentPage <= 1);
+    if (nextBtn) nextBtn.disabled = (finaCurrentPage >= finaTotalPages);
+    if (lastBtn) lastBtn.disabled = (finaCurrentPage >= finaTotalPages);
+
+    const footerCount = document.getElementById('fina-table-footer-count');
+    if (footerCount) {
+        footerCount.innerText = `共检索到 ${total} 只标的 · 每页 ${finaPageSize} 行`;
+    }
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function changeFinaSort(col) {
+    if (finaSortCol === col) {
+        finaSortDir = (finaSortDir === 'desc') ? 'asc' : 'desc';
+    } else {
+        finaSortCol = col;
+        finaSortDir = 'desc';
+    }
+    applyFinaFiltersAndSort();
+}
+
+async function toggleFinaWatchlist(code) {
+    const s = finaAllRows.find(r => r.stock_code === code);
+    if (!s) return;
+    const targetStatus = !s.is_optional;
+    try {
+        const resp = await fetch('/api/trading_system/toggle_watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock_code: code, status: targetStatus })
+        });
+        const res = await resp.json();
+        if (res.success) {
+            s.is_optional = targetStatus;
+            applyFinaFiltersAndSort();
+            if (window.showToast) {
+                showToast(targetStatus ? '已加自选' : '已移出自选', `${s.stock_name} (${code}) ${targetStatus ? '已添加至自选股池' : '已从自选股移出'}`);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to toggle watchlist:', e);
+    }
+}
+
+function onFinaUniverseChange(val) {
+    finaCurrentUniverse = val;
+    loadFinaAnalysisData(false);
+}
+
+function onFinaIndustryChange(val) {
+    finaCurrentIndustry = val;
+    applyFinaFiltersAndSort();
+}
+
+function onFinaScoreTierChange(val) {
+    finaCurrentScoreTier = val;
+    applyFinaFiltersAndSort();
+}
+
+function onFinaOptionalChange(checked) {
+    finaOnlyOptional = checked;
+    applyFinaFiltersAndSort();
+}
+
+function handleFinaSearch(val) {
+    if (finaSearchTimer) clearTimeout(finaSearchTimer);
+    finaSearchTimer = setTimeout(() => {
+        finaSearchKw = (val || '').trim().toUpperCase();
+        applyFinaFiltersAndSort();
+    }, 250);
+}
+
+function goToFinaPage(page) {
+    if (page < 1 || page > finaTotalPages) return;
+    finaCurrentPage = page;
+    renderFinaTablePage();
+}
+
+function jumpToFinaPage() {
+    const input = document.getElementById('fina-page-input');
+    if (!input) return;
+    const page = parseInt(input.value);
+    if (isNaN(page) || page < 1 || page > finaTotalPages) {
+        if (window.showToast) showToast('页码无效', `请输入 1 到 ${finaTotalPages} 之间的页码`);
+        return;
+    }
+    goToFinaPage(page);
+}
+
+</script>
     
 </body>
 </html>

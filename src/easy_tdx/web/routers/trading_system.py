@@ -19,6 +19,7 @@ from easy_tdx.trading_system.engine import (
     evaluate_universe,
     fetch_stock_financials,
     evaluate_stock_history,
+    compute_fina_score,
 )
 from easy_tdx.watchlist_store import load_watchlist, save_watchlist
 from easy_tdx.screener.universe import get_universe_symbols
@@ -87,19 +88,29 @@ def get_signal_dashboard(
     信号看板：包含 18 项买入打分、9 项卖出预警打分、量价红星/绿星、ZIG转向与战法识别。
     """
     try:
-        search_kw = search_stock.strip().upper()
+        search_kw = search_stock.strip().upper() if isinstance(search_stock, str) else ""
+        symbols_str = symbols if isinstance(symbols, str) and symbols.strip() else None
+        univ = universe if isinstance(universe, str) else "core"
+        is_my_opt = bool(my_optional) if isinstance(my_optional, bool) else False
+        force_ref = bool(force_refresh) if isinstance(force_refresh, bool) else False
+        ind_filter = industry.strip() if isinstance(industry, str) else ""
+        min_b = min_buy if isinstance(min_buy, (int, float)) else 0
+        max_s = max_sell if isinstance(max_sell, (int, float)) else 10
+        sort_field = sort_col if isinstance(sort_col, str) else "buy_score"
+        sort_direction = sort_dir if isinstance(sort_dir, str) else "desc"
+
         symbols_set = None
         if search_kw.isdigit() and len(search_kw) == 6:
             # 优先回溯历史或精准评估该股
             single_res = evaluate_universe([search_kw], max_workers=1)
             all_stocks = single_res
-        elif symbols:
-            clean_syms = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols.split(",") if s.strip()]
+        elif symbols_str:
+            clean_syms = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols_str.split(",") if s.strip()]
             symbols_set = set(clean_syms)
-            all_stocks = evaluate_universe(symbols=clean_syms, universe_type="custom", force_refresh=force_refresh)
+            all_stocks = evaluate_universe(symbols=clean_syms, universe_type="custom", force_refresh=force_ref)
         else:
             wl_symbols = None
-            if my_optional:
+            if is_my_opt:
                 wl_symbols = load_watchlist()
                 if not wl_symbols:
                     return {
@@ -110,7 +121,12 @@ def get_signal_dashboard(
                         "industries": [],
                         "watchlist": [],
                     }
-            all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=universe, force_refresh=force_refresh)
+            all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=univ, force_refresh=force_ref)
+
+        # 确保每只标的均含有量化体检得分
+        for s in all_stocks:
+            if s.get("fina_score") is None:
+                s["fina_score"] = compute_fina_score([s])
 
         watchlist_set = set(load_watchlist())
 
@@ -133,17 +149,17 @@ def get_signal_dashboard(
                     continue
             
             # 自选过滤
-            if my_optional and s["stock_code"] not in watchlist_set:
+            if is_my_opt and s["stock_code"] not in watchlist_set:
                 continue
 
             # 行业过滤
-            if industry and industry != "全部" and s.get("industry") != industry:
+            if ind_filter and ind_filter != "全部" and s.get("industry") != ind_filter:
                 continue
 
             # 买入分/卖出分过滤
-            if s.get("buy_score", 0) < min_buy:
+            if s.get("buy_score", 0) < min_b:
                 continue
-            if s.get("sell_score", 0) > max_sell:
+            if s.get("sell_score", 0) > max_s:
                 continue
 
             # 标记自选状态
@@ -170,9 +186,9 @@ def get_signal_dashboard(
         }
 
         # 排序
-        reverse = (sort_dir.lower() == "desc")
-        if sort_col in filtered[0] if filtered else {}:
-            filtered.sort(key=lambda x: (x.get(sort_col) is not None, x.get(sort_col) or 0), reverse=reverse)
+        reverse = (sort_direction.lower() == "desc")
+        if filtered and sort_field in filtered[0]:
+            filtered.sort(key=lambda x: (x.get(sort_field) is not None, x.get(sort_field) or 0), reverse=reverse)
         else:
             filtered.sort(key=lambda x: x.get("buy_score", 0), reverse=True)
 

@@ -104,6 +104,27 @@ _ACTIVE_EVAL_EVENTS: Dict[str, threading.Event] = {}
 _ACTIVE_EVAL_RESULTS: Dict[str, Any] = {}
 
 
+_FINA_SCORES_FILE = os.path.join(_CACHE_DIR, "fina_diagnosis_scores.json")
+_PERSISTENT_FINA_SCORES: Dict[str, int] = {}
+if os.path.exists(_FINA_SCORES_FILE):
+    try:
+        with open(_FINA_SCORES_FILE, "r", encoding="utf-8") as _f:
+            _PERSISTENT_FINA_SCORES = json.load(_f)
+    except Exception:
+        _PERSISTENT_FINA_SCORES = {}
+
+def save_persistent_fina_score(code: str, score: int):
+    """持久化记录诊断量化体检得分，作为系统绝对基准得分。"""
+    if not code or not isinstance(score, (int, float)) or score <= 0:
+        return
+    _PERSISTENT_FINA_SCORES[str(code)] = int(score)
+    try:
+        with open(_FINA_SCORES_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_PERSISTENT_FINA_SCORES, _f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
     """获取指定股票池的实时计算进度。"""
     return _EVAL_PROGRESS.get(universe_type, {
@@ -706,33 +727,49 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     peers_list = []
     industry = "通用行业"
 
-    # 1. 第一获取接口：easy_tdx 内置 SinaClient (快速模式仅取最近 2 期)
+    # 1. 第一获取接口：easy_tdx 原生接口 (优先调用 TDX get_finance_info 及 SinaClient 报表)
+    tdx_fin = {}
+    nav = 0.0
+    try:
+        cli = _TDX_POOL.acquire()
+        try:
+            df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+            _TDX_POOL.release(cli, success=True)
+            if df_tdx is not None and not df_tdx.empty:
+                tdx_fin = df_tdx.iloc[0].to_dict()
+                nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
+        except Exception as e:
+            _TDX_POOL.release(cli, success=False)
+            logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
+    except Exception as e:
+        logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+
     try:
         sc = SinaClient(timeout=2.0 if quick else 3.0)
-        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=2 if quick else 8)
-
-        # 从 easy_tdx 原生 TDX 获取每股净资产以计算 ROE
-        nav = 0.0
-        if not quick:
-            try:
-                cli = _TDX_POOL.acquire()
-                df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
-                _TDX_POOL.release(cli, success=True)
-                if df_tdx is not None and not df_tdx.empty:
-                    nav = float(df_tdx.iloc[0].get("meigujing_zichan") or 0.0)
-            except Exception:
-                pass
+        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=8)
 
         if df_sina is not None and not df_sina.empty:
-            for _, r in df_sina.iterrows():
+            for idx, r in df_sina.iterrows():
                 rep_date = str(r.get("报告期") or "")[:10]
                 qdate = rep_date
                 rev = float(r.get("营业总收入") or r.get("营业收入") or 0.0)
                 np_val = float(r.get("归属于母公司所有者的净利润") or r.get("净利润") or 0.0)
-                ystz = float(r.get("营业总收入_同比") or r.get("营业收入_同比") or 0.0) * 100.0
-                sjltz = float(r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比") or 0.0) * 100.0
                 eps = float(r.get("基本每股收益") or 0.0)
                 roe = round((eps / nav) * 100.0, 2) if nav > 0 and eps != 0 else 0.0
+
+                ystz_col = r.get("营业总收入_同比") or r.get("营业收入_同比")
+                ystz = float(ystz_col) * 100.0 if ystz_col is not None else 0.0
+                if ystz == 0.0 and idx + 4 < len(df_sina):
+                    prev_y = float(df_sina.iloc[idx + 4].get("营业总收入") or df_sina.iloc[idx + 4].get("营业收入") or 0.0)
+                    if prev_y > 0:
+                        ystz = ((rev - prev_y) / prev_y) * 100.0
+
+                sjltz_col = r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比")
+                sjltz = float(sjltz_col) * 100.0 if sjltz_col is not None else 0.0
+                if sjltz == 0.0 and idx + 4 < len(df_sina):
+                    prev_np = float(df_sina.iloc[idx + 4].get("归属于母公司所有者的净利润") or df_sina.iloc[idx + 4].get("净利润") or 0.0)
+                    if prev_np != 0.0:
+                        sjltz = ((np_val - prev_np) / abs(prev_np)) * 100.0
 
                 fina_list.append({
                     "record_date": str(rep_date),
@@ -760,8 +797,7 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
                 else:
                     raw = raw_bytes.decode("utf-8", errors="replace")
                 data_json = json.loads(raw).get("data", [])
-                max_items = 2 if quick else 8
-                for item in data_json[:max_items]:
+                for item in data_json[:8]:
                     rep_date = str(item.get("REPORT_DATE", ""))[:10]
                     qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
                     rev = float(item.get("TOTALOPERATEREVE") or 0.0)
@@ -786,13 +822,39 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
         except Exception as e:
             logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
 
-    # 若为快速模式，仅需要 ystz/sjltz 同比，直接返回，避免对 5000+ 标的产生 40,000+ 次外部外网 HTTP 抓取与卡死
+    # 3. 兜底保护：若上述列表皆为空，但 easy_tdx 原生 TDX 接口已成功返回财务数据，构建最新期数据
+    if not fina_list and tdx_fin and (tdx_fin.get("zhuying_shouru") or tdx_fin.get("jing_lirun")):
+        up_d = str(int(tdx_fin.get("updated_date") or 0))
+        q_str = f"{up_d[:4]}-{up_d[4:6]}-{up_d[6:]}" if len(up_d) == 8 else "最新期"
+        t_rev = float(tdx_fin.get("zhuying_shouru") or 0.0)
+        t_np = float(tdx_fin.get("jing_lirun") or 0.0)
+        t_nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
+        t_eps = float(tdx_fin.get("reserve2") or 0.0)
+        t_roe = round((t_eps / t_nav) * 100.0, 2) if t_nav > 0 and t_eps != 0 else 0.0
+        fina_list.append({
+            "record_date": q_str,
+            "qdate": q_str,
+            "total_operate_income": t_rev,
+            "parent_netprofit": t_np,
+            "weightavg_roe": t_roe,
+            "ystz": 0.0,
+            "sjltz": 0.0,
+            "xsmll": 0.0,
+            "basic_eps": t_eps,
+        })
+
+    # 计算与诊断窗口 100% 相同基准的量化体检得分，并写入持久化缓存
+    diag_score = compute_fina_score(fina_list)
+    save_persistent_fina_score(clean_code, diag_score)
+
+    # 若为快速模式，直接返回，避免对大量标的产生非必要的同行及历史股东外网请求
     if quick:
         quick_result = {
             "success": True,
             "stock_code": str(clean_code),
             "stock_name": str(get_stock_name(clean_code)),
             "industry": str(industry),
+            "fina_score": diag_score,
             "fina_data": fina_list,
             "peers_data": [],
             "holders_data": {},
@@ -817,6 +879,7 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
         "stock_code": str(clean_code),
         "stock_name": str(get_stock_name(clean_code)),
         "industry": str(industry),
+        "fina_score": diag_score,
         "fina_data": fina_list,
         "peers_data": peers_list,
         "holders_data": holders_info,
@@ -1051,6 +1114,82 @@ def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行�
     return industry, peers_list
 
 
+def compute_fina_score(fina_data: List[Dict[str, Any]]) -> int:
+    """根据财报 4 大维度（成长动力、资本回报、4期持续性及基准分）计算综合量化体检得分 (10 ~ 98)。"""
+    if not fina_data:
+        return 50
+
+    latest = fina_data[0]
+    roe = float(latest.get("weightavg_roe") or latest.get("roe") or 0.0)
+    ystz = float(latest.get("ystz") or 0.0)
+    sjltz = float(latest.get("sjltz") or 0.0)
+    xsmll = float(latest.get("xsmll") or 0.0)
+
+    # 1. 维度一：成长动力与经营杠杆评级 (Growth Dimension, 0 ~ 35分)
+    growth_score = 15  # 基准分
+    if ystz > 30: growth_score += 10
+    elif ystz > 15: growth_score += 7
+    elif ystz > 0: growth_score += 4
+    elif ystz > -10: growth_score -= 3
+    else: growth_score -= 8
+
+    if sjltz > 50: growth_score += 10
+    elif sjltz > 25: growth_score += 7
+    elif sjltz > 0: growth_score += 4
+    elif sjltz > -15: growth_score -= 3
+    else: growth_score -= 8
+
+    leverage = sjltz - ystz
+    if leverage > 10:
+        growth_score += 5
+    elif leverage >= 0:
+        growth_score += 2
+    elif leverage < -20:
+        growth_score -= 4
+
+    # 2. 维度二：资本回报与护城河壁垒 (Quality Dimension, 0 ~ 30分)
+    quality_score = 15
+    ann_roe = roe
+    qdate = str(latest.get("qdate") or latest.get("record_date") or "")
+    if "03-31" in qdate or "一季" in qdate: ann_roe = roe * 4.0
+    elif "06-30" in qdate or "中报" in qdate or "半年度" in qdate: ann_roe = roe * 2.0
+    elif "09-30" in qdate or "三季" in qdate: ann_roe = roe * 1.33
+    elif 0 < roe < 5.0 and (ystz > 15 or sjltz > 15): ann_roe = roe * 2.0
+
+    if ann_roe >= 15: quality_score += 10
+    elif ann_roe >= 8: quality_score += 6
+    elif ann_roe >= 3: quality_score += 2
+    elif ann_roe > 0: quality_score -= 2
+    elif roe <= 0 and (ystz > 20 and sjltz > 20): pass  # 成长初期/扭亏为盈不扣重分
+    else: quality_score -= 6
+
+    if xsmll >= 35: quality_score += 5
+    elif xsmll >= 15: quality_score += 2
+    elif 0 < xsmll < 10: quality_score -= 2
+
+    # 3. 维度三：多期时序持续性检验 (Consistency Dimension, 0 ~ 20分)
+    consistency_score = 10
+    recent_4 = fina_data[:4]
+    n = len(recent_4)
+    pos_streak = sum(1 for p in recent_4 if float(p.get("sjltz") or 0.0) > 0)
+
+    if n >= 3:
+        if pos_streak >= 4: consistency_score += 10
+        elif pos_streak >= 3: consistency_score += 6
+        elif pos_streak >= 2: consistency_score += 2
+        elif pos_streak == 1: consistency_score -= 3
+        else: consistency_score -= 7
+    else:
+        if pos_streak == n and sjltz > 0:
+            consistency_score += 8 if sjltz > 25 else 4
+        elif pos_streak > 0:
+            consistency_score += 2
+        else:
+            consistency_score -= 5
+
+    return max(10, min(98, 15 + growth_score + quality_score + consistency_score))
+
+
 def _generate_fina_diagnosis(
     code: str,
     name: str,
@@ -1074,79 +1213,106 @@ def _generate_fina_diagnosis(
     rev_yi = rev / 1e8
     np_val = latest.get("parent_netprofit", 0.0) or 0.0
     np_yi = np_val / 1e8
-    roe = float(latest.get("weightavg_roe") or 0.0)
+    roe = float(latest.get("weightavg_roe") or latest.get("roe") or 0.0)
     ystz = float(latest.get("ystz") or 0.0)
     sjltz = float(latest.get("sjltz") or 0.0)
     xsmll = float(latest.get("xsmll") or 0.0)
-    eps = float(latest.get("basic_eps") or 0.0)
+    eps = float(latest.get("basic_eps") or latest.get("eps") or 0.0)
 
     # 1. 维度一：成长动力与经营杠杆评级 (Growth Dimension, 0 ~ 35分)
     growth_score = 15  # 基准分
-    if ystz > 25: growth_score += 10
-    elif ystz > 10: growth_score += 7
-    elif ystz > 0: growth_score += 3
-    elif ystz > -10: growth_score -= 5
-    else: growth_score -= 10
+    if ystz > 30: growth_score += 10
+    elif ystz > 15: growth_score += 7
+    elif ystz > 0: growth_score += 4
+    elif ystz > -10: growth_score -= 3
+    else: growth_score -= 8
 
-    if sjltz > 35: growth_score += 10
-    elif sjltz > 15: growth_score += 7
-    elif sjltz > 0: growth_score += 3
-    elif sjltz > -15: growth_score -= 5
-    else: growth_score -= 10
+    if sjltz > 50: growth_score += 10
+    elif sjltz > 25: growth_score += 7
+    elif sjltz > 0: growth_score += 4
+    elif sjltz > -15: growth_score -= 3
+    else: growth_score -= 8
 
     # 营收净利剪刀差 (经营杠杆)
     leverage = sjltz - ystz
-    if leverage > 5:
+    if leverage > 10:
         leverage_desc = "净利润增速显著超越营收增速，经营杠杆与规模效应凸显，盈利空间良性释放。"
         growth_score += 5
-    elif leverage >= -5:
-        leverage_desc = "营收与净利润保持同频扩张，处于健康扩张稳态区间。"
-    else:
+    elif leverage >= 0:
+        leverage_desc = "营收与净利润保持同频良性扩张，处于健康扩张稳态区间。"
+        growth_score += 2
+    elif leverage < -20:
         leverage_desc = "净利润增速滞后于营收增速（增收不增利），提示需留意期间费用、成本上升或资产减值侵蚀。"
-        growth_score -= 5
+        growth_score -= 4
+    else:
+        leverage_desc = "营收与净利润保持同步发展。"
 
     # 2. 维度二：资本回报与护城河壁垒 (Quality Dimension, 0 ~ 30分)
     quality_score = 15
-    if roe >= 15:
+    ann_roe = roe
+    qdate_str = str(qdate)
+    if "03-31" in qdate_str or "一季" in qdate_str: ann_roe = roe * 4.0
+    elif "06-30" in qdate_str or "中报" in qdate_str or "半年度" in qdate_str: ann_roe = roe * 2.0
+    elif "09-30" in qdate_str or "三季" in qdate_str: ann_roe = roe * 1.33
+    elif 0 < roe < 5.0 and (ystz > 15 or sjltz > 15): ann_roe = roe * 2.0
+
+    if ann_roe >= 15:
         quality_score += 10
-        roe_desc = "巴菲特级顶级护城河 (≥15%)"
-    elif roe >= 8:
+        roe_desc = f"巴菲特级顶级护城河 (年化估算 {ann_roe:.1f}%)"
+    elif ann_roe >= 8:
         quality_score += 6
-        roe_desc = "良性稳健回报 (8%~15%)"
-    elif roe >= 3:
+        roe_desc = f"良性稳健回报 (年化估算 {ann_roe:.1f}%)"
+    elif ann_roe >= 3:
         quality_score += 2
-        roe_desc = "中等平稳回报 (3%~8%)"
-    elif roe > 0:
-        quality_score -= 3
-        roe_desc = "回报偏低 (0%~3%)"
+        roe_desc = f"中等平稳回报 (年化估算 {ann_roe:.1f}%)"
+    elif ann_roe > 0:
+        quality_score -= 2
+        roe_desc = f"回报偏低 (年化估算 {ann_roe:.1f}%)"
+    elif roe <= 0 and (ystz > 20 and sjltz > 20):
+        roe_desc = "高景气修复期 (净利高增驱动回报拐点)"
     else:
-        quality_score -= 8
+        quality_score -= 6
         roe_desc = "资本回报为负 (亏损)"
 
     if xsmll >= 35: quality_score += 5
     elif xsmll >= 15: quality_score += 2
-    elif xsmll > 0 and xsmll < 10: quality_score -= 2
+    elif 0 < xsmll < 10: quality_score -= 2
 
     # 3. 维度三：多期时序持续性检验 (Consistency Dimension, 0 ~ 20分)
     consistency_score = 10
-    pos_streak = 0
     recent_4 = fina_data[:4]
-    for p in recent_4:
-        p_sjltz = float(p.get("sjltz") or 0.0)
-        if p_sjltz > 0:
-            pos_streak += 1
-    if pos_streak >= 4:
-        consistency_score += 10
-        streak_desc = f"近 4 期财报净利润保持连续正增长 ({pos_streak}/4 期)，盈利持续性卓越。"
-    elif pos_streak >= 2:
-        consistency_score += 5
-        streak_desc = f"近 4 期财报中有 {pos_streak} 期净利正增长，中短期盈利处于上升修复期。"
-    else:
-        consistency_score -= 5
-        streak_desc = f"近 4 期财报仅有 {pos_streak} 期正增长，业绩波动较大或处于周期承压期。"
+    n = len(recent_4)
+    pos_streak = sum(1 for p in recent_4 if float(p.get("sjltz") or 0.0) > 0)
 
-    # 综合体检总分 (0 ~ 100)
-    total_score = max(10, min(98, 15 + growth_score + quality_score + consistency_score))
+    if n >= 3:
+        if pos_streak >= 4:
+            consistency_score += 10
+            streak_desc = f"近 4 期财报净利润保持连续正增长 ({pos_streak}/4 期)，盈利持续性卓越。"
+        elif pos_streak >= 3:
+            consistency_score += 6
+            streak_desc = f"近 4 期财报中有 {pos_streak} 期净利正增长，中短期盈利处于上升扩张通道。"
+        elif pos_streak >= 2:
+            consistency_score += 2
+            streak_desc = f"近 4 期财报中有 {pos_streak} 期净利正增长，处于企稳修复期。"
+        elif pos_streak == 1:
+            consistency_score -= 3
+            streak_desc = f"近 4 期财报仅有 {pos_streak} 期正增长，业绩波动较大。"
+        else:
+            consistency_score -= 7
+            streak_desc = "近 4 期净利增速持续承压下滑，需警惕周期性风险。"
+    else:
+        if pos_streak == n and sjltz > 0:
+            consistency_score += 8 if sjltz > 25 else 4
+            streak_desc = f"最新财报净利同比强劲增长 {sjltz:.1f}%，单期释放动能充沛。"
+        elif pos_streak > 0:
+            consistency_score += 2
+            streak_desc = "最新财报表现平稳。"
+        else:
+            consistency_score -= 5
+            streak_desc = "最新财报净利承压。"
+
+    # 综合体检总分 (10 ~ 98)
+    total_score = compute_fina_score(fina_data)
 
     # 4. 维度四：评级与量化策略映射 (Strategy Mapping)
     if total_score >= 85:
@@ -1356,6 +1522,22 @@ def evaluate_universe(
                 with open(target_cache_f, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list) and len(data) > 0:
+                        needs_rewrite = False
+                        for s in data:
+                            code_str = str(s.get("stock_code") or "")
+                            if code_str in _PERSISTENT_FINA_SCORES:
+                                if s.get("fina_score") != _PERSISTENT_FINA_SCORES[code_str]:
+                                    s["fina_score"] = _PERSISTENT_FINA_SCORES[code_str]
+                                    needs_rewrite = True
+                            elif s.get("fina_score") is None:
+                                s["fina_score"] = compute_fina_score([s])
+                                needs_rewrite = True
+                        if needs_rewrite:
+                            try:
+                                with open(target_cache_f, "w", encoding="utf-8") as fw:
+                                    json.dump(data, fw, ensure_ascii=False, indent=2)
+                            except Exception:
+                                pass
                         _MEM_CACHE[mem_key] = (now, data)
                         logger.info(f"Loaded {len(data)} stocks from disk cache: {target_cache_f}")
                         _EVAL_PROGRESS[universe_type] = {
@@ -1443,15 +1625,26 @@ def evaluate_universe(
                             res["board_code"] = ""
                             res["industry"] = str(q_map.get(s, {}).get("board_name") or "--")
 
-                        # 2. 财务营收/净利同比 (近一期, quick=True 模式秒级返回，彻底避免 40,000+ 外部请求被封禁)
+                        # 2. 财务营收/净利同比与量化体检得分 (近一期, quick=True 模式秒级返回)
                         try:
                             fina = fetch_stock_financials(s, quick=True)
-                            latest_f = fina.get("fina_data", [{}])[0] if fina.get("fina_data") else {}
+                            f_list = fina.get("fina_data", [])
+                            latest_f = f_list[0] if f_list else {}
                             res["ystz"] = float(latest_f.get("ystz", 0.0))
                             res["sjltz"] = float(latest_f.get("sjltz", 0.0))
+                            res["roe"] = float(latest_f.get("weightavg_roe", 0.0))
+                            res["xsmll"] = float(latest_f.get("xsmll", 0.0))
+                            res["eps"] = float(latest_f.get("basic_eps", 0.0))
+                            diag_score = int(fina.get("fina_score") or compute_fina_score(f_list))
+                            res["fina_score"] = diag_score
+                            save_persistent_fina_score(s, diag_score)
                         except Exception:
                             res["ystz"] = 0.0
                             res["sjltz"] = 0.0
+                            res["roe"] = 0.0
+                            res["xsmll"] = 0.0
+                            res["eps"] = 0.0
+                            res["fina_score"] = _PERSISTENT_FINA_SCORES.get(s, 50)
 
                         # 3. 股东户数与集中度 (quick=True 模式优先读取 TDX 原生股东人数)
                         try:
