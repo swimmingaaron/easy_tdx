@@ -32,3 +32,12 @@ CLAUDE.md
 
 # 代码审计报告（本地产物，不入库）
 audit-report-*.html
+
+# 运行时缓存与临时数据
+data/*_cache/
+data/*cache*
+data/market_summary_latest.json
+output/
+scripts/output/
+scripts/data/
+scratch/

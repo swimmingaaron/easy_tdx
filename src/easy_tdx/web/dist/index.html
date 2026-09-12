@@ -2889,7 +2889,7 @@
                                 <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('pct')">涨幅% ↕</th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('dde_net')">主力净流入 ↕</th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('consec_amount')">续净流入 ↕</th>
-                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('v_rate')">量比大 ↕</th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('v_rate')">量比 ↕</th>
                                 <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('t_rate')">换手% ↕</th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('amount')">成交额 ↕</th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap" onclick="changeFinaSort('days')">连涨 ↕</th>
@@ -13399,22 +13399,25 @@ function renderFinaTablePage() {
                 <button onclick="toggleFinaWatchlist('${code}')" class="text-sm transition cursor-pointer hover:scale-125" title="${isOpt ? '移出自选' : '加入自选'}">
                     ${isOpt ? '⭐' : '☆'}
                 </button>
-            </td>`;
-
-            // 3. 代码 (点击打开 K 线预览)
+            </td>`;            // 3. 代码 (点击打开 K 线预览)
             const codeTd = `<td class="py-2.5 px-2.5 text-left font-mono font-bold whitespace-nowrap">
-                <span onclick="openKlinePreviewModal('${code}', '${name}')" class="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">${code}</span>
+                <span onclick="openKlineModal('${code}', '${name}')" class="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer" title="点击查看【${name}】K线行情">${code}</span>
             </td>`;
 
-            // 4. 名称
-            const nameTd = `<td class="py-2.5 px-2.5 text-left font-semibold text-slate-800 dark:text-slate-200 font-sans truncate max-w-[90px] whitespace-nowrap" title="${name}">
-                ${name}
+            // 4. 名称 (点击查看 K 线行情)
+            const nameTd = `<td class="py-2.5 px-2.5 text-left font-semibold font-sans truncate max-w-[90px] whitespace-nowrap">
+                <span onclick="openKlineModal('${code}', '${name}')" class="text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer" title="点击查看【${name}】K线行情">${name}</span>
             </td>`;
 
-            // 5. 行业
-            const indTd = `<td class="py-2.5 px-2.5 text-left text-slate-600 dark:text-slate-400 font-sans truncate max-w-[90px] whitespace-nowrap" title="${s.industry || '--'}">
-                ${s.industry || '--'}
-            </td>`;
+            // 5. 行业 (点击查看行业板块K线)
+            const indName = s.industry || s.board_name || '';
+            const bCode = s.board_code || '';
+            let indHtml = '<span class="text-slate-400 dark:text-slate-500 font-sans">--</span>';
+            if (indName && indName !== '--') {
+                const indTarget = bCode || indName;
+                indHtml = `<span onclick="openKlineModal('${indTarget}', '${indName}')" class="text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer font-sans truncate max-w-[90px] inline-block" title="点击查看【${indName}】(${bCode || '行业板块'}) 板块K线">${indName}</span>`;
+            }
+            const indTd = `<td class="py-2.5 px-2.5 text-left whitespace-nowrap">${indHtml}</td>`;
 
             // 6. 得分 (对齐交易系统徽章样式)
             let scoreColor = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700';
@@ -13466,7 +13469,7 @@ function renderFinaTablePage() {
             }
             const consecTd = `<td class="py-2.5 px-2.5 text-right whitespace-nowrap">${consecHtml}</td>`;
 
-            // 12. 量比大
+            // 12. 量比
             const vr = (s.v_rate != null) ? Number(s.v_rate).toFixed(2) : '--';
             const vrClass = (Number(s.v_rate) >= 2) ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300';
             const vrTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${vrClass}">${vr}</td>`;
@@ -13481,25 +13484,27 @@ function renderFinaTablePage() {
             const amtStr = amt > 0 ? (typeof fmtMoneyTs === 'function' ? fmtMoneyTs(amt) : `${(amt / 1e8).toFixed(2)}亿`) : '--';
             const amtTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amtStr}</td>`;
 
-            // 15. 连涨
+            // 15. 连涨 (4连阴 改为 +4 绿色，5连阳 改为 +5 红色)
             const days = Number(s.days || 0);
-            let daysHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">0天</span>';
+            let daysHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">0</span>';
             if (days > 0) {
-                daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs">${days}连阳</span>`;
+                daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="连续 ${days} 天上涨 (+${days}连阳)">+${days}</span>`;
             } else if (days < 0) {
-                daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs">${Math.abs(days)}连阴</span>`;
+                daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="连续 ${Math.abs(days)} 天下跌 (+${Math.abs(days)}连阴)">+${Math.abs(days)}</span>`;
             }
             const daysTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${daysHtml}</td>`;
 
-            // 16. ZIG
+            // 16. ZIG (zig的天数: 向上波段显示+天数红色, 向下波段显示-天数绿色)
             const zig = Number(s.zig || 0);
-            let zigHtml = '<span class="text-slate-400 font-mono text-xs">-</span>';
-            if (zig > 0 || s.zig_status === 'buy') {
-                zigHtml = `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80">翻红▲</span>`;
-            } else if (zig < 0 || s.zig_status === 'sell') {
-                zigHtml = `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80">翻绿▼</span>`;
+            let zigHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+            if (zig > 0) {
+                zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天">+${zig}</span>`;
+            } else if (zig < 0) {
+                zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天">-${Math.abs(zig)}</span>`;
             }
             const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
+
+
 
             // 17. 营业同比 (雪球主要指标链接)
             const ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;

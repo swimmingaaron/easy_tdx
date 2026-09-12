@@ -156,7 +156,8 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     now = time.time()
     if clean_code in _HOLDERS_CACHE:
         ts, data = _HOLDERS_CACHE[clean_code]
-        if now - ts < 86400:
+        # 只要缓存中有有效的股东集中度(>0)且在24小时内，直接复用缓存
+        if (now - ts < 86400) and (data.get("holder_ratio", 0.0) > 0):
             return data
 
     res = {
@@ -168,8 +169,7 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
         "holders_history": [],
     }
 
-    # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info
-    easy_tdx_ok = False
+    # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info 获取最新股东人数
     try:
         cli = _TDX_POOL.acquire()
         try:
@@ -182,19 +182,13 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                 if num > 0:
                     res["holders_num"] = num
                     res["holders_str"] = f"{num / 10000:.2f}万" if num >= 10000 else str(num)
-                    easy_tdx_ok = True
         except Exception as e:
             _TDX_POOL.release(cli, success=False)
             logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
     except Exception as e:
         logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
 
-    # 快速模式下若已成功获取股东人数，直接返回，避免对 5000+ 标的产生数万次外部外网 HTTP 抓取
-    if quick and easy_tdx_ok:
-        _HOLDERS_CACHE[clean_code] = (now, res)
-        return res
-
-    # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细（若第一接口失败则作为完整兜底）
+    # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细
     try:
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
@@ -214,8 +208,15 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                     res["holders_num"] = em_num
                     res["holders_str"] = f"{em_num / 10000:.2f}万" if em_num >= 10000 else str(em_num)
 
-                ratio = float(latest.get("HOLD_RATIO_TOTAL") or latest.get("FREEHOLD_RATIO_TOTAL") or 0.0)
-                focus = str(latest.get("HOLD_FOCUS") or "")
+                # 寻找最新有效的集中度（部分临时公告仅有变动人数无集中度，需向前寻找最近季度披露）
+                ratio = 0.0
+                focus = ""
+                for item in gdrs:
+                    r = item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL")
+                    if r is not None and float(r) > 0:
+                        ratio = float(r)
+                        focus = str(item.get("HOLD_FOCUS") or "")
+                        break
 
                 changes = []
                 for item in gdrs[:3]:
@@ -237,18 +238,22 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                     chg_r = item.get("TOTAL_NUM_RATIO")
                     ratio_val = round(float(chg_r), 2) if chg_r is not None else None
                     ratio_str = f"{ratio_val:+.2f}%" if ratio_val is not None else ""
+                    h_ratio = item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL")
+                    h_ratio_val = round(float(h_ratio), 2) if h_ratio is not None else 0.0
                     history.append({
                         "date": edate,
                         "num": h_num,
                         "num_str": h_num_str,
                         "ratio": ratio_val,
                         "ratio_str": ratio_str,
-                        "hold_ratio": round(float(item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL") or 0.0), 2),
+                        "hold_ratio": h_ratio_val,
                         "focus": str(item.get("HOLD_FOCUS") or ""),
                     })
 
                 res["holder_ratio"] = round(ratio, 2)
-                res["holder_focus"] = focus
+                if not focus and ratio > 0:
+                    focus = "非常集中" if ratio >= 70 else ("集中" if ratio >= 55 else ("较分散" if ratio >= 40 else "非常分散"))
+                res["holder_focus"] = focus or "--"
                 res["holders_changes"] = changes
                 res["holders_history"] = history
     except Exception as e:
@@ -1532,6 +1537,14 @@ def evaluate_universe(
                             elif s.get("fina_score") is None:
                                 s["fina_score"] = compute_fina_score([s])
                                 needs_rewrite = True
+
+                            # 检查股东集中度：若历史缓存中集中度为空/0，且全局股东缓存中有值，予以补全
+                            if float(s.get("holder_ratio") or 0.0) <= 0 and code_str in _HOLDERS_CACHE:
+                                h_cached = _HOLDERS_CACHE[code_str][1]
+                                if h_cached.get("holder_ratio", 0.0) > 0:
+                                    s["holder_ratio"] = h_cached["holder_ratio"]
+                                    s["holder_focus"] = h_cached.get("holder_focus", s.get("holder_focus", "--"))
+                                    needs_rewrite = True
                         if needs_rewrite:
                             try:
                                 with open(target_cache_f, "w", encoding="utf-8") as fw:
@@ -1646,9 +1659,9 @@ def evaluate_universe(
                             res["eps"] = 0.0
                             res["fina_score"] = _PERSISTENT_FINA_SCORES.get(s, 50)
 
-                        # 3. 股东户数与集中度 (quick=True 模式优先读取 TDX 原生股东人数)
+                        # 3. 股东户数与集中度 (获取原生股东人数与前十大集中度)
                         try:
-                            h_info = fetch_stock_holders(s, quick=True)
+                            h_info = fetch_stock_holders(s, quick=False)
                             res["holders_num"] = int(h_info.get("holders_num", 0))
                             res["holders_str"] = str(h_info.get("holders_str", "--"))
                             res["holder_ratio"] = float(h_info.get("holder_ratio", 0.0))
