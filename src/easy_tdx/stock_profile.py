@@ -8,6 +8,7 @@ Aggregates:
 """
 
 import copy
+import gzip
 import json
 import logging
 import re
@@ -30,9 +31,21 @@ _CACHE_LOCK = Lock()
 _DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json, text/html, */*",
+    "Accept-Encoding": "gzip, deflate",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Connection": "close",
 }
+
+
+def _read_response_text(resp, default_encoding: str = "utf-8") -> str:
+    """Safely read HTTP response bytes with automatic gzip decompression support."""
+    raw = resp.read()
+    if raw[:2] == b"\x1f\x8b" or resp.headers.get("Content-Encoding") == "gzip":
+        try:
+            return gzip.decompress(raw).decode(default_encoding, errors="replace")
+        except Exception:
+            return raw.decode(default_encoding, errors="replace")
+    return raw.decode(default_encoding, errors="replace")
 
 
 def clear_stock_profile_cache(code: Optional[str] = None) -> None:
@@ -159,7 +172,7 @@ def _fetch_shareholder_history_datacenter(clean_code: str) -> List[Dict[str, Any
     )
     req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
     with urllib.request.urlopen(req, timeout=5) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+        data = json.loads(_read_response_text(resp))
         res = data.get("result") or {}
         items = res.get("data") or []
         records = []
@@ -202,7 +215,7 @@ def _fetch_shareholder_history_pageajax(clean_code: str, pfx: str) -> List[Dict[
     url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
     req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
     with urllib.request.urlopen(req, timeout=5) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+        data = json.loads(_read_response_text(resp))
         gdrs = data.get("gdrs") or []
         records = []
         for g in gdrs[:4]:
@@ -244,7 +257,7 @@ def _fetch_shareholder_history_ths(clean_code: str) -> List[Dict[str, Any]]:
     url = f"http://basic.10jqka.com.cn/{clean_code}/holder.html"
     req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
     with urllib.request.urlopen(req, timeout=5) as resp:
-        html = resp.read().decode("gbk", errors="ignore")
+        html = _read_response_text(resp, default_encoding="gbk")
 
     tbody_idx = html.find('class="data_tbody"')
     if tbody_idx == -1:
@@ -570,7 +583,7 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
         url_f10 = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url_f10, headers=_DEFAULT_HEADERS)
         with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(_read_response_text(resp))
             jb = data.get("jbzl")
             if isinstance(jb, list) and jb:
                 jb = jb[0]
@@ -602,7 +615,7 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
         )
         req_b = urllib.request.Request(url_boards, headers=_DEFAULT_HEADERS)
         with urllib.request.urlopen(req_b, timeout=5) as resp_b:
-            data_b = json.loads(resp_b.read().decode("utf-8"))
+            data_b = json.loads(_read_response_text(resp_b))
             if data_b.get("result") and data_b["result"].get("data"):
                 existing_names = {s["name"] for s in result["sectors"]}
                 for b_item in data_b["result"]["data"]:
@@ -622,7 +635,7 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
         url_fin = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
         req_fin = urllib.request.Request(url_fin, headers=_DEFAULT_HEADERS)
         with urllib.request.urlopen(req_fin, timeout=5) as resp_fin:
-            raw_fin = resp_fin.read().decode("utf-8")
+            raw_fin = _read_response_text(resp_fin)
             data_fin = json.loads(raw_fin).get("data", [])
             for d in data_fin[:4]:
                 rep_date = str(d.get("REPORT_DATE", ""))[:10]
@@ -719,7 +732,46 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Failed to fetch EastMoney ZYZB financials for {clean_code}: {e}")
 
-    # Fallback to Sina if EastMoney returns empty
+    # Fallback 1: Use easy_tdx.trading_system.engine fetch_stock_financials
+    if not reports:
+        try:
+            from easy_tdx.trading_system.engine import fetch_stock_financials
+            fina_res = fetch_stock_financials(clean_code)
+            f_list = fina_res.get("fina_data") or []
+            for f in f_list[:4]:
+                p_date = str(f.get("record_date") or "")[:10]
+                p_title = str(f.get("qdate") or p_date)
+                r_val = float(f.get("total_operate_income") or 0.0)
+                n_val = float(f.get("parent_netprofit") or 0.0)
+                r_yoy = f.get("ystz")
+                n_yoy = f.get("sjltz")
+                reports.append({
+                    "period": p_date,
+                    "period_title": p_title,
+                    "revenue": r_val,
+                    "revenue_yi": round(r_val / 100000000.0, 2) if r_val >= 100000000 else round(r_val / 10000.0, 2),
+                    "revenue_unit": "亿" if r_val >= 100000000 else "万",
+                    "revenue_yoy": round(float(r_yoy), 2) if r_yoy is not None else None,
+                    "net_profit": n_val,
+                    "net_profit_wan": round(n_val / 10000.0, 2) if abs(n_val) < 100000000 else None,
+                    "net_profit_yi": round(n_val / 100000000.0, 2) if abs(n_val) >= 100000000 else None,
+                    "net_profit_yoy": round(float(n_yoy), 2) if n_yoy is not None else None,
+                    "deduct_net_profit": 0.0,
+                    "deduct_net_profit_wan": None,
+                    "deduct_net_profit_yi": None,
+                    "deduct_net_profit_yoy": None,
+                })
+            for i in range(len(reports)):
+                if i + 1 < len(reports):
+                    prev = reports[i + 1]
+                    if prev["revenue"] > 0:
+                        reports[i]["revenue_qoq"] = round(((reports[i]["revenue"] - prev["revenue"]) / prev["revenue"]) * 100, 2)
+                    if prev["net_profit"] != 0:
+                        reports[i]["net_profit_qoq"] = round(((reports[i]["net_profit"] - prev["net_profit"]) / abs(prev["net_profit"])) * 100, 2)
+        except Exception as e:
+            logger.debug(f"Failed to fetch engine financials fallback for {clean_code}: {e}")
+
+    # Fallback 2: to Sina if EastMoney returns empty
     if not reports:
         try:
             sc = SinaClient(timeout=5.0)
