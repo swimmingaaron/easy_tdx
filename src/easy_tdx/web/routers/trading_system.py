@@ -23,6 +23,7 @@ from easy_tdx.trading_system.engine import (
 )
 from easy_tdx.watchlist_store import load_watchlist, save_watchlist
 from easy_tdx.screener.universe import get_universe_symbols
+from easy_tdx.stock_lookup import get_stock_name
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +124,14 @@ def get_signal_dashboard(
                     }
             all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=univ, force_refresh=force_ref)
 
-        # 确保每只标的均含有量化体检得分
+        # 确保每只标的均含有真实股票名称与量化体检得分
         for s in all_stocks:
+            sc = str(s.get("stock_code") or "")
+            sn = str(s.get("stock_name") or "")
+            if not sn or sn.startswith("标的_"):
+                rn = get_stock_name(sc)
+                if rn and not rn.startswith("标的_"):
+                    s["stock_name"] = rn
             if s.get("fina_score") is None:
                 s["fina_score"] = compute_fina_score([s])
 

@@ -8547,7 +8547,10 @@
             tableEl.innerHTML = rows.map((q, idx) => {
                 try {
                     const code = q.stock_code || q.code || '';
-                    const name = q.stock_name || q.name || code;
+                    let name = q.stock_name || q.name || code;
+                    if (typeof name === 'string' && name.startsWith('标的_')) {
+                        name = name.replace('标的_', '');
+                    }
                     const pfx = (code.startsWith('6') || code.startsWith('9') || code.startsWith('5')) ? 'SH' : ((code.startsWith('4') || code.startsWith('8')) ? 'BJ' : 'SZ');
                     const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
 

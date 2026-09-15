@@ -1478,7 +1478,12 @@ def evaluate_universe(
                     updated_list = []
                     for item in cached_list:
                         s_copy = dict(item)
-                        sc = s_copy.get("stock_code")
+                        sc = str(s_copy.get("stock_code") or "")
+                        # 确保股票名称真实有效，自动修复历史标的_占位
+                        if not s_copy.get("stock_name") or str(s_copy["stock_name"]).startswith("标的_"):
+                            rn = get_stock_name(sc)
+                            if rn and not rn.startswith("标的_"):
+                                s_copy["stock_name"] = rn
                         if sc in q_map:
                             q = q_map[sc]
                             s_copy["close"] = float(q.get("price") or q.get("close") or s_copy.get("close", 0))
@@ -1530,6 +1535,13 @@ def evaluate_universe(
                         needs_rewrite = False
                         for s in data:
                             code_str = str(s.get("stock_code") or "")
+                            curr_n = str(s.get("stock_name") or "")
+                            if not curr_n or curr_n.startswith("标的_"):
+                                real_n = get_stock_name(code_str)
+                                if real_n and not real_n.startswith("标的_"):
+                                    s["stock_name"] = real_n
+                                    needs_rewrite = True
+
                             if code_str in _PERSISTENT_FINA_SCORES:
                                 if s.get("fina_score") != _PERSISTENT_FINA_SCORES[code_str]:
                                     s["fina_score"] = _PERSISTENT_FINA_SCORES[code_str]
@@ -1715,6 +1727,15 @@ def evaluate_universe(
             "pct": 100.0,
             "stock": "计算完成",
         }
+
+        # 统一清洗确保所有标的的股票名称均不含 "标的_" 临时替代码
+        for r in results:
+            sc = str(r.get("stock_code") or "")
+            sn = str(r.get("stock_name") or "")
+            if not sn or sn.startswith("标的_"):
+                rn = get_stock_name(sc)
+                if rn and not rn.startswith("标的_"):
+                    r["stock_name"] = rn
 
         # 写入缓存
         if not is_custom_symbols and results:

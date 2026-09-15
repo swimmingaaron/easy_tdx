@@ -63,13 +63,69 @@ COMMON_INDICES = [
     {"code": "899050.BJ", "name": "北证50", "market": "BJ", "pinyin": "BZ50"},
 ]
 
+import json
 import threading
+from pathlib import Path
 
 # Fast in-memory map: symbol -> name
 _SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS + COMMON_INDICES}
+_ALL_STOCKS_MAP: dict[str, dict[str, Any]] = {s["code"]: s for s in COMMON_STOCKS + COMMON_INDICES}
+_STOCK_NAMES_LOADED = False
+_STOCK_NAMES_LOCK = threading.Lock()
+
 _BOARD_MAP: dict[str, dict[str, Any]] = {}
 _BOARD_MAP_LOADED = False
 _BOARD_MAP_LOCK = threading.Lock()
+
+def _ensure_stock_names_map():
+    """Lazily load all 5,200+ A-share stocks from local repository data or cache."""
+    global _STOCK_NAMES_LOADED, _ALL_STOCKS_MAP
+    if _STOCK_NAMES_LOADED:
+        return
+    with _STOCK_NAMES_LOCK:
+        if _STOCK_NAMES_LOADED:
+            return
+        
+        possible_paths = [
+            Path(__file__).resolve().parent.parent.parent / "data" / "stock_names.json",
+            Path.home() / ".easy_tdx" / "cache" / "security_list_all.json",
+            Path("c:/Users/aaron/Documents/stock_data/easy_tdx/data/stock_names.json"),
+        ]
+        loaded_count = 0
+        for p in possible_paths:
+            if p.exists():
+                try:
+                    content = json.loads(p.read_text("utf-8"))
+                    if isinstance(content, dict) and "data" in content:
+                        for item in content["data"]:
+                            c = str(item.get("code", "")).strip().zfill(6)
+                            n = str(item.get("name", "")).strip()
+                            m = "SH" if item.get("market") == 1 else "SZ"
+                            if c and n and not n.startswith("?") and not n.startswith("标的_"):
+                                _SYMBOL_NAME_MAP[c] = n
+                                _ALL_STOCKS_MAP[c] = {"code": c, "name": n, "market": m}
+                                loaded_count += 1
+                    elif isinstance(content, dict):
+                        for c, n in content.items():
+                            c = str(c).strip().zfill(6)
+                            n = str(n).strip()
+                            if c and n and not n.startswith("?") and not n.startswith("标的_"):
+                                _SYMBOL_NAME_MAP[c] = n
+                                m = "SH" if c.startswith(("60", "68", "99")) else ("BJ" if c.startswith(("8", "4")) else "SZ")
+                                _ALL_STOCKS_MAP[c] = {"code": c, "name": n, "market": m}
+                                loaded_count += 1
+                    if loaded_count > 1000:
+                        break
+                except Exception as e:
+                    logger.debug(f"Failed to load stock names from {p}: {e}")
+        
+        # Ensure common stocks & indices have priority
+        for s in COMMON_STOCKS + COMMON_INDICES:
+            _SYMBOL_NAME_MAP[s["code"]] = s["name"]
+            _ALL_STOCKS_MAP[s["code"]] = s
+            
+        _STOCK_NAMES_LOADED = True
+        logger.info(f"Loaded {len(_SYMBOL_NAME_MAP)} stock name mappings into memory")
 
 def _ensure_board_map():
     """Lazily load all 560+ TDX industry and concept board metadata."""
@@ -104,30 +160,53 @@ def _ensure_board_map():
             logger.debug(f"Failed to pre-load TDX board map: {e}")
 
 def get_stock_name(symbol: str) -> str:
-    """Resolve Chinese stock or board name from symbol, with fallback."""
-    raw_sym = symbol.strip().upper().replace(":", "")
-    if raw_sym in _SYMBOL_NAME_MAP:
+    """Resolve Chinese stock or board name from symbol, with multi-tier fallback."""
+    raw_sym = str(symbol or "").strip().upper().replace(":", "")
+    if not raw_sym:
+        return ""
+        
+    _ensure_stock_names_map()
+
+    # 1. Exact raw symbol check
+    if raw_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[raw_sym].startswith("标的_"):
         return _SYMBOL_NAME_MAP[raw_sym]
 
     clean_sym = raw_sym.replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(".", "")
-    if ("SH" in raw_sym) and f"{clean_sym}.SH" in _SYMBOL_NAME_MAP:
+    if ("SH" in raw_sym) and f"{clean_sym}.SH" in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[f"{clean_sym}.SH"].startswith("标的_"):
         return _SYMBOL_NAME_MAP[f"{clean_sym}.SH"]
-    if ("SZ" in raw_sym) and f"{clean_sym}.SZ" in _SYMBOL_NAME_MAP:
+    if ("SZ" in raw_sym) and f"{clean_sym}.SZ" in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[f"{clean_sym}.SZ"].startswith("标的_"):
         return _SYMBOL_NAME_MAP[f"{clean_sym}.SZ"]
-    if raw_sym == "000688":
+    if raw_sym in ("000688", "999688", "SH000688"):
         return "科创50"
-    if clean_sym in _SYMBOL_NAME_MAP:
+    if clean_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[clean_sym].startswith("标的_"):
         return _SYMBOL_NAME_MAP[clean_sym]
     
-    # Check board map
+    # 2. Check board map
     if clean_sym.startswith("88") or clean_sym.startswith("BK") or clean_sym.startswith("HY"):
         _ensure_board_map()
-        if clean_sym in _SYMBOL_NAME_MAP:
+        if clean_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[clean_sym].startswith("标的_"):
             return _SYMBOL_NAME_MAP[clean_sym]
 
-    # Try quick online search
+    # 3. Direct Tencent quote lookup (fast, single symbol query)
+    try:
+        pfx = "sh" if clean_sym.startswith(("6", "9")) else ("bj" if clean_sym.startswith(("8", "4")) else "sz")
+        url = f"https://qt.gtimg.cn/q=s_{pfx}{clean_sym}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            text = resp.read().decode("gbk", errors="ignore")
+            if "~" in text:
+                parts = text.split("~")
+                if len(parts) > 2 and parts[1]:
+                    name = parts[1].strip()
+                    if name and not name.startswith("?"):
+                        _SYMBOL_NAME_MAP[clean_sym] = name
+                        return name
+    except Exception:
+        pass
+
+    # 4. Try quick online search (Smartbox)
     results = search_stocks(clean_sym, limit=1)
-    if results and results[0]["code"] == clean_sym:
+    if results and results[0]["code"] == clean_sym and not results[0]["name"].startswith("标的_"):
         _SYMBOL_NAME_MAP[clean_sym] = results[0]["name"]
         return results[0]["name"]
         
@@ -135,6 +214,7 @@ def get_stock_name(symbol: str) -> str:
 
 def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
     """Search stocks and industry boards by code, Chinese name, or Pinyin initials."""
+    _ensure_stock_names_map()
     _ensure_board_map()
     q = query.strip()
     if not q:
@@ -144,8 +224,8 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
                 "symbol": s["code"],
                 "code": s["code"],
                 "name": s["name"],
-                "market": s["market"],
-                "pinyin": s["pinyin"],
+                "market": s.get("market", "SZ"),
+                "pinyin": s.get("pinyin", ""),
                 "display": f"{s['code']} {s['name']}"
             }
             for s in COMMON_STOCKS[:limit - len(sample_boards)]
@@ -155,55 +235,60 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
     q_upper = q.upper()
     matched_map: dict[str, dict[str, Any]] = {}
 
-    # 1. Check local stock cache
-    for s in COMMON_STOCKS:
+    # 1. Check local stock cache (contains full 5,200+ A-shares)
+    for c, s in _ALL_STOCKS_MAP.items():
+        name_val = s.get("name", "")
+        pinyin_val = s.get("pinyin", "")
         if (
-            q in s["code"]
-            or q_upper in s["pinyin"]
-            or q in s["name"]
+            q in c
+            or (pinyin_val and q_upper in pinyin_val)
+            or (name_val and q in name_val)
         ):
-            matched_map[s["code"]] = {
-                "symbol": s["code"],
-                "code": s["code"],
-                "name": s["name"],
-                "market": s["market"],
-                "pinyin": s["pinyin"],
-                "display": f"{s['code']} {s['name']}"
+            matched_map[c] = {
+                "symbol": c,
+                "code": c,
+                "name": name_val,
+                "market": s.get("market", "SZ"),
+                "pinyin": pinyin_val,
+                "display": f"{c} {name_val}"
             }
+            if len(matched_map) >= limit * 2:
+                break
 
     # 2. Check TDX board indices
     for c, b_info in _BOARD_MAP.items():
         if q in c or q in b_info["name"]:
             matched_map[c] = b_info
 
-    # 3. Query Tencent Smartbox for full individual stock coverage
-    try:
-        url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req, timeout=1.8) as resp:
-            raw_bytes = resp.read()
-            content = raw_bytes.decode("unicode_escape", errors="ignore")
-            first = content.find('"')
-            last = content.rfind('"')
-            if first != -1 and last != -1:
-                raw_str = content[first + 1:last]
-                for item in raw_str.split("^"):
-                    parts = item.split("~")
-                    if len(parts) >= 4:
-                        mkt, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3].upper()
-                        clean_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name).strip()
-                        if mkt in ("SH", "SZ", "BJ") and code:
-                            _SYMBOL_NAME_MAP[code] = clean_name
-                            matched_map[code] = {
-                                "symbol": code,
-                                "code": code,
-                                "name": clean_name,
-                                "market": mkt,
-                                "pinyin": pinyin,
-                                "display": f"{code} {clean_name}"
-                            }
-    except Exception as e:
-        logger.debug(f"Smartbox search error: {e}")
+    # 3. Query Tencent Smartbox as supplemental search if few matches
+    if len(matched_map) < limit:
+        try:
+            url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=1.8) as resp:
+                raw_bytes = resp.read()
+                content = raw_bytes.decode("unicode_escape", errors="ignore")
+                first = content.find('"')
+                last = content.rfind('"')
+                if first != -1 and last != -1:
+                    raw_str = content[first + 1:last]
+                    for item in raw_str.split("^"):
+                        parts = item.split("~")
+                        if len(parts) >= 4:
+                            mkt, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3].upper()
+                            clean_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name).strip()
+                            if mkt in ("SH", "SZ", "BJ") and code:
+                                _SYMBOL_NAME_MAP[code] = clean_name
+                                matched_map[code] = {
+                                    "symbol": code,
+                                    "code": code,
+                                    "name": clean_name,
+                                    "market": mkt,
+                                    "pinyin": pinyin,
+                                    "display": f"{code} {clean_name}"
+                                }
+        except Exception as e:
+            logger.debug(f"Smartbox search error: {e}")
 
     results = list(matched_map.values())
     results.sort(key=lambda x: (
@@ -211,3 +296,4 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
         len(x["name"])
     ))
     return results[:limit]
+
