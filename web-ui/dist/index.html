@@ -2966,6 +2966,19 @@
                         <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shadow-sm" id="kp-status-tag">强势上攻</span>
                     </div>
 
+                    <!-- Dynamic Visible Range Price Extrema (随可视区域动态调整的高低价与振幅) -->
+                    <div id="kp-visible-extrema" class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-cyan-950/50 border border-cyan-800/70 text-[10px] sm:text-[11px] font-mono shrink-0 shadow-sm" title="当前K线窗口可视区域内的股价最高价、最低价与区间振幅 (随滚动缩放平移实时联动)">
+                        <span class="text-cyan-400 font-sans font-medium text-[10px]">可视</span>
+                        <span class="text-slate-400">高</span>
+                        <strong id="kp-vis-high" class="text-rose-400 font-bold font-mono">--</strong>
+                        <span class="text-slate-600">|</span>
+                        <span class="text-slate-400">低</span>
+                        <strong id="kp-vis-low" class="text-emerald-400 font-bold font-mono">--</strong>
+                        <span class="text-slate-600 hidden sm:inline">|</span>
+                        <span class="text-slate-400 font-sans hidden sm:inline text-[10px]">振幅</span>
+                        <strong id="kp-vis-amp" class="text-amber-300 font-semibold hidden sm:inline font-mono">--%</strong>
+                    </div>
+
                     <div class="flex items-center space-x-1.5 sm:space-x-2 text-[10px] sm:text-[11px] text-slate-400 font-sans ml-0 sm:ml-2 bg-slate-900/80 px-2 sm:px-2.5 py-0.5 rounded-lg border border-slate-800/80 overflow-x-auto no-scrollbar whitespace-nowrap max-w-full shrink-0">
                         <span>总市值 <strong class="text-slate-200 font-mono font-semibold" id="kp-total-val">--</strong></span>
                         <span class="text-slate-700">|</span>
@@ -6995,6 +7008,21 @@
 
             kpEchart.setOption(option, { notMerge: true, lazyUpdate: false });
 
+            window._currentKpBaseMarks = markPointData || [];
+            kpEchart._currentBars = bars;
+
+            // 监听 dataZoom 事件（鼠标滚轮缩放、底部滑动条拖动、图表左右平移拖拽），极速动态调整可视区域内最高价、最低价与Y轴自适应
+            kpEchart.off('dataZoom');
+            kpEchart.on('dataZoom', (params) => {
+                if (_kpDataZoomRaf) cancelAnimationFrame(_kpDataZoomRaf);
+                _kpDataZoomRaf = requestAnimationFrame(() => {
+                    updateKpVisibleExtrema(bars, params);
+                });
+            });
+
+            // 初始渲染立即计算当前可视区间的最高价、最低价标记与Y轴坐标自适应
+            updateKpVisibleExtrema(bars);
+
             // Crosshair update listener: dynamically updates the 2-line header bar above chart and tracks active hovered bar
             kpEchart.off('updateAxisPointer');
             kpEchart.on('updateAxisPointer', (event) => {
@@ -7036,6 +7064,196 @@
             }
 
             kpEchart.resize();
+        }
+
+        let _kpDataZoomRaf = null;
+        let currentKpVisHigh = null;
+        let currentKpVisLow = null;
+
+        // 核心引擎：随K线窗口可视区域调整，实时动态计算可视区间股价最高价、最低价、振幅并自适应调整Y轴与高低价标尺
+        function updateKpVisibleExtrema(bars, zoomParams) {
+            if (!kpEchart || !bars || bars.length === 0) return;
+            const opt = kpEchart.getOption();
+            if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
+
+            let startPct = 40;
+            let endPct = 100;
+            let startVal = undefined;
+            let endVal = undefined;
+
+            let dzParam = zoomParams;
+            if (dzParam && dzParam.batch && dzParam.batch.length > 0) {
+                dzParam = dzParam.batch[0];
+            }
+            if (dzParam) {
+                if (dzParam.start !== undefined) startPct = dzParam.start;
+                if (dzParam.end !== undefined) endPct = dzParam.end;
+                if (dzParam.startValue !== undefined) startVal = dzParam.startValue;
+                if (dzParam.endValue !== undefined) endVal = dzParam.endValue;
+            } else {
+                const dz = opt.dataZoom[0];
+                if (dz.start !== undefined) startPct = dz.start;
+                if (dz.end !== undefined) endPct = dz.end;
+                if (dz.startValue !== undefined) startVal = dz.startValue;
+                if (dz.endValue !== undefined) endVal = dz.endValue;
+            }
+
+            let startIdx = 0;
+            let endIdx = bars.length - 1;
+
+            if (startVal !== undefined && endVal !== undefined) {
+                if (typeof startVal === 'number' && typeof endVal === 'number') {
+                    startIdx = Math.max(0, Math.min(bars.length - 1, Math.round(startVal)));
+                    endIdx = Math.max(0, Math.min(bars.length - 1, Math.round(endVal)));
+                } else if (typeof startVal === 'string') {
+                    const s = bars.findIndex(b => b.datetime === startVal);
+                    const e = bars.findIndex(b => b.datetime === endVal);
+                    if (s >= 0) startIdx = s;
+                    if (e >= 0) endIdx = e;
+                }
+            } else if (startPct !== undefined && endPct !== undefined) {
+                startIdx = Math.max(0, Math.floor(bars.length * startPct / 100));
+                endIdx = Math.min(bars.length - 1, Math.max(startIdx, Math.ceil(bars.length * endPct / 100) - 1));
+            }
+
+            if (startIdx > endIdx) {
+                const t = startIdx; startIdx = endIdx; endIdx = t;
+            }
+
+            let maxHighVal = -Infinity;
+            let maxHighIdx = -1;
+            let minLowVal = Infinity;
+            let minLowIdx = -1;
+
+            let yMin = Infinity;
+            let yMax = -Infinity;
+
+            for (let i = startIdx; i <= endIdx; i++) {
+                const b = bars[i];
+                if (!b) continue;
+                const h = Number(b.high != null ? b.high : (b.close || 0));
+                const l = Number(b.low != null ? b.low : (b.close || 0));
+
+                if (h > 0 && h > maxHighVal) {
+                    maxHighVal = h;
+                    maxHighIdx = i;
+                }
+                if (l > 0 && l < minLowVal) {
+                    minLowVal = l;
+                    minLowIdx = i;
+                }
+
+                if (h > 0) yMax = Math.max(yMax, h);
+                if (l > 0) yMin = Math.min(yMin, l);
+
+                if (b.ma5) { yMin = Math.min(yMin, b.ma5); yMax = Math.max(yMax, b.ma5); }
+                if (b.ma10) { yMin = Math.min(yMin, b.ma10); yMax = Math.max(yMax, b.ma10); }
+                if (b.ma20) { yMin = Math.min(yMin, b.ma20); yMax = Math.max(yMax, b.ma20); }
+                if (b.ma60) { yMin = Math.min(yMin, b.ma60); yMax = Math.max(yMax, b.ma60); }
+                if (isBollActive && b.boll_up && b.boll_low) {
+                    yMax = Math.max(yMax, Number(b.boll_up));
+                    yMin = Math.min(yMin, Number(b.boll_low));
+                }
+            }
+
+            if (maxHighIdx < 0 || minLowIdx < 0 || !isFinite(maxHighVal) || !isFinite(minLowVal)) return;
+
+            currentKpVisHigh = maxHighVal.toFixed(2);
+            currentKpVisLow = minLowVal.toFixed(2);
+
+            // 更新顶部 Header 可视极值显示
+            const visHighEl = document.getElementById('kp-vis-high');
+            const visLowEl = document.getElementById('kp-vis-low');
+            const visAmpEl = document.getElementById('kp-vis-amp');
+            if (visHighEl) visHighEl.innerText = currentKpVisHigh;
+            if (visLowEl) visLowEl.innerText = currentKpVisLow;
+            if (visAmpEl && minLowVal > 0) {
+                const amp = ((maxHighVal - minLowVal) / minLowVal * 100).toFixed(2);
+                visAmpEl.innerText = `${amp}%`;
+            }
+
+            // 构造通达信风格的原生可视最高价与最低价 MarkPoint 标尺
+            const midIdx = (startIdx + endIdx) / 2;
+            const isMaxOnRight = maxHighIdx > midIdx;
+            const isMinOnRight = minLowIdx > midIdx;
+            const isDark = getTheme() === 'dark';
+
+            const highMark = {
+                name: '可视最高',
+                coord: [bars[maxHighIdx].datetime, maxHighVal],
+                value: currentKpVisHigh,
+                symbol: 'circle',
+                symbolSize: 4,
+                symbolOffset: [0, 0],
+                itemStyle: { color: '#ef4444', borderColor: '#fca5a5', borderWidth: 1.2 },
+                label: {
+                    show: true,
+                    position: isMaxOnRight ? 'left' : 'right',
+                    distance: 4,
+                    formatter: isMaxOnRight ? `${currentKpVisHigh} ──` : `── ${currentKpVisHigh}`,
+                    color: '#f87171',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            const lowMark = {
+                name: '可视最低',
+                coord: [bars[minLowIdx].datetime, minLowVal],
+                value: currentKpVisLow,
+                symbol: 'circle',
+                symbolSize: 4,
+                symbolOffset: [0, 0],
+                itemStyle: { color: '#10b981', borderColor: '#6ee7b7', borderWidth: 1.2 },
+                label: {
+                    show: true,
+                    position: isMinOnRight ? 'left' : 'right',
+                    distance: 4,
+                    formatter: isMinOnRight ? `${currentKpVisLow} ──` : `── ${currentKpVisLow}`,
+                    color: '#34d399',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                    borderColor: 'rgba(16, 185, 129, 0.5)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            // 动态贴合当前可视区间的上下界，给顶部底部留出适量呼吸间距 (6%)，防止蜡烛影线贴边
+            const span = Math.max(0.01, yMax - yMin);
+            const pad = span * 0.06;
+            const finalYMin = Math.max(0, +(yMin - pad).toFixed(2));
+            const finalYMax = +(yMax + pad).toFixed(2);
+
+            const baseMarks = window._currentKpBaseMarks || [];
+            const combinedMarks = [highMark, lowMark, ...baseMarks];
+
+            kpEchart.setOption({
+                yAxis: [
+                    {
+                        min: finalYMin,
+                        max: finalYMax
+                    }
+                ],
+                series: [
+                    {
+                        markPoint: {
+                            data: combinedMarks
+                        }
+                    }
+                ]
+            }, { notMerge: false, lazyUpdate: true });
         }
 
         // ==================== Autocomplete Engine ==================== //
@@ -7783,6 +8001,182 @@
             };
 
             klineEchart.setOption(option, true);
+
+            window._currentBtBaseMarks = markData || [];
+            klineEchart._currentBars = bars;
+
+            klineEchart.off('dataZoom');
+            klineEchart.on('dataZoom', (params) => {
+                if (_btDataZoomRaf) cancelAnimationFrame(_btDataZoomRaf);
+                _btDataZoomRaf = requestAnimationFrame(() => {
+                    updateBtKlineVisibleExtrema(bars, params);
+                });
+            });
+
+            updateBtKlineVisibleExtrema(bars);
+        }
+
+        let _btDataZoomRaf = null;
+
+        function updateBtKlineVisibleExtrema(bars, zoomParams) {
+            if (!klineEchart || !bars || bars.length === 0) return;
+            const opt = klineEchart.getOption();
+            if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
+
+            let startPct = currentZoomStart || 0;
+            let endPct = currentZoomEnd || 100;
+            let startVal = undefined;
+            let endVal = undefined;
+
+            let dzParam = zoomParams;
+            if (dzParam && dzParam.batch && dzParam.batch.length > 0) {
+                dzParam = dzParam.batch[0];
+            }
+            if (dzParam) {
+                if (dzParam.start !== undefined) startPct = dzParam.start;
+                if (dzParam.end !== undefined) endPct = dzParam.end;
+                if (dzParam.startValue !== undefined) startVal = dzParam.startValue;
+                if (dzParam.endValue !== undefined) endVal = dzParam.endValue;
+            } else {
+                const dz = opt.dataZoom[0];
+                if (dz.start !== undefined) startPct = dz.start;
+                if (dz.end !== undefined) endPct = dz.end;
+                if (dz.startValue !== undefined) startVal = dz.startValue;
+                if (dz.endValue !== undefined) endVal = dz.endValue;
+            }
+
+            let startIdx = 0;
+            let endIdx = bars.length - 1;
+
+            if (startVal !== undefined && endVal !== undefined) {
+                if (typeof startVal === 'number' && typeof endVal === 'number') {
+                    startIdx = Math.max(0, Math.min(bars.length - 1, Math.round(startVal)));
+                    endIdx = Math.max(0, Math.min(bars.length - 1, Math.round(endVal)));
+                } else if (typeof startVal === 'string') {
+                    const s = bars.findIndex(b => String(b.datetime).startsWith(startVal));
+                    const e = bars.findIndex(b => String(b.datetime).startsWith(endVal));
+                    if (s >= 0) startIdx = s;
+                    if (e >= 0) endIdx = e;
+                }
+            } else if (startPct !== undefined && endPct !== undefined) {
+                startIdx = Math.max(0, Math.floor(bars.length * startPct / 100));
+                endIdx = Math.min(bars.length - 1, Math.max(startIdx, Math.ceil(bars.length * endPct / 100) - 1));
+            }
+
+            if (startIdx > endIdx) {
+                const t = startIdx; startIdx = endIdx; endIdx = t;
+            }
+
+            let maxHighVal = -Infinity;
+            let maxHighIdx = -1;
+            let minLowVal = Infinity;
+            let minLowIdx = -1;
+
+            for (let i = startIdx; i <= endIdx; i++) {
+                const b = bars[i];
+                if (!b) continue;
+                const h = Number(b.high != null ? b.high : (b.close || 0));
+                const l = Number(b.low != null ? b.low : (b.close || 0));
+
+                if (h > 0 && h > maxHighVal) {
+                    maxHighVal = h;
+                    maxHighIdx = i;
+                }
+                if (l > 0 && l < minLowVal) {
+                    minLowVal = l;
+                    minLowIdx = i;
+                }
+            }
+
+            if (maxHighIdx < 0 || minLowIdx < 0 || !isFinite(maxHighVal) || !isFinite(minLowVal)) return;
+
+            const midIdx = (startIdx + endIdx) / 2;
+            const isMaxOnRight = maxHighIdx > midIdx;
+            const isMinOnRight = minLowIdx > midIdx;
+            const isDark = getTheme() === 'dark';
+
+            const cat = document.getElementById('bt-category')?.value || currentBtCategory || 'DAY';
+            const isIntraday = isIntradayCategory(cat);
+            const rawHighDate = String(bars[maxHighIdx].datetime).trim();
+            const highDate = isIntraday ? (rawHighDate.length > 16 ? rawHighDate.slice(0, 16) : rawHighDate) : rawHighDate.split(' ')[0];
+            const rawLowDate = String(bars[minLowIdx].datetime).trim();
+            const lowDate = isIntraday ? (rawLowDate.length > 16 ? rawLowDate.slice(0, 16) : rawLowDate) : rawLowDate.split(' ')[0];
+
+            const highMark = {
+                name: '可视最高',
+                coord: [highDate, maxHighVal],
+                value: maxHighVal.toFixed(2),
+                symbol: 'circle',
+                symbolSize: 4,
+                symbolOffset: [0, 0],
+                itemStyle: { color: '#ef4444', borderColor: '#fca5a5', borderWidth: 1.2 },
+                label: {
+                    show: true,
+                    position: isMaxOnRight ? 'left' : 'right',
+                    distance: 4,
+                    formatter: isMaxOnRight ? `${maxHighVal.toFixed(2)} ──` : `── ${maxHighVal.toFixed(2)}`,
+                    color: '#f87171',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            const lowMark = {
+                name: '可视最低',
+                coord: [lowDate, minLowVal],
+                value: minLowVal.toFixed(2),
+                symbol: 'circle',
+                symbolSize: 4,
+                symbolOffset: [0, 0],
+                itemStyle: { color: '#10b981', borderColor: '#6ee7b7', borderWidth: 1.2 },
+                label: {
+                    show: true,
+                    position: isMinOnRight ? 'left' : 'right',
+                    distance: 4,
+                    formatter: isMinOnRight ? `${minLowVal.toFixed(2)} ──` : `── ${minLowVal.toFixed(2)}`,
+                    color: '#34d399',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
+                    borderColor: 'rgba(16, 185, 129, 0.5)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            const span = Math.max(0.01, maxHighVal - minLowVal);
+            const pad = span * 0.06;
+            const finalYMin = Math.max(0, +(minLowVal - pad).toFixed(2));
+            const finalYMax = +(maxHighVal + pad).toFixed(2);
+
+            const baseMarks = window._currentBtBaseMarks || [];
+            const combinedMarks = [highMark, lowMark, ...baseMarks];
+
+            klineEchart.setOption({
+                yAxis: [
+                    {
+                        min: finalYMin,
+                        max: finalYMax
+                    }
+                ],
+                series: [
+                    {
+                        markPoint: {
+                            data: combinedMarks
+                        }
+                    }
+                ]
+            }, { notMerge: false, lazyUpdate: true });
         }
 
         function renderEquityChart(equityCurve) {
