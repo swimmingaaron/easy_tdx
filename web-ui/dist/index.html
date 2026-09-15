@@ -3010,7 +3010,7 @@
                     <button onclick="toggleTheme()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="切换亮色/暗色模式">
                         <i id="kp-theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
                     </button>
-                    <button id="kp-refresh-btn" onclick="refreshKpData(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="重新加载本标的数据 (右键亦可选择重新加载)">
+                    <button id="kp-refresh-btn" onclick="refreshKpData(true, true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="重新加载本标的K线行情与财务资料 (右键亦可选择重新加载)">
                         <i id="kp-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                     </button>
                     <button onclick="closeKlineModal()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition" title="关闭 (ESC)">
@@ -3851,12 +3851,23 @@
             }
         }
 
-        async function loadStockProfile(symbol) {
+        const _KP_PROFILE_CACHE = new Map();
+
+        async function loadStockProfile(symbol, forceRefresh = false) {
             try {
                 const rawSym = String(symbol || '').trim();
                 const digitMatch = rawSym.match(/\d{6}/);
                 const querySym = digitMatch ? digitMatch[0] : rawSym.replace(/[^0-9a-zA-Z]/g, '');
                 if (!querySym) return;
+
+                const now = Date.now();
+                if (!forceRefresh && _KP_PROFILE_CACHE.has(querySym)) {
+                    const cached = _KP_PROFILE_CACHE.get(querySym);
+                    if (now - cached.ts < 3600000) { // 1小时缓存 (财务与资料是季度数据，低频稳定)
+                        renderStockProfileData(cached.data, querySym);
+                        return;
+                    }
+                }
 
                 const tbody = document.getElementById('kp-financials-tbody');
                 if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在加载 ${querySym} 最新财报数据...</td></tr>`;
@@ -3873,6 +3884,22 @@
                 const json = await resp.json();
                 const d = json.data;
                 if (!d) return;
+
+                _KP_PROFILE_CACHE.set(querySym, { ts: now, data: d });
+                renderStockProfileData(d, querySym);
+            } catch (err) {
+                console.error('loadStockProfile err:', err);
+                const shTbody = document.getElementById('kp-shareholders-tbody');
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东人数获取异常，请重试</td></tr>`;
+                const tbody = document.getElementById('kp-financials-tbody');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-rose-400/80 font-sans">财报数据获取异常，请重试</td></tr>`;
+            }
+        }
+
+        function renderStockProfileData(d, querySym) {
+            try {
+                const tbody = document.getElementById('kp-financials-tbody');
+                const shTbody = document.getElementById('kp-shareholders-tbody');
 
                 // If this is an index or industry/concept board
                 if (d.is_index_or_board) {
@@ -5563,17 +5590,18 @@
             }
         }
 
-        async function refreshKpData(showFeedback = false) {
+        async function refreshKpData(showFeedback = false, refreshProfile = false) {
             const icon = document.getElementById('kp-refresh-icon');
             if (icon && showFeedback) icon.classList.add('animate-spin');
 
             try {
                 const wasAtLatest = (currentKpCutoffIndex < 0 || (currentKpFullBars.length > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1));
-                // Simultaneously refresh both K-line historical data and full stock profile/financials
-                await Promise.allSettled([
-                    loadKlinePreviewData(),
-                    loadStockProfile(currentKpSymbol)
-                ]);
+                const tasks = [loadKlinePreviewData()];
+                // 仅在用户主动点击刷新或显式指定时才更新财务资料 (季报低频数据，避免5s重复拉取)
+                if (refreshProfile) {
+                    tasks.push(loadStockProfile(currentKpSymbol, true));
+                }
+                await Promise.allSettled(tasks);
 
                 if (wasAtLatest && currentKpFullBars.length > 0) {
                     currentKpCutoffIndex = currentKpFullBars.length - 1;
@@ -5587,7 +5615,8 @@
                 updateTradingStatusUI();
 
                 if (showFeedback) {
-                    showToast('重新加载', `已刷新【${currentKpStockName || currentKpSymbol}】最新K线行情与公司财务资料`);
+                    const desc = refreshProfile ? '最新K线行情与公司财务资料' : '最新K线行情';
+                    showToast('重新加载', `已刷新【${currentKpStockName || currentKpSymbol}】${desc}`);
                 }
             } catch (err) {
                 console.error('refreshKpData error:', err);
@@ -9350,7 +9379,7 @@
                 // 2. 当且仅当 界面为 K 线弹窗时，5s 自动刷新 K 线页面数据
                 if (isKlineModalActive) {
                     if (!currentKpReplayTimer) {
-                        tasks.push(refreshKpData(false));
+                        tasks.push(refreshKpData(false, false)); // 5s轮询仅刷新K线量价，财务资料为低频季报不重复刷新
                     }
                 }
 

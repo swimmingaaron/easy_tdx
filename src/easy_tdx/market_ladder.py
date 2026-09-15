@@ -7,7 +7,7 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-from easy_tdx.market_data import fetch_security_kline
+from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
 from easy_tdx.stock_lookup import get_stock_name
 
 logger = logging.getLogger(__name__)
@@ -381,25 +381,28 @@ def _compute_market_ladder_and_matrix() -> dict[str, Any]:
     now = time.time()
     raw_candidates: list[dict[str, Any]] = []
 
-    # 1. Fetch real-time top gainer candidates from live market
+    # 1. Fetch real-time limit-up candidates natively via easy_tdx TDX protocol (0x1237 unusual events + quotes)
     try:
-        url_sina = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=80&sort=changepercent&asc=0&node=hs_a"
-        req_sina = urllib.request.Request(url_sina, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req_sina, timeout=3.5) as resp:
-            content = resp.read().decode("gbk", errors="ignore")
-            sina_items = json.loads(content)
-            
-            for item in sina_items:
-                raw_sym = str(item.get("symbol", "")).strip()
-                code = raw_sym.replace("sh", "").replace("sz", "").replace("bj", "").upper()
-                name = str(item.get("name", "")).strip()
-                if not name or name.startswith("标的_"):
-                    name = get_stock_name(code)
-                    
-                price = float(item.get("trade") or item.get("settlement") or 0.0)
-                chg = float(item.get("changepercent") or 0.0)
-                amt_yi = round(float(item.get("amount") or 0.0) / 100000000.0, 2)
-                turnover = round(float(item.get("turnoverratio") or 0.0), 2)
+        from easy_tdx.market_overview import _get_or_create_mac_client
+        mac = _get_or_create_mac_client()
+        df_sh = mac.get_unusual(1, 0, 300)
+        df_sz = mac.get_unusual(0, 0, 300)
+        zt_codes = []
+        for df in [df_sh, df_sz]:
+            if df is not None and not df.empty:
+                zt_mask = df["desc"].astype(str).str.contains("涨停")
+                if "unusual_type" in df.columns:
+                    zt_mask |= (df["unusual_type"] == 20)
+                zt_rows = df[zt_mask]
+                zt_codes.extend(zt_rows["code"].astype(str).str.strip().tolist())
+        zt_codes = [c for c in dict.fromkeys(zt_codes) if c and not c.startswith(("88", "99", "399"))]
+        if zt_codes:
+            quotes = fetch_realtime_pool_quotes(zt_codes[:80])
+            for q in quotes:
+                code = str(q.get("code", "")).strip()
+                price = float(q.get("price") or q.get("close") or 0.0)
+                chg = float(q.get("change_pct") or 0.0)
+                amt_yi = round(float(q.get("turnover_wan") or 0.0) / 10000.0, 2)
                 
                 is_zt = False
                 if (code.startswith("60") or code.startswith("00")) and chg >= 9.75:
@@ -408,8 +411,9 @@ def _compute_market_ladder_and_matrix() -> dict[str, Any]:
                     is_zt = True
                 elif (code.startswith("92") or code.startswith("8") or code.startswith("4")) and chg >= 29.5:
                     is_zt = True
-                    
+                
                 if is_zt and price > 0:
+                    name = get_stock_name(code)
                     concept_tag = "主线题材 / 涨停突破"
                     board_name = "主线板块"
                     if code.startswith("30"):
@@ -434,13 +438,76 @@ def _compute_market_ladder_and_matrix() -> dict[str, Any]:
                         "concept": concept_tag,
                         "board_name": board_name,
                         "amt_yi": amt_yi,
-                        "turnover": turnover if turnover > 0 else 8.5,
-                        "seal_ratio": round(min(45.0, max(5.0, 25.0 - turnover * 0.4)), 1),
+                        "turnover": 8.5,
+                        "seal_ratio": 15.0,
                         "fbt": "09:32:00",
                         "zb_count": 0
                     })
     except Exception as e:
-        logger.warning(f"Sina live limit-up fetch warning: {e}")
+        logger.debug(f"TDX native unusual limit-up fetch note: {e}")
+
+    # 2. Secondary fallback: Query Eastmoney push2 top gainers if TDX unusual has few candidates (e.g. night/weekend)
+    if len(raw_candidates) < 5:
+        try:
+            url_em = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=80&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f7,f8,f9,f10"
+            req_em = urllib.request.Request(url_em, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req_em, timeout=3.5) as resp:
+                content = resp.read().decode("utf-8", errors="ignore")
+                em_data = json.loads(content)
+                em_items = em_data.get("data", {}).get("diff", [])
+                existing_codes = {c["code"] for c in raw_candidates}
+                for item in em_items:
+                    code = str(item.get("f12", "")).strip()
+                    if not code or code in existing_codes:
+                        continue
+                    name = str(item.get("f14", "")).strip()
+                    if not name or name.startswith("标的_"):
+                        name = get_stock_name(code)
+                    price = float(item.get("f2") or 0.0)
+                    chg = float(item.get("f3") or 0.0)
+                    amt_yi = round(float(item.get("f6") or 0.0) / 100000000.0, 2)
+                    turnover = round(float(item.get("f8") or 0.0), 2)
+                    
+                    is_zt = False
+                    if (code.startswith("60") or code.startswith("00")) and chg >= 9.75:
+                        is_zt = True
+                    elif (code.startswith("30") or code.startswith("68")) and chg >= 19.75:
+                        is_zt = True
+                    elif (code.startswith("92") or code.startswith("8") or code.startswith("4")) and chg >= 29.5:
+                        is_zt = True
+
+                    if is_zt and price > 0:
+                        concept_tag = "主线题材 / 涨停突破"
+                        board_name = "主线板块"
+                        if code.startswith("30"):
+                            concept_tag = "创业板20cm / 领涨龙头"
+                            board_name = "创业板核心"
+                        elif code.startswith("68"):
+                            concept_tag = "科创板20cm / 机构强筹"
+                            board_name = "硬核科技"
+                        elif code.startswith("60"):
+                            concept_tag = "沪市主板 / 资金主买"
+                            board_name = "沪市主线"
+                        elif code.startswith("00"):
+                            concept_tag = "深市主板 / 强势封单"
+                            board_name = "深市领军"
+
+                        raw_candidates.append({
+                            "sym": code,
+                            "code": code,
+                            "name": name,
+                            "price": f"{price:.2f}",
+                            "chg": f"+{chg:.2f}%",
+                            "concept": concept_tag,
+                            "board_name": board_name,
+                            "amt_yi": amt_yi,
+                            "turnover": turnover if turnover > 0 else 8.5,
+                            "seal_ratio": round(min(45.0, max(5.0, 25.0 - turnover * 0.4)), 1),
+                            "fbt": "09:32:00",
+                            "zb_count": 0
+                        })
+        except Exception as e:
+            logger.debug(f"Eastmoney limit-up fetch note: {e}")
 
     # Only fallback to default candidate pool if live market query yielded 0 candidates (e.g. offline/network failure)
     if not raw_candidates:
