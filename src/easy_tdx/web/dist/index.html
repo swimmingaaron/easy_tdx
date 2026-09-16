@@ -1109,6 +1109,7 @@
             <button onclick="switchTab('aichat')" id="tab-aichat" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="message-square" class="w-3.5 h-3.5 inline mr-1"></i>AI 量化投研助手</button>
             <button onclick="switchTab('tradingsystem')" id="tab-tradingsystem" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="crosshair" class="w-3.5 h-3.5 inline mr-1"></i>交易系统</button>
             <button onclick="switchTab('finaanalysis')" id="tab-finaanalysis" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="file-pie-chart" class="w-3.5 h-3.5 inline mr-1"></i>财报分析</button>
+            <button onclick="switchTab('sectorleaders')" id="tab-sectorleaders" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="crown" class="w-3.5 h-3.5 inline mr-1 text-amber-400"></i>板块龙头</button>
         </nav>
 
         <div class="flex items-center space-x-2.5">
@@ -2939,6 +2940,207 @@
             </div>
         </section>
 
+        <!-- ==================== 11. 板块龙头界面 (Sector Leaders Monitor) ==================== -->
+        <section id="view-sectorleaders" class="space-y-4 hidden">
+            <!-- 顶层主控制卡片 -->
+            <div class="glass-card p-5 rounded-2xl space-y-4 shadow-sm">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 border-b border-slate-200 dark:border-slate-800/80 pb-3.5">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+                            <i data-lucide="crown" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white">全市场强势板块与龙头股票实时监测池</h3>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30" id="sl-stat-badge">
+                                    实时行情链路
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                基于 easy_tdx 原生通达信行情链路 · 秒级识别领涨先锋、百亿容量中军与短线连板空间龙
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 操作工具栏 -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- 板块分类 Pills -->
+                        <div class="inline-flex rounded-lg p-1 bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800">
+                            <button type="button" onclick="changeSectorLeaderType('hy')" id="sl-type-hy" class="px-3 py-1 text-xs font-semibold rounded-md bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs transition">
+                                行业板块
+                            </button>
+                            <button type="button" onclick="changeSectorLeaderType('gn')" id="sl-type-gn" class="px-3 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
+                                概念板块
+                            </button>
+                            <button type="button" onclick="changeSectorLeaderType('all')" id="sl-type-all" class="px-3 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
+                                全部并列
+                            </button>
+                        </div>
+
+                        <!-- 排序维度 -->
+                        <div class="flex items-center space-x-1 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg">
+                            <span class="text-xs text-slate-500 dark:text-slate-400 select-none">排序:</span>
+                            <select id="sl-sort-select" onchange="changeSectorLeaderSort(this.value)" class="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer">
+                                <option value="change_pct" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">按板块涨幅 ↕</option>
+                                <option value="main_net_amount" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">按主力净流入 ↕</option>
+                                <option value="amount" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">按板块成交额 ↕</option>
+                            </select>
+                        </div>
+
+                        <!-- 板块搜索框 -->
+                        <div class="relative flex items-center">
+                            <input type="text" id="sl-search-input" placeholder="精准检索板块 (如: 半导体 / 881094)"
+                                   class="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-52 sm:w-60 font-mono transition"
+                                   onkeydown="if(event.key==='Enter') executeSectorLeaderSearch(this.value)">
+                            <button onclick="executeSectorLeaderSearch(document.getElementById('sl-search-input').value)" class="absolute right-2 text-slate-400 hover:text-indigo-500">
+                                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <!-- 自动轮询刷新开关 -->
+                        <div class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg">
+                            <span class="text-xs text-slate-500 dark:text-slate-400 select-none">轮询:</span>
+                            <select id="sl-poll-select" onchange="setSectorLeaderPollInterval(this.value)" class="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer">
+                                <option value="0" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">关闭</option>
+                                <option value="5" selected class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">5秒刷新</option>
+                                <option value="10" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">10秒刷新</option>
+                                <option value="30" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">30秒刷新</option>
+                            </select>
+                        </div>
+
+                        <!-- 刷新按钮 -->
+                        <button onclick="loadSectorLeadersData(true)" title="立即强制刷新"
+                                class="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+
+                        <!-- 导出 CSV -->
+                        <button onclick="exportSectorLeadersCsv()" title="导出监测数据为 CSV"
+                                class="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition flex items-center space-x-1 cursor-pointer">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>导出CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 顶层风向标四大核心 Metric 卡片 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                    <!-- 卡片 1: 领涨第一主线 -->
+                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                            <span class="flex items-center"><i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1 text-rose-500"></i>领涨第一主线</span>
+                            <span id="sl-card-top-type" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/10 text-rose-500 font-mono">行业</span>
+                        </div>
+                        <div class="flex items-baseline justify-between">
+                            <div id="sl-card-top-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-top-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
+                        </div>
+                        <div id="sl-card-top-desc" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">先锋: --</div>
+                    </div>
+
+                    <!-- 卡片 2: 全市场领涨先锋 -->
+                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                            <span class="flex items-center"><i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-amber-500"></i>全市场领涨先锋</span>
+                            <span id="sl-card-pioneer-code" class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-500 font-mono">--</span>
+                        </div>
+                        <div class="flex items-baseline justify-between">
+                            <div id="sl-card-pioneer-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-pioneer-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
+                        </div>
+                        <div id="sl-card-pioneer-board" class="text-[11px] text-slate-500 dark:text-slate-400 truncate">所属板块: --</div>
+                    </div>
+
+                    <!-- 卡片 3: 百亿中军容量 -->
+                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                            <span class="flex items-center"><i data-lucide="shield" class="w-3.5 h-3.5 mr-1 text-indigo-500"></i>百亿容量中军</span>
+                            <span id="sl-card-cap-amount" class="px-1.5 py-0.2 rounded text-[10px] bg-indigo-500/10 text-indigo-500 font-mono">--</span>
+                        </div>
+                        <div class="flex items-baseline justify-between">
+                            <div id="sl-card-cap-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-cap-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
+                        </div>
+                        <div id="sl-card-cap-flow" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">主力净流入: --</div>
+                    </div>
+
+                    <!-- 卡片 4: 连板高度龙 -->
+                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                        <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                            <span class="flex items-center"><i data-lucide="flame" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>连板高度龙</span>
+                            <span id="sl-card-ladder-lbc" class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white font-mono">--</span>
+                        </div>
+                        <div class="flex items-baseline justify-between">
+                            <div id="sl-card-ladder-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-ladder-ztcount" class="text-sm font-semibold font-mono text-slate-500 dark:text-slate-400">涨停池: 0只</div>
+                        </div>
+                        <div id="sl-card-ladder-desc" class="text-[11px] text-slate-500 dark:text-slate-400 truncate">空间高度标杆</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主板块卡片列表容器 (带加载状态) -->
+            <div id="sl-cards-container" class="space-y-4">
+                <div class="glass-card p-12 text-center text-slate-400 rounded-2xl">
+                    <div class="flex flex-col items-center justify-center space-y-2">
+                        <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-amber-500"></i>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">正在通过 easy_tdx 原生链路秒级运算全市场板块龙头股票...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
+        <div id="sl-board-modal" class="fixed inset-0 z-[75] bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
+            <div class="glass-card bg-[#0b0f19]/95 border border-slate-700/80 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                <!-- Modal Header -->
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/60">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                            <i data-lucide="crown" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h4 id="sl-modal-title" class="text-sm font-bold text-white">板块全景深度成分股</h4>
+                                <span id="sl-modal-code" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-800 text-slate-300">--</span>
+                            </div>
+                            <p id="sl-modal-subtitle" class="text-xs text-slate-400 mt-0.5">全量成分股实时报价与主力多因子打分排位</p>
+                        </div>
+                    </div>
+                    <button onclick="closeSectorLeaderModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <!-- Modal Table Content -->
+                <div class="p-4 overflow-y-auto flex-1 font-sans">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="text-slate-400 border-b border-slate-800 font-mono bg-slate-900/80 sticky top-0">
+                                <tr>
+                                    <th class="py-2 px-2 text-center w-8">#</th>
+                                    <th class="py-2 px-2 text-left">代码</th>
+                                    <th class="py-2 px-2 text-left">名称</th>
+                                    <th class="py-2 px-2 text-right">最新价</th>
+                                    <th class="py-2 px-2 text-right">涨跌幅%</th>
+                                    <th class="py-2 px-2 text-right">主力净流入</th>
+                                    <th class="py-2 px-2 text-right">成交额</th>
+                                    <th class="py-2 px-2 text-right">量比</th>
+                                    <th class="py-2 px-2 text-right">换手%</th>
+                                    <th class="py-2 px-2 text-center">连板</th>
+                                    <th class="py-2 px-2 text-center">龙头得分</th>
+                                    <th class="py-2 px-3 text-left">龙头角色</th>
+                                    <th class="py-2 px-2 text-right pr-2">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sl-modal-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
     </main>
 
     <!-- ==================== TickFlow Style Full-Featured Stock K-Line Preview Modal ==================== -->
@@ -3621,7 +3823,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders'];
 
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
@@ -3666,6 +3868,10 @@
                         } else if (t === 'finaanalysis') {
                             setTimeout(() => {
                                 if (typeof loadFinaAnalysisData === 'function') loadFinaAnalysisData();
+                            }, 50);
+                        } else if (t === 'sectorleaders') {
+                            setTimeout(() => {
+                                if (typeof loadSectorLeadersData === 'function') loadSectorLeadersData();
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -14137,6 +14343,534 @@ function jumpToFinaPage() {
     }
     goToFinaPage(page);
 }
+
+
+
+        /* ==================== 11. 板块龙头界面核心交互与数据加载 (Sector Leaders) ==================== */
+        let _slType = 'hy';
+        let _slSort = 'change_pct';
+        let _slPollTimer = null;
+        let _slPollIntervalSec = 5;
+        let _cachedSectorLeaders = [];
+
+        function changeSectorLeaderType(type) {
+            _slType = type;
+            ['hy', 'gn', 'all'].forEach(t => {
+                const btn = document.getElementById(`sl-type-${t}`);
+                if (btn) {
+                    if (t === type) {
+                        btn.className = 'px-3 py-1 text-xs font-semibold rounded-md bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs transition';
+                    } else {
+                        btn.className = 'px-3 py-1 text-xs font-medium rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition';
+                    }
+                }
+            });
+            loadSectorLeadersData(true);
+        }
+
+        function changeSectorLeaderSort(sortBy) {
+            _slSort = sortBy;
+            loadSectorLeadersData(true);
+        }
+
+        function setSectorLeaderPollInterval(sec) {
+            _slPollIntervalSec = parseInt(sec, 10);
+            if (_slPollTimer) {
+                clearInterval(_slPollTimer);
+                _slPollTimer = null;
+            }
+            if (_slPollIntervalSec > 0) {
+                _slPollTimer = setInterval(() => {
+                    const view = document.getElementById('view-sectorleaders');
+                    if (view && !view.classList.contains('hidden')) {
+                        loadSectorLeadersData(false);
+                    }
+                }, _slPollIntervalSec * 1000);
+            }
+        }
+
+        async function executeSectorLeaderSearch(kw) {
+            const cleanKw = (kw || '').trim();
+            if (!cleanKw) {
+                loadSectorLeadersData(false);
+                return;
+            }
+            const container = document.getElementById('sl-cards-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="glass-card p-10 text-center text-slate-400 rounded-2xl">
+                        <div class="flex flex-col items-center justify-center space-y-2">
+                            <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-amber-500"></i>
+                            <span class="text-xs text-slate-400">正在精准检索【${cleanKw}】板块龙头标的...</span>
+                        </div>
+                    </div>
+                `;
+                if (window.lucide) lucide.createIcons();
+            }
+
+            try {
+                const resp = await fetch(`/api/sector_leaders/search?query=${encodeURIComponent(cleanKw)}&top_stocks=10`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.board) {
+                        renderSectorLeadersCards([data.board], true);
+                    } else {
+                        if (container) {
+                            container.innerHTML = `
+                                <div class="glass-card p-10 text-center text-slate-400 rounded-2xl">
+                                    <i data-lucide="info" class="w-8 h-8 mx-auto text-slate-500 mb-2"></i>
+                                    <p class="text-sm font-semibold text-slate-300">未检索到与【${cleanKw}】匹配的板块</p>
+                                    <p class="text-xs text-slate-500 mt-1">支持输入通达信行业或概念名称（如: 半导体、低空经济、881094 等）</p>
+                                </div>
+                            `;
+                            if (window.lucide) lucide.createIcons();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Sector leader search error:", e);
+            }
+        }
+
+        async function loadSectorLeadersData(forceRefresh = false) {
+            try {
+                const url = `/api/sector_leaders?type=${_slType}&sort_by=${_slSort}&top_boards=12&top_stocks=4&force_refresh=${forceRefresh ? 'true' : 'false'}`;
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success) {
+                        _cachedSectorLeaders = data.boards || [];
+                        updateSectorLeadersMetrics(data.stat, _cachedSectorLeaders);
+                        renderSectorLeadersCards(_cachedSectorLeaders, false);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load sector leaders data:", e);
+            }
+        }
+
+        function updateSectorLeadersMetrics(stat, boards) {
+            if (!boards || boards.length === 0) return;
+
+            // 1. Top 板块
+            const topB = boards[0];
+            const topNameEl = document.getElementById('sl-card-top-name');
+            const topPctEl = document.getElementById('sl-card-top-pct');
+            const topDescEl = document.getElementById('sl-card-top-desc');
+            const topTypeEl = document.getElementById('sl-card-top-type');
+
+            if (topNameEl) topNameEl.innerText = `${topB.board_name} (${topB.board_code})`;
+            if (topPctEl) {
+                const p = Number(topB.change_pct || 0);
+                topPctEl.innerText = (p > 0 ? '+' : '') + p.toFixed(2) + '%';
+                topPctEl.className = `text-base font-extrabold font-mono ${p > 0 ? 'text-rose-500' : 'text-emerald-500'}`;
+            }
+            if (topTypeEl) topTypeEl.innerText = topB.board_type || '行业';
+            if (topDescEl) {
+                const p = topB.leader_pioneer;
+                topDescEl.innerText = p ? `先锋: ${p.name} (${p.change_pct > 0 ? '+' : ''}${p.change_pct}%)` : `成交: ${fmtMoneyTs(topB.amount)}`;
+            }
+
+            // 2. 全市场最高先锋
+            let bestPioneer = null;
+            let bestCapacity = null;
+            let bestLadder = null;
+
+            boards.forEach(b => {
+                const p = b.leader_pioneer;
+                if (p && (!bestPioneer || p.change_pct > bestPioneer.change_pct)) {
+                    bestPioneer = { ...p, board_name: b.board_name };
+                }
+                const cap = b.leader_capacity;
+                if (cap && (!bestCapacity || cap.amount > bestCapacity.amount)) {
+                    bestCapacity = { ...cap, board_name: b.board_name };
+                }
+                const lad = b.leader_ladder;
+                if (lad && (!bestLadder || lad.lbc > bestLadder.lbc)) {
+                    bestLadder = { ...lad, board_name: b.board_name };
+                }
+            });
+
+            // 先锋卡片
+            if (bestPioneer) {
+                const pn = document.getElementById('sl-card-pioneer-name');
+                const pp = document.getElementById('sl-card-pioneer-pct');
+                const pc = document.getElementById('sl-card-pioneer-code');
+                const pb = document.getElementById('sl-card-pioneer-board');
+                if (pn) pn.innerText = bestPioneer.name;
+                if (pp) pp.innerText = (bestPioneer.change_pct > 0 ? '+' : '') + bestPioneer.change_pct.toFixed(2) + '%';
+                if (pc) pc.innerText = bestPioneer.code;
+                if (pb) pb.innerText = `所属板块: ${bestPioneer.board_name}`;
+            }
+
+            // 容量中军卡片
+            if (bestCapacity) {
+                const cn = document.getElementById('sl-card-cap-name');
+                const cp = document.getElementById('sl-card-cap-pct');
+                const ca = document.getElementById('sl-card-cap-amount');
+                const cf = document.getElementById('sl-card-cap-flow');
+                if (cn) cn.innerText = bestCapacity.name;
+                if (cp) cp.innerText = (bestCapacity.change_pct > 0 ? '+' : '') + bestCapacity.change_pct.toFixed(2) + '%';
+                if (ca) ca.innerText = fmtMoneyTs(bestCapacity.amount);
+                if (cf) cf.innerText = `主力净流入: ${fmtMoneyTs(bestCapacity.main_net_amount)}`;
+            }
+
+            // 连板卡片
+            if (bestLadder) {
+                const ln = document.getElementById('sl-card-ladder-name');
+                const ll = document.getElementById('sl-card-ladder-lbc');
+                const lz = document.getElementById('sl-card-ladder-ztcount');
+                const ld = document.getElementById('sl-card-ladder-desc');
+                if (ln) ln.innerText = bestLadder.name;
+                if (ll) ll.innerText = `${bestLadder.lbc}连板`;
+                if (lz) lz.innerText = `涨停池: ${stat ? stat.zt_count : 0} 只`;
+                if (ld) ld.innerText = `${bestLadder.board_name} 短线高度标杆`;
+            } else {
+                const lz = document.getElementById('sl-card-ladder-ztcount');
+                if (lz) lz.innerText = `涨停池: ${stat ? stat.zt_count : 0} 只`;
+            }
+        }
+
+        function renderSectorLeadersCards(boards, isSearch = false) {
+            const container = document.getElementById('sl-cards-container');
+            if (!container) return;
+
+            if (!boards || boards.length === 0) {
+                container.innerHTML = `
+                    <div class="glass-card p-12 text-center text-slate-400 rounded-2xl">
+                        <i data-lucide="info" class="w-8 h-8 mx-auto text-slate-500 mb-2"></i>
+                        <p class="text-sm font-semibold text-slate-300">暂无符合条件的板块龙头数据</p>
+                    </div>
+                `;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            const cardHtmlList = boards.map((b, bIdx) => {
+                const bCode = b.board_code || '';
+                const bName = b.board_name || '';
+                const bType = b.board_type || '行业';
+                const bPct = Number(b.change_pct || 0);
+                const bPctStr = (bPct > 0 ? '+' : '') + bPct.toFixed(2) + '%';
+                const bPctColor = bPct > 0 ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800/80' : (bPct < 0 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/80' : 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800');
+                
+                const bAmtStr = fmtMoneyTs(b.amount);
+                const bNetVal = Number(b.main_net_amount || 0);
+                const bNetStr = fmtMoneyTs(bNetVal);
+                const bNetColor = bNetVal > 0 ? 'text-rose-600 dark:text-rose-400' : (bNetVal < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400');
+                const upRatioStr = `${b.up_count || 0}涨 / ${b.down_count || 0}跌`;
+
+                // 核心龙头胶囊
+                const pioneer = b.leader_pioneer;
+                const capacity = b.leader_capacity;
+                const ladder = b.leader_ladder;
+
+                let matrixPills = '';
+                if (pioneer) {
+                    matrixPills += `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="领涨先锋">👑 先锋: <strong>${pioneer.name}</strong> (${pioneer.change_pct > 0 ? '+' : ''}${pioneer.change_pct}%)</span>`;
+                }
+                if (capacity && (!pioneer || capacity.code !== pioneer.code)) {
+                    matrixPills += `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20" title="容量中军">🛡️ 中军: <strong>${capacity.name}</strong> (${fmtMoneyTs(capacity.amount)})</span>`;
+                }
+                if (ladder && (!pioneer || ladder.code !== pioneer.code)) {
+                    matrixPills += `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" title="连板高度龙">🔥 高度: <strong>${ladder.name}</strong> (${ladder.lbc}连板)</span>`;
+                }
+
+                // 候选个股行
+                const candidates = b.candidates || [];
+                const rowsHtml = candidates.map((s, sIdx) => {
+                    const code = s.code;
+                    const name = s.name;
+                    const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : 'SZ';
+                    const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
+                    const price = Number(s.price || 0).toFixed(2);
+                    const pct = Number(s.change_pct || 0);
+                    const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+                    const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400');
+                    const netVal = Number(s.main_net_amount || 0);
+                    const netStr = fmtMoneyTs(netVal);
+                    const netColor = netVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (netVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400');
+                    const amtStr = fmtMoneyTs(s.amount);
+                    const vr = Number(s.vol_ratio || 1).toFixed(2);
+                    const vrColor = Number(s.vol_ratio) >= 2.0 ? 'text-amber-500 font-bold' : 'text-slate-600 dark:text-slate-300';
+                    const tr = Number(s.turnover || 0).toFixed(2) + '%';
+
+                    // 连板数
+                    let lbcHtml = '<span class="text-slate-400">-</span>';
+                    if (s.lbc >= 2) {
+                        lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white shadow-xs">${s.lbc}板🔥</span>`;
+                    } else if (s.lbc === 1 || s.is_zt) {
+                        lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300 dark:border-rose-800">首板</span>`;
+                    }
+
+                    // 龙头得分
+                    const score = Number(s.leader_score || 0).toFixed(1);
+                    let scoreBadge = '';
+                    if (score >= 80) {
+                        scoreBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40">${score}分</span>`;
+                    } else if (score >= 65) {
+                        scoreBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40">${score}分</span>`;
+                    } else {
+                        scoreBadge = `<span class="px-2 py-0.5 rounded text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">${score}分</span>`;
+                    }
+
+                    // 龙头角色
+                    const role = s.role_tag || '领涨个股';
+                    let rolePills = role.split(' | ').map(r => {
+                        if (r.includes('先锋')) return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40">${r}</span>`;
+                        if (r.includes('中军')) return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/40">${r}</span>`;
+                        if (r.includes('连板')) return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white shadow-xs">${r}</span>`;
+                        if (r.includes('涨停')) return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/30">${r}</span>`;
+                        return `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">${r}</span>`;
+                    }).join(' ');
+
+                    return `
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group border-b border-slate-100 dark:border-slate-800/60">
+                            <td class="py-2.5 px-2 text-center text-slate-400 font-mono text-xs">${sIdx + 1}</td>
+                            <td class="py-2.5 px-2 font-semibold whitespace-nowrap text-left">
+                                <a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-500 hover:underline text-xs">${code}</a>
+                            </td>
+                            <td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap text-left">
+                                <span onclick="openKlineModal('${code}', '${name}')" class="stock-click-link text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500 font-bold" title="点击查看K线">${name}</span>
+                            </td>
+                            <td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap text-slate-900 dark:text-slate-100">¥${price}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${pctColor}">${pctStr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${netColor}">${netStr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">${amtStr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${vrColor}">${vr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">${tr}</td>
+                            <td class="py-2.5 px-2 text-center font-mono whitespace-nowrap">${lbcHtml}</td>
+                            <td class="py-2.5 px-2 text-center font-mono whitespace-nowrap">${scoreBadge}</td>
+                            <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap space-x-1">${rolePills}</td>
+                            <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end space-x-1.5">
+                                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看深度8期财报">诊断</button>
+                                    <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
+                                    <button onclick="toggleWatchlistStockBtn('${code}', '${name}', this)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 transition cursor-pointer" title="加入/移出自选">+自选</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="glass-card p-4 sm:p-5 rounded-2xl space-y-3.5 shadow-sm border border-slate-200/80 dark:border-slate-800/80 hover:border-amber-500/30 transition">
+                        <!-- 板块头部 -->
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800/70 pb-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">${bType}</span>
+                                <span onclick="openSectorLeaderBoardModal('${bCode}', '${bName}')" class="text-base font-extrabold text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500 hover:underline flex items-center">
+                                    ${bName} <span class="text-xs font-mono font-normal text-slate-400 ml-1.5">(${bCode})</span>
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5 ml-1 text-slate-400"></i>
+                                </span>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${bPctColor}">
+                                    ${bPctStr}
+                                </span>
+                                <span class="text-xs font-mono text-slate-500 dark:text-slate-400 ml-1">
+                                    总成交: <strong>${bAmtStr}</strong>
+                                </span>
+                                <span class="text-xs font-mono ml-1 ${bNetColor}">
+                                    主力净流入: <strong>${bNetStr}</strong>
+                                </span>
+                                <span class="text-xs font-mono text-slate-400 ml-1">
+                                    (${upRatioStr})
+                                </span>
+                            </div>
+
+                            <!-- 龙头亮点胶囊与操作 -->
+                            <div class="flex items-center space-x-2">
+                                <div class="hidden md:flex items-center space-x-1.5">
+                                    ${matrixPills}
+                                </div>
+                                <button onclick="openSectorLeaderBoardModal('${bCode}', '${bName}')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition flex items-center space-x-1 cursor-pointer">
+                                    <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                                    <span>全景成分 (${b.members_count || 0})</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 候选龙头股票表格 -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="text-[11px] text-slate-400 border-b border-slate-200 dark:border-slate-800 font-mono select-none">
+                                    <tr>
+                                        <th class="py-2 px-2 text-center w-8 font-semibold">#</th>
+                                        <th class="py-2 px-2 text-left font-semibold">代码</th>
+                                        <th class="py-2 px-2 text-left font-semibold">股票名称</th>
+                                        <th class="py-2 px-2 text-right font-semibold">现价</th>
+                                        <th class="py-2 px-2 text-right font-semibold">涨跌幅%</th>
+                                        <th class="py-2 px-2 text-right font-semibold">主力净流入</th>
+                                        <th class="py-2 px-2 text-right font-semibold">成交额</th>
+                                        <th class="py-2 px-2 text-right font-semibold">量比</th>
+                                        <th class="py-2 px-2 text-right font-semibold">换手%</th>
+                                        <th class="py-2 px-2 text-center font-semibold">连板</th>
+                                        <th class="py-2 px-2 text-center font-semibold">龙头得分</th>
+                                        <th class="py-2 px-3 text-left font-semibold">龙头角色定位</th>
+                                        <th class="py-2 px-2 text-right pr-3 font-semibold">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                                    ${rowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = cardHtmlList;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function openSectorLeaderBoardModal(boardCode, boardName) {
+            const modal = document.getElementById('sl-board-modal');
+            const titleEl = document.getElementById('sl-modal-title');
+            const codeEl = document.getElementById('sl-modal-code');
+            const tbody = document.getElementById('sl-modal-table-body');
+            if (!modal) return;
+
+            if (titleEl) titleEl.innerText = `${boardName} · 全景成分股`;
+            if (codeEl) codeEl.innerText = boardCode;
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>正在抓取【${boardName}】全部成分股行情与多因子排名...</td></tr>`;
+                if (window.lucide) lucide.createIcons();
+            }
+            modal.classList.remove('hidden');
+
+            try {
+                const resp = await fetch(`/api/sector_leaders/detail?board_code=${encodeURIComponent(boardCode)}&board_name=${encodeURIComponent(boardName)}&count=40`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.data && data.data.candidates) {
+                        const candidates = data.data.candidates;
+                        const rows = candidates.map((s, idx) => {
+                            const code = s.code;
+                            const name = s.name;
+                            const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : 'SZ';
+                            const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
+                            const pct = Number(s.change_pct || 0);
+                            const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+                            const pctColor = pct > 0 ? 'text-rose-500 font-bold' : (pct < 0 ? 'text-emerald-500 font-bold' : 'text-slate-400');
+                            const netVal = Number(s.main_net_amount || 0);
+                            const netColor = netVal > 0 ? 'text-rose-500 font-semibold' : (netVal < 0 ? 'text-emerald-500 font-semibold' : 'text-slate-400');
+
+                            let lbcHtml = '<span class="text-slate-500">-</span>';
+                            if (s.lbc >= 2) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white">${s.lbc}板</span>`;
+                            else if (s.is_zt) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400">首板</span>`;
+
+                            return `
+                                <tr class="hover:bg-slate-800/40 transition">
+                                    <td class="py-2 px-2 text-center text-slate-400">${idx + 1}</td>
+                                    <td class="py-2 px-2 text-left"><a href="${xqUrl}" target="_blank" class="text-slate-100 hover:text-indigo-400 font-bold">${code}</a></td>
+                                    <td class="py-2 px-2 text-left font-sans font-bold text-white cursor-pointer hover:text-indigo-400" onclick="openKlineModal('${code}', '${name}')">${name}</td>
+                                    <td class="py-2 px-2 text-right font-bold text-white">¥${Number(s.price).toFixed(2)}</td>
+                                    <td class="py-2 px-2 text-right ${pctColor}">${pctStr}</td>
+                                    <td class="py-2 px-2 text-right ${netColor}">${fmtMoneyTs(s.main_net_amount)}</td>
+                                    <td class="py-2 px-2 text-right text-slate-400">${fmtMoneyTs(s.amount)}</td>
+                                    <td class="py-2 px-2 text-right ${Number(s.vol_ratio) >= 2 ? 'text-amber-400 font-bold' : 'text-slate-300'}">${Number(s.vol_ratio).toFixed(2)}</td>
+                                    <td class="py-2 px-2 text-right text-slate-400">${Number(s.turnover).toFixed(2)}%</td>
+                                    <td class="py-2 px-2 text-center">${lbcHtml}</td>
+                                    <td class="py-2 px-2 text-center font-bold text-amber-400">${Number(s.leader_score).toFixed(1)}</td>
+                                    <td class="py-2 px-3 text-left font-sans text-[11px] text-slate-300">${s.role_tag || '-'}</td>
+                                    <td class="py-2 px-2 pr-2 text-right">
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-400 bg-indigo-950/60 border border-indigo-800 hover:bg-indigo-900 transition cursor-pointer">诊断</button>
+                                            <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-400 bg-indigo-950/60 border border-indigo-800 hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                        tbody.innerHTML = rows;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load board detail modal:", e);
+            }
+        }
+
+        function closeSectorLeaderModal() {
+            const modal = document.getElementById('sl-board-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function toggleWatchlistStockBtn(code, name, btnEl) {
+            try {
+                const currentWl = (typeof getWatchlistSymbols === 'function') ? getWatchlistSymbols() : [];
+                const inWl = currentWl.includes(code);
+                const nextStatus = !inWl;
+
+                const resp = await fetch('/api/trading_system/toggle_watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_code: code, status: nextStatus })
+                });
+                if (resp.ok) {
+                    if (window.showToast) {
+                        showToast(nextStatus ? '已添加自选' : '已移出自选', `${name} (${code}) ${nextStatus ? '已加入自选监控池' : '已移出自选监控池'}`);
+                    }
+                    if (btnEl) {
+                        btnEl.innerText = nextStatus ? '已自选' : '+自选';
+                        btnEl.className = nextStatus ? 'px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 text-xs font-bold transition' : 'px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition cursor-pointer';
+                    }
+                }
+            } catch (e) {
+                console.error("Toggle watchlist error:", e);
+            }
+        }
+
+        function exportSectorLeadersCsv() {
+            if (!_cachedSectorLeaders || _cachedSectorLeaders.length === 0) {
+                if (window.showToast) showToast('提示', '当前暂无板块龙头数据可导出');
+                return;
+            }
+            const headers = ['板块代码', '板块名称', '板块类型', '板块涨跌幅%', '板块总成交额', '主力净流入', '代码', '股票名称', '最新价', '个股涨跌幅%', '主力净流入', '成交额', '量比', '换手率%', '连板数', '龙头得分', '龙头角色定位'];
+            const rows = [headers.join(',')];
+
+            _cachedSectorLeaders.forEach(b => {
+                const bCode = b.board_code || '';
+                const bName = b.board_name || '';
+                const bType = b.board_type || '';
+                const bPct = b.change_pct || 0;
+                const bAmt = b.amount || 0;
+                const bNet = b.main_net_amount || 0;
+
+                (b.candidates || []).forEach(s => {
+                    const row = [
+                        `"${bCode}"`,
+                        `"${bName}"`,
+                        `"${bType}"`,
+                        bPct,
+                        bAmt,
+                        bNet,
+                        `"${s.code}"`,
+                        `"${s.name}"`,
+                        s.price,
+                        s.change_pct,
+                        s.main_net_amount,
+                        s.amount,
+                        s.vol_ratio,
+                        s.turnover,
+                        s.lbc,
+                        s.leader_score,
+                        `"${s.role_tag || ''}"`
+                    ];
+                    rows.push(row.join(','));
+                });
+            });
+
+            const csvContent = "\uFEFF" + rows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `easy_tdx_板块龙头监测_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            if (window.showToast) showToast('导出成功', '已下载板块龙头 CSV 数据文件');
+        }
 
 </script>
     
