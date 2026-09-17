@@ -36,7 +36,6 @@ audit-report-*.html
 # 运行时缓存与临时数据
 data/*_cache/
 data/*cache*
-data/market_summary_latest.json
 output/
 scripts/output/
 scripts/data/
