@@ -559,6 +559,32 @@ def get_kline(
             if now_q - ts_q < mac_ttl:
                 cached_mac = c_val
 
+    # 优先从内存级全市场实时行情缓存匹配，0ms 秒开无网络等待
+    if not cached_mac:
+        with _REALTIME_QUOTES_LOCK:
+            if _REALTIME_QUOTES_CACHE:
+                _, q_list = _REALTIME_QUOTES_CACHE
+                for q_item in q_list:
+                    if q_item.get("code") == clean_sym or q_item.get("symbol") == clean_sym:
+                        t_cap = float(q_item.get("total_market_cap") or 0.0)
+                        f_cap = float(q_item.get("float_market_cap") or (t_cap * 0.85))
+                        circ_z = float(q_item.get("circulating_capital_z") or (f_cap / max(0.01, last_price * 10000.0)))
+                        cached_mac = {
+                            "total_market_cap_ab": t_cap,
+                            "circulating_capital_z": circ_z,
+                            "pe_dynamic": q_item.get("pe_dynamic") or q_item.get("pe"),
+                            "pe_ttm": q_item.get("pe_ttm"),
+                            "pe_static": q_item.get("pe_static"),
+                            "vol_ratio": q_item.get("vol_ratio", vol_ratio),
+                            "main_net_amount": q_item.get("main_net_amount", m1_real),
+                            "main_net_3d_amount": q_item.get("main_net_3d", m3_real),
+                            "main_net_5d_amount": q_item.get("main_net_5d", m5_real),
+                            "main_net_10d_amount": q_item.get("main_net_10d", m10_real),
+                        }
+                        with _STOCK_MAC_LOCK:
+                            _STOCK_MAC_CACHE[clean_sym] = (now_q, cached_mac)
+                        break
+
     if cached_mac:
         t_cap = float(cached_mac.get("total_market_cap_ab") or 0.0)
         if t_cap > 0:
@@ -705,9 +731,17 @@ def get_kline(
                 # Calibrate minute bars per day so that the sum of minute net inflows matches daily net inflow
                 from collections import defaultdict
                 minute_days = list(dict.fromkeys(b["datetime"].split(" ")[0] for b in bars_data))
-                day_target_flows: dict[str, float] = {}
                 try:
-                    df_day = fetch_security_kline(raw_sym, count=max(15, len(minute_days) + 5), period="DAY")
+                    df_day = None
+                    day_base_k = f"{clean_sym}_DAY"
+                    with _KLINE_CACHE_LOCK:
+                        if day_base_k in _KLINE_BASE_CACHE:
+                            _, c_res = _KLINE_BASE_CACHE[day_base_k]
+                            d_bars = c_res.get("data")
+                            if d_bars and len(d_bars) >= len(minute_days):
+                                df_day = pd.DataFrame(d_bars)
+                    if df_day is None:
+                        df_day = fetch_security_kline(raw_sym, count=max(15, len(minute_days) + 5), period="DAY")
                     if df_day is not None and not df_day.empty:
                         d_c = df_day["close"].values
                         d_h = df_day["high"].values

@@ -4477,12 +4477,15 @@
             return `https://xueqiu.com/S/${prefix}${code}`;
         }
 
+        let _currentLoadedKpSymbol = '';
         window.openKlineModal = openKlineModal;
     function openKlineModal(sym, name, preferredPeriod = null) {
         const kModal = document.getElementById('kline-preview-modal');
         if (kModal) { kModal.style.zIndex = '70'; kModal.classList.remove('hidden'); }
             const rawSym = String(sym || '600123').trim();
-            currentKpSymbol = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
+            const newSym = rawSym.replace(/[^0-9a-zA-Z.]/g, '') || '600123';
+            const isDifferentStock = (newSym !== currentKpSymbol || newSym !== _currentLoadedKpSymbol);
+            currentKpSymbol = newSym;
             currentKpStockName = name || '';
             if (preferredPeriod && typeof preferredPeriod === 'string') {
                 const pUpper = preferredPeriod.trim().toUpperCase();
@@ -4505,6 +4508,23 @@
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
             document.getElementById('kp-full-symbol-inline').innerText = currentKpSymbol;
+
+            // 若切换为不同个股，立即重置历史柱线并展示平滑 Loading，避免旧标的残影
+            if (isDifferentStock) {
+                currentKpFullBars = [];
+                currentKpData = null;
+                currentKpCutoffIndex = -1;
+                if (kpEchart) {
+                    try {
+                        kpEchart.showLoading({
+                            text: 'K线蜡烛图秒级加载中...',
+                            color: '#06b6d4',
+                            textColor: '#94a3b8',
+                            maskColor: 'rgba(11, 15, 25, 0.4)'
+                        });
+                    } catch (e) {}
+                }
+            }
 
             // Sync stock search input in K-line modal header
             const kpSearchInput = document.getElementById('kp-search-input');
@@ -4581,21 +4601,13 @@
                 }
             }
 
-            // Fire instant K-line render (0ms delay)
+            // 核心优先：以最高优先级立即触发当前K线蜡烛图加载与渲染 (0ms 延迟)
             loadKlinePreviewData();
 
-            // Defer stock profile fetch slightly so K-line chart gets 100% priority
-            setTimeout(() => {
+            // 资料财务优先权控制：仅当用户已展开资料财务面板时才拉取，折叠时绝不抢占K线网络与计算资源
+            if (isKpProfileOpen) {
                 loadStockProfile(currentKpSymbol);
-            }, 150);
-
-            // Background pre-fetch popular periods for instant switching
-            setTimeout(() => {
-                if (typeof prefetchKlinePeriod === 'function') {
-                    prefetchKlinePeriod('WEEK');
-                    prefetchKlinePeriod('60M');
-                }
-            }, 300);
+            }
 
             // Ensure context menu and hover prefetch are initialized
             initKpContextMenu();
@@ -6098,15 +6110,19 @@
             // 1. Instant Cache Hit: If cached data exists, render IMMEDIATELY in 0ms!
             if (!forceRefresh && window._klineCache && window._klineCache.has(cacheKey)) {
                 const cached = window._klineCache.get(cacheKey);
+                _currentLoadedKpSymbol = reqSym;
+                if (kpEchart) {
+                    try { kpEchart.hideLoading(); } catch (e) {}
+                }
                 _applyKpDataResponse(cached.data);
                 if (Date.now() - cached.ts < 5000) {
                     return; // Fresh enough within 5s
                 }
-            } else if (!currentKpFullBars || currentKpFullBars.length === 0) {
+            } else if (!currentKpFullBars || currentKpFullBars.length === 0 || _currentLoadedKpSymbol !== reqSym) {
                 if (kpEchart) {
                     try {
                         kpEchart.showLoading({
-                            text: 'K线实时更新中...',
+                            text: 'K线蜡烛图加载中...',
                             color: '#06b6d4',
                             textColor: '#94a3b8',
                             maskColor: 'rgba(11, 15, 25, 0.4)'
@@ -6124,10 +6140,18 @@
                         window._klineCache.set(cacheKey, { data: json, ts: Date.now() });
                     }
                     if (mySeq === _klineFetchSeq && currentKpSymbol === reqSym && currentKpPeriod === reqPeriod) {
+                        _currentLoadedKpSymbol = reqSym;
                         if (kpEchart) {
                             try { kpEchart.hideLoading(); } catch (e) {}
                         }
                         _applyKpDataResponse(json);
+
+                        // 蜡烛图渲染完成后，空闲延迟预取周K，绝不抢占当前主图
+                        setTimeout(() => {
+                            if (mySeq === _klineFetchSeq && currentKpSymbol === reqSym && typeof prefetchKlinePeriod === 'function') {
+                                prefetchKlinePeriod('WEEK');
+                            }
+                        }, 1500);
                     }
                 }
             } catch (e) {
