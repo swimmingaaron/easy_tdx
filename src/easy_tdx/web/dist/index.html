@@ -3086,8 +3086,8 @@
                         <div class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg">
                             <span class="text-xs text-slate-500 dark:text-slate-400 select-none">轮询:</span>
                             <select id="sl-poll-select" onchange="setSectorLeaderPollInterval(this.value)" class="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="0" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">关闭</option>
-                                <option value="5" selected class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">5秒刷新</option>
+                                <option value="0" selected class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">关闭</option>
+                                <option value="5" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">5秒刷新</option>
                                 <option value="10" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">10秒刷新</option>
                                 <option value="30" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">30秒刷新</option>
                             </select>
@@ -3967,7 +3967,10 @@
                             }, 50);
                         } else if (t === 'sectorleaders') {
                             setTimeout(() => {
-                                if (typeof loadSectorLeadersData === 'function') loadSectorLeadersData();
+                                if (!window._HAS_LOADED_SECTOR_LEADERS) {
+                                    window._HAS_LOADED_SECTOR_LEADERS = true;
+                                    if (typeof loadSectorLeadersData === 'function') loadSectorLeadersData();
+                                }
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -14481,8 +14484,23 @@ function jumpToFinaPage() {
         let _slType = 'hy';
         let _slSort = 'change_pct';
         let _slPollTimer = null;
-        let _slPollIntervalSec = 5;
+        let _slPollIntervalSec = 0;
         let _cachedSectorLeaders = [];
+
+        function initSectorLeaderPollSetting() {
+            try {
+                const saved = localStorage.getItem('easy_tdx_sl_poll_interval');
+                if (saved !== null && !isNaN(parseInt(saved, 10))) {
+                    const val = parseInt(saved, 10);
+                    _slPollIntervalSec = val;
+                    const select = document.getElementById('sl-poll-select');
+                    if (select) select.value = String(val);
+                }
+            } catch (e) {}
+            if (_slPollIntervalSec > 0) {
+                setSectorLeaderPollInterval(_slPollIntervalSec);
+            }
+        }
 
         function changeSectorLeaderType(type) {
             _slType = type;
@@ -14505,7 +14523,10 @@ function jumpToFinaPage() {
         }
 
         function setSectorLeaderPollInterval(sec) {
-            _slPollIntervalSec = parseInt(sec, 10);
+            _slPollIntervalSec = parseInt(sec, 10) || 0;
+            try {
+                localStorage.setItem('easy_tdx_sl_poll_interval', String(_slPollIntervalSec));
+            } catch (e) {}
             if (_slPollTimer) {
                 clearInterval(_slPollTimer);
                 _slPollTimer = null;
@@ -14521,6 +14542,7 @@ function jumpToFinaPage() {
         }
 
         async function executeSectorLeaderSearch(kw) {
+            window._HAS_LOADED_SECTOR_LEADERS = true;
             const cleanKw = (kw || '').trim();
             if (!cleanKw) {
                 loadSectorLeadersData(false);
@@ -14564,6 +14586,7 @@ function jumpToFinaPage() {
         }
 
         async function loadSectorLeadersData(forceRefresh = false) {
+            window._HAS_LOADED_SECTOR_LEADERS = true;
             try {
                 const url = `/api/sector_leaders?type=${_slType}&sort_by=${_slSort}&top_boards=12&top_stocks=4&force_refresh=${forceRefresh ? 'true' : 'false'}`;
                 const resp = await fetch(url);
@@ -15002,6 +15025,8 @@ function jumpToFinaPage() {
             URL.revokeObjectURL(url);
             if (window.showToast) showToast('导出成功', '已下载板块龙头 CSV 数据文件');
         }
+
+        initSectorLeaderPollSetting();
 
 </script>
     
