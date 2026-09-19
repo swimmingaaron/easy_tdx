@@ -1,11 +1,27 @@
 """Stock Profile Service
 
-Aggregates:
-1. Shareholder counts & average shares per holder from TDX Finance / EastMoney / THS
-2. Company profile, legal person, main business from F10 survey
-3. Belonging sectors and concept theme tags
-4. Financial reports: Revenue, Net Profit, YoY, QoQ
+Aggregates complete stock financial & profile data with a resilient 4-tier multi-source fallback:
+1. Shareholder counts & average shares per holder:
+   - Tier 1: Native TDX get_finance_info (Primary local source)
+   - Tier 2: EastMoney DataCenter open API & PageAjax API (with compliant Referer)
+   - Tier 3: Tonghuashun (10jqka) F10 holder table parser
+2. Company survey, legal person, main business, registered capital:
+   - Tier 1: EastMoney CompanySurveyAjax (with compliant Referer)
+   - Tier 2: Tonghuashun (10jqka) F10 company.html parser
+   - Tier 3: Sina CorpInfo parser
+   - Tier 4: Native TDX F10 text & get_finance_info
+3. Belonging sectors and concept theme tags:
+   - Tier 1: EastMoney CoreTheme BoardType API (with compliant Referer)
+   - Tier 2: Tonghuashun (10jqka) concept.html parser
+   - Tier 3: Native TDX F10 concept section parser
+4. Financial reports (Recent 4~8 quarters: Revenue, Net Profit, Deducted Profit, YoY, QoQ):
+   - Tier 1: EastMoney ZYZBAjaxNew API (with compliant Referer)
+   - Tier 2: SinaClient get_financial_report (LRB income statement with YoY/QoQ)
+   - Tier 3: Trading system engine fetch_stock_financials
+   - Tier 4: Native TDX get_finance_info with unit-scale correction
 """
+
+from __future__ import annotations
 
 import copy
 import gzip
@@ -23,9 +39,10 @@ from .sina import SinaClient
 
 logger = logging.getLogger(__name__)
 
-# In-memory TTL cache: key -> (timestamp, data)
-_PROFILE_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
-_CACHE_TTL = 1800  # 30 minutes
+# In-memory TTL cache: key -> (timestamp, data, is_rich)
+_PROFILE_CACHE: Dict[str, Tuple[float, Dict[str, Any], bool]] = {}
+_CACHE_TTL = 1800  # 30 minutes for complete rich profiles
+_CACHE_TTL_DEGRADED = 10  # 10 seconds for degraded profiles to allow quick retry
 _CACHE_LOCK = Lock()
 
 _DEFAULT_HEADERS = {
@@ -34,6 +51,26 @@ _DEFAULT_HEADERS = {
     "Accept-Encoding": "gzip, deflate",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Connection": "close",
+}
+
+_EASTMONEY_EMWEB_HEADERS = {
+    **_DEFAULT_HEADERS,
+    "Referer": "https://emweb.securities.eastmoney.com/",
+}
+
+_EASTMONEY_DATA_HEADERS = {
+    **_DEFAULT_HEADERS,
+    "Referer": "https://data.eastmoney.com/",
+}
+
+_SINA_HEADERS = {
+    **_DEFAULT_HEADERS,
+    "Referer": "https://finance.sina.com.cn/",
+}
+
+_THS_HEADERS = {
+    **_DEFAULT_HEADERS,
+    "Referer": "http://basic.10jqka.com.cn/",
 }
 
 
@@ -132,7 +169,7 @@ def _resolve_quarter_end_date(date_str: str) -> str:
 
 
 def _format_period_title(end_date: str) -> str:
-    """Format 'YYYY-MM-DD' into readable report period (e.g. '2024中报')."""
+    """Format 'YYYY-MM-DD' into readable report period (e.g. '2026中报')."""
     d = str(end_date)[:10]
     if "-03-31" in d:
         return f"{d[:4]}一季报"
@@ -142,7 +179,6 @@ def _format_period_title(end_date: str) -> str:
         return f"{d[:4]}三季报"
     elif "-12-31" in d:
         return f"{d[:4]}年报"
-    # Fallback if announcement date is passed directly:
     try:
         parts = d.split("-")
         if len(parts) == 3:
@@ -161,8 +197,10 @@ def _format_period_title(end_date: str) -> str:
     return d
 
 
+# ==================== 1. 股东户数历史四级容灾 ====================
+
 def _fetch_shareholder_history_datacenter(clean_code: str) -> List[Dict[str, Any]]:
-    """Tier 1: EastMoney DataCenter open API (queries by pure code, works across SH, SZ, BJ)."""
+    """Tier 1: EastMoney DataCenter open API (with compliant Referer)."""
     url = (
         f"https://datacenter.eastmoney.com/securities/api/data/v1/get?"
         f"reportName=RPT_F10_EH_HOLDERNUM&filter=(SECURITY_CODE%3D%22{clean_code}%22)"
@@ -170,8 +208,8 @@ def _fetch_shareholder_history_datacenter(clean_code: str) -> List[Dict[str, Any
         f"AVG_FREE_SHARES,AVG_FREESHARES_RATIO,HOLD_FOCUS,AVG_HOLD_AMT"
         f"&sortColumns=END_DATE&sortTypes=-1&pageNumber=1&pageSize=8"
     )
-    req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-    with urllib.request.urlopen(req, timeout=5) as resp:
+    req = urllib.request.Request(url, headers=_EASTMONEY_DATA_HEADERS)
+    with urllib.request.urlopen(req, timeout=4) as resp:
         data = json.loads(_read_response_text(resp))
         res = data.get("result") or {}
         items = res.get("data") or []
@@ -211,10 +249,10 @@ def _fetch_shareholder_history_datacenter(clean_code: str) -> List[Dict[str, Any
 
 
 def _fetch_shareholder_history_pageajax(clean_code: str, pfx: str) -> List[Dict[str, Any]]:
-    """Tier 2: EastMoney PC_HSF10 PageAjax API."""
+    """Tier 2: EastMoney PC_HSF10 PageAjax API (with compliant Referer)."""
     url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
-    req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-    with urllib.request.urlopen(req, timeout=5) as resp:
+    req = urllib.request.Request(url, headers=_EASTMONEY_EMWEB_HEADERS)
+    with urllib.request.urlopen(req, timeout=4) as resp:
         data = json.loads(_read_response_text(resp))
         gdrs = data.get("gdrs") or []
         records = []
@@ -253,10 +291,10 @@ def _fetch_shareholder_history_pageajax(clean_code: str, pfx: str) -> List[Dict[
 
 
 def _fetch_shareholder_history_ths(clean_code: str) -> List[Dict[str, Any]]:
-    """Tier 3: Tonghuashun (10jqka) F10 holder table parser (especially resilient for BJ stocks)."""
+    """Tier 3: Tonghuashun (10jqka) F10 holder table parser."""
     url = f"http://basic.10jqka.com.cn/{clean_code}/holder.html"
-    req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-    with urllib.request.urlopen(req, timeout=5) as resp:
+    req = urllib.request.Request(url, headers=_THS_HEADERS)
+    with urllib.request.urlopen(req, timeout=4) as resp:
         html = _read_response_text(resp, default_encoding="gbk")
 
     tbody_idx = html.find('class="data_tbody"')
@@ -399,12 +437,12 @@ def _fetch_shareholder_history(
     mkt: Optional[Market] = None,
     tdx_data: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    """三级弹性容灾获取体系 (3-Tier Resilient Disaster Recovery Architecture):
-    - Tier 1 (第一选择 / 本地核心源): 通达信本地最新期（easy_tdx 通信接口）
-    - Tier 2 (第二选择 / 历史主通道): 东方财富核心接口（DataCenter API 优先，PageAjax API 兜底）
-    - Tier 3 (第三选择 / 极端兜底通道): 同花顺解析接口（10jqka F10 股东表解析）
+    """四级弹性容灾股东户数历史架构：
+    - Tier 1 (本地首选源): 通达信本地最新期（easy_tdx 通信接口）
+    - Tier 2 (官方开放源): 东方财富 DataCenter / PageAjax API
+    - Tier 3 (综合资讯源): 同花顺 10jqka 股东变动解析
+    - 智能融合：保留最新期，重算真实 QoQ 环比变动
     """
-    # 1. Tier 1: 通达信本地最新期（easy_tdx 通信接口）为第一选择
     tdx_latest: Optional[Dict[str, Any]] = None
     if tdx_data and tdx_data.get("holder_count"):
         up_d = tdx_data.get("updated_date") or ""
@@ -429,7 +467,6 @@ def _fetch_shareholder_history(
     else:
         tdx_latest = _fetch_shareholder_history_tdx(clean_code, mkt)
 
-    # 2. Tier 2: 东方财富接口（DataCenter 优先，PageAjax 兜底）
     ext_records: List[Dict[str, Any]] = []
     try:
         ext_records = _fetch_shareholder_history_datacenter(clean_code)
@@ -442,25 +479,21 @@ def _fetch_shareholder_history(
         except Exception as e:
             logger.debug(f"Shareholder Tier 2 (PageAjax) failed for {clean_code}: {e}")
 
-    # 3. Tier 3: 同花顺解析接口 (10jqka 兜底容灾)
     if not ext_records:
         try:
             ext_records = _fetch_shareholder_history_ths(clean_code)
         except Exception as e:
             logger.debug(f"Shareholder Tier 3 (THS) failed for {clean_code}: {e}")
 
-    # 4. 融合架构：以通达信本地最新期为第一选择，结合东财/同花顺补齐历史4期并回算环比
     records: List[Dict[str, Any]] = []
     if tdx_latest and ext_records:
         tdx_period = tdx_latest["period"]
         ext_latest_period = ext_records[0]["period"]
 
-        # 判断本地最新期与外部首期是否属于同季
         if tdx_period == ext_latest_period or (
             tdx_period[:4] == ext_latest_period[:4]
             and _format_period_title(tdx_period) == _format_period_title(ext_latest_period)
         ):
-            # 报告期一致：以通达信本地最新期为第一选择覆盖人数与均股，保留东财等特色字段
             merged_latest = copy.deepcopy(ext_records[0])
             merged_latest["holder_count"] = tdx_latest["holder_count"]
             if tdx_latest.get("avg_shares"):
@@ -469,26 +502,21 @@ def _fetch_shareholder_history(
             merged_latest["source"] = "easy_tdx"
             records = [merged_latest] + ext_records[1:]
         elif tdx_period > ext_latest_period:
-            # 通达信已披露更新一期：通达信最新期置顶作为首选
             records = [tdx_latest] + ext_records
         else:
-            # 外部数据源期数更新（如预披露）：保留外部首期，后续期若匹配则首选通达信
             records = ext_records
     elif tdx_latest and not ext_records:
-        # 外部网络全断流，通达信本地最新期独立兜底保活
         records = [tdx_latest]
     else:
-        # 通达信未获取到，平滑降级至外部源
         records = ext_records
 
-    # 5. 自适应校准与环比重算 (QoQ)
+    # 重算 QoQ 环比
     if records:
         for i in range(len(records)):
             if i + 1 < len(records):
                 prev = records[i + 1]
                 curr_h = records[i].get("holder_count")
                 prev_h = prev.get("holder_count")
-                # 重新计算真实环比变动
                 if curr_h and prev_h and prev_h > 0:
                     records[i]["holder_qoq"] = round(((curr_h - prev_h) / prev_h) * 100, 2)
 
@@ -500,6 +528,411 @@ def _fetch_shareholder_history(
     return records[:4]
 
 
+# ==================== 2. 公司档案与主营业务多源补全 ====================
+
+def _fetch_company_info(
+    clean_code: str,
+    pfx: str,
+    mkt: Market,
+    tdx_data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """四级弹性容灾获取公司档案与主营业务：
+    - Tier 1: 东方财富 PC_HSF10 CompanySurveyAjax (带合规 Referer)
+    - Tier 2: 同花顺 10jqka company.html (公司资料深度解析)
+    - Tier 3: 新浪财经 vCI_CorpInfo (公司概况解析)
+    - Tier 4: 通达信本地 F10 文本及财务基础库
+    """
+    comp: Dict[str, Any] = {}
+
+    # Tier 1: EastMoney CompanySurveyAjax
+    try:
+        url_f10 = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax?code={pfx}{clean_code}"
+        req = urllib.request.Request(url_f10, headers=_EASTMONEY_EMWEB_HEADERS)
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(_read_response_text(resp))
+            jb = data.get("jbzl")
+            if isinstance(jb, list) and jb:
+                jb = jb[0]
+            if isinstance(jb, dict) and jb.get("gsmc"):
+                ind = jb.get("sshy", "") or jb.get("sszjhhy", "")
+                business_text = jb.get("gsjj", "") or jb.get("jyfw", "") or ""
+                comp = {
+                    "org_name": jb.get("gsmc", ""),
+                    "industry": ind,
+                    "province": jb.get("qy", ""),
+                    "legal_person": jb.get("frdb", "") or jb.get("dsz", ""),
+                    "general_manager": jb.get("zjl", ""),
+                    "registered_capital": jb.get("zczb", ""),
+                    "main_business": " ".join(business_text.strip().split()),
+                }
+    except Exception as e:
+        logger.debug(f"Company Info Tier 1 (EastMoney) failed for {clean_code}: {e}")
+
+    # Tier 2: THS Company Info Fallback
+    if not comp or not comp.get("main_business"):
+        try:
+            url_ths = f"http://basic.10jqka.com.cn/{clean_code}/company.html"
+            req_ths = urllib.request.Request(url_ths, headers=_THS_HEADERS)
+            with urllib.request.urlopen(req_ths, timeout=4) as resp:
+                html = _read_response_text(resp, default_encoding="gbk")
+
+            org_m = re.search(r"公司名称：</strong><span>([^<]+)</span>", html)
+            prov_m = re.search(r"所属地域：</strong><span>([^<]+)</span>", html)
+            ind_m = re.search(r"所属申万行业：</strong><span>([^<]+)</span>", html)
+            biz_m = re.search(r"主营业务：</strong>\s*<span>([^<]+)</span>", html)
+            legal_m = re.search(r"法人代表：</strong>\s*<span>\s*(?:<[^>]+>)?([^<]+)", html)
+
+            if org_m or biz_m:
+                comp = {
+                    "org_name": org_m.group(1).strip() if org_m else comp.get("org_name", ""),
+                    "industry": ind_m.group(1).strip().replace(" — ", "/") if ind_m else comp.get("industry", ""),
+                    "province": prov_m.group(1).strip() if prov_m else comp.get("province", ""),
+                    "legal_person": legal_m.group(1).strip() if legal_m else comp.get("legal_person", ""),
+                    "general_manager": comp.get("general_manager", ""),
+                    "registered_capital": comp.get("registered_capital", ""),
+                    "main_business": " ".join((biz_m.group(1).strip() if biz_m else "").split()) or comp.get("main_business", ""),
+                }
+        except Exception as e:
+            logger.debug(f"Company Info Tier 2 (THS) failed for {clean_code}: {e}")
+
+    # Tier 3: Sina CorpInfo Fallback
+    if not comp or not comp.get("main_business"):
+        try:
+            url_sina = f"https://vip.stock.finance.sina.com.cn/corp/go.php/vCI_CorpInfo/stockid/{clean_code}.phtml"
+            req_s = urllib.request.Request(url_sina, headers=_SINA_HEADERS)
+            with urllib.request.urlopen(req_s, timeout=4) as resp:
+                html_s = _read_response_text(resp, default_encoding="gbk")
+
+            def _get_sina_field(pat: str) -> str:
+                m = re.search(pat, html_s, re.DOTALL)
+                return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else ""
+
+            org_s = _get_sina_field(r"公司名称：</td>\s*<td[^>]*>(.*?)</td>")
+            biz_s = _get_sina_field(r"主营业务：</td>\s*<td[^>]*>(.*?)</td>")
+            intro_s = _get_sina_field(r"公司简介：</td>\s*<td[^>]*>(.*?)</td>")
+            addr_s = _get_sina_field(r"办公地址：</td>\s*<td[^>]*>(.*?)</td>")
+
+            if org_s or biz_s:
+                comp = {
+                    "org_name": org_s or comp.get("org_name", ""),
+                    "industry": comp.get("industry", ""),
+                    "province": (addr_s[:6] if addr_s else "") or comp.get("province", ""),
+                    "legal_person": comp.get("legal_person", ""),
+                    "general_manager": comp.get("general_manager", ""),
+                    "registered_capital": comp.get("registered_capital", ""),
+                    "main_business": biz_s or intro_s or comp.get("main_business", ""),
+                }
+        except Exception as e:
+            logger.debug(f"Company Info Tier 3 (Sina) failed for {clean_code}: {e}")
+
+    # Tier 4: Native TDX F10 Text Fallback
+    if not comp or not comp.get("main_business"):
+        try:
+            with TdxClient.from_best_host(timeout=2.5) as cli:
+                cats = cli.get_company_info_category(mkt, clean_code)
+                if cats is not None and not cats.empty:
+                    r0 = cats.iloc[0]
+                    txt = cli.get_company_info_content(
+                        mkt, clean_code, r0["filename"], int(r0["start"]), int(r0["length"])
+                    )
+                    m_biz = re.search(r"★主营业务[:：]([^\n｜]+)", txt)
+                    if m_biz:
+                        biz_tdx = m_biz.group(1).strip()
+                        comp["main_business"] = biz_tdx
+        except Exception as e:
+            logger.debug(f"Company Info Tier 4 (TDX F10) failed for {clean_code}: {e}")
+
+    return comp
+
+
+# ==================== 3. 所属板块与题材多源补全 ====================
+
+def _fetch_stock_sectors(
+    clean_code: str,
+    pfx: str,
+    mkt: Market,
+    company_info: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, str]]:
+    """四级弹性容灾获取所属板块与题材：
+    - Tier 1: 东方财富核心题材 RPT_F10_CORETHEME_BOARDTYPE (带合规 Referer)
+    - Tier 2: 同花顺 10jqka 概念板块解析 (concept.html)
+    - Tier 3: 通达信原生 F10 概念板块解析
+    - 自动聚合行业标签与题材概念，纯净去重
+    """
+    sectors: List[Dict[str, str]] = []
+    existing_names = set()
+
+    # 优先加入行业标签
+    if company_info and company_info.get("industry"):
+        ind = company_info["industry"]
+        for part in re.split(r"[/—\-]", ind):
+            p = part.strip()
+            if p and p not in existing_names:
+                existing_names.add(p)
+                sectors.append({"name": p, "type": "行业"})
+
+    # Tier 1: EastMoney Core Concepts
+    try:
+        url_boards = (
+            f"https://datacenter.eastmoney.com/securities/api/data/v1/get?"
+            f"reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECURITY_CODE,BOARD_CODE,BOARD_NAME,BOARD_TYPE"
+            f"&filter=(SECURITY_CODE%3D%22{clean_code}%22)"
+        )
+        req_b = urllib.request.Request(url_boards, headers=_EASTMONEY_DATA_HEADERS)
+        with urllib.request.urlopen(req_b, timeout=4) as resp_b:
+            data_b = json.loads(_read_response_text(resp_b))
+            if data_b.get("result") and data_b["result"].get("data"):
+                for b_item in data_b["result"]["data"]:
+                    b_name = b_item.get("BOARD_NAME", "")
+                    if b_name and b_name not in existing_names:
+                        existing_names.add(b_name)
+                        sectors.append({
+                            "name": b_name,
+                            "type": b_item.get("BOARD_TYPE") or "概念",
+                        })
+    except Exception as e:
+        logger.debug(f"Sectors Tier 1 (EastMoney) failed for {clean_code}: {e}")
+
+    # Tier 2: THS Concepts Fallback
+    if len(sectors) <= 1:
+        try:
+            url_ths_concept = f"http://basic.10jqka.com.cn/{clean_code}/concept.html"
+            req_c = urllib.request.Request(url_ths_concept, headers=_THS_HEADERS)
+            with urllib.request.urlopen(req_c, timeout=4) as resp_c:
+                html_c = _read_response_text(resp_c, default_encoding="gbk")
+            raw_names = re.findall(r"<td[^>]*class=[\'\"]gnName[\'\"][^>]*>(.*?)</td>", html_c, re.DOTALL)
+            for x in raw_names:
+                c_name = re.sub(r"<[^>]+>", "", x).strip()
+                if c_name and c_name not in existing_names:
+                    existing_names.add(c_name)
+                    sectors.append({"name": c_name, "type": "概念"})
+        except Exception as e:
+            logger.debug(f"Sectors Tier 2 (THS) failed for {clean_code}: {e}")
+
+    # Tier 3: Native TDX F10 Concepts Fallback
+    if len(sectors) <= 1:
+        try:
+            with TdxClient.from_best_host(timeout=2.5) as cli:
+                cats = cli.get_company_info_category(mkt, clean_code)
+                if cats is not None and not cats.empty:
+                    r0 = cats.iloc[0]
+                    txt = cli.get_company_info_content(
+                        mkt, clean_code, r0["filename"], int(r0["start"]), int(r0["length"])
+                    )
+                    c_idx = txt.find("【3.概念板块】")
+                    if c_idx == -1:
+                        c_idx = txt.find("【概念板块】")
+                    if c_idx != -1:
+                        part = txt[c_idx : c_idx + 4000]
+                        for m in re.finditer(r"｜\s*([^\s｜\n]+(?:概念|[^\s｜\n]{2,8}))\s*｜", part):
+                            cname = m.group(1).strip()
+                            if cname and cname not in ("概念名称", "概念解析") and cname not in existing_names:
+                                existing_names.add(cname)
+                                sectors.append({"name": cname, "type": "概念"})
+        except Exception as e:
+            logger.debug(f"Sectors Tier 3 (TDX F10) failed for {clean_code}: {e}")
+
+    return sectors
+
+
+# ==================== 4. 财务指标（近4期）多源补全 ====================
+
+def _fetch_stock_financials(
+    clean_code: str,
+    pfx: str,
+    mkt: Market,
+    tdx_data: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    """四级弹性容灾获取近4期核心财务指标（营收、净利润、扣非净利、同比与环比）：
+    - Tier 1: 东方财富 ZYZBAjaxNew (带合规 Referer)
+    - Tier 2: 新浪财经 SinaClient (官方利润表接口，带同比与环比)
+    - Tier 3: 量化引擎 fetch_stock_financials 接口
+    - Tier 4: 通达信原生 get_finance_info（修复单位倍率）
+    """
+    reports: List[Dict[str, Any]] = []
+
+    # Tier 1: EastMoney ZYZBAjaxNew
+    try:
+        url_fin = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
+        req_fin = urllib.request.Request(url_fin, headers=_EASTMONEY_EMWEB_HEADERS)
+        with urllib.request.urlopen(req_fin, timeout=4) as resp_fin:
+            raw_fin = _read_response_text(resp_fin)
+            data_fin = json.loads(raw_fin).get("data", [])
+            for d in data_fin[:4]:
+                rep_date = str(d.get("REPORT_DATE", ""))[:10]
+                rep_title = d.get("REPORT_DATE_NAME") or _format_period_title(rep_date)
+
+                rev_val = float(d.get("TOTALOPERATEREVE") or 0.0)
+                rev_yoy = (
+                    float(d["TOTALOPERATEREVETZ"])
+                    if d.get("TOTALOPERATEREVETZ") is not None
+                    else None
+                )
+
+                np_val = float(d.get("PARENTNETPROFIT") or 0.0)
+                np_yoy = (
+                    float(d["PARENTNETPROFITTZ"])
+                    if d.get("PARENTNETPROFITTZ") is not None
+                    else None
+                )
+
+                kf_val = float(d.get("KCFJCXSYJLR") or 0.0)
+                kf_yoy = (
+                    float(d["KCFJCXSYJLRTZ"])
+                    if d.get("KCFJCXSYJLRTZ") is not None
+                    else None
+                )
+
+                reports.append({
+                    "period": rep_date,
+                    "period_title": rep_title,
+                    "revenue": rev_val,
+                    "revenue_yi": (
+                        round(rev_val / 100000000.0, 2)
+                        if rev_val >= 100000000
+                        else round(rev_val / 10000.0, 2)
+                    ),
+                    "revenue_unit": "亿" if rev_val >= 100000000 else "万",
+                    "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
+                    "net_profit": np_val,
+                    "net_profit_wan": (
+                        round(np_val / 10000.0, 2)
+                        if abs(np_val) < 100000000
+                        else None
+                    ),
+                    "net_profit_yi": (
+                        round(np_val / 100000000.0, 2)
+                        if abs(np_val) >= 100000000
+                        else None
+                    ),
+                    "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
+                    "deduct_net_profit": kf_val,
+                    "deduct_net_profit_wan": (
+                        round(kf_val / 10000.0, 2)
+                        if abs(kf_val) < 100000000
+                        else None
+                    ),
+                    "deduct_net_profit_yi": (
+                        round(kf_val / 100000000.0, 2)
+                        if abs(kf_val) >= 100000000
+                        else None
+                    ),
+                    "deduct_net_profit_yoy": round(kf_yoy, 2) if kf_yoy is not None else None,
+                })
+    except Exception as e:
+        logger.debug(f"Financials Tier 1 (EastMoney) failed for {clean_code}: {e}")
+
+    # Tier 2: SinaClient LRB Fallback
+    if not reports:
+        try:
+            sc = SinaClient(timeout=4.0)
+            df_lrb = sc.get_financial_report(clean_code, report_type="lrb", num=4)
+            if df_lrb is not None and not df_lrb.empty:
+                for idx, r in df_lrb.iterrows():
+                    period = str(r.get("报告期", ""))[:10]
+                    rev = float(r.get("营业总收入") or r.get("营业收入") or 0.0)
+                    np_val = float(r.get("归属于母公司所有者的净利润") or r.get("净利润") or 0.0)
+
+                    rev_yoy_col = r.get("营业总收入_同比") or r.get("营业收入_同比")
+                    rev_yoy = float(rev_yoy_col) * 100.0 if rev_yoy_col is not None else None
+
+                    np_yoy_col = r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比")
+                    np_yoy = float(np_yoy_col) * 100.0 if np_yoy_col is not None else None
+
+                    reports.append({
+                        "period": period,
+                        "period_title": _format_period_title(period),
+                        "revenue": rev,
+                        "revenue_yi": (
+                            round(rev / 100000000.0, 2)
+                            if rev >= 100000000
+                            else round(rev / 10000.0, 2)
+                        ),
+                        "revenue_unit": "亿" if rev >= 100000000 else "万",
+                        "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
+                        "net_profit": np_val,
+                        "net_profit_wan": (
+                            round(np_val / 10000.0, 2)
+                            if abs(np_val) < 100000000
+                            else None
+                        ),
+                        "net_profit_yi": (
+                            round(np_val / 100000000.0, 2)
+                            if abs(np_val) >= 100000000
+                            else None
+                        ),
+                        "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
+                        "deduct_net_profit": 0.0,
+                        "deduct_net_profit_wan": None,
+                        "deduct_net_profit_yi": None,
+                        "deduct_net_profit_yoy": None,
+                    })
+        except Exception as e:
+            logger.debug(f"Financials Tier 2 (Sina) failed for {clean_code}: {e}")
+
+    # Tier 3: Engine fetch_stock_financials Fallback
+    if not reports:
+        try:
+            from easy_tdx.trading_system.engine import fetch_stock_financials
+            fina_res = fetch_stock_financials(clean_code)
+            f_list = fina_res.get("fina_data") or []
+            for f in f_list[:4]:
+                p_date = str(f.get("record_date") or "")[:10]
+                p_title = str(f.get("qdate") or _format_period_title(p_date))
+                r_val = float(f.get("total_operate_income") or 0.0)
+                n_val = float(f.get("parent_netprofit") or 0.0)
+                # Correct TDX 10x scaling if raw pytdx unit detected
+                if r_val > 10000000000:
+                    r_val /= 10.0
+                if abs(n_val) > 1000000000:
+                    n_val /= 10.0
+
+                r_yoy = f.get("ystz")
+                n_yoy = f.get("sjltz")
+                reports.append({
+                    "period": p_date,
+                    "period_title": p_title,
+                    "revenue": r_val,
+                    "revenue_yi": round(r_val / 100000000.0, 2) if r_val >= 100000000 else round(r_val / 10000.0, 2),
+                    "revenue_unit": "亿" if r_val >= 100000000 else "万",
+                    "revenue_yoy": round(float(r_yoy), 2) if r_yoy is not None else None,
+                    "net_profit": n_val,
+                    "net_profit_wan": round(n_val / 10000.0, 2) if abs(n_val) < 100000000 else None,
+                    "net_profit_yi": round(n_val / 100000000.0, 2) if abs(n_val) >= 100000000 else None,
+                    "net_profit_yoy": round(float(n_yoy), 2) if n_yoy is not None else None,
+                    "deduct_net_profit": 0.0,
+                    "deduct_net_profit_wan": None,
+                    "deduct_net_profit_yi": None,
+                    "deduct_net_profit_yoy": None,
+                })
+        except Exception as e:
+            logger.debug(f"Financials Tier 3 (Engine) failed for {clean_code}: {e}")
+
+    # 计算环比 (QoQ)
+    for i in range(len(reports)):
+        if i + 1 < len(reports):
+            prev = reports[i + 1]
+            if prev["revenue"] > 0:
+                reports[i]["revenue_qoq"] = round(
+                    ((reports[i]["revenue"] - prev["revenue"]) / prev["revenue"]) * 100,
+                    2,
+                )
+            if prev["net_profit"] != 0:
+                reports[i]["net_profit_qoq"] = round(
+                    ((reports[i]["net_profit"] - prev["net_profit"]) / abs(prev["net_profit"])) * 100,
+                    2,
+                )
+            if reports[i].get("deduct_net_profit") and prev.get("deduct_net_profit"):
+                reports[i]["deduct_net_profit_qoq"] = round(
+                    ((reports[i]["deduct_net_profit"] - prev["deduct_net_profit"]) / abs(prev["deduct_net_profit"])) * 100,
+                    2,
+                )
+
+    return reports[:4]
+
+
+# ==================== 主入口：聚合完整股票资料 ====================
+
 def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     """Fetch complete stock profile including shareholders, company info, sectors, and financials."""
     clean_code, mkt, pfx, is_index_or_board = _parse_stock_symbol(code)
@@ -508,8 +941,9 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     if use_cache:
         with _CACHE_LOCK:
             if cache_key in _PROFILE_CACHE:
-                ts, cached_result = _PROFILE_CACHE[cache_key]
-                if time.time() - ts < _CACHE_TTL:
+                ts, cached_result, is_rich = _PROFILE_CACHE[cache_key]
+                ttl = _CACHE_TTL if is_rich else _CACHE_TTL_DEGRADED
+                if time.time() - ts < ttl:
                     return dict(cached_result)
 
     result: Dict[str, Any] = {
@@ -526,7 +960,7 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     # If it's an index or industry/concept board, skip individual stock F10 queries
     if is_index_or_board:
         with _CACHE_LOCK:
-            _PROFILE_CACHE[cache_key] = (time.time(), copy.deepcopy(result))
+            _PROFILE_CACHE[cache_key] = (time.time(), copy.deepcopy(result), True)
         return result
 
     # 1. Native TDX Finance Info (Shareholders, Capital, Listing date)
@@ -578,271 +1012,36 @@ def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Failed to fetch TDX finance info for {clean_code}: {e}")
 
-    # 2. Company Survey & Main Business (EastMoney F10)
-    try:
-        url_f10 = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax?code={pfx}{clean_code}"
-        req = urllib.request.Request(url_f10, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(_read_response_text(resp))
-            jb = data.get("jbzl")
-            if isinstance(jb, list) and jb:
-                jb = jb[0]
-            if isinstance(jb, dict):
-                ind = jb.get("sshy", "") or jb.get("sszjhhy", "")
-                business_text = jb.get("gsjj", "") or jb.get("jyfw", "") or ""
-                business_clean = " ".join(business_text.strip().split())
+    # 2. Company Info (4-Tier Fallback)
+    result["company_info"] = _fetch_company_info(
+        clean_code, pfx, mkt, tdx_data=result.get("shareholders")
+    )
 
-                result["company_info"] = {
-                    "org_name": jb.get("gsmc", ""),
-                    "industry": ind,
-                    "province": jb.get("qy", ""),
-                    "legal_person": jb.get("frdb", "") or jb.get("dsz", ""),
-                    "general_manager": jb.get("zjl", ""),
-                    "registered_capital": jb.get("zczb", ""),
-                    "main_business": business_clean,
-                }
-                if ind:
-                    result["sectors"].append({"name": ind, "type": "行业"})
-    except Exception as e:
-        logger.debug(f"Failed to fetch EastMoney company survey for {clean_code}: {e}")
+    # 3. Sectors & Concepts (4-Tier Fallback)
+    result["sectors"] = _fetch_stock_sectors(
+        clean_code, pfx, mkt, company_info=result.get("company_info")
+    )
 
-    # 3. Core Concepts / Themes (EastMoney push2 / F10 Datacenter)
-    try:
-        url_boards = (
-            f"https://datacenter.eastmoney.com/securities/api/data/v1/get?"
-            f"reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECURITY_CODE,BOARD_CODE,BOARD_NAME,BOARD_TYPE"
-            f"&filter=(SECURITY_CODE%3D%22{clean_code}%22)"
-        )
-        req_b = urllib.request.Request(url_boards, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req_b, timeout=5) as resp_b:
-            data_b = json.loads(_read_response_text(resp_b))
-            if data_b.get("result") and data_b["result"].get("data"):
-                existing_names = {s["name"] for s in result["sectors"]}
-                for b_item in data_b["result"]["data"]:
-                    b_name = b_item.get("BOARD_NAME", "")
-                    if b_name and b_name not in existing_names:
-                        existing_names.add(b_name)
-                        result["sectors"].append({
-                            "name": b_name,
-                            "type": b_item.get("BOARD_TYPE") or "概念",
-                        })
-    except Exception as e:
-        logger.debug(f"Failed to fetch concept boards for {clean_code}: {e}")
+    # 4. Financial Reports (4-Tier Fallback)
+    result["financials"] = _fetch_stock_financials(
+        clean_code, pfx, mkt, tdx_data=result.get("shareholders")
+    )
 
-    # 4. Main Financial Reports (Revenue, Net Profit, Deducted Profit, YoY, QoQ)
-    reports: List[Dict[str, Any]] = []
-    try:
-        url_fin = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
-        req_fin = urllib.request.Request(url_fin, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req_fin, timeout=5) as resp_fin:
-            raw_fin = _read_response_text(resp_fin)
-            data_fin = json.loads(raw_fin).get("data", [])
-            for d in data_fin[:4]:
-                rep_date = str(d.get("REPORT_DATE", ""))[:10]
-                rep_title = d.get("REPORT_DATE_NAME") or rep_date
-
-                # Revenue
-                rev_val = float(d.get("TOTALOPERATEREVE") or 0.0)
-                rev_yoy = (
-                    float(d["TOTALOPERATEREVETZ"])
-                    if d.get("TOTALOPERATEREVETZ") is not None
-                    else None
-                )
-
-                # Net Profit
-                np_val = float(d.get("PARENTNETPROFIT") or 0.0)
-                np_yoy = (
-                    float(d["PARENTNETPROFITTZ"])
-                    if d.get("PARENTNETPROFITTZ") is not None
-                    else None
-                )
-
-                # Deducted Net Profit
-                kf_val = float(d.get("KCFJCXSYJLR") or 0.0)
-                kf_yoy = (
-                    float(d["KCFJCXSYJLRTZ"])
-                    if d.get("KCFJCXSYJLRTZ") is not None
-                    else None
-                )
-
-                reports.append({
-                    "period": rep_date,
-                    "period_title": rep_title,
-                    "revenue": rev_val,
-                    "revenue_yi": (
-                        round(rev_val / 100000000.0, 2)
-                        if rev_val >= 100000000
-                        else round(rev_val / 10000.0, 2)
-                    ),
-                    "revenue_unit": "亿" if rev_val >= 100000000 else "万",
-                    "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
-                    "net_profit": np_val,
-                    "net_profit_wan": (
-                        round(np_val / 10000.0, 2)
-                        if abs(np_val) < 100000000
-                        else None
-                    ),
-                    "net_profit_yi": (
-                        round(np_val / 100000000.0, 2)
-                        if abs(np_val) >= 100000000
-                        else None
-                    ),
-                    "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
-                    "deduct_net_profit": kf_val,
-                    "deduct_net_profit_wan": (
-                        round(kf_val / 10000.0, 2)
-                        if abs(kf_val) < 100000000
-                        else None
-                    ),
-                    "deduct_net_profit_yi": (
-                        round(kf_val / 100000000.0, 2)
-                        if abs(kf_val) >= 100000000
-                        else None
-                    ),
-                    "deduct_net_profit_yoy": round(kf_yoy, 2) if kf_yoy is not None else None,
-                })
-
-            # Calculate QoQ
-            for i in range(len(reports)):
-                if i + 1 < len(reports):
-                    prev = reports[i + 1]
-                    if prev["revenue"] > 0:
-                        reports[i]["revenue_qoq"] = round(
-                            ((reports[i]["revenue"] - prev["revenue"]) / prev["revenue"]) * 100,
-                            2,
-                        )
-                    if prev["net_profit"] != 0:
-                        reports[i]["net_profit_qoq"] = round(
-                            (
-                                (reports[i]["net_profit"] - prev["net_profit"])
-                                / abs(prev["net_profit"])
-                            )
-                            * 100,
-                            2,
-                        )
-                    if prev["deduct_net_profit"] != 0:
-                        reports[i]["deduct_net_profit_qoq"] = round(
-                            (
-                                (reports[i]["deduct_net_profit"] - prev["deduct_net_profit"])
-                                / abs(prev["deduct_net_profit"])
-                            )
-                            * 100,
-                            2,
-                        )
-    except Exception as e:
-        logger.debug(f"Failed to fetch EastMoney ZYZB financials for {clean_code}: {e}")
-
-    # Fallback 1: Use easy_tdx.trading_system.engine fetch_stock_financials
-    if not reports:
-        try:
-            from easy_tdx.trading_system.engine import fetch_stock_financials
-            fina_res = fetch_stock_financials(clean_code)
-            f_list = fina_res.get("fina_data") or []
-            for f in f_list[:4]:
-                p_date = str(f.get("record_date") or "")[:10]
-                p_title = str(f.get("qdate") or p_date)
-                r_val = float(f.get("total_operate_income") or 0.0)
-                n_val = float(f.get("parent_netprofit") or 0.0)
-                r_yoy = f.get("ystz")
-                n_yoy = f.get("sjltz")
-                reports.append({
-                    "period": p_date,
-                    "period_title": p_title,
-                    "revenue": r_val,
-                    "revenue_yi": round(r_val / 100000000.0, 2) if r_val >= 100000000 else round(r_val / 10000.0, 2),
-                    "revenue_unit": "亿" if r_val >= 100000000 else "万",
-                    "revenue_yoy": round(float(r_yoy), 2) if r_yoy is not None else None,
-                    "net_profit": n_val,
-                    "net_profit_wan": round(n_val / 10000.0, 2) if abs(n_val) < 100000000 else None,
-                    "net_profit_yi": round(n_val / 100000000.0, 2) if abs(n_val) >= 100000000 else None,
-                    "net_profit_yoy": round(float(n_yoy), 2) if n_yoy is not None else None,
-                    "deduct_net_profit": 0.0,
-                    "deduct_net_profit_wan": None,
-                    "deduct_net_profit_yi": None,
-                    "deduct_net_profit_yoy": None,
-                })
-            for i in range(len(reports)):
-                if i + 1 < len(reports):
-                    prev = reports[i + 1]
-                    if prev["revenue"] > 0:
-                        reports[i]["revenue_qoq"] = round(((reports[i]["revenue"] - prev["revenue"]) / prev["revenue"]) * 100, 2)
-                    if prev["net_profit"] != 0:
-                        reports[i]["net_profit_qoq"] = round(((reports[i]["net_profit"] - prev["net_profit"]) / abs(prev["net_profit"])) * 100, 2)
-        except Exception as e:
-            logger.debug(f"Failed to fetch engine financials fallback for {clean_code}: {e}")
-
-    # Fallback 2: to Sina if EastMoney returns empty
-    if not reports:
-        try:
-            sc = SinaClient(timeout=5.0)
-            df_lrb = sc.get_financial_report(clean_code, report_type="lrb")
-            if df_lrb is not None and not df_lrb.empty:
-                max_reports = min(4, len(df_lrb))
-                for i in range(max_reports):
-                    r = df_lrb.iloc[i]
-                    period = str(r.get("报告期", ""))
-                    period_title = _format_period_title(period)
-
-                    rev_col = [c for c in df_lrb.columns if "营业总收入" in c and not c.endswith("_同比")]
-                    rev_val = float(r[rev_col[0]]) if rev_col and r[rev_col[0]] is not None else 0.0
-                    rev_yoy_col = [c for c in df_lrb.columns if "营业总收入_同比" in c]
-                    rev_yoy = (
-                        float(r[rev_yoy_col[0]]) * 100
-                        if rev_yoy_col and r[rev_yoy_col[0]] is not None
-                        else None
-                    )
-
-                    np_col = [c for c in df_lrb.columns if "归属于母公司" in c and not c.endswith("_同比")]
-                    if not np_col:
-                        np_col = [c for c in df_lrb.columns if "净利润" in c and not c.endswith("_同比")]
-                    np_val = float(r[np_col[0]]) if np_col and r[np_col[0]] is not None else 0.0
-                    np_yoy_col = [c for c in df_lrb.columns if "归属于母公司" in c and c.endswith("_同比")]
-                    if not np_yoy_col:
-                        np_yoy_col = [c for c in df_lrb.columns if "净利润_同比" in c]
-                    np_yoy = (
-                        float(r[np_yoy_col[0]]) * 100
-                        if np_yoy_col and r[np_yoy_col[0]] is not None
-                        else None
-                    )
-
-                    reports.append({
-                        "period": period,
-                        "period_title": period_title,
-                        "revenue": rev_val,
-                        "revenue_yi": (
-                            round(rev_val / 100000000.0, 2)
-                            if rev_val >= 100000000
-                            else round(rev_val / 10000.0, 2)
-                        ),
-                        "revenue_unit": "亿" if rev_val >= 100000000 else "万",
-                        "revenue_yoy": round(rev_yoy, 2) if rev_yoy is not None else None,
-                        "net_profit": np_val,
-                        "net_profit_wan": (
-                            round(np_val / 10000.0, 2)
-                            if abs(np_val) < 100000000
-                            else None
-                        ),
-                        "net_profit_yi": (
-                            round(np_val / 100000000.0, 2)
-                            if abs(np_val) >= 100000000
-                            else None
-                        ),
-                        "net_profit_yoy": round(np_yoy, 2) if np_yoy is not None else None,
-                    })
-        except Exception as e:
-            logger.debug(f"Failed to fetch Sina financial fallback for {clean_code}: {e}")
-
-    result["financials"] = reports
-
-    # 5. Shareholder Counts History (Recent 4 Quarters, QoQ changes)
-    # 三级弹性容灾获取体系：以通达信本地最新期（easy_tdx 通信接口）为第一选择
-    sh_list = _fetch_shareholder_history(
+    # 5. Shareholder History (4-Tier Fallback)
+    result["shareholder_history"] = _fetch_shareholder_history(
         clean_code, pfx, mkt=mkt, tdx_data=result.get("shareholders")
     )
-    result["shareholder_history"] = sh_list
 
-    # Cache successful result
+    # Smart Cache: Only cache for 30 minutes if rich and complete; otherwise 10 seconds
+    is_rich = bool(
+        result["financials"]
+        and len(result["financials"]) >= 2
+        and result["sectors"]
+        and result["company_info"]
+        and result["company_info"].get("main_business")
+    )
+
     with _CACHE_LOCK:
-        _PROFILE_CACHE[cache_key] = (time.time(), copy.deepcopy(result))
+        _PROFILE_CACHE[cache_key] = (time.time(), copy.deepcopy(result), is_rich)
 
     return result

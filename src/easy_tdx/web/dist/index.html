@@ -3560,7 +3560,12 @@
                                 <i data-lucide="users" class="w-3.5 h-3.5"></i>
                                 <span>股东与股本</span>
                             </span>
-                            <span id="kp-updated-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
+                            <div class="flex items-center space-x-1">
+                                <span id="kp-updated-date-badge" class="text-[10px] text-slate-400 font-mono">--</span>
+                                <button onclick="loadStockProfile(currentKpSymbol, true)" class="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition cursor-pointer" title="多源强制刷新资料财务">
+                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 mt-2 text-[11px]">
                             <div>
@@ -3628,7 +3633,13 @@
                                 <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
                                 <span>财务指标（营收、净利润、扣非利润）</span>
                             </span>
-                            <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-[10px] text-slate-400 font-sans">单位：亿元 / 万元</span>
+                                <button onclick="loadStockProfile(currentKpSymbol, true)" class="px-1.5 py-0.2 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-rose-300 border border-slate-700/60 transition cursor-pointer text-[10px] flex items-center space-x-1" title="多源强制补全刷新最新财报">
+                                    <i data-lucide="refresh-cw" class="w-2.5 h-2.5"></i>
+                                    <span>刷新</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="overflow-x-auto no-scrollbar mt-1">
                             <table class="w-full text-[11px] text-left">
@@ -4159,6 +4170,11 @@
                 if (isKpProfileOpen) {
                     btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500');
                     btn.classList.remove('bg-indigo-950/80', 'text-indigo-300', 'border-indigo-700/60');
+                    // 展开时若数据为空或处于降级状态，自动触发加载/刷新
+                    const countEl = document.getElementById('kp-sector-count');
+                    if (!countEl || countEl.innerText.includes('0') || countEl.innerText === '--') {
+                        loadStockProfile(currentKpSymbol, false);
+                    }
                 } else {
                     btn.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-500');
                     btn.classList.add('bg-indigo-950/80', 'text-indigo-300', 'border-indigo-700/60');
@@ -4181,21 +4197,24 @@
                 const now = Date.now();
                 if (!forceRefresh && _KP_PROFILE_CACHE.has(querySym)) {
                     const cached = _KP_PROFILE_CACHE.get(querySym);
-                    if (now - cached.ts < 3600000) { // 1小时缓存 (财务与资料是季度数据，低频稳定)
+                    // 智能降级判断：若缓存中板块为空或主营业务为空，不使用旧降级缓存，允许重新补全拉取
+                    const isDegraded = !cached.data || !cached.data.sectors || cached.data.sectors.length === 0 || !(cached.data.company_info && cached.data.company_info.main_business);
+                    if (!isDegraded && (now - cached.ts < 3600000)) { // 1小时缓存 (财务与资料是季度数据，低频稳定)
                         renderStockProfileData(cached.data, querySym);
                         return;
                     }
                 }
 
                 const tbody = document.getElementById('kp-financials-tbody');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在加载 ${querySym} 最新财报数据...</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 财务指标数据...</td></tr>`;
 
                 const shTbody = document.getElementById('kp-shareholders-tbody');
-                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 股东人数历史数据...</td></tr>`;
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 股东历史变动...</td></tr>`;
 
-                const resp = await fetch(`/api/quotes/stock_profile?symbol=${querySym}`);
+                const url = `/api/quotes/stock_profile?symbol=${querySym}${forceRefresh ? '&force_refresh=true' : ''}`;
+                const resp = await fetch(url);
                 if (!resp.ok) {
-                    if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-amber-500/80 font-sans">股东人数获取异常 (HTTP ${resp.status})</td></tr>`;
+                    if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-amber-500/80 font-sans">股东数据获取异常 (HTTP ${resp.status})</td></tr>`;
                     if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-amber-500/80 font-sans">财报数据获取异常 (HTTP ${resp.status})</td></tr>`;
                     return;
                 }
@@ -4205,10 +4224,13 @@
 
                 _KP_PROFILE_CACHE.set(querySym, { ts: now, data: d });
                 renderStockProfileData(d, querySym);
+                if (window.lucide) {
+                    try { lucide.createIcons(); } catch (e) {}
+                }
             } catch (err) {
                 console.error('loadStockProfile err:', err);
                 const shTbody = document.getElementById('kp-shareholders-tbody');
-                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东人数获取异常，请重试</td></tr>`;
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东数据获取异常，请重试</td></tr>`;
                 const tbody = document.getElementById('kp-financials-tbody');
                 if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-rose-400/80 font-sans">财报数据获取异常，请重试</td></tr>`;
             }
@@ -5915,8 +5937,8 @@
             try {
                 const wasAtLatest = (currentKpCutoffIndex < 0 || (currentKpFullBars.length > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1));
                 const tasks = [loadKlinePreviewData()];
-                // 仅在用户主动点击刷新或显式指定时才更新财务资料 (季报低频数据，避免5s重复拉取)
-                if (refreshProfile) {
+                // 用户主动刷新或资料财务面板已打开时，同步执行多源数据补全刷新
+                if (refreshProfile || isKpProfileOpen) {
                     tasks.push(loadStockProfile(currentKpSymbol, true));
                 }
                 await Promise.allSettled(tasks);

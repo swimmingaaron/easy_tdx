@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 from easy_tdx.models import Market
@@ -97,6 +98,52 @@ class TestStockProfileShareholders(unittest.TestCase):
             self.assertEqual(len(records), 2)
             self.assertEqual(records[0]["holder_count"], 296404)
 
+    def test_company_info_fallback(self):
+        from easy_tdx.stock_profile import _fetch_company_info
+        mock_data = json.dumps({"jbzl": [{"gsmc": "兴森快捷", "sshy": "电子元件", "frdb": "邱醒亚", "gsjj": "主营印制电路板"}]}).encode("utf-8")
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = mock_data
+        mock_resp.headers = {}
+        mock_resp.__enter__.return_value = mock_resp
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            info = _fetch_company_info("002436", "SZ", Market.SZ)
+            self.assertEqual(info["org_name"], "兴森快捷")
+            self.assertEqual(info["industry"], "电子元件")
+            self.assertEqual(info["legal_person"], "邱醒亚")
+            self.assertIn("印制电路板", info["main_business"])
+
+    def test_stock_sectors_fallback(self):
+        from easy_tdx.stock_profile import _fetch_stock_sectors
+        mock_data = json.dumps({"result": {"data": [{"BOARD_NAME": "半导体", "BOARD_TYPE": "行业"}, {"BOARD_NAME": "芯片", "BOARD_TYPE": "概念"}]}}).encode("utf-8")
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = mock_data
+        mock_resp.headers = {}
+        mock_resp.__enter__.return_value = mock_resp
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            sectors = _fetch_stock_sectors("002436", "SZ", Market.SZ, company_info={"industry": "电子元件"})
+            names = [s["name"] for s in sectors]
+            self.assertIn("电子元件", names)
+            self.assertIn("半导体", names)
+            self.assertIn("芯片", names)
+
+
+    def test_financials_sina_fallback(self):
+        import pandas as pd
+        from easy_tdx.stock_profile import _fetch_stock_financials
+        df_lrb = pd.DataFrame([
+            {"报告期": "2026-06-30", "营业总收入": 4038000000.0, "归属于母公司所有者的净利润": 111000000.0, "营业总收入_同比": 0.178, "归属于母公司所有者的净利润_同比": 2.83},
+            {"报告期": "2026-03-31", "营业总收入": 1818000000.0, "归属于母公司所有者的净利润": 18740000.0, "营业总收入_同比": 0.151, "归属于母公司所有者的净利润_同比": 1.00},
+        ])
+        with patch("urllib.request.urlopen", side_effect=Exception("EM fail")), \
+             patch("easy_tdx.stock_profile.SinaClient.get_financial_report", return_value=df_lrb):
+            fins = _fetch_stock_financials("002436", "SZ", Market.SZ)
+            self.assertEqual(len(fins), 2)
+            self.assertEqual(fins[0]["revenue_yi"], 40.38)
+            self.assertEqual(fins[0]["revenue_yoy"], 17.8)
+            self.assertEqual(fins[0]["net_profit_yi"], 1.11)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
