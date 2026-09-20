@@ -8,20 +8,93 @@ easy_tdx Sector Leader Stocks Engine (板块龙头股票量化分析引擎)
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from easy_tdx import MacClient
 from easy_tdx.mac.enums import BoardType, SortOrder, SortType
 from easy_tdx.market_ladder import compute_exact_tdx_lbc
+from easy_tdx.market_overview import is_trading_time
 from easy_tdx.stock_lookup import get_stock_name
 
 logger = logging.getLogger(__name__)
 
-# 轻量内存缓存，防止前端高频轮询耗尽 TDX 连接
-_SECTOR_LEADERS_CACHE: Dict[str, tuple[float, List[Dict[str, Any]]]] = {}
-CACHE_TTL = 8.0  # 8秒有效缓存
+# 缓存配置与目录
+_CACHE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "sector_leaders_cache"))
+try:
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+except Exception:
+    pass
+
+# 双层缓存体系：内存极速缓存 + 磁盘持久化快照
+_SECTOR_LEADERS_CACHE: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+_BOARD_DETAIL_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_SEARCH_CACHE: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
+
+# 交易时间内行情变化快缓存30秒，收盘/非交易时段数据稳定缓存3600秒
+CACHE_TTL_INTRADAY = 30.0
+CACHE_TTL_POST_MARKET = 3600.0
+
+
+def _get_cache_ttl() -> float:
+    """根据是否在交易时间动态返回有效 TTL。"""
+    try:
+        return CACHE_TTL_INTRADAY if is_trading_time() else CACHE_TTL_POST_MARKET
+    except Exception:
+        return CACHE_TTL_INTRADAY
+
+
+def _get_disk_cache_path(key: str) -> str:
+    safe_key = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in key)
+    return os.path.join(_CACHE_DIR, f"{safe_key}.json")
+
+
+def _read_disk_cache(key: str, max_age: float) -> Optional[Tuple[float, Any]]:
+    path = _get_disk_cache_path(key)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            wrapper = json.load(f)
+            ts = wrapper.get("timestamp", 0.0)
+            data = wrapper.get("data")
+            if time.time() - ts < max_age and data is not None:
+                return (ts, data)
+    except Exception as e:
+        logger.debug("Failed reading disk cache %s: %s", path, e)
+    return None
+
+
+def _write_disk_cache(key: str, data: Any, timestamp: float) -> None:
+    path = _get_disk_cache_path(key)
+    try:
+        temp_path = f"{path}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump({"timestamp": timestamp, "data": data}, f, ensure_ascii=False, indent=1)
+        os.replace(temp_path, path)
+    except Exception as e:
+        logger.debug("Failed writing disk cache %s: %s", path, e)
+
+
+def clear_sector_leaders_cache() -> None:
+    """清空板块龙头的所有内存与本地磁盘缓存。"""
+    _SECTOR_LEADERS_CACHE.clear()
+    _BOARD_DETAIL_CACHE.clear()
+    _SEARCH_CACHE.clear()
+    try:
+        if os.path.exists(_CACHE_DIR):
+            for fname in os.listdir(_CACHE_DIR):
+                fpath = os.path.join(_CACHE_DIR, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        os.remove(fpath)
+                    except Exception:
+                        pass
+    except Exception as e:
+        logger.debug("Failed clearing sector leaders disk cache: %s", e)
 
 
 def _is_limit_up(code: str, price: float, pre_close: float) -> bool:
@@ -46,10 +119,26 @@ def analyze_single_board_leaders(
     board_name: str = "",
     top_candidates: int = 5,
     client: Optional[MacClient] = None,
+    use_cache: bool = True,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
-    """深度分析指定板块成分股，计算评选出龙头股票矩阵。"""
+    """深度分析指定板块成分股，计算评选出龙头股票矩阵（支持双层缓存）。"""
     clean_board_code = str(board_code).strip()
-    
+    cache_key = f"board_{clean_board_code}_{top_candidates}"
+    now = time.time()
+    ttl = _get_cache_ttl()
+
+    if use_cache and not force_refresh:
+        if cache_key in _BOARD_DETAIL_CACHE:
+            ts, cached_data = _BOARD_DETAIL_CACHE[cache_key]
+            if now - ts < ttl and cached_data:
+                return cached_data
+        disk_hit = _read_disk_cache(cache_key, max_age=ttl)
+        if disk_hit is not None:
+            ts, cached_data = disk_hit
+            _BOARD_DETAIL_CACHE[cache_key] = (ts, cached_data)
+            return cached_data
+
     def _fetch(c: MacClient):
         return c.get_board_members(
             clean_board_code,
@@ -65,7 +154,7 @@ def analyze_single_board_leaders(
             df_members = _fetch(c)
 
     if df_members is None or df_members.empty:
-        return {
+        empty_res = {
             "board_code": clean_board_code,
             "board_name": board_name,
             "members_count": 0,
@@ -74,6 +163,7 @@ def analyze_single_board_leaders(
             "leader_ladder": None,
             "candidates": [],
         }
+        return empty_res
 
     candidates = []
     max_amount = float(df_members["amount"].max()) if "amount" in df_members and not df_members["amount"].empty else 1.0
@@ -171,7 +261,7 @@ def analyze_single_board_leaders(
     # 按龙头得分排序输出
     candidates.sort(key=lambda x: x["leader_score"], reverse=True)
 
-    return {
+    result = {
         "board_code": clean_board_code,
         "board_name": board_name,
         "members_count": len(df_members),
@@ -180,6 +270,9 @@ def analyze_single_board_leaders(
         "leader_ladder": ladder,
         "candidates": candidates[:top_candidates],
     }
+    _BOARD_DETAIL_CACHE[cache_key] = (now, result)
+    _write_disk_cache(cache_key, result, now)
+    return result
 
 
 def get_sector_leaders_data(
@@ -188,14 +281,29 @@ def get_sector_leaders_data(
     top_stocks: int = 4,
     sort_by: str = "change_pct",
     force_refresh: bool = False,
-) -> List[Dict[str, Any]]:
-    """获取板块龙头列表（含缓存支持）。"""
+    use_cache: bool = True,
+    return_meta: bool = False,
+) -> Any:
+    """获取板块龙头列表（含双层 Cache 缓存体系，默认开启）。"""
     cache_key = f"{board_type}_{top_boards}_{top_stocks}_{sort_by}"
     now = time.time()
-    if not force_refresh and cache_key in _SECTOR_LEADERS_CACHE:
-        ts, cached_data = _SECTOR_LEADERS_CACHE[cache_key]
-        if now - ts < CACHE_TTL:
-            return cached_data
+    ttl = _get_cache_ttl()
+
+    if use_cache and not force_refresh:
+        # 1. 内存缓存命中
+        if cache_key in _SECTOR_LEADERS_CACHE:
+            ts, cached_data = _SECTOR_LEADERS_CACHE[cache_key]
+            if now - ts < ttl and cached_data:
+                logger.debug("Hit sector leaders memory cache: %s (age=%.1fs)", cache_key, now - ts)
+                return (cached_data, True, ts) if return_meta else cached_data
+
+        # 2. 本地持久化磁盘缓存命中
+        disk_hit = _read_disk_cache(cache_key, max_age=ttl)
+        if disk_hit is not None:
+            ts, cached_data = disk_hit
+            _SECTOR_LEADERS_CACHE[cache_key] = (ts, cached_data)
+            logger.debug("Hit sector leaders disk cache: %s (age=%.1fs)", cache_key, now - ts)
+            return (cached_data, True, ts) if return_meta else cached_data
 
     target_types = []
     b_type_lower = board_type.lower().strip()
@@ -238,6 +346,8 @@ def get_sector_leaders_data(
                     board_name=b_name,
                     top_candidates=top_stocks,
                     client=c,
+                    use_cache=use_cache,
+                    force_refresh=force_refresh,
                 )
                 analysis["board_type"] = type_label
                 analysis["change_pct"] = round(b_pct, 2)
@@ -256,15 +366,33 @@ def get_sector_leaders_data(
         results.sort(key=lambda x: x.get("change_pct", 0.0), reverse=True)
 
     _SECTOR_LEADERS_CACHE[cache_key] = (now, results)
-    return results
+    _write_disk_cache(cache_key, results, now)
+    return (results, False, now) if return_meta else results
 
 
 def search_sector_leader(
     query: str,
     top_stocks: int = 10,
+    use_cache: bool = True,
+    force_refresh: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """搜索指定板块并深度分析龙头候选。"""
+    """搜索指定板块并深度分析龙头候选（支持双层缓存）。"""
     q = query.strip().upper()
+    cache_key = f"search_{q}_{top_stocks}"
+    now = time.time()
+    ttl = _get_cache_ttl()
+
+    if use_cache and not force_refresh:
+        if cache_key in _SEARCH_CACHE:
+            ts, cached = _SEARCH_CACHE[cache_key]
+            if now - ts < ttl:
+                return cached
+        disk_hit = _read_disk_cache(cache_key, max_age=ttl)
+        if disk_hit is not None:
+            ts, cached = disk_hit
+            _SEARCH_CACHE[cache_key] = (ts, cached)
+            return cached
+
     with MacClient.from_best_host() as c:
         for b_enum, type_label in [(BoardType.HY, "行业"), (BoardType.GN, "概念")]:
             df = c.get_board_ranking(b_enum, top_n=400, sort_by="change_pct")
@@ -279,6 +407,8 @@ def search_sector_leader(
                         board_name=name_str,
                         top_candidates=top_stocks,
                         client=c,
+                        use_cache=use_cache,
+                        force_refresh=force_refresh,
                     )
                     analysis["board_type"] = type_label
                     analysis["change_pct"] = round(float(row.get("change_pct", 0.0)), 2)
@@ -286,5 +416,7 @@ def search_sector_leader(
                     analysis["main_net_amount"] = float(row.get("main_net_amount", 0.0))
                     analysis["up_count"] = int(row.get("up_count", 0))
                     analysis["down_count"] = int(row.get("down_count", 0))
+                    _SEARCH_CACHE[cache_key] = (now, analysis)
+                    _write_disk_cache(cache_key, analysis, now)
                     return analysis
     return None

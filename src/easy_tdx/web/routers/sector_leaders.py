@@ -33,15 +33,18 @@ def get_sector_leaders(
     top_stocks: int = Query(4, ge=1, le=20, description="每个板块展示前M只龙头候选"),
     sort_by: str = Query("change_pct", description="板块排序指标: change_pct, main_net_amount, amount"),
     force_refresh: bool = Query(False, description="是否强制刷新缓存"),
+    use_cache: bool = Query(True, description="是否使用Cache缓存（默认开启）"),
 ) -> Dict[str, Any]:
-    """获取全市场强势板块及其龙头股票监测池。"""
+    """获取全市场强势板块及其龙头股票监测池（支持双层缓存，默认开启）。"""
     try:
-        data = get_sector_leaders_data(
+        data, from_cache, cache_time = get_sector_leaders_data(
             board_type=type,
             top_boards=top_boards,
             top_stocks=top_stocks,
             sort_by=sort_by,
             force_refresh=force_refresh,
+            use_cache=use_cache,
+            return_meta=True,
         )
 
         # 统计指标
@@ -63,22 +66,31 @@ def get_sector_leaders(
                 "total_inflow": total_inflow,
             },
             "boards": data,
+            "from_cache": from_cache,
+            "cache_time": cache_time,
         }
     except Exception as e:
         logger.exception("Failed to get sector leaders data: %s", e)
-        return {"success": False, "error": str(e), "boards": []}
+        return {"success": False, "error": str(e), "boards": [], "from_cache": False}
 
 
 @router.get("/search")
 def search_board_leader(
     query: str = Query(..., description="板块名称或代码，如 '半导体' 或 '881094'"),
     top_stocks: int = Query(10, ge=1, le=50, description="候选股票数量"),
+    use_cache: bool = Query(True, description="是否使用Cache缓存（默认开启）"),
+    force_refresh: bool = Query(False, description="是否强制刷新缓存"),
 ) -> Dict[str, Any]:
-    """按名称或代码检索特定板块的龙头股票。"""
+    """按名称或代码检索特定板块的龙头股票（支持缓存）。"""
     try:
-        res = search_sector_leader(query=query, top_stocks=top_stocks)
+        res = search_sector_leader(
+            query=query,
+            top_stocks=top_stocks,
+            use_cache=use_cache,
+            force_refresh=force_refresh,
+        )
         if res:
-            return {"success": True, "board": res}
+            return {"success": True, "board": res, "from_cache": use_cache and not force_refresh}
         return {"success": False, "message": f"未找到匹配板块: {query}", "board": None}
     except Exception as e:
         logger.exception("Failed to search board leader: %s", e)
@@ -90,15 +102,20 @@ def get_board_detail(
     board_code: str = Query(..., description="板块代码"),
     board_name: str = Query("", description="板块名称"),
     count: int = Query(30, ge=1, le=100, description="成分股数量"),
+    use_cache: bool = Query(True, description="是否使用Cache缓存（默认开启）"),
+    force_refresh: bool = Query(False, description="是否强制刷新缓存"),
 ) -> Dict[str, Any]:
-    """获取指定板块的成分股排位与龙头细分。"""
+    """获取指定板块的成分股排位与龙头细分（支持缓存）。"""
     try:
         res = analyze_single_board_leaders(
             board_code=board_code,
             board_name=board_name,
             top_candidates=count,
+            use_cache=use_cache,
+            force_refresh=force_refresh,
         )
-        return {"success": True, "data": res}
+        return {"success": True, "data": res, "from_cache": use_cache and not force_refresh}
     except Exception as e:
         logger.exception("Failed to get board detail: %s", e)
         return {"success": False, "error": str(e)}
+

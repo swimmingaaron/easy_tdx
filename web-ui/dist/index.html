@@ -3093,8 +3093,17 @@
                             </select>
                         </div>
 
+                        <!-- 使用Cache 缓存控制器 (默认开启) -->
+                        <div id="sl-cache-control-wrap" class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg shadow-xs select-none" title="当前模式：优先使用Cache缓存（毫秒级极速展现）">
+                            <label class="flex items-center space-x-1.5 cursor-pointer">
+                                <input type="checkbox" id="sl-use-cache" onchange="onSlCacheModeChange(this)" checked class="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-0 cursor-pointer w-3.5 h-3.5">
+                                <span class="text-xs text-slate-700 dark:text-slate-300">使用Cache</span>
+                            </label>
+                            <button type="button" id="sl-cache-tag" onclick="toggleSlCacheMode()" class="text-[10px] px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-mono transition cursor-pointer font-medium">开启</button>
+                        </div>
+
                         <!-- 刷新按钮 -->
-                        <button onclick="loadSectorLeadersData(true)" title="立即强制刷新"
+                        <button onclick="loadSectorLeadersData(true)" title="立即强制刷新 (跳过缓存)"
                                 class="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition cursor-pointer">
                             <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                         </button>
@@ -14487,7 +14496,36 @@ function jumpToFinaPage() {
         let _slPollIntervalSec = 0;
         let _cachedSectorLeaders = [];
 
-        function initSectorLeaderPollSetting() {
+        function onSlCacheModeChange(el) {
+            const isChecked = el ? el.checked : true;
+            const tag = document.getElementById('sl-cache-tag');
+            const wrap = document.getElementById('sl-cache-control-wrap');
+            if (tag) {
+                if (isChecked) {
+                    tag.className = 'text-[10px] px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-mono transition cursor-pointer font-medium';
+                    tag.innerText = '开启';
+                    if (wrap) wrap.title = '当前模式：优先使用Cache缓存（毫秒级极速展现）';
+                } else {
+                    tag.className = 'text-[10px] px-1.5 py-0.2 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 font-mono transition cursor-pointer font-medium';
+                    tag.innerText = '关闭';
+                    if (wrap) wrap.title = '当前模式：强制从通达信服务器获取最新实时行情（跳过缓存）';
+                }
+            }
+            try {
+                localStorage.setItem('easy_tdx_sl_use_cache', isChecked ? 'true' : 'false');
+            } catch (_) {}
+        }
+
+        function toggleSlCacheMode() {
+            const chk = document.getElementById('sl-use-cache');
+            if (chk) {
+                chk.checked = !chk.checked;
+                onSlCacheModeChange(chk);
+            }
+        }
+
+        function initSectorLeaderSettings() {
+            // 1. 初始化轮询配置 (默认关闭)
             try {
                 const saved = localStorage.getItem('easy_tdx_sl_poll_interval');
                 if (saved !== null && !isNaN(parseInt(saved, 10))) {
@@ -14500,6 +14538,20 @@ function jumpToFinaPage() {
             if (_slPollIntervalSec > 0) {
                 setSectorLeaderPollInterval(_slPollIntervalSec);
             }
+
+            // 2. 初始化 Cache 缓存配置 (默认开启)
+            try {
+                const savedCache = localStorage.getItem('easy_tdx_sl_use_cache');
+                const chk = document.getElementById('sl-use-cache');
+                if (chk) {
+                    if (savedCache !== null) {
+                        chk.checked = (savedCache === 'true');
+                    } else {
+                        chk.checked = true; // 默认开启
+                    }
+                    onSlCacheModeChange(chk);
+                }
+            } catch (e) {}
         }
 
         function changeSectorLeaderType(type) {
@@ -14562,7 +14614,8 @@ function jumpToFinaPage() {
             }
 
             try {
-                const resp = await fetch(`/api/sector_leaders/search?query=${encodeURIComponent(cleanKw)}&top_stocks=10`);
+                const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : true;
+                const resp = await fetch(`/api/sector_leaders/search?query=${encodeURIComponent(cleanKw)}&top_stocks=10&use_cache=${useCache ? 'true' : 'false'}`);
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.success && data.board) {
@@ -14587,8 +14640,9 @@ function jumpToFinaPage() {
 
         async function loadSectorLeadersData(forceRefresh = false) {
             window._HAS_LOADED_SECTOR_LEADERS = true;
+            const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : true;
             try {
-                const url = `/api/sector_leaders?type=${_slType}&sort_by=${_slSort}&top_boards=12&top_stocks=4&force_refresh=${forceRefresh ? 'true' : 'false'}`;
+                const url = `/api/sector_leaders?type=${_slType}&sort_by=${_slSort}&top_boards=12&top_stocks=4&force_refresh=${forceRefresh ? 'true' : 'false'}&use_cache=${useCache ? 'true' : 'false'}`;
                 const resp = await fetch(url);
                 if (resp.ok) {
                     const data = await resp.json();
@@ -14596,6 +14650,19 @@ function jumpToFinaPage() {
                         _cachedSectorLeaders = data.boards || [];
                         updateSectorLeadersMetrics(data.stat, _cachedSectorLeaders);
                         renderSectorLeadersCards(_cachedSectorLeaders, false);
+
+                        // 状态徽章：展示数据链路源与 Cache 状态
+                        const badge = document.getElementById('sl-stat-badge');
+                        if (badge) {
+                            if (data.from_cache) {
+                                badge.innerHTML = '<i data-lucide="zap" class="w-3 h-3 inline mr-1 text-amber-500"></i>Cache极速快照';
+                                badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20';
+                            } else {
+                                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block mr-1 animate-pulse"></span>通达信实时链路';
+                                badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20';
+                            }
+                            if (window.lucide) lucide.createIcons();
+                        }
                     }
                 }
             } catch (e) {
@@ -15026,7 +15093,7 @@ function jumpToFinaPage() {
             if (window.showToast) showToast('导出成功', '已下载板块龙头 CSV 数据文件');
         }
 
-        initSectorLeaderPollSetting();
+        initSectorLeaderSettings();
 
 </script>
     
