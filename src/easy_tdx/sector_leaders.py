@@ -22,6 +22,8 @@ from easy_tdx.stock_lookup import get_stock_name
 
 logger = logging.getLogger(__name__)
 
+import threading
+
 # 缓存配置与目录
 _CACHE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "sector_leaders_cache"))
 try:
@@ -34,7 +36,11 @@ _SECTOR_LEADERS_CACHE: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
 _BOARD_DETAIL_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _SEARCH_CACHE: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
 
-# 交易时间内行情变化快缓存30秒，收盘/非交易时段数据稳定缓存3600秒
+# SWR (Stale-While-Revalidate) 异步后台更新锁与状态
+_SWR_LOCK = threading.Lock()
+_SWR_ACTIVE: set[str] = set()
+
+# 交易时间内行情变化快强缓存30秒，收盘/非交易时段数据稳定强缓存3600秒
 CACHE_TTL_INTRADAY = 30.0
 CACHE_TTL_POST_MARKET = 3600.0
 
@@ -45,6 +51,36 @@ def _get_cache_ttl() -> float:
         return CACHE_TTL_INTRADAY if is_trading_time() else CACHE_TTL_POST_MARKET
     except Exception:
         return CACHE_TTL_INTRADAY
+
+
+def _trigger_async_sector_refresh(board_type: str, top_boards: int, top_stocks: int, sort_by: str) -> None:
+    """SWR 核心机制：在后台异步静默更新板块龙头数据，绝不卡顿前端用户界面。"""
+    cache_key = f"{board_type}_{top_boards}_{top_stocks}_{sort_by}"
+    with _SWR_LOCK:
+        if cache_key in _SWR_ACTIVE:
+            return
+        _SWR_ACTIVE.add(cache_key)
+
+    def _worker():
+        try:
+            logger.info("Starting background SWR refresh for sector leaders: %s", cache_key)
+            get_sector_leaders_data(
+                board_type=board_type,
+                top_boards=top_boards,
+                top_stocks=top_stocks,
+                sort_by=sort_by,
+                force_refresh=True,
+                use_cache=False,
+            )
+            logger.info("Background SWR refresh completed for: %s", cache_key)
+        except Exception as e:
+            logger.debug("Async sector leaders refresh error for %s: %s", cache_key, e)
+        finally:
+            with _SWR_LOCK:
+                _SWR_ACTIVE.discard(cache_key)
+
+    t = threading.Thread(target=_worker, daemon=True, name=f"SectorLeadersSWR-{cache_key}")
+    t.start()
 
 
 def _get_disk_cache_path(key: str) -> str:
@@ -188,9 +224,8 @@ def analyze_single_board_leaders(
         turnover = float(row.get("turnover", 0.0))
 
         is_zt = _is_limit_up(code, price, pre_close)
-        lbc = compute_exact_tdx_lbc(code) if (is_zt or change_pct >= 8.0) else 0
 
-        # 计算龙头得分 (Leader Score, 0 ~ 100)
+        # 计算基础龙头得分 (Leader Score, 0 ~ 100)
         score_pct = min(35.0, max(0.0, (change_pct / 10.0) * 17.5))
         if change_pct >= 9.8:
             score_pct = 35.0
@@ -205,12 +240,7 @@ def analyze_single_board_leaders(
 
         score_amt = min(20.0, (amount / max_amount) * 20.0)
         score_active = min(10.0, max(2.0, (vol_ratio / 2.0) * 5.0 + min(5.0, turnover / 3.0)))
-
-        score_bonus = 0.0
-        if is_zt:
-            score_bonus += 5.0
-        if lbc > 1:
-            score_bonus += min(5.0, (lbc - 1) * 2.0)
+        score_bonus = 5.0 if is_zt else 0.0
 
         leader_score = round(score_pct + score_flow + score_amt + score_active + score_bonus, 1)
 
@@ -225,10 +255,20 @@ def analyze_single_board_leaders(
             "vol_ratio": round(vol_ratio, 2),
             "turnover": round(turnover, 2),
             "is_zt": is_zt,
-            "lbc": lbc,
+            "lbc": 0,
             "leader_score": leader_score,
             "role_tag": "领涨个股",
         })
+
+    # 先按基础综合得分初步排序，选出前排重点候选（仅对前排涨停股精确计算连板天梯，避免90%无意义网络IO）
+    candidates.sort(key=lambda x: (x["is_zt"], x["leader_score"]), reverse=True)
+    check_limit = min(len(candidates), max(top_candidates, 5))
+    for s in candidates[:check_limit]:
+        if s["is_zt"]:
+            s_lbc = compute_exact_tdx_lbc(s["code"])
+            s["lbc"] = s_lbc
+            if s_lbc > 1:
+                s["leader_score"] = round(s["leader_score"] + min(5.0, (s_lbc - 1) * 2.0), 1)
 
     # 1. 确定领涨先锋
     candidates.sort(key=lambda x: (x["is_zt"], x["change_pct"], x["amount"]), reverse=True)
@@ -284,26 +324,34 @@ def get_sector_leaders_data(
     use_cache: bool = True,
     return_meta: bool = False,
 ) -> Any:
-    """获取板块龙头列表（含双层 Cache 缓存体系，默认开启）。"""
+    """获取板块龙头列表（含 SWR 极速响应双层 Cache 体系，默认开启）。"""
     cache_key = f"{board_type}_{top_boards}_{top_stocks}_{sort_by}"
     now = time.time()
     ttl = _get_cache_ttl()
 
     if use_cache and not force_refresh:
-        # 1. 内存缓存命中
+        # 1. 内存缓存命中 (SWR 模式：只要有缓存立即毫秒级返回，超过TTL静默后台异步刷新)
         if cache_key in _SECTOR_LEADERS_CACHE:
             ts, cached_data = _SECTOR_LEADERS_CACHE[cache_key]
-            if now - ts < ttl and cached_data:
-                logger.debug("Hit sector leaders memory cache: %s (age=%.1fs)", cache_key, now - ts)
+            if cached_data:
+                if now - ts < ttl:
+                    logger.debug("Hit sector leaders memory cache: %s (age=%.1fs)", cache_key, now - ts)
+                    return (cached_data, True, ts) if return_meta else cached_data
+                # 超过 TTL：SWR 模式立即返回旧缓存，并静默后台更新
+                logger.debug("SWR trigger background refresh for %s (age=%.1fs > %.1fs)", cache_key, now - ts, ttl)
+                _trigger_async_sector_refresh(board_type, top_boards, top_stocks, sort_by)
                 return (cached_data, True, ts) if return_meta else cached_data
 
-        # 2. 本地持久化磁盘缓存命中
-        disk_hit = _read_disk_cache(cache_key, max_age=ttl)
+        # 2. 本地持久化磁盘快照命中 (允许最长 30 天磁盘快照立即 0ms 呈现，并在后台自动静默刷新)
+        disk_hit = _read_disk_cache(cache_key, max_age=86400.0 * 30)
         if disk_hit is not None:
             ts, cached_data = disk_hit
             _SECTOR_LEADERS_CACHE[cache_key] = (ts, cached_data)
-            logger.debug("Hit sector leaders disk cache: %s (age=%.1fs)", cache_key, now - ts)
+            logger.debug("Hit sector leaders disk snapshot: %s (age=%.1fs)", cache_key, now - ts)
+            if now - ts >= ttl:
+                _trigger_async_sector_refresh(board_type, top_boards, top_stocks, sort_by)
             return (cached_data, True, ts) if return_meta else cached_data
+
 
     target_types = []
     b_type_lower = board_type.lower().strip()

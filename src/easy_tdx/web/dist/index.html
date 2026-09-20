@@ -14566,12 +14566,12 @@ function jumpToFinaPage() {
                     }
                 }
             });
-            loadSectorLeadersData(true);
+            loadSectorLeadersData(false);
         }
 
         function changeSectorLeaderSort(sortBy) {
             _slSort = sortBy;
-            loadSectorLeadersData(true);
+            loadSectorLeadersData(false);
         }
 
         function setSectorLeaderPollInterval(sec) {
@@ -14641,6 +14641,26 @@ function jumpToFinaPage() {
         async function loadSectorLeadersData(forceRefresh = false) {
             window._HAS_LOADED_SECTOR_LEADERS = true;
             const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : true;
+            const cacheStorageKey = `easy_tdx_sl_cache_${_slType}_${_slSort}`;
+
+            // 1. Instant Cache Hit: 若使用缓存且非强制刷新，立即 0ms 呈现本地缓存，绝无卡顿与白屏！
+            if (useCache && !forceRefresh) {
+                if (_cachedSectorLeaders && _cachedSectorLeaders.length > 0) {
+                    renderSectorLeadersCards(_cachedSectorLeaders, false);
+                } else {
+                    try {
+                        const localRaw = localStorage.getItem(cacheStorageKey);
+                        if (localRaw) {
+                            const parsed = JSON.parse(localRaw);
+                            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+                                _cachedSectorLeaders = parsed;
+                                renderSectorLeadersCards(_cachedSectorLeaders, false);
+                            }
+                        }
+                    } catch (_) {}
+                }
+            }
+
             try {
                 const url = `/api/sector_leaders?type=${_slType}&sort_by=${_slSort}&top_boards=12&top_stocks=4&force_refresh=${forceRefresh ? 'true' : 'false'}&use_cache=${useCache ? 'true' : 'false'}`;
                 const resp = await fetch(url);
@@ -14648,6 +14668,9 @@ function jumpToFinaPage() {
                     const data = await resp.json();
                     if (data.success) {
                         _cachedSectorLeaders = data.boards || [];
+                        try {
+                            localStorage.setItem(cacheStorageKey, JSON.stringify(_cachedSectorLeaders));
+                        } catch (_) {}
                         updateSectorLeadersMetrics(data.stat, _cachedSectorLeaders);
                         renderSectorLeadersCards(_cachedSectorLeaders, false);
 
