@@ -678,28 +678,32 @@ def get_kline(
         # Calibrate 3-day window
         if len(bars_data) >= 3 and m3_real != 0.0:
             diff_3 = m3_real - m1_real
-            a_prev1 = float(bars_data[-2].get("amount") or 1.0)
-            a_prev2 = float(bars_data[-3].get("amount") or 1.0)
-            tot_a_3 = max(1.0, a_prev1 + a_prev2)
-            bars_data[-2]["net_inflow"] = round(diff_3 * (a_prev1 / tot_a_3), 2)
-            bars_data[-3]["net_inflow"] = round(diff_3 * (a_prev2 / tot_a_3), 2)
+            w3_idx = [-2, -3]
+            tot_a_3 = max(1.0, sum(float(bars_data[i].get("amount") or 1.0) for i in w3_idx))
+            sum_r_3 = sum(float(bars_data[i].get("net_inflow") or 0.0) for i in w3_idx)
+            for i in w3_idx:
+                w = float(bars_data[i].get("amount") or 1.0) / tot_a_3
+                bars_data[i]["net_inflow"] = round(w * diff_3 + (float(bars_data[i].get("net_inflow") or 0.0) - w * sum_r_3), 2)
 
         # Calibrate 5-day window
         if len(bars_data) >= 5 and m5_real != 0.0:
             diff_5 = m5_real - (m3_real if m3_real != 0.0 else (m1_real * 3.0))
-            a_prev3 = float(bars_data[-4].get("amount") or 1.0)
-            a_prev4 = float(bars_data[-5].get("amount") or 1.0)
-            tot_a_5 = max(1.0, a_prev3 + a_prev4)
-            bars_data[-4]["net_inflow"] = round(diff_5 * (a_prev3 / tot_a_5), 2)
-            bars_data[-5]["net_inflow"] = round(diff_5 * (a_prev4 / tot_a_5), 2)
+            w5_idx = [-4, -5]
+            tot_a_5 = max(1.0, sum(float(bars_data[i].get("amount") or 1.0) for i in w5_idx))
+            sum_r_5 = sum(float(bars_data[i].get("net_inflow") or 0.0) for i in w5_idx)
+            for i in w5_idx:
+                w = float(bars_data[i].get("amount") or 1.0) / tot_a_5
+                bars_data[i]["net_inflow"] = round(w * diff_5 + (float(bars_data[i].get("net_inflow") or 0.0) - w * sum_r_5), 2)
 
         # Calibrate 10-day window
         if len(bars_data) >= 10 and m10_real != 0.0:
             diff_10 = m10_real - (m5_real if m5_real != 0.0 else (m1_real * 5.0))
-            sub_amts = [float(bars_data[-(k+1)].get("amount") or 1.0) for k in range(5, 10)]
-            tot_a_10 = max(1.0, sum(sub_amts))
-            for k in range(5, 10):
-                bars_data[-(k+1)]["net_inflow"] = round(diff_10 * (float(bars_data[-(k+1)].get("amount") or 1.0) / tot_a_10), 2)
+            w10_idx = [-(k + 1) for k in range(5, min(10, len(bars_data)))]
+            tot_a_10 = max(1.0, sum(float(bars_data[i].get("amount") or 1.0) for i in w10_idx))
+            sum_r_10 = sum(float(bars_data[i].get("net_inflow") or 0.0) for i in w10_idx)
+            for i in w10_idx:
+                w = float(bars_data[i].get("amount") or 1.0) / tot_a_10
+                bars_data[i]["net_inflow"] = round(w * diff_10 + (float(bars_data[i].get("net_inflow") or 0.0) - w * sum_r_10), 2)
 
         # Recompute inflow_ma and inflow_sum after calibration
         calib_flows = [b["net_inflow"] for b in bars_data]

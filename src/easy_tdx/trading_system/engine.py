@@ -267,28 +267,76 @@ def _calculate_consecutive_flow(df: pd.DataFrame, realtime_quote: Optional[Dict[
     """
     计算连续净流入天数与累计净流入金额。
     正数表示连续流入天数，负数表示连续流出天数。
+    与行情系统 K 线资金流入模型保持完全一致。
     """
     if df is None or df.empty:
         return 0, 0.0
 
     c = df["close"].values
+    o = df["open"].values if "open" in df.columns else c
     h = df["high"].values
     l = df["low"].values
-    amt = df["amount"].values if "amount" in df.columns else c * df["volume"].values
+    amt = df["amount"].values.astype(float) if "amount" in df.columns else (c * df["volume"].values).astype(float)
     n = len(c)
     if n == 0:
         return 0, 0.0
 
-    denom = np.maximum(0.01, h - l)
-    mfm = ((c - l) - (h - c)) / denom
-    k_flows = mfm * amt
+    raw_flows = np.zeros(n, dtype=float)
+    for idx in range(n):
+        c_i = float(c[idx])
+        o_i = float(o[idx])
+        h_i = float(h[idx])
+        l_i = float(l[idx])
+        amt_i = float(amt[idx])
+        pre_c_i = float(c[idx - 1]) if idx > 0 else o_i
+        hl_diff = max(0.001, h_i - l_i)
+        body_r = (c_i - o_i) / hl_diff
+        pos_r = (c_i - l_i) / hl_diff - 0.5
+        chg_r = ((c_i / max(0.01, pre_c_i)) - 1.0) * 10.0
+        flow_r = max(-0.20, min(0.20, body_r * 0.08 + pos_r * 0.06 + chg_r * 0.10))
+        raw_flows[idx] = round(amt_i * flow_r, 2)
+
+    k_flows = raw_flows.copy()
 
     m1 = float(realtime_quote.get("main_net_amount", 0.0)) if realtime_quote else 0.0
     m3 = float(realtime_quote.get("main_net_3d", 0.0)) if realtime_quote else 0.0
     m5 = float(realtime_quote.get("main_net_5d", 0.0)) if realtime_quote else 0.0
+    m10 = float(realtime_quote.get("main_net_10d", 0.0)) if realtime_quote else 0.0
 
     if abs(m1) > 0:
-        k_flows[-1] = m1
+        k_flows[-1] = round(m1, 2)
+
+    # 3-day calibration
+    if n >= 3 and abs(m3) > 0 and abs(m1) > 0:
+        diff_3 = m3 - m1
+        w3_idx = [-2, -3]
+        tot_amt_3 = max(1.0, sum(amt[i] for i in w3_idx))
+        sum_r_3 = sum(raw_flows[i] for i in w3_idx)
+        for i in w3_idx:
+            w = amt[i] / tot_amt_3
+            k_flows[i] = round(w * diff_3 + (raw_flows[i] - w * sum_r_3), 2)
+
+    # 5-day calibration
+    if n >= 5 and abs(m5) > 0:
+        base_3 = m3 if abs(m3) > 0 else (m1 * 3.0)
+        diff_5 = m5 - base_3
+        w5_idx = [-4, -5]
+        tot_amt_5 = max(1.0, sum(amt[i] for i in w5_idx))
+        sum_r_5 = sum(raw_flows[i] for i in w5_idx)
+        for i in w5_idx:
+            w = amt[i] / tot_amt_5
+            k_flows[i] = round(w * diff_5 + (raw_flows[i] - w * sum_r_5), 2)
+
+    # 10-day calibration
+    if n >= 10 and abs(m10) > 0:
+        base_5 = m5 if abs(m5) > 0 else (m1 * 5.0)
+        diff_10 = m10 - base_5
+        w10_idx = [-6, -7, -8, -9, -10]
+        tot_amt_10 = max(1.0, sum(amt[i] for i in w10_idx))
+        sum_r_10 = sum(raw_flows[i] for i in w10_idx)
+        for i in w10_idx:
+            w = amt[i] / tot_amt_10
+            k_flows[i] = round(w * diff_10 + (raw_flows[i] - w * sum_r_10), 2)
 
     cur_sign = 1 if k_flows[-1] > 0 else (-1 if k_flows[-1] < 0 else 0)
     if cur_sign == 0:
@@ -303,22 +351,6 @@ def _calculate_consecutive_flow(df: pd.DataFrame, realtime_quote: Optional[Dict[
             consec_amount += flow_i
         else:
             break
-
-    if realtime_quote:
-        if cur_sign > 0 and m1 > 0:
-            if m3 > m1 and consec_days < 3:
-                consec_days = 3
-                consec_amount = max(consec_amount, m3)
-            if m5 > m3 and consec_days >= 3 and consec_days < 5:
-                consec_days = 5
-                consec_amount = max(consec_amount, m5)
-        elif cur_sign < 0 and m1 < 0:
-            if m3 < m1 and consec_days < 3:
-                consec_days = 3
-                consec_amount = min(consec_amount, m3)
-            if m5 < m3 and consec_days >= 3 and consec_days < 5:
-                consec_days = 5
-                consec_amount = min(consec_amount, m5)
 
     sign_days = consec_days if cur_sign > 0 else -consec_days
     return int(sign_days), float(consec_amount)
