@@ -362,10 +362,18 @@ def get_kline(
     ma20 = MA(c, 20)
     ma60 = MA(c, min(60, len(c)))
 
-    # Volume & Turnover MAs & ratio
+    # Volume & Turnover MAs & ratio (过去5日均量基准不含当日自身)
     v_ma5 = MA(v, 5)
     v_ma10 = MA(v, 10)
-    vol_ratios = np.round(v / np.maximum(v_ma5, 1.0), 2)
+    n_len = len(df)
+    vol_ratios = np.ones(n_len, dtype=float)
+    for i in range(n_len):
+        if i == 0:
+            vol_ratios[i] = 1.0
+        else:
+            prev_v = v[max(0, i - 5):i]
+            mean_prev_v = float(np.mean(prev_v)) if len(prev_v) > 0 else float(v[i])
+            vol_ratios[i] = round(float(v[i]) / max(1.0, mean_prev_v), 2)
     
     amt_vals = df["amount"].values.astype(float) if "amount" in df.columns else (c * v).astype(float)
     amt_ma5 = MA(amt_vals, 5)
@@ -730,6 +738,8 @@ def get_kline(
         if m10_real != 0.0:
             bars_data[-1]["inflow_sum10"] = round(m10_real, 2)
             bars_data[-1]["inflow_ma10"] = round(m10_real / 10.0, 2)
+        if vol_ratio > 0:
+            bars_data[-1]["vol_ratio"] = round(vol_ratio, 2)
 
     elif is_minute_period and bars_data:
         # Calibrate minute bars per day so that the sum of minute net inflows matches daily net inflow
@@ -858,7 +868,7 @@ def get_kline(
     data1 = f"{clean_sym}|{zs_block}"
 
     from easy_tdx.pattern_recognition import detect_patterns
-    patterns = detect_patterns(df)
+    patterns = detect_patterns(df, vol_ratio=vol_ratio)
     pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
     res = {

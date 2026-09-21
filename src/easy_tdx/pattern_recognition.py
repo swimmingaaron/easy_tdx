@@ -33,7 +33,7 @@ _PATTERN_LOCK = threading.Lock()
 PATTERN_CACHE_TTL = 15.0  # 15s cache TTL for real-time responsiveness
 
 
-def detect_patterns(df: pd.DataFrame) -> list[str]:
+def detect_patterns(df: pd.DataFrame, vol_ratio: Optional[float] = None) -> list[str]:
     """Detect all quantitative patterns satisfied by the current K-line sequence.
 
     Returns a list of all matched pattern names in order of priority/significance.
@@ -56,7 +56,7 @@ def detect_patterns(df: pd.DataFrame) -> list[str]:
     cur_h = float(h[-1])
     cur_l = float(l[-1])
     cur_v = float(v[-1])
-    prev_c = float(c[-2]) if n >= 2 else cur_c
+    prev_c = float(c[-2]) if n >= 2 else cur_o
     prev_o = float(o[-2]) if n >= 2 else cur_o
     prev_h = float(h[-2]) if n >= 2 else cur_h
     prev_l = float(l[-2]) if n >= 2 else cur_l
@@ -65,9 +65,13 @@ def detect_patterns(df: pd.DataFrame) -> list[str]:
     cur_body = abs(cur_c - cur_o)
     cur_range = max(0.001, cur_h - cur_l)
 
-    # 5-day volume moving average & volume ratio
-    ma_v5 = np.asarray(MA(v, min(5, n)), dtype=float)
-    vol_ratio = (cur_v / float(ma_v5[-1])) if float(ma_v5[-1]) > 0 else 1.0
+    # 5-day volume baseline & volume ratio (优先使用传入的实时量比，若无则基于过去5日均量不含当日自身折算)
+    if vol_ratio is not None and vol_ratio > 0:
+        vr = float(vol_ratio)
+    else:
+        past_v5 = float(np.mean(v[-6:-1])) if n >= 6 else (float(np.mean(v[:-1])) if n >= 2 else float(cur_v))
+        vr = (cur_v / max(1.0, past_v5))
+    vol_ratio = vr
 
     # Moving averages
     ma5 = np.asarray(MA(c, min(5, n)), dtype=float)

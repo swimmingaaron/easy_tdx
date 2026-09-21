@@ -16,7 +16,8 @@ class RankICDecileStrategy(BaseStrategy):
         # Alpha score formulation: 0.5 * mom_20d + 0.3 * rsi_14 + 0.2 * vol_ratio
         mom20 = res["close"] / res["close"].shift(20) - 1.0
         rsi = RSI(res["close"], 14)
-        vol_ratio = res["volume"] / MA(res["volume"], 20)
+        ma20_vol = res["volume"].shift(1).rolling(20).mean().fillna(res["volume"])
+        vol_ratio = res["volume"] / np.maximum(ma20_vol, 1e-4)
         alpha_score = mom20 * 0.5 + (rsi / 100.0) * 0.3 + vol_ratio * 0.2
         
         res["buy_signal"] = alpha_score > alpha_score.rolling(60).quantile(0.90)

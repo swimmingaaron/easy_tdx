@@ -16,7 +16,7 @@ class HotThemeStrategy(BaseStrategy):
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
-        ma5_vol = pd.Series(MA(out["volume"].values, 5), index=out.index)
+        ma5_vol = out["volume"].shift(1).rolling(5).mean().fillna(out["volume"])
         gain_pct = (out["close"] - out["close"].shift(1)) / np.maximum(out["close"].shift(1), 1e-4) * 100
         vol_ratio = out["volume"] / np.maximum(ma5_vol, 1e-4)
 

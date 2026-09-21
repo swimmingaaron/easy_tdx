@@ -708,6 +708,30 @@ def is_trading_time() -> bool:
     return (m_start <= t <= m_end) or (a_start <= t <= a_end)
 
 
+def get_trading_minutes() -> int:
+    """Calculate elapsed trading minutes in the current A-share session (1 to 240)."""
+    now = datetime.datetime.now()
+    if now.weekday() >= 5:
+        return 240
+    t = now.time()
+    m_open = datetime.time(9, 30, 0)
+    m_close = datetime.time(11, 30, 0)
+    a_open = datetime.time(13, 0, 0)
+    a_close = datetime.time(15, 0, 0)
+    if t < m_open:
+        return 1
+    elif m_open <= t <= m_close:
+        mins = (t.hour - 9) * 60 + t.minute - 30
+        return max(1, min(120, mins))
+    elif m_close < t < a_open:
+        return 120
+    elif a_open <= t <= a_close:
+        mins = 120 + (t.hour - 13) * 60 + t.minute
+        return max(120, min(240, mins))
+    else:
+        return 240
+
+
 def _start_bg_overview_worker():
     """Start daemon background worker to continuously refresh market summary."""
     global _BG_THREAD_STARTED

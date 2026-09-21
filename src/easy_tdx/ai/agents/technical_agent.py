@@ -34,9 +34,10 @@ class TechnicalAgent(BaseAgent):
         # Multi-MA Bull alignment
         is_bull = (m5_cur >= m10_cur >= m20_cur) and (c_cur >= m5_cur)
         
-        # Volume ratio (vol / ma_vol5)
-        vol_ma5 = np.asarray(MA(vol, 5))
-        vol_ratio = float(vol[-1] / vol_ma5[-1]) if float(vol_ma5[-1]) > 0 else 1.0
+        # Volume ratio (vol / past 5-day average excluding current day)
+        n_v = len(vol)
+        past_v5 = float(np.mean(vol[-6:-1])) if n_v >= 6 else (float(np.mean(vol[:-1])) if n_v >= 2 else float(vol[-1]))
+        vol_ratio = float(vol[-1] / max(1.0, past_v5))
         
         # MACD
         dif, dea, macd = MACD(close)
@@ -56,7 +57,7 @@ class TechnicalAgent(BaseAgent):
             score -= 5.0  # Excessive turnover warning
             
         from easy_tdx.pattern_recognition import detect_patterns
-        patterns = detect_patterns(kline_df)
+        patterns = detect_patterns(kline_df, vol_ratio=vol_ratio)
         trend_status = " · ".join(patterns) if patterns else ("多头排列 · 顺势主升" if is_bull else "震荡整理")
         
         summary = (

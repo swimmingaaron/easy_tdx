@@ -19,7 +19,7 @@ class EventDrivenStrategy(BaseStrategy):
         gap_pct = float(self.params.get("gap_pct", 0.8))
         vol_ratio = float(self.params.get("vol_ratio", 1.2))
 
-        ma5_vol = pd.Series(MA(out["volume"].values, 5), index=out.index)
+        ma5_vol = out["volume"].shift(1).rolling(5).mean().fillna(out["volume"])
         prev_c = out["close"].shift(1)
         
         # 跳空高开或强势放量长阳突破

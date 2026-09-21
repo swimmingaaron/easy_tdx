@@ -45,7 +45,7 @@ class VolSurge(Factor):
 
     def compute(self, df: pd.DataFrame) -> pd.Series:
         vol = df["vol"]
-        ma20 = vol.rolling(20).mean()
+        ma20 = vol.shift(1).rolling(20).mean().fillna(vol)
         return vol / ma20.replace(0, np.nan)
 
 

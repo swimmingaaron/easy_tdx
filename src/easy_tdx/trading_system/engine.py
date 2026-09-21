@@ -457,6 +457,7 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
     dde_net = 0.0
     dde_all = 0.0
     mkt_capt = 0.0
+    cur_vol = float(vol[-1])
     amount = float(df["amount"].values[-1]) if "amount" in df.columns else float(cur_vol * cur_close)
 
     if realtime_quote:
@@ -464,7 +465,12 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
             cur_close = float(realtime_quote["price"])
             cur_pct = float(realtime_quote.get("change_pct", cur_pct))
         if "volume" in realtime_quote and realtime_quote["volume"] > 0:
-            cur_vol = float(realtime_quote["volume"])
+            q_vol = float(realtime_quote["volume"])
+            # TDX 实时行情快照 volume 字段单位为“手”，而日K数据为“股”，做自适应单位对齐
+            if q_vol < (vol[-1] / 50.0):
+                cur_vol = q_vol * 100.0
+            else:
+                cur_vol = q_vol
         if "main_net_amount" in realtime_quote:
             dde_net = float(realtime_quote["main_net_amount"])
         if "turnover_wan" in realtime_quote:
@@ -473,14 +479,22 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
             mkt_capt = float(realtime_quote["total_mv_yi"]) * 1e8
         dde_all = float(realtime_quote.get("main_net_5d", 0.0))
 
-    # 量比 (当前成交量 / 过去5日平均量)
-    v5 = float(np.mean(vol[-6:-1])) if n >= 6 else (cur_vol if cur_vol > 0 else 1.0)
-    v_rate = round(float(cur_vol / max(1.0, v5)), 2)
+    # 量比 (优先使用 Level-2 官方实时量比，若无则基于过去5日均量折算)
+    vr_quote = float(realtime_quote.get("vol_ratio", 0.0)) if realtime_quote else 0.0
+    if vr_quote > 0:
+        v_rate = round(vr_quote, 2)
+    else:
+        v5 = float(np.mean(vol[-6:-1])) if n >= 6 else (float(np.mean(vol[:-1])) if n >= 2 else (cur_vol if cur_vol > 0 else 1.0))
+        from easy_tdx.market_overview import get_trading_minutes
+        t_mins = get_trading_minutes()
+        # 盘中按实际开市交易分钟数折算年化量比，收盘或盘后直接取全天量比
+        v_rate = round(float((cur_vol / max(1, t_mins)) / (max(1.0, v5) / 240.0)), 2)
 
     # 换手率估算
     if mkt_capt > 0 and amount > 0:
         t_rate = round(float((amount / mkt_capt) * 100.0), 2)
     else:
+        v5 = float(np.mean(vol[-6:-1])) if n >= 6 else (cur_vol if cur_vol > 0 else 1.0)
         t_rate = round(float(min(25.0, max(0.5, (cur_vol / max(100000.0, v5 * 30.0)) * 10.0))), 2)
 
     # 2. 均线与指标系统
