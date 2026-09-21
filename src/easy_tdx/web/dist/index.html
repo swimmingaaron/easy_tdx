@@ -3120,52 +3120,52 @@
                 <!-- 顶层风向标四大核心 Metric 卡片 -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                     <!-- 卡片 1: 领涨第一主线 -->
-                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                    <div id="sl-card-top" class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/50 transition cursor-pointer select-none group shadow-xs">
                         <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span class="flex items-center"><i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1 text-rose-500"></i>领涨第一主线</span>
+                            <span class="flex items-center group-hover:text-rose-500 transition"><i data-lucide="trending-up" class="w-3.5 h-3.5 mr-1 text-rose-500"></i>领涨第一主线</span>
                             <span id="sl-card-top-type" class="px-1.5 py-0.2 rounded text-[10px] bg-rose-500/10 text-rose-500 font-mono">行业</span>
                         </div>
                         <div class="flex items-baseline justify-between">
-                            <div id="sl-card-top-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-top-name" class="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition">--</div>
                             <div id="sl-card-top-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
                         </div>
                         <div id="sl-card-top-desc" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">先锋: --</div>
                     </div>
 
                     <!-- 卡片 2: 全市场领涨先锋 -->
-                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                    <div id="sl-card-pioneer" class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/50 transition cursor-pointer select-none group shadow-xs">
                         <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span class="flex items-center"><i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-amber-500"></i>全市场领涨先锋</span>
+                            <span class="flex items-center group-hover:text-amber-500 transition"><i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-amber-500"></i>全市场领涨先锋</span>
                             <span id="sl-card-pioneer-code" class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-500 font-mono">--</span>
                         </div>
                         <div class="flex items-baseline justify-between">
-                            <div id="sl-card-pioneer-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-pioneer-name" class="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition">--</div>
                             <div id="sl-card-pioneer-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
                         </div>
                         <div id="sl-card-pioneer-board" class="text-[11px] text-slate-500 dark:text-slate-400 truncate">所属板块: --</div>
                     </div>
 
                     <!-- 卡片 3: 百亿中军容量 -->
-                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                    <div id="sl-card-cap" class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/50 transition cursor-pointer select-none group shadow-xs">
                         <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span class="flex items-center"><i data-lucide="shield" class="w-3.5 h-3.5 mr-1 text-indigo-500"></i>百亿容量中军</span>
+                            <span class="flex items-center group-hover:text-indigo-500 transition"><i data-lucide="shield" class="w-3.5 h-3.5 mr-1 text-indigo-500"></i>百亿容量中军</span>
                             <span id="sl-card-cap-amount" class="px-1.5 py-0.2 rounded text-[10px] bg-indigo-500/10 text-indigo-500 font-mono">--</span>
                         </div>
                         <div class="flex items-baseline justify-between">
-                            <div id="sl-card-cap-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-cap-name" class="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition">--</div>
                             <div id="sl-card-cap-pct" class="text-base font-extrabold font-mono text-rose-500">+0.00%</div>
                         </div>
                         <div id="sl-card-cap-flow" class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">主力净流入: --</div>
                     </div>
 
                     <!-- 卡片 4: 连板高度龙 -->
-                    <div class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/40 transition">
+                    <div id="sl-card-ladder" class="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5 hover:border-amber-500/50 transition cursor-pointer select-none group shadow-xs">
                         <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span class="flex items-center"><i data-lucide="flame" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>连板高度龙</span>
+                            <span class="flex items-center group-hover:text-rose-600 transition"><i data-lucide="flame" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>连板高度龙</span>
                             <span id="sl-card-ladder-lbc" class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white font-mono">--</span>
                         </div>
                         <div class="flex items-baseline justify-between">
-                            <div id="sl-card-ladder-name" class="text-base font-bold text-slate-900 dark:text-white truncate">--</div>
+                            <div id="sl-card-ladder-name" class="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-indigo-500 transition">--</div>
                             <div id="sl-card-ladder-ztcount" class="text-sm font-semibold font-mono text-slate-500 dark:text-slate-400">涨停池: 0只</div>
                         </div>
                         <div id="sl-card-ladder-desc" class="text-[11px] text-slate-500 dark:text-slate-400 truncate">空间高度标杆</div>
@@ -14698,21 +14698,49 @@ function jumpToFinaPage() {
 
             // 1. Top 板块
             const topB = boards[0];
+            const topCard = document.getElementById('sl-card-top');
             const topNameEl = document.getElementById('sl-card-top-name');
             const topPctEl = document.getElementById('sl-card-top-pct');
             const topDescEl = document.getElementById('sl-card-top-desc');
             const topTypeEl = document.getElementById('sl-card-top-type');
 
-            if (topNameEl) topNameEl.innerText = `${topB.board_name} (${topB.board_code})`;
+            if (topCard) {
+                topCard.title = `点击打开【${topB.board_name} (${topB.board_code})】K线行情`;
+                topCard.onclick = () => openKlineModal(topB.board_code, topB.board_name);
+            }
+            if (topNameEl) {
+                topNameEl.innerHTML = `<span class="cursor-pointer hover:text-indigo-500 hover:underline transition" title="点击打开【${topB.board_name}】K线行情">${topB.board_name} (${topB.board_code})</span>`;
+            }
             if (topPctEl) {
                 const p = Number(topB.change_pct || 0);
                 topPctEl.innerText = (p > 0 ? '+' : '') + p.toFixed(2) + '%';
                 topPctEl.className = `text-base font-extrabold font-mono ${p > 0 ? 'text-rose-500' : 'text-emerald-500'}`;
             }
-            if (topTypeEl) topTypeEl.innerText = topB.board_type || '行业';
+            if (topTypeEl) {
+                topTypeEl.innerText = topB.board_type || '行业';
+                topTypeEl.title = `点击查看【${topB.board_name}】板块成分详情`;
+                topTypeEl.onclick = (e) => {
+                    e.stopPropagation();
+                    if (typeof openSectorLeaderBoardModal === 'function') {
+                        openSectorLeaderBoardModal(topB.board_code, topB.board_name);
+                    } else {
+                        openKlineModal(topB.board_code, topB.board_name);
+                    }
+                };
+            }
             if (topDescEl) {
                 const p = topB.leader_pioneer;
-                topDescEl.innerText = p ? `先锋: ${p.name} (${p.change_pct > 0 ? '+' : ''}${p.change_pct}%)` : `成交: ${fmtMoneyTs(topB.amount)}`;
+                if (p) {
+                    const pChg = (p.change_pct > 0 ? '+' : '') + (Number(p.change_pct) || 0).toFixed(2) + '%';
+                    topDescEl.innerHTML = `先锋: <span class="cursor-pointer hover:text-indigo-500 hover:underline font-semibold text-slate-700 dark:text-slate-200 transition" title="点击打开【${p.name}】K线行情">${p.name} (${pChg})</span>`;
+                    topDescEl.onclick = (e) => {
+                        e.stopPropagation();
+                        openKlineModal(p.code, p.name);
+                    };
+                } else {
+                    topDescEl.innerText = `成交: ${fmtMoneyTs(topB.amount)}`;
+                    topDescEl.onclick = null;
+                }
             }
 
             // 2. 全市场最高先锋
@@ -14723,52 +14751,132 @@ function jumpToFinaPage() {
             boards.forEach(b => {
                 const p = b.leader_pioneer;
                 if (p && (!bestPioneer || p.change_pct > bestPioneer.change_pct)) {
-                    bestPioneer = { ...p, board_name: b.board_name };
+                    bestPioneer = { ...p, board_name: b.board_name, board_code: b.board_code };
                 }
                 const cap = b.leader_capacity;
                 if (cap && (!bestCapacity || cap.amount > bestCapacity.amount)) {
-                    bestCapacity = { ...cap, board_name: b.board_name };
+                    bestCapacity = { ...cap, board_name: b.board_name, board_code: b.board_code };
                 }
                 const lad = b.leader_ladder;
                 if (lad && (!bestLadder || lad.lbc > bestLadder.lbc)) {
-                    bestLadder = { ...lad, board_name: b.board_name };
+                    bestLadder = { ...lad, board_name: b.board_name, board_code: b.board_code };
+                }
+                if (bestLadder && (!bestLadder.board_code || bestLadder.board_code === '') && b.board_name === bestLadder.board_name) {
+                    bestLadder.board_code = b.board_code;
                 }
             });
 
             // 先锋卡片
             if (bestPioneer) {
+                const pioneerCard = document.getElementById('sl-card-pioneer');
                 const pn = document.getElementById('sl-card-pioneer-name');
                 const pp = document.getElementById('sl-card-pioneer-pct');
                 const pc = document.getElementById('sl-card-pioneer-code');
                 const pb = document.getElementById('sl-card-pioneer-board');
-                if (pn) pn.innerText = bestPioneer.name;
-                if (pp) pp.innerText = (bestPioneer.change_pct > 0 ? '+' : '') + bestPioneer.change_pct.toFixed(2) + '%';
-                if (pc) pc.innerText = bestPioneer.code;
-                if (pb) pb.innerText = `所属板块: ${bestPioneer.board_name}`;
+
+                if (pioneerCard) {
+                    pioneerCard.title = `点击打开【${bestPioneer.name} (${bestPioneer.code})】K线行情`;
+                    pioneerCard.onclick = () => openKlineModal(bestPioneer.code, bestPioneer.name);
+                }
+                if (pn) {
+                    pn.innerHTML = `<span class="cursor-pointer hover:text-indigo-500 hover:underline transition" title="点击打开【${bestPioneer.name}】K线行情">${bestPioneer.name}</span>`;
+                }
+                if (pp) {
+                    const pVal = Number(bestPioneer.change_pct || 0);
+                    pp.innerText = (pVal > 0 ? '+' : '') + pVal.toFixed(2) + '%';
+                }
+                if (pc) {
+                    pc.innerText = bestPioneer.code;
+                    pc.title = `点击打开【${bestPioneer.name}】K线行情`;
+                }
+                if (pb) {
+                    if (bestPioneer.board_name && bestPioneer.board_name !== '--') {
+                        pb.innerHTML = `所属板块: <span class="cursor-pointer hover:text-indigo-500 hover:underline font-semibold text-slate-700 dark:text-slate-200 transition" title="点击打开【${bestPioneer.board_name}】行情">${bestPioneer.board_name}</span>`;
+                        pb.onclick = (e) => {
+                            e.stopPropagation();
+                            if (bestPioneer.board_code) {
+                                openKlineModal(bestPioneer.board_code, bestPioneer.board_name);
+                            } else if (typeof openSectorLeaderBoardModal === 'function') {
+                                openSectorLeaderBoardModal(bestPioneer.board_code || '', bestPioneer.board_name);
+                            } else {
+                                openKlineModal(bestPioneer.code, bestPioneer.name);
+                            }
+                        };
+                    } else {
+                        pb.innerText = `所属板块: --`;
+                        pb.onclick = null;
+                    }
+                }
             }
 
             // 容量中军卡片
             if (bestCapacity) {
+                const capCard = document.getElementById('sl-card-cap');
                 const cn = document.getElementById('sl-card-cap-name');
                 const cp = document.getElementById('sl-card-cap-pct');
                 const ca = document.getElementById('sl-card-cap-amount');
                 const cf = document.getElementById('sl-card-cap-flow');
-                if (cn) cn.innerText = bestCapacity.name;
-                if (cp) cp.innerText = (bestCapacity.change_pct > 0 ? '+' : '') + bestCapacity.change_pct.toFixed(2) + '%';
-                if (ca) ca.innerText = fmtMoneyTs(bestCapacity.amount);
-                if (cf) cf.innerText = `主力净流入: ${fmtMoneyTs(bestCapacity.main_net_amount)}`;
+
+                if (capCard) {
+                    capCard.title = `点击打开【${bestCapacity.name} (${bestCapacity.code})】K线行情`;
+                    capCard.onclick = () => openKlineModal(bestCapacity.code, bestCapacity.name);
+                }
+                if (cn) {
+                    cn.innerHTML = `<span class="cursor-pointer hover:text-indigo-500 hover:underline transition" title="点击打开【${bestCapacity.name}】K线行情">${bestCapacity.name}</span>`;
+                }
+                if (cp) {
+                    const cpVal = Number(bestCapacity.change_pct || 0);
+                    cp.innerText = (cpVal > 0 ? '+' : '') + cpVal.toFixed(2) + '%';
+                }
+                if (ca) {
+                    ca.innerText = fmtMoneyTs(bestCapacity.amount);
+                    ca.title = `成交额 ${fmtMoneyTs(bestCapacity.amount)}`;
+                }
+                if (cf) {
+                    const netF = Number(bestCapacity.main_net_amount || 0);
+                    cf.innerHTML = `主力净流入: <span class="font-bold ${netF >= 0 ? 'text-rose-500' : 'text-emerald-500'}">${fmtMoneyTs(netF)}</span>`;
+                }
             }
 
             // 连板卡片
             if (bestLadder) {
+                const ladderCard = document.getElementById('sl-card-ladder');
                 const ln = document.getElementById('sl-card-ladder-name');
                 const ll = document.getElementById('sl-card-ladder-lbc');
                 const lz = document.getElementById('sl-card-ladder-ztcount');
                 const ld = document.getElementById('sl-card-ladder-desc');
-                if (ln) ln.innerText = bestLadder.name;
-                if (ll) ll.innerText = `${bestLadder.lbc}连板`;
-                if (lz) lz.innerText = `涨停池: ${stat ? stat.zt_count : 0} 只`;
-                if (ld) ld.innerText = `${bestLadder.board_name} 短线高度标杆`;
+
+                if (ladderCard) {
+                    ladderCard.title = `点击打开【${bestLadder.name} (${bestLadder.code})】K线行情`;
+                    ladderCard.onclick = () => openKlineModal(bestLadder.code, bestLadder.name);
+                }
+                if (ln) {
+                    ln.innerHTML = `<span class="cursor-pointer hover:text-indigo-500 hover:underline transition" title="点击打开【${bestLadder.name}】K线行情">${bestLadder.name}</span>`;
+                }
+                if (ll) {
+                    ll.innerText = `${bestLadder.lbc}连板`;
+                    ll.title = `${bestLadder.lbc}连板高度龙`;
+                }
+                if (lz) {
+                    lz.innerText = `涨停池: ${stat ? stat.zt_count : 0} 只`;
+                }
+                if (ld) {
+                    const bName = bestLadder.board_name || '';
+                    if (bName && bName !== '--') {
+                        ld.innerHTML = `<span class="cursor-pointer hover:text-indigo-500 hover:underline font-semibold text-slate-700 dark:text-slate-200 transition" title="点击打开【${bName}】行情">${bName}</span> 短线高度标杆`;
+                        ld.onclick = (e) => {
+                            e.stopPropagation();
+                            if (bestLadder.board_code) {
+                                openKlineModal(bestLadder.board_code, bName);
+                            } else {
+                                openKlineModal(bestLadder.code, bestLadder.name);
+                            }
+                        };
+                    } else {
+                        ld.innerText = `短线高度标杆`;
+                        ld.onclick = null;
+                    }
+                }
             } else {
                 const lz = document.getElementById('sl-card-ladder-ztcount');
                 if (lz) lz.innerText = `涨停池: ${stat ? stat.zt_count : 0} 只`;

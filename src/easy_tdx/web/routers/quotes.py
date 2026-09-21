@@ -132,6 +132,19 @@ def _resolve_stock_board_info(code: str, raw_sym: str = "") -> dict[str, str]:
     """Resolve stock industry sector name and code using TDX MAC get_belong_board."""
     clean = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(".", "")
     if clean.startswith("88"):
+        if clean not in _BOARD_NAME_MAP:
+            try:
+                from easy_tdx.market_overview import _get_or_create_mac_client
+                mac = _get_or_create_mac_client()
+                bdf = mac.get_board_list()
+                if bdf is not None and not bdf.empty:
+                    for _, brow in bdf.iterrows():
+                        bcode_str = str(brow.get("code", "")).strip()
+                        bname_str = str(brow.get("name", "")).strip()
+                        if bcode_str and bname_str:
+                            _BOARD_NAME_MAP[bcode_str] = bname_str
+            except Exception as e:
+                logger.debug(f"Failed to populate board list from MAC client: {e}")
         b_name = _BOARD_NAME_MAP.get(clean) or get_stock_name(clean)
         return {"board_code": clean, "board_name": b_name}
     if clean in ("999999", "399001", "399006", "000300", "000688", "899050"):
@@ -393,6 +406,8 @@ def get_kline(
     fetch_n = max(240, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
     mkt, full_sym = _get_market_suffix(raw_sym)
+    if clean_sym.startswith("88") and clean_sym not in _BOARD_NAME_MAP:
+        _resolve_stock_board_info(clean_sym)
     stock_name = _BOARD_NAME_MAP.get(clean_sym) or get_stock_name(full_sym)
     board = _get_board_tag(full_sym)
 
