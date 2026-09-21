@@ -14718,7 +14718,7 @@ function jumpToFinaPage() {
             // 2. 全市场最高先锋
             let bestPioneer = null;
             let bestCapacity = null;
-            let bestLadder = null;
+            let bestLadder = (stat && stat.best_ladder) ? { ...stat.best_ladder } : null;
 
             boards.forEach(b => {
                 const p = b.leader_pioneer;

@@ -260,10 +260,9 @@ def analyze_single_board_leaders(
             "role_tag": "领涨个股",
         })
 
-    # 先按基础综合得分初步排序，选出前排重点候选（仅对前排涨停股精确计算连板天梯，避免90%无意义网络IO）
+    # 对所有涨停候选股精确计算连板数（利用毫秒级内存缓存）
     candidates.sort(key=lambda x: (x["is_zt"], x["leader_score"]), reverse=True)
-    check_limit = min(len(candidates), max(top_candidates, 5))
-    for s in candidates[:check_limit]:
+    for s in candidates:
         if s["is_zt"]:
             s_lbc = compute_exact_tdx_lbc(s["code"])
             s["lbc"] = s_lbc
@@ -404,6 +403,45 @@ def get_sector_leaders_data(
                 analysis["up_count"] = up_cnt
                 analysis["down_count"] = down_cnt
                 results.append(analysis)
+
+        # 保证全市场连板高度龙（空间总龙）所在板块始终被收录呈现
+        try:
+            from easy_tdx.market_ladder import get_market_ladder_and_matrix
+            ladder_info = get_market_ladder_and_matrix()
+            ladder_tiers = ladder_info.get("ladder", [])
+            if ladder_tiers and ladder_tiers[0].get("stocks"):
+                top_dragon = ladder_tiers[0]["stocks"][0]
+                dragon_code = str(top_dragon.get("code", "")).strip()
+                if dragon_code:
+                    has_dragon = any(
+                        (b.get("leader_ladder") or {}).get("code") == dragon_code
+                        or any(s.get("code") == dragon_code for s in b.get("candidates", []))
+                        for b in results
+                    )
+                    if not has_dragon:
+                        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+                        b_info = _resolve_stock_board_info(dragon_code)
+                        b_code = b_info.get("board_code")
+                        b_name = b_info.get("board_name")
+                        if b_code and b_code.startswith("88"):
+                            d_analysis = analyze_single_board_leaders(
+                                board_code=b_code,
+                                board_name=b_name,
+                                top_candidates=top_stocks,
+                                client=c,
+                                use_cache=use_cache,
+                                force_refresh=force_refresh,
+                            )
+                            if d_analysis:
+                                d_analysis["board_type"] = "行业" if b_code.startswith("881") else "概念"
+                                d_analysis["change_pct"] = d_analysis.get("change_pct", 0.0)
+                                d_analysis["amount"] = d_analysis.get("amount", 0.0)
+                                d_analysis["main_net_amount"] = d_analysis.get("main_net_amount", 0.0)
+                                d_analysis["up_count"] = d_analysis.get("up_count", 0)
+                                d_analysis["down_count"] = d_analysis.get("down_count", 0)
+                                results.append(d_analysis)
+        except Exception as e:
+            logger.debug("Ensure top ladder dragon board note: %s", e)
 
     # 排序
     if sort_by == "main_net_amount":

@@ -57,13 +57,39 @@ def get_sector_leaders(
         )
         total_inflow = sum(b.get("main_net_amount", 0.0) for b in data)
 
+        # 全市场连板高度龙联动（确保连板天梯与板块龙头数据一致性）
+        best_ladder = None
+        market_zt_count = zt_stocks_count
+        try:
+            from easy_tdx.market_ladder import get_market_ladder_and_matrix
+            l_info = get_market_ladder_and_matrix()
+            l_tiers = l_info.get("ladder", [])
+            if l_tiers and l_tiers[0].get("stocks"):
+                top_s = l_tiers[0]["stocks"][0]
+                best_ladder = {
+                    "code": str(top_s.get("code")),
+                    "name": str(top_s.get("name")),
+                    "lbc": int(top_s.get("lbc", 1)),
+                    "price": float(top_s.get("price", 0.0)),
+                    "change_pct": 10.0,
+                    "amount": float(top_s.get("amt_yi", 1.0)) * 1e8,
+                    "main_net_amount": float(top_s.get("main_net_amount", 0.0)),
+                    "board_name": str(top_s.get("board_name", "空间高度")),
+                    "role_tag": f"🔥 {top_s.get('lbc', 1)}连板龙头",
+                }
+            if l_info.get("stats", {}).get("zt_count"):
+                market_zt_count = int(l_info["stats"]["zt_count"])
+        except Exception as e:
+            logger.debug("Failed to link market ladder dragon: %s", e)
+
         return {
             "success": True,
             "stat": {
                 "total_boards": total_boards,
-                "zt_count": zt_stocks_count,
+                "zt_count": market_zt_count,
                 "ladder_count": ladder_stocks_count,
                 "total_inflow": total_inflow,
+                "best_ladder": best_ladder,
             },
             "boards": data,
             "from_cache": from_cache,
