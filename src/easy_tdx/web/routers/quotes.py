@@ -94,6 +94,36 @@ _REALTIME_QUOTES_CACHE: tuple[float, list[dict[str, Any]]] | None = None
 _REALTIME_QUOTES_LOCK = threading.Lock()
 REALTIME_TTL = 5.0
 
+_STOCK_CAPITAL_CACHE: dict[str, tuple[float, float, float]] = {}  # clean_sym -> (timestamp, tot_shares_wan, flt_shares_wan)
+_STOCK_CAPITAL_LOCK = threading.Lock()
+
+def _get_stock_capital_shares(clean_sym: str) -> tuple[float, float]:
+    """返回 (总股本万股, 流通股本万股)。优先查缓存，未命中则从 TDX 财务信息读取。"""
+    now = time.time()
+    with _STOCK_CAPITAL_LOCK:
+        if clean_sym in _STOCK_CAPITAL_CACHE:
+            ts, tot_w, flt_w = _STOCK_CAPITAL_CACHE[clean_sym]
+            if now - ts < 86400.0:
+                return tot_w, flt_w
+    try:
+        from easy_tdx.market_data import _get_or_create_client
+        from easy_tdx.models.enums import Market
+        mkt = Market.SH if (clean_sym.startswith(("6", "9")) or clean_sym.startswith("688")) else Market.SZ
+        cli = _get_or_create_client()
+        df_f = cli.get_finance_info(mkt, clean_sym)
+        if df_f is not None and not df_f.empty:
+            row = df_f.iloc[0]
+            zg = float(row.get("zong_guben") or 0.0)
+            lg = float(row.get("liutong_guben") or 0.0)
+            tot_w = zg / 10000.0 if zg > 0 else 0.0
+            flt_w = lg / 10000.0 if lg > 0 else tot_w
+            with _STOCK_CAPITAL_LOCK:
+                _STOCK_CAPITAL_CACHE[clean_sym] = (now, tot_w, flt_w)
+            return tot_w, flt_w
+    except Exception as e:
+        logger.debug(f"Failed to fetch TDX finance info for capital shares: {e}")
+    return 0.0, 0.0
+
 _STOCK_BOARD_CACHE: dict[str, dict[str, str]] = {}
 _BOARD_NAME_MAP: dict[str, str] = {}
 _STOCK_BOARD_LOCK = threading.Lock()
@@ -225,6 +255,11 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             v = rq["volume"]
             amt = rq["turnover_wan"]
             total_mv_yi = rq.get("total_mv_yi", 0.0)
+            float_mv_yi = rq.get("float_mv_yi", total_mv_yi)
+            tot_shares = rq.get("total_shares", 0.0)
+            flt_shares = rq.get("float_shares", 0.0)
+            to_rate = rq.get("turnover_rate", 0.0)
+            vr = rq.get("vol_ratio", 1.0)
             m1 = rq.get("main_net_amount", 0.0)
             m3 = rq.get("main_net_3d", 0.0)
             m5 = rq.get("main_net_5d", 0.0)
@@ -247,6 +282,11 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             else:
                 p, h, l, v, amt, chg = 0.0, 0.0, 0.0, 0, 0.0, 0.0
             total_mv_yi = 0.0
+            float_mv_yi = 0.0
+            tot_shares = 0.0
+            flt_shares = 0.0
+            to_rate = 0.0
+            vr = 1.0
             m1, m3, m5 = 0.0, 0.0, 0.0
             inflow_1d, inflow_3d, inflow_5d = "0.0万", "0.0万", "0.0万"
             
@@ -270,7 +310,12 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             "low": l,
             "volume": v,
             "turnover_wan": amt,
+            "turnover_rate": to_rate,
             "total_mv_yi": total_mv_yi,
+            "float_mv_yi": float_mv_yi,
+            "total_shares": tot_shares,
+            "float_shares": flt_shares,
+            "vol_ratio": vr,
             "main_net_amount": m1,
             "main_net_3d": m3,
             "main_net_5d": m5,
@@ -544,10 +589,10 @@ def get_kline(
     chg_pct = round(((last_price / max(0.01, prev_price)) - 1.0) * 100, 2)
     amt_yi = round(float(last_bar.get("amount", 0.0)) / 100000000.0, 2)
     
-    # Base defaults
-    total_val_yi = round(amt_yi * 18.5, 2) if amt_yi > 0 else round(last_price * 15.0, 2)
-    float_val_yi = round(total_val_yi * 0.85, 2)
-    turnover = round((float(last_bar.get("volume", 0)) / 1000000.0) * 2.5, 2)
+    # Base defaults (初始化为 0，由下方实时快照/财务股本精确计算)
+    total_val_yi = 0.0
+    float_val_yi = 0.0
+    turnover = 0.0
     pe_dynamic = None
     pe_ttm = None
     pe_static = None
@@ -574,12 +619,15 @@ def get_kline(
                 _, q_list = _REALTIME_QUOTES_CACHE
                 for q_item in q_list:
                     if q_item.get("code") == clean_sym or q_item.get("symbol") == clean_sym:
-                        t_cap = float(q_item.get("total_market_cap") or 0.0)
-                        f_cap = float(q_item.get("float_market_cap") or (t_cap * 0.85))
-                        circ_z = float(q_item.get("circulating_capital_z") or (f_cap / max(0.01, last_price * 10000.0)))
+                        t_cap_yi = float(q_item.get("total_mv_yi") or 0.0)
+                        f_cap_yi = float(q_item.get("float_mv_yi") or t_cap_yi)
                         cached_mac = {
-                            "total_market_cap_ab": t_cap,
-                            "circulating_capital_z": circ_z,
+                            "total_market_cap_ab": t_cap_yi * 1e8,
+                            "total_shares": float(q_item.get("total_shares") or 0.0),
+                            "float_shares": float(q_item.get("float_shares") or 0.0),
+                            "total_val_yi": t_cap_yi,
+                            "float_val_yi": f_cap_yi,
+                            "turnover": q_item.get("turnover_rate"),
                             "pe_dynamic": q_item.get("pe_dynamic") or q_item.get("pe"),
                             "pe_ttm": q_item.get("pe_ttm"),
                             "pe_static": q_item.get("pe_static"),
@@ -595,13 +643,33 @@ def get_kline(
 
     if cached_mac:
         t_cap = float(cached_mac.get("total_market_cap_ab") or 0.0)
+        tot_shares = float(cached_mac.get("total_shares") or 0.0)
+        flt_shares = float(cached_mac.get("float_shares") or 0.0)
+
+        # 1. 总市值
         if t_cap > 0:
             total_val_yi = round(t_cap / 1e8, 2)
-        circ_z = float(cached_mac.get("circulating_capital_z") or 0.0)
-        if circ_z > 0:
-            float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
+        elif tot_shares > 0 and last_price > 0:
+            total_val_yi = round((tot_shares * 10000.0 * last_price) / 1e8, 2)
+        elif cached_mac.get("total_val_yi"):
+            total_val_yi = float(cached_mac["total_val_yi"])
+
+        # 2. 流通市值（标准金融定义：无限售流通A股股本 * 现价）
+        if flt_shares > 0 and last_price > 0:
+            float_val_yi = round((flt_shares * 10000.0 * last_price) / 1e8, 2)
+        elif cached_mac.get("float_val_yi"):
+            float_val_yi = float(cached_mac["float_val_yi"])
+        elif total_val_yi > 0:
+            float_val_yi = total_val_yi
+
+        # 3. 换手率（标准定义：成交量 / 流通股本）
+        to_val = float(cached_mac.get("turnover") or 0.0)
+        if to_val > 0:
+            turnover = round(to_val, 2)
+        elif flt_shares > 0:
             vol_shares = float(last_bar.get("volume", 0))
-            turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
+            turnover = round((vol_shares / (flt_shares * 10000.0)) * 100.0, 2)
+
         pe_dynamic = cached_mac.get("pe_dynamic")
         pe_ttm = cached_mac.get("pe_ttm")
         pe_static = cached_mac.get("pe_static")
@@ -620,6 +688,9 @@ def get_kline(
                 + FieldBit.AMOUNT
                 + FieldBit.VOL_RATIO
                 + FieldBit.TOTAL_MARKET_CAP_AB
+                + FieldBit.TOTAL_SHARES
+                + FieldBit.FLOAT_SHARES
+                + FieldBit.TURNOVER
                 + FieldBit.PE_DYNAMIC
                 + FieldBit.PE_TTM
                 + FieldBit.PE_STATIC
@@ -634,14 +705,30 @@ def get_kline(
             if df_q is not None and not df_q.empty:
                 row_q = df_q.iloc[0]
                 t_cap = float(row_q.get("total_market_cap_ab") or 0.0)
+                tot_shares = float(row_q.get("total_shares") or 0.0)
+                flt_shares = float(row_q.get("float_shares") or 0.0)
+                circ_z = float(row_q.get("circulating_capital_z") or 0.0)
+                to_val = float(row_q.get("turnover") or 0.0)
+
+                # 总市值
                 if t_cap > 0:
                     total_val_yi = round(t_cap / 1e8, 2)
-                circ_z = float(row_q.get("circulating_capital_z") or 0.0)
-                if circ_z > 0:
-                    float_val_yi = round((circ_z * 10000.0 * last_price) / 1e8, 2)
+                elif tot_shares > 0 and last_price > 0:
+                    total_val_yi = round((tot_shares * 10000.0 * last_price) / 1e8, 2)
+
+                # 流通市值
+                if flt_shares > 0 and last_price > 0:
+                    float_val_yi = round((flt_shares * 10000.0 * last_price) / 1e8, 2)
+                elif total_val_yi > 0:
+                    float_val_yi = total_val_yi
+
+                # 换手率
+                if to_val > 0:
+                    turnover = round(to_val, 2)
+                elif flt_shares > 0:
                     vol_shares = float(last_bar.get("volume", 0))
-                    turnover = round((vol_shares / (circ_z * 10000.0)) * 100.0, 2)
-                
+                    turnover = round((vol_shares / (flt_shares * 10000.0)) * 100.0, 2)
+
                 p_d = float(row_q.get("pe_dynamic") or 0.0)
                 if p_d != 0:
                     pe_dynamic = round(p_d, 1)
@@ -663,6 +750,11 @@ def get_kline(
                 with _STOCK_MAC_LOCK:
                     _STOCK_MAC_CACHE[clean_sym] = (now_q, {
                         "total_market_cap_ab": t_cap,
+                        "total_shares": tot_shares,
+                        "float_shares": flt_shares,
+                        "total_val_yi": total_val_yi,
+                        "float_val_yi": float_val_yi,
+                        "turnover": turnover,
                         "circulating_capital_z": circ_z,
                         "pe_dynamic": pe_dynamic,
                         "pe_ttm": pe_ttm,
@@ -675,6 +767,21 @@ def get_kline(
                     })
         except Exception as e:
             logger.debug(f"Failed to fetch TDX MAC quotes for {clean_sym}: {e}")
+
+    # Fallback to financial report capital shares if market caps still missing
+    if total_val_yi <= 0 or float_val_yi <= 0:
+        tot_w, flt_w = _get_stock_capital_shares(clean_sym)
+        if tot_w > 0 and last_price > 0 and total_val_yi <= 0:
+            total_val_yi = round((tot_w * 10000.0 * last_price) / 1e8, 2)
+        if flt_w > 0 and last_price > 0 and float_val_yi <= 0:
+            float_val_yi = round((flt_w * 10000.0 * last_price) / 1e8, 2)
+        elif total_val_yi > 0 and float_val_yi <= 0:
+            float_val_yi = total_val_yi
+
+    if turnover <= 0 and float_val_yi > 0:
+        amt_curr = float(last_bar.get("amount", 0.0))
+        if amt_curr > 0:
+            turnover = round((amt_curr / (float_val_yi * 1e8)) * 100.0, 2)
 
     # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
     is_daily_period = str(period).upper() in ("DAY", "DAILY")

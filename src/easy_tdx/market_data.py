@@ -491,6 +491,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
             PresetField.BASIC
             + FieldBit.AMOUNT
             + FieldBit.TOTAL_MARKET_CAP_AB
+            + FieldBit.TOTAL_SHARES
+            + FieldBit.FLOAT_SHARES
+            + FieldBit.TURNOVER
             + FieldBit.MAIN_NET_AMOUNT
             + FieldBit.MAIN_NET_3D_AMOUNT
             + FieldBit.MAIN_NET_5D_AMOUNT
@@ -514,7 +517,12 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                     chg_pct = round(((price / max(0.01, pre_close)) - 1.0) * 100, 2) if pre_close > 0 else 0.0
                     amt = float(row.get("amount") or 0.0)
                     t_cap = float(row.get("total_market_cap_ab") or 0.0)
-                    total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
+                    tot_shares = float(row.get("total_shares") or 0.0)
+                    flt_shares = float(row.get("float_shares") or 0.0)
+                    
+                    total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else (round((tot_shares * 10000.0 * price) / 1e8, 2) if (tot_shares > 0 and price > 0) else 0.0)
+                    float_mv_yi = round((flt_shares * 10000.0 * price) / 1e8, 2) if (flt_shares > 0 and price > 0) else total_mv_yi
+                    turnover_rate = round(float(row.get("turnover") or 0.0), 2)
 
                     m1 = float(row.get("main_net_amount") or 0.0)
                     m3 = float(row.get("main_net_3d_amount") or 0.0)
@@ -532,7 +540,11 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                         "volume": int(row.get("vol") or 0),
                         "vol_ratio": round(vr, 2),
                         "turnover_wan": round(amt / 10000.0, 1),
+                        "turnover_rate": turnover_rate,
                         "total_mv_yi": total_mv_yi,
+                        "float_mv_yi": float_mv_yi,
+                        "total_shares": tot_shares,
+                        "float_shares": flt_shares,
                         "change_pct": chg_pct,
                         "main_net_amount": m1,
                         "main_net_3d": m3,
@@ -571,7 +583,11 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                         "low": round(float(row.get("low") or price), 2),
                         "volume": int(row.get("vol") or 0),
                         "turnover_wan": round(float(row.get("amount") or 0.0) / 10000.0, 1),
+                        "turnover_rate": 0.0,
                         "total_mv_yi": 0.0,
+                        "float_mv_yi": 0.0,
+                        "total_shares": 0.0,
+                        "float_shares": 0.0,
                         "change_pct": chg_pct,
                         "main_net_amount": 0.0,
                         "main_net_3d": 0.0,

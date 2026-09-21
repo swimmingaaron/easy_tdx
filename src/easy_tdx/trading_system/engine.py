@@ -457,6 +457,7 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
     dde_net = 0.0
     dde_all = 0.0
     mkt_capt = 0.0
+    float_mkt_capt = 0.0
     cur_vol = float(vol[-1])
     amount = float(df["amount"].values[-1]) if "amount" in df.columns else float(cur_vol * cur_close)
 
@@ -477,6 +478,10 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
             amount = float(realtime_quote["turnover_wan"]) * 10000.0
         if "total_mv_yi" in realtime_quote:
             mkt_capt = float(realtime_quote["total_mv_yi"]) * 1e8
+        if "float_mv_yi" in realtime_quote and float(realtime_quote["float_mv_yi"]) > 0:
+            float_mkt_capt = float(realtime_quote["float_mv_yi"]) * 1e8
+        elif mkt_capt > 0:
+            float_mkt_capt = mkt_capt
         dde_all = float(realtime_quote.get("main_net_5d", 0.0))
 
     # 量比 (优先使用 Level-2 官方实时量比，若无则基于过去5日均量折算)
@@ -490,8 +495,13 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
         # 盘中按实际开市交易分钟数折算年化量比，收盘或盘后直接取全天量比
         v_rate = round(float((cur_vol / max(1, t_mins)) / (max(1.0, v5) / 240.0)), 2)
 
-    # 换手率估算
-    if mkt_capt > 0 and amount > 0:
+    # 换手率 (优先使用 Level-2 官方实时换手率，若无则按 成交额 / 流通市值 计算)
+    tr_quote = float(realtime_quote.get("turnover_rate") or realtime_quote.get("turnover") or 0.0) if realtime_quote else 0.0
+    if tr_quote > 0:
+        t_rate = round(tr_quote, 2)
+    elif float_mkt_capt > 0 and amount > 0:
+        t_rate = round(float((amount / float_mkt_capt) * 100.0), 2)
+    elif mkt_capt > 0 and amount > 0:
         t_rate = round(float((amount / mkt_capt) * 100.0), 2)
     else:
         v5 = float(np.mean(vol[-6:-1])) if n >= 6 else (cur_vol if cur_vol > 0 else 1.0)
@@ -739,6 +749,7 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
         "pattern_names": [p["name"] for p in patterns_list],
         "pattern_score": int(pattern_score),
         "mkt_capt": float(mkt_capt),
+        "float_mkt_capt": float(float_mkt_capt),
         "consec_days": int(consec_days),
         "consec_amount": float(consec_amount),
         "pe_percentile": float(pe_percentile),
@@ -1543,6 +1554,8 @@ def evaluate_universe(
                                 s_copy["dde_net"] = float(q["main_net_amount"])
                             if "total_val_yi" in q and q["total_val_yi"]:
                                 s_copy["mkt_capt"] = float(q["total_val_yi"]) * 1e8
+                            if "float_val_yi" in q and q["float_val_yi"]:
+                                s_copy["float_mkt_capt"] = float(q["float_val_yi"]) * 1e8
                         updated_list.append(s_copy)
                     return updated_list
                 except Exception:

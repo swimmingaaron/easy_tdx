@@ -82,7 +82,7 @@ class FieldBit(IntEnum):
     OPERATING_REVENUE = 0x2A, "<f", "营业收入(万)"
     FLAG_KCB = 0x2B, "<I", "科创板标志"
     FLAG_BJ = 0x2C, "<I", "北交所标志"
-    CIRCULATING_CAPITAL_Z = 0x2D, "<f", "流通股本Z（单位：万股）"
+    CIRCULATING_CAPITAL_Z = 0x2D, "<f", "自由流通股本Z（单位：万股）"
     AFTER_HOURS_VOLUME = 0x2E, "<i", "盘后量"
 
     # ── 0x30-0x3F ──
