@@ -2828,8 +2828,8 @@
                     </div>
                 </div>
 
-                <!-- 宽表呈现区域 (与 自选监控实时行情池 统一滚动、表头与列样式) -->
-                <div class="overflow-x-auto max-h-[700px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <!-- 宽表呈现区域 (与 自选监控实时行情池 统一滚动、表头与列样式，底部空间自动适应20行) -->
+                <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                     <table class="w-full text-left text-sm border-collapse">
                         <thead id="ts-table-head" class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none bg-slate-50/95 dark:bg-slate-950/95 sticky top-0 z-20">
                             <!-- 动态生成表头 -->
@@ -2852,7 +2852,7 @@
                     <div class="flex items-center gap-1">
                         <span>⚠️ 本系统打分模型与 5 大指标策略仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</span>
                     </div>
-                    <!-- 交易系统分页组件 (每页30行) -->
+                    <!-- 交易系统分页组件 (每页20行) -->
                     <div id="ts-pagination" class="flex items-center gap-2">
                         <button id="ts-page-first" onclick="goToTsPage(1)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
                         <button id="ts-page-prev" onclick="goToTsPage(tsCurrentPage - 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
@@ -2866,7 +2866,7 @@
                             <button onclick="jumpToTsPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
                         </div>
                     </div>
-                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 30 行</div>
+                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 20 行</div>
                 </div>
             </div>
         </section>
@@ -2960,8 +2960,8 @@
                     </div>
                 </div>
 
-                <!-- 宽表呈现区域 (与 交易系统 统一滚动、表头与列样式，严格保持22列) -->
-                <div class="overflow-x-auto max-h-[700px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <!-- 宽表呈现区域 (与 交易系统 统一滚动、表头与列样式，严格保持22列，底部空间自动适应20行) -->
+                <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                     <table class="w-full text-left text-sm border-collapse min-w-[1750px]">
                         <thead class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none bg-slate-50/95 dark:bg-slate-950/95 sticky top-0 z-20">
                             <tr>
@@ -3020,7 +3020,7 @@
                             <button onclick="jumpToFinaPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
                         </div>
                     </div>
-                    <div id="fina-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 30 行</div>
+                    <div id="fina-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 20 行</div>
                 </div>
             </div>
         </section>
@@ -13200,7 +13200,7 @@
 
     
     let tsCurrentPage = 1;
-    const tsPageSize = 30;
+    const tsPageSize = 20;
     let tsAllRows = [];
     let tsTotalPages = 1;
 
@@ -13995,7 +13995,7 @@
 let finaAllRows = [];
 let finaFilteredRows = [];
 let finaCurrentPage = 1;
-const finaPageSize = 30;
+const finaPageSize = 20;
 let finaTotalPages = 1;
 let finaSortCol = 'fina_score';
 let finaSortDir = 'desc';
