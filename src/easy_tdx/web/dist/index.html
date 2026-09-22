@@ -2852,7 +2852,7 @@
                     <div class="flex items-center gap-1">
                         <span>⚠️ 本系统打分模型与 5 大指标策略仅供研判参考，不构成直接买卖建议。股市有风险，入市需谨慎。</span>
                     </div>
-                    <!-- 交易系统分页组件 (每页20行) -->
+                    <!-- 交易系统分页组件 (每页15行) -->
                     <div id="ts-pagination" class="flex items-center gap-2">
                         <button id="ts-page-first" onclick="goToTsPage(1)" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
                         <button id="ts-page-prev" onclick="goToTsPage(tsCurrentPage - 1)" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
@@ -2866,7 +2866,7 @@
                             <button onclick="jumpToTsPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
                         </div>
                     </div>
-                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 20 行</div>
+                    <div id="ts-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 15 行</div>
                 </div>
             </div>
         </section>
@@ -3020,7 +3020,7 @@
                             <button onclick="jumpToFinaPage()" class="px-2 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 font-medium transition cursor-pointer">确定</button>
                         </div>
                     </div>
-                    <div id="fina-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 20 行</div>
+                    <div id="fina-table-footer-count" class="font-mono font-medium text-slate-700 dark:text-slate-400">共检索到 0 只标的 · 每页 15 行</div>
                 </div>
             </div>
         </section>
@@ -13200,7 +13200,7 @@
 
     
     let tsCurrentPage = 1;
-    const tsPageSize = 20;
+    const tsPageSize = 15;
     let tsAllRows = [];
     let tsTotalPages = 1;
 
@@ -13995,7 +13995,7 @@
 let finaAllRows = [];
 let finaFilteredRows = [];
 let finaCurrentPage = 1;
-const finaPageSize = 20;
+const finaPageSize = 15;
 let finaTotalPages = 1;
 let finaSortCol = 'fina_score';
 let finaSortDir = 'desc';
