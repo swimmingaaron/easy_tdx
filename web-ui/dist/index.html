@@ -5099,7 +5099,7 @@
             }
         }
 
-        function calcZigZagDetailed(prices, percent = 10.0) {
+        function calcZigZagDetailed(prices, percent = 5.0) {
             const n = prices.length;
             if (n === 0) return { z: [], troughs: [], peaks: [] };
             if (n === 1) return { z: [prices[0]], troughs: [], peaks: [] };
@@ -5113,31 +5113,6 @@
             const peaks = [];
             
             for (let scan_i = 1; scan_i < n; scan_i++) {
-                if (scan_i === n - 1) {
-                    if (candidate_i === null) {
-                        peers.push(scan_i);
-                    } else {
-                        if (state === 1) {
-                            if (prices[scan_i] >= prices[candidate_i]) {
-                                peers.push(scan_i);
-                            } else {
-                                peers.push(candidate_i);
-                                if (candidate_i !== scan_i) peers.push(scan_i);
-                            }
-                        } else if (state === 2) {
-                            if (prices[scan_i] <= prices[candidate_i]) {
-                                peers.push(scan_i);
-                            } else {
-                                peers.push(candidate_i);
-                                if (candidate_i !== scan_i) peers.push(scan_i);
-                            }
-                        } else {
-                            peers.push(scan_i);
-                        }
-                    }
-                    break;
-                }
-                
                 if (state === 0) {
                     if (prices[peer_i] !== 0) {
                         if (prices[scan_i] >= prices[peer_i] * (1.0 + x)) {
@@ -5173,14 +5148,19 @@
                 }
             }
             
+            // Post-loop: add last candidate peak/trough or endpoint for drawing continuous polyline
+            if (candidate_i !== null && candidate_i !== peers[peers.length - 1]) {
+                peers.push(candidate_i);
+            }
+            if (peers[peers.length - 1] !== n - 1) {
+                peers.push(n - 1);
+            }
+            
             const clean_peers = [];
             for (const p of peers) {
                 if (clean_peers.length === 0 || p !== clean_peers[clean_peers.length - 1]) {
                     clean_peers.push(p);
                 }
-            }
-            if (clean_peers[clean_peers.length - 1] !== n - 1) {
-                clean_peers.push(n - 1);
             }
             
             const z = new Array(n).fill(0);
@@ -5295,7 +5275,7 @@
             }
 
             let effectiveDelta = baseDelta;
-            if (totalSwingPct > 0 && totalSwingPct < baseDelta * 2.5) {
+            if (currentKpPeriod !== 'DAY' && totalSwingPct > 0 && totalSwingPct < baseDelta * 2.5) {
                 effectiveDelta = Math.max(0.5, +(totalSwingPct / 3.2).toFixed(1));
             }
 
@@ -5524,26 +5504,26 @@
             allTurns.sort((a, b) => a.idx - b.idx);
 
             // 计算从反转之日算起的第几天：
-            // 顶点/底点当日仍延续原来的趋势统计(例如底点当日仍为下跌的第-7天)；
-            // 股价转向的当日(即反转首日/次日)标记为1：从谷底反转为正数(+1, +2...)，从顶点反转变成负数(-1, -2...)
+            // 严格与 easy_tdx.trading_system.engine.calculate_zig 保持 100% 对齐：
+            // 顶点/底点当天为第1天(+1/-1)，次日为第2天(+2/-2)，依次累加
             const zigDays = new Array(n).fill(0);
             for (let i = 0; i < n; i++) {
                 let lastTurn = null;
                 for (let k = allTurns.length - 1; k >= 0; k--) {
-                    if (allTurns[k].idx < i) {
+                    if (allTurns[k].idx <= i) {
                         lastTurn = allTurns[k];
                         break;
                     }
                 }
                 if (lastTurn) {
-                    const elapsed = i - lastTurn.idx;
+                    const elapsed = i - lastTurn.idx + 1;
                     zigDays[i] = (lastTurn.type === 'TROUGH') ? elapsed : -elapsed;
                 } else if (allTurns.length > 0) {
                     const firstTurn = allTurns[0];
-                    const dist = i + 1;
+                    const dist = firstTurn.idx - i + 1;
                     zigDays[i] = (firstTurn.type === 'TROUGH') ? -dist : dist;
                 } else {
-                    zigDays[i] = 0;
+                    zigDays[i] = (closes[i] >= closes[0]) ? (i + 1) : -(i + 1);
                 }
             }
 
@@ -5591,8 +5571,9 @@
             turnLines.sort((a, b) => a.value[3] - b.value[3]);
 
             for (let i = 0; i < n; i++) {
-                bars[i].zig = zigDays[i];
-                bars[i].zig_days = zigDays[i];
+                const zd = (currentKpPeriod === 'DAY' && bars[i].zig_day !== undefined) ? bars[i].zig_day : zigDays[i];
+                bars[i].zig = zd;
+                bars[i].zig_days = zd;
                 bars[i].zig_price = zigArr[i];
                 bars[i].zig_buy = buySignals[i];
                 bars[i].zig_sell = sellSignals[i];

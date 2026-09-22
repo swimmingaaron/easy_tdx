@@ -353,6 +353,73 @@ _KLINE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_BASE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_CACHE_LOCK = threading.Lock()
 
+def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> list[int]:
+    """Calculate ZIG trend duration days for every bar, strictly matching trading_system calculate_zig."""
+    n = len(close)
+    if n < 5:
+        return [(1 if close[i] >= close[0] else -1) for i in range(n)]
+
+    pivots: list[tuple[int, float, int]] = []  # (idx, price, type: +1 for peak, -1 for trough)
+    trend = 0  # 1 for up, -1 for down
+    last_pivot_idx = 0
+    last_pivot_price = close[0]
+
+    for i in range(1, n):
+        cur_p = close[i]
+        if last_pivot_price <= 0:
+            last_pivot_price = cur_p
+            continue
+
+        ratio = (cur_p - last_pivot_price) / last_pivot_price
+
+        if trend == 0:
+            if ratio >= change_pct:
+                trend = 1
+                pivots.append((last_pivot_idx, last_pivot_price, -1))
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+            elif ratio <= -change_pct:
+                trend = -1
+                pivots.append((last_pivot_idx, last_pivot_price, 1))
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+        elif trend == 1:
+            if cur_p > last_pivot_price:
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+            elif (last_pivot_price - cur_p) / last_pivot_price >= change_pct:
+                pivots.append((last_pivot_idx, last_pivot_price, 1))
+                trend = -1
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+        elif trend == -1:
+            if cur_p < last_pivot_price:
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+            elif (cur_p - last_pivot_price) / last_pivot_price >= change_pct:
+                pivots.append((last_pivot_idx, last_pivot_price, -1))
+                trend = 1
+                last_pivot_idx = i
+                last_pivot_price = cur_p
+
+    zig_days = [0] * n
+    for i in range(n):
+        last_p = None
+        for k in range(len(pivots) - 1, -1, -1):
+            if pivots[k][0] <= i:
+                last_p = pivots[k]
+                break
+        if last_p is not None:
+            elapsed = i - last_p[0] + 1
+            zig_days[i] = elapsed if last_p[2] == -1 else -elapsed
+        elif pivots:
+            dist = pivots[0][0] - i + 1
+            zig_days[i] = -dist if pivots[0][2] == -1 else dist
+        else:
+            zig_days[i] = (i + 1) if close[i] >= close[0] else -(i + 1)
+
+    return zig_days
+
 _STOCK_MAC_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _STOCK_MAC_LOCK = threading.Lock()
 
@@ -476,8 +543,9 @@ def get_kline(
     td9_h, td9_l = TD_SEQUENTIAL(c, 9)
     td13_h, td13_l = TD_SEQUENTIAL(c, 13)
 
-    # ZIG Indicator & Strategy Signals (10.0% turning threshold)
-    zig_val = ZIG(c, 10.0)
+    # ZIG Indicator & Strategy Signals (5.0% turning threshold, matching trading_system)
+    zig_val = ZIG(c, 5.0)
+    zig_days_series = calculate_zig_series(c, 0.05)
     hhv20 = HHV(h, 20)
     n_len = len(df)
     buy_signals = [False] * n_len
@@ -588,6 +656,7 @@ def get_kline(
             "expma12": safe_float(exp12[i]),
             "expma50": safe_float(exp50[i]),
             "zig": safe_float(zig_val[i]) if i < len(zig_val) else cur_c,
+            "zig_day": int(zig_days_series[i]) if i < len(zig_days_series) else 0,
             "zig_buy": buy_signals[i],
             "zig_sell": sell_signals[i],
             "td9_high": int(td9_h[i]),
