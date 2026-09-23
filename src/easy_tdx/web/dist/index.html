@@ -440,7 +440,24 @@
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-color: rgba(226, 232, 240, 0.9) !important;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        /* ==================== K线窗口专属：彻底杜绝手机双击放大与手势缩放导致的图像变形截断 ==================== */
+        #kline-preview-modal {
+            touch-action: manipulation;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        #kline-preview-modal * {
+            touch-action: manipulation;
+        }
+
+        #echarts-preview-modal-container,
+        #echarts-preview-modal-container canvas,
+        #echarts-preview-modal-container div {
+            touch-action: none !important;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         /* 投资大师名言轮播弹窗 (QuoteCarousel Modal) 亮色模式极致调优：温润纯白护眼卡片与高对比墨石字 */
@@ -5521,9 +5538,32 @@
             return `https://xueqiu.com/S/${prefix}${code}`;
         }
 
+        let _klineViewportOriginal = null;
+        function lockViewportForKlineModal() {
+            try {
+                const meta = document.querySelector('meta[name="viewport"]');
+                if (meta) {
+                    if (_klineViewportOriginal === null) {
+                        _klineViewportOriginal = meta.getAttribute('content') || 'width=device-width, initial-scale=1.0';
+                    }
+                    meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+                }
+            } catch (e) { }
+        }
+
+        function unlockViewportForKlineModal() {
+            try {
+                const meta = document.querySelector('meta[name="viewport"]');
+                if (meta && _klineViewportOriginal !== null) {
+                    meta.setAttribute('content', _klineViewportOriginal);
+                }
+            } catch (e) { }
+        }
+
         let _currentLoadedKpSymbol = '';
         window.openKlineModal = openKlineModal;
         function openKlineModal(sym, name, preferredPeriod = null) {
+            lockViewportForKlineModal();
             const kModal = document.getElementById('kline-preview-modal');
             if (kModal) { kModal.style.zIndex = '70'; kModal.classList.remove('hidden'); }
             const rawSym = String(sym || '600123').trim();
@@ -5659,12 +5699,52 @@
         }
 
         function closeKlineModal() {
+            unlockViewportForKlineModal();
             stopKpReplay();
             hideKpContextMenu();
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
             document.getElementById('kline-preview-modal').classList.add('hidden');
         }
+
+        // ==================== K线窗口专属防手机触摸双击放大与手势缩放机制 ==================== //
+        (function initKlineModalTouchDefense() {
+            function bindEvents() {
+                const modal = document.getElementById('kline-preview-modal');
+                if (!modal) return;
+
+                // 1. 桌面端 / 触控板阻止双击放大事件 (表单输入框内仍允许双击选词)
+                modal.addEventListener('dblclick', function (e) {
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target && e.target.tagName)) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+
+                // 2. 移动端触摸双击保护：针对图表画布与空白区域，拦截300ms内的连续快速双击放大，但对按钮、链接、输入框完全放行
+                let lastModalTouchTime = 0;
+                modal.addEventListener('touchend', function (e) {
+                    const now = Date.now();
+                    if (now - lastModalTouchTime <= 300) {
+                        const isControl = e.target && e.target.closest && e.target.closest('button, a, input, select, textarea, [onclick], label, .cursor-pointer');
+                        if (!isControl) {
+                            e.preventDefault();
+                        }
+                    }
+                    lastModalTouchTime = now;
+                }, { passive: false });
+
+                // 3. 阻止 iOS Safari 默认两指手势缩放窗口导致界面变形
+                modal.addEventListener('gesturestart', function (e) {
+                    e.preventDefault();
+                }, { passive: false });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bindEvents);
+            } else {
+                bindEvents();
+            }
+        })();
 
         // ==================== K-line UI Stock Search & Autocomplete ==================== //
         let kpSearchTimer = null;
