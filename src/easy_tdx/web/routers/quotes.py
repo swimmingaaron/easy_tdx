@@ -361,33 +361,35 @@ def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> list[in
 
     pivots: list[tuple[int, float, int]] = []  # (idx, price, type: +1 for peak, -1 for trough)
     trend = 0  # 1 for up, -1 for down
+    min_idx, min_p = 0, float(close[0])
+    max_idx, max_p = 0, float(close[0])
     last_pivot_idx = 0
-    last_pivot_price = close[0]
+    last_pivot_price = float(close[0])
 
     for i in range(1, n):
-        cur_p = close[i]
-        if last_pivot_price <= 0:
-            last_pivot_price = cur_p
-            continue
-
-        ratio = (cur_p - last_pivot_price) / last_pivot_price
+        cur_p = float(close[i])
 
         if trend == 0:
-            if ratio >= change_pct:
+            if cur_p < min_p:
+                min_idx, min_p = i, cur_p
+            if cur_p > max_p:
+                max_idx, max_p = i, cur_p
+
+            if min_p > 0 and (cur_p - min_p) / min_p >= change_pct:
                 trend = 1
-                pivots.append((last_pivot_idx, last_pivot_price, -1))
+                pivots.append((min_idx, min_p, -1))
                 last_pivot_idx = i
                 last_pivot_price = cur_p
-            elif ratio <= -change_pct:
+            elif max_p > 0 and (max_p - cur_p) / max_p >= change_pct:
                 trend = -1
-                pivots.append((last_pivot_idx, last_pivot_price, 1))
+                pivots.append((max_idx, max_p, 1))
                 last_pivot_idx = i
                 last_pivot_price = cur_p
         elif trend == 1:
             if cur_p > last_pivot_price:
                 last_pivot_idx = i
                 last_pivot_price = cur_p
-            elif (last_pivot_price - cur_p) / last_pivot_price >= change_pct:
+            elif last_pivot_price > 0 and (last_pivot_price - cur_p) / last_pivot_price >= change_pct:
                 pivots.append((last_pivot_idx, last_pivot_price, 1))
                 trend = -1
                 last_pivot_idx = i
@@ -396,7 +398,7 @@ def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> list[in
             if cur_p < last_pivot_price:
                 last_pivot_idx = i
                 last_pivot_price = cur_p
-            elif (cur_p - last_pivot_price) / last_pivot_price >= change_pct:
+            elif last_pivot_price > 0 and (cur_p - last_pivot_price) / last_pivot_price >= change_pct:
                 pivots.append((last_pivot_idx, last_pivot_price, -1))
                 trend = 1
                 last_pivot_idx = i
