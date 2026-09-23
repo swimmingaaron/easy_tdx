@@ -125,6 +125,39 @@ def save_persistent_fina_score(code: str, score: int):
         pass
 
 
+_HOLDERS_DATA_FILE = os.path.join(_CACHE_DIR, "holders_persistent_data.json")
+_PERSISTENT_HOLDERS_DATA: Dict[str, Dict[str, Any]] = {}
+if os.path.exists(_HOLDERS_DATA_FILE):
+    try:
+        with open(_HOLDERS_DATA_FILE, "r", encoding="utf-8") as _f:
+            _PERSISTENT_HOLDERS_DATA = json.load(_f)
+    except Exception:
+        _PERSISTENT_HOLDERS_DATA = {}
+
+
+def save_persistent_holders_data(code: str, data: Dict[str, Any]):
+    """持久化记录个股股东集中度与历史变动数据。"""
+    if not code or not isinstance(data, dict):
+        return
+    clean_code = str(code).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    ratio = float(data.get("holder_ratio") or 0.0)
+    changes = data.get("holders_changes") or []
+    if ratio <= 0 and not changes:
+        return
+    _PERSISTENT_HOLDERS_DATA[clean_code] = {
+        "holder_ratio": ratio,
+        "holder_focus": data.get("holder_focus", "--"),
+        "holders_changes": changes,
+        "holders_num": data.get("holders_num", 0),
+        "holders_str": data.get("holders_str", "--"),
+    }
+    try:
+        with open(_HOLDERS_DATA_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_PERSISTENT_HOLDERS_DATA, _f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
     """获取指定股票池的实时计算进度。"""
     return _EVAL_PROGRESS.get(universe_type, {
@@ -202,6 +235,21 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
         "holders_history": [],
     }
 
+    # 优先从持久化股东数据库预填历史集中度与变动记录
+    if clean_code in _PERSISTENT_HOLDERS_DATA:
+        p_data = _PERSISTENT_HOLDERS_DATA[clean_code]
+        if float(p_data.get("holder_ratio") or 0.0) > 0:
+            res["holder_ratio"] = float(p_data["holder_ratio"])
+        if p_data.get("holder_focus") and p_data["holder_focus"] != "--":
+            res["holder_focus"] = p_data["holder_focus"]
+        if p_data.get("holders_changes"):
+            res["holders_changes"] = list(p_data["holders_changes"])
+        if p_data.get("holders_history"):
+            res["holders_history"] = list(p_data["holders_history"])
+        if p_data.get("holders_num"):
+            res["holders_num"] = int(p_data["holders_num"])
+            res["holders_str"] = str(p_data.get("holders_str", "--"))
+
     # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info 获取最新股东人数
     try:
         cli = _TDX_POOL.acquire()
@@ -221,7 +269,7 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
 
-    # 若为快速模式(如全市场/大批量筛选)，直接返回原生 TDX 股东人数，避免发起外部高延迟 HTTP 请求
+    # 若为快速模式(如全市场/大批量筛选)，直接返回原生 TDX 最新股东人数及持久化集中度，避免发起外部高延迟 HTTP 请求
     if quick:
         _HOLDERS_CACHE[clean_code] = (now, res)
         return res
@@ -297,6 +345,7 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     except Exception as e:
         logger.debug(f"Eastmoney shareholder fetch failed for {clean_code}: {e}")
 
+    save_persistent_holders_data(clean_code, res)
     _HOLDERS_CACHE[clean_code] = (now, res)
     return res
 
@@ -1649,8 +1698,21 @@ def evaluate_universe(
                                 s["fina_score"] = compute_fina_score([s])
                                 needs_rewrite = True
 
-                            # 检查股东集中度：若历史缓存中集中度为空/0，且全局股东缓存中有值，予以补全
-                            if float(s.get("holder_ratio") or 0.0) <= 0 and code_str in _HOLDERS_CACHE:
+                            # 检查股东集中度及变动：若历史缓存中集中度为空/0或缺少变动历史，从持久化股东数据库予以补全
+                            if code_str in _PERSISTENT_HOLDERS_DATA:
+                                p_data = _PERSISTENT_HOLDERS_DATA[code_str]
+                                if float(s.get("holder_ratio") or 0.0) <= 0 and float(p_data.get("holder_ratio") or 0.0) > 0:
+                                    s["holder_ratio"] = float(p_data["holder_ratio"])
+                                    s["holder_focus"] = p_data.get("holder_focus", s.get("holder_focus", "--"))
+                                    needs_rewrite = True
+                                if (not s.get("holders_changes")) and p_data.get("holders_changes"):
+                                    s["holders_changes"] = list(p_data["holders_changes"])
+                                    needs_rewrite = True
+                                if (not s.get("holders_str") or s.get("holders_str") == "--") and p_data.get("holders_str"):
+                                    s["holders_str"] = p_data["holders_str"]
+                                    s["holders_num"] = p_data.get("holders_num", s.get("holders_num", 0))
+                                    needs_rewrite = True
+                            elif float(s.get("holder_ratio") or 0.0) <= 0 and code_str in _HOLDERS_CACHE:
                                 h_cached = _HOLDERS_CACHE[code_str][1]
                                 if h_cached.get("holder_ratio", 0.0) > 0:
                                     s["holder_ratio"] = h_cached["holder_ratio"]

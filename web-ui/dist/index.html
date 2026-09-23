@@ -10509,20 +10509,20 @@
 
                     // 20. 股东人数
                     const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
-                    const holdersNumText = q.holders_str || (q.holders_num ? (q.holders_num >= 10000 ? (q.holders_num / 10000).toFixed(1) + '万' : q.holders_num + '户') : '-');
+                    const holdersNumText = (q.holders_str && q.holders_str !== '--') ? q.holders_str : (q.holders_num ? (q.holders_num >= 10000 ? (q.holders_num / 10000).toFixed(2) + '万' : q.holders_num + '户') : '-');
                     let holdersChangesHtml = '';
                     if (q.holders_changes && Array.isArray(q.holders_changes) && q.holders_changes.length > 0) {
                         const changeSpans = q.holders_changes.slice(0, 3).map(c => {
                             const chgVal = Number(c.ratio) || 0;
-                            const chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400');
+                            const chgColor = chgVal > 0 ? 'text-rose-500 font-medium' : (chgVal < 0 ? 'text-emerald-500 font-medium' : 'text-slate-400');
                             const sign = chgVal > 0 ? '+' : '';
                             const numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
                             const dateStr = c.date || '';
-                            return `<span class="${chgColor}" title="${dateStr}: 同比变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                            return `<span class="${chgColor}" title="${dateStr}: 较上期变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
                         });
-                        holdersChangesHtml = `<span class="text-[10px] space-x-1 ml-1 select-none font-mono">(${changeSpans.join(' ')})</span>`;
+                        holdersChangesHtml = `<span class="text-xs text-slate-500 dark:text-slate-400 font-mono ml-1.5 select-none whitespace-nowrap font-normal">(${changeSpans.join('&nbsp; ')})</span>`;
                     }
-                    const holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center space-x-1 cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
+                    const holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
                         <span class="font-bold text-slate-900 dark:text-white">${holdersNumText}</span>
                         ${holdersChangesHtml}
                     </a>`;
@@ -14604,32 +14604,30 @@
                 }
                 let peTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${peHtml}</td>`;
 
-                // 8. 股东集中度 (用户需求 8)
+                // 8. 股东集中度 (用户需求: 纯百分比格式，>=70% 带 🔥)
                 let hText = '-';
-                if (r.holder_ratio && r.holder_ratio > 0) {
-                    hText = `${r.holder_ratio.toFixed(1)}%` + (r.holder_ratio >= 70 ? ' 🔥' : '');
-                } else if (r.holders_str && r.holders_str !== '--') {
-                    hText = r.holders_str;
+                if (r.holder_ratio && Number(r.holder_ratio) > 0) {
+                    hText = `${Number(r.holder_ratio).toFixed(1)}%` + (Number(r.holder_ratio) >= 70 ? ' 🔥' : '');
                 }
                 let hTitle = `股东户数: ${r.holders_str || '-'}, 十大股东集中度: ${r.holder_ratio ? r.holder_ratio + '%' : '-'}, 集中度评价: ${r.holder_focus || '-'}`;
                 let holderTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold" title="${hTitle}">${hText}</td>`;
 
-                // 股东人数 列 (用户需求 2: 股东集中度后面增加股东人数列，并显示最近3次同比数据，增加红色减少绿色，链接到 https://xueqiu.com/snowman/S/{pfx}{code}/detail#/GDRS)
+                // 股东人数 列 (用户需求: 当前值（连续近三期的增长率） 绿色减少/红色增加)
                 let gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
-                let holdersNumText = r.holders_str || '-';
+                let holdersNumText = (r.holders_str && r.holders_str !== '--') ? r.holders_str : (r.holders_num ? (r.holders_num >= 10000 ? (r.holders_num / 10000).toFixed(2) + '万' : r.holders_num + '户') : '-');
                 let holdersChangesHtml = '';
                 if (r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0) {
                     let changeSpans = r.holders_changes.slice(0, 3).map(c => {
                         let chgVal = Number(c.ratio) || 0;
-                        let chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400');
+                        let chgColor = chgVal > 0 ? 'text-rose-500 font-medium' : (chgVal < 0 ? 'text-emerald-500 font-medium' : 'text-slate-400');
                         let sign = chgVal > 0 ? '+' : '';
                         let numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
                         let dateStr = c.date || '';
-                        return `<span class="${chgColor}" title="${dateStr}: 同比变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                        return `<span class="${chgColor}" title="${dateStr}: 较上期变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
                     });
-                    holdersChangesHtml = `<span class="text-[10px] space-x-1 ml-1 select-none font-mono">(${changeSpans.join(' ')})</span>`;
+                    holdersChangesHtml = `<span class="text-xs text-slate-500 dark:text-slate-400 font-mono ml-1.5 select-none whitespace-nowrap font-normal">(${changeSpans.join('&nbsp; ')})</span>`;
                 }
-                let holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center space-x-1 cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
+                let holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
                 <span class="font-bold text-slate-800 dark:text-slate-100">${holdersNumText}</span>
                 ${holdersChangesHtml}
             </a>`;
@@ -15495,20 +15493,20 @@
 
                     // 21. 股东人数 (雪球股东人数链接与变动胶囊)
                     const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
-                    const holdersNumText = s.holders_str || (s.holders_num ? (s.holders_num >= 10000 ? (s.holders_num / 10000).toFixed(1) + '万' : s.holders_num + '户') : '-');
+                    const holdersNumText = (s.holders_str && s.holders_str !== '--') ? s.holders_str : (s.holders_num ? (s.holders_num >= 10000 ? (s.holders_num / 10000).toFixed(2) + '万' : s.holders_num + '户') : '-');
                     let holdersChangesHtml = '';
                     if (s.holders_changes && Array.isArray(s.holders_changes) && s.holders_changes.length > 0) {
                         const changeSpans = s.holders_changes.slice(0, 3).map(c => {
                             const chgVal = Number(c.ratio) || 0;
-                            const chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400');
+                            const chgColor = chgVal > 0 ? 'text-rose-500 font-medium' : (chgVal < 0 ? 'text-emerald-500 font-medium' : 'text-slate-400');
                             const sign = chgVal > 0 ? '+' : '';
                             const numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
                             const dateStr = c.date || '';
-                            return `<span class="${chgColor}" title="${dateStr}: 同比变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                            return `<span class="${chgColor}" title="${dateStr}: 较上期变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
                         });
-                        holdersChangesHtml = `<span class="text-[10px] space-x-1 ml-1 select-none font-mono">(${changeSpans.join(' ')})</span>`;
+                        holdersChangesHtml = `<span class="text-xs text-slate-500 dark:text-slate-400 font-mono ml-1.5 select-none whitespace-nowrap font-normal">(${changeSpans.join('&nbsp; ')})</span>`;
                     }
-                    const holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center space-x-1 cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
+                    const holdersNumHtml = `<a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="hover:underline inline-flex items-center justify-center cursor-pointer font-mono" title="点击在雪球查看【${name}】股东人数及筹码变动详情">
                 <span class="font-bold text-slate-900 dark:text-white">${holdersNumText}</span>
                 ${holdersChangesHtml}
             </a>`;
