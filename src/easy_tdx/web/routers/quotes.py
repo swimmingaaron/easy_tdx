@@ -189,26 +189,30 @@ def _resolve_stock_board_info(code: str, raw_sym: str = "") -> dict[str, str]:
 @router.get("/watchlist")
 def get_watchlist():
     """Get permanently saved watchlist symbols."""
-    from easy_tdx.watchlist_store import load_watchlist
+    from easy_tdx.watchlist_store import load_watchlist, load_watchlist_items
     symbols = load_watchlist()
+    items = load_watchlist_items()
     return {
         "status": "success",
         "count": len(symbols),
-        "data": symbols
+        "data": symbols,
+        "items": items,
     }
 
 @router.post("/watchlist")
 def update_watchlist(req: WatchlistUpdateRequest):
     """Permanently persist watchlist symbols."""
-    from easy_tdx.watchlist_store import save_watchlist
+    from easy_tdx.watchlist_store import save_watchlist, load_watchlist_items
     symbols = save_watchlist(req.symbols)
+    items = load_watchlist_items()
     global _REALTIME_QUOTES_CACHE
     with _REALTIME_QUOTES_LOCK:
         _REALTIME_QUOTES_CACHE = None
     return {
         "status": "success",
         "count": len(symbols),
-        "data": symbols
+        "data": symbols,
+        "items": items,
     }
 
 @router.post("/watchlist/reset")

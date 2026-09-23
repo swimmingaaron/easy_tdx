@@ -25,7 +25,7 @@ from easy_tdx.trading_system.engine import (
     is_universe_evaluating,
     start_background_universe_eval,
 )
-from easy_tdx.watchlist_store import load_watchlist, save_watchlist
+from easy_tdx.watchlist_store import load_watchlist, save_watchlist, load_watchlist_items
 from easy_tdx.screener.universe import get_universe_symbols
 from easy_tdx.stock_lookup import get_stock_name
 
@@ -41,13 +41,14 @@ class WatchlistToggleReq(BaseModel):
 
 @router.get("/watchlist")
 def get_current_watchlist() -> Dict[str, Any]:
-    """获取当前所有自选股代码列表。"""
+    """获取当前所有自选股代码列表与标的名称。"""
     try:
         wl = load_watchlist()
-        return {"success": True, "watchlist": wl}
+        items = load_watchlist_items()
+        return {"success": True, "watchlist": wl, "items": items}
     except Exception as e:
         logger.error(f"Failed to load watchlist: {e}")
-        return {"success": False, "watchlist": [], "error": str(e)}
+        return {"success": False, "watchlist": [], "items": [], "error": str(e)}
 
 
 @router.post("/toggle_watchlist")
@@ -62,7 +63,8 @@ def toggle_watchlist_stock(req: WatchlistToggleReq) -> Dict[str, Any]:
         else:
             current = [c for c in current if c != clean_code]
         saved = save_watchlist(current)
-        return {"success": True, "stock_code": clean_code, "status": req.status, "watchlist": saved}
+        items = load_watchlist_items()
+        return {"success": True, "stock_code": clean_code, "status": req.status, "watchlist": saved, "items": items}
     except Exception as e:
         logger.error(f"Failed to toggle watchlist for {clean_code}: {e}")
         return {"success": False, "error": str(e)}

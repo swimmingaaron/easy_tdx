@@ -43,7 +43,7 @@ _lock = threading.Lock()
 
 
 def load_watchlist() -> list[str]:
-    """Load persisted watchlist from disk, falling back to defaults if not found."""
+    """Load persisted watchlist from disk as stock code strings, falling back to defaults if not found."""
     with _lock:
         for p in _get_watchlist_paths():
             if p.exists():
@@ -51,35 +51,90 @@ def load_watchlist() -> list[str]:
                     with open(p, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         if isinstance(data, list) and len(data) > 0:
-                            clean = [str(s).strip() for s in data if str(s).strip()]
+                            clean = []
+                            for s in data:
+                                if isinstance(s, dict):
+                                    c = str(s.get("code") or s.get("symbol") or "").strip()
+                                    if c:
+                                        clean.append(c)
+                                elif isinstance(s, str) and s.strip():
+                                    clean.append(s.strip())
                             if clean:
                                 return clean
                 except Exception as e:
                     logger.warning(f"Failed to read watchlist from {p}: {e}")
         return list(DEFAULT_WATCHLIST)
 
-def save_watchlist(symbols: list[str]) -> list[str]:
-    """Persist watchlist symbols to all configuration paths."""
-    clean = []
+
+def load_watchlist_items() -> list[dict[str, str]]:
+    """Load persisted watchlist items with code and name from disk."""
+    from easy_tdx.stock_lookup import get_stock_name
+    with _lock:
+        for p in _get_watchlist_paths():
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, list) and len(data) > 0:
+                            items = []
+                            seen = set()
+                            for s in data:
+                                if isinstance(s, dict):
+                                    c = str(s.get("code") or s.get("symbol") or "").strip()
+                                    n = str(s.get("name") or "").strip()
+                                    if not n or n.startswith("标的_"):
+                                        n = get_stock_name(c) or n
+                                    if c and c not in seen:
+                                        seen.add(c)
+                                        items.append({"code": c, "name": n or get_stock_name(c) or c})
+                                elif isinstance(s, str) and s.strip():
+                                    c = s.strip()
+                                    if c not in seen:
+                                        seen.add(c)
+                                        items.append({"code": c, "name": get_stock_name(c) or c})
+                            if items:
+                                return items
+                except Exception as e:
+                    logger.warning(f"Failed to read watchlist from {p}: {e}")
+        from easy_tdx.stock_lookup import get_stock_name
+        return [{"code": c, "name": get_stock_name(c) or c} for c in DEFAULT_WATCHLIST]
+
+
+def save_watchlist(symbols: list[Any]) -> list[str]:
+    """Persist watchlist symbols and names to all configuration paths."""
+    from easy_tdx.stock_lookup import get_stock_name
+    items = []
+    clean_codes = []
     seen = set()
     for s in symbols:
-        sym = str(s).strip()
+        if isinstance(s, dict):
+            sym = str(s.get("code") or s.get("symbol") or "").strip()
+            name = str(s.get("name") or "").strip()
+        else:
+            sym = str(s).strip()
+            name = ""
         if sym and sym not in seen:
             seen.add(sym)
-            clean.append(sym)
-            
-    if not clean:
-        clean = list(DEFAULT_WATCHLIST)
-    
+            clean_codes.append(sym)
+            if not name or name.startswith("标的_"):
+                name = get_stock_name(sym) or sym
+            items.append({"code": sym, "name": name})
+
+    if not items:
+        for c in DEFAULT_WATCHLIST:
+            clean_codes.append(c)
+            items.append({"code": c, "name": get_stock_name(c) or c})
+
     with _lock:
         for p in _get_watchlist_paths():
             try:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 with open(p, "w", encoding="utf-8") as f:
-                    json.dump(clean, f, ensure_ascii=False, indent=2)
+                    json.dump(items, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 logger.warning(f"Failed to save watchlist to {p}: {e}")
-    return clean
+    return clean_codes
+
 
 def reset_watchlist() -> list[str]:
     """Reset watchlist to factory default and persist to disk."""
