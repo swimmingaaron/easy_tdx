@@ -126,15 +126,26 @@ def get_signal_dashboard(
                         "industries": [],
                         "watchlist": [],
                     }
-            # 对于大股票池（如 all 全市场 5000+ 或 zz1000），若强制刷新或初次加载且缓存不存在/正在计算，立即转后台异步计算，防止反向代理/Cloudflare 超时 (504/524)
+            # 对于大股票池（如 all 全市场 5000+ 或 zz1000）：
+            # 1. 若强制刷新：如果未在计算则启动后台线程，立即返回 running 状态，避免反向代理超时
+            # 2. 若未强制刷新：只要已有缓存，则直接读取缓存返回数据；若完全无缓存且未在计算，才启动后台线程
             if univ in ("all", "zz1000") and not is_my_opt:
-                if force_ref or not has_universe_cache(univ) or is_universe_evaluating(univ):
+                if force_ref:
                     if not is_universe_evaluating(univ):
-                        start_background_universe_eval(univ, force_refresh=force_ref)
+                        start_background_universe_eval(univ, force_refresh=True)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{univ} 股票池量化模型正在后台极速重算...",
+                        "progress": get_universe_eval_progress(univ),
+                    }
+                elif not has_universe_cache(univ):
+                    if not is_universe_evaluating(univ):
+                        start_background_universe_eval(univ, force_refresh=False)
+                    return {
+                        "success": True,
+                        "status": "running",
+                        "message": f"{univ} 股票池量化模型初次载入中，正在后台极速计算...",
                         "progress": get_universe_eval_progress(univ),
                     }
 
@@ -266,15 +277,26 @@ def get_resonance_screener(
                         "industries": [],
                         "watchlist": [],
                     }
-            # 对于大股票池（如 all 全市场 5000+ 或 zz1000），若强制刷新或初次加载且缓存不存在/正在计算，立即转后台异步计算，防止反向代理/Cloudflare 超时 (504/524)
+            # 对于大股票池（如 all 全市场 5000+ 或 zz1000）：
+            # 1. 若强制刷新：如果未在计算则启动后台线程，立即返回 running 状态，避免反向代理超时
+            # 2. 若未强制刷新：只要已有缓存，则直接读取缓存返回数据；若完全无缓存且未在计算，才启动后台线程
             if universe in ("all", "zz1000") and not my_optional:
-                if force_refresh or not has_universe_cache(universe) or is_universe_evaluating(universe):
+                if force_refresh:
                     if not is_universe_evaluating(universe):
-                        start_background_universe_eval(universe, force_refresh=force_refresh)
+                        start_background_universe_eval(universe, force_refresh=True)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{universe} 股票池量化模型正在后台极速重算...",
+                        "progress": get_universe_eval_progress(universe),
+                    }
+                elif not has_universe_cache(universe):
+                    if not is_universe_evaluating(universe):
+                        start_background_universe_eval(universe, force_refresh=False)
+                    return {
+                        "success": True,
+                        "status": "running",
+                        "message": f"{universe} 股票池量化模型初次载入中，正在后台极速计算...",
                         "progress": get_universe_eval_progress(universe),
                     }
 

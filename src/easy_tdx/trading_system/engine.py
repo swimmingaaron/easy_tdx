@@ -1817,15 +1817,6 @@ def evaluate_universe(
                     "stock": s_name,
                 }
 
-        _EVAL_PROGRESS[universe_type] = {
-            "status": "done",
-            "stage": "done",
-            "total": total_syms,
-            "completed": total_syms,
-            "pct": 100.0,
-            "stock": "计算完成",
-        }
-
         # 统一清洗确保所有标的的股票名称均不含 "标的_" 临时替代码
         for r in results:
             sc = str(r.get("stock_code") or "")
@@ -1849,6 +1840,15 @@ def evaluate_universe(
 
         if not is_custom_symbols:
             _ACTIVE_EVAL_RESULTS[universe_type] = results
+
+        _EVAL_PROGRESS[universe_type] = {
+            "status": "done",
+            "stage": "done",
+            "total": total_syms,
+            "completed": total_syms,
+            "pct": 100.0,
+            "stock": "计算完成",
+        }
 
         return results
     finally:

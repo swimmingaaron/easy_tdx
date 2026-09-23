@@ -14237,8 +14237,11 @@
                         clearInterval(tsProgressTimer);
                         tsProgressTimer = null;
                         updateTsProgress(pData.total, pData.total, 100.0, '全量标的计算完毕', '正在极速装载多因子量化共振数据...');
+                        // 将“从服务器获取最新数据”复位，避免后续刷新再次触发后台全量重算
+                        const chkForce = document.getElementById('ts-force-refresh');
+                        if (chkForce) chkForce.checked = false;
                         setTimeout(() => {
-                            loadTsData(false);
+                            loadTradingSystemData(false);
                         }, 200);
                         return;
                     } else if (!force) {
@@ -14352,6 +14355,9 @@
                 tbody.innerHTML = `<tr><td colspan="30" class="py-8 text-center text-rose-400">网络异常: ${e.message}</td></tr>`;
             }
         }
+        window.loadTradingSystemData = loadTradingSystemData;
+        window.loadTsData = loadTradingSystemData;
+
 
 
         let tsCurrentPage = 1;
