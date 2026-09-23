@@ -14214,6 +14214,7 @@
             if (tsProgressTimer) clearInterval(tsProgressTimer);
             isPollingTsProgress = false;
             let pollStep = 0;
+            let tsWaitingBackground = false;
 
             tsProgressTimer = setInterval(async () => {
                 if (myRunId !== tsCurrentRunId) return;
@@ -14230,6 +14231,16 @@
                             ? '正在批量获取全市场实时行情与资金流快照...'
                             : '正在并行评估股票池量化模型与战法共振...';
                         updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock, stMsg);
+                    } else if (pData && pData.status === 'done' && tsWaitingBackground) {
+                        // 异步全市场后台计算完毕，自动无缝平滑拉取最终结果
+                        tsWaitingBackground = false;
+                        clearInterval(tsProgressTimer);
+                        tsProgressTimer = null;
+                        updateTsProgress(pData.total, pData.total, 100.0, '全量标的计算完毕', '正在极速装载多因子量化共振数据...');
+                        setTimeout(() => {
+                            loadTsData(false);
+                        }, 200);
+                        return;
                     } else if (!force) {
                         // 使用 Cache 时的平滑极速过渡 (通常在 200~300ms 就会收到数据)
                         let sim = Math.min(95, 20 + pollStep * 15);
@@ -14285,6 +14296,13 @@
                 if (!data.success) {
                     tbody.innerHTML = `<tr><td colspan="30" class="py-8 text-center text-rose-400">计算失败: ${data.detail || data.error}</td></tr>`;
                     hideTsProgress(0);
+                    return;
+                }
+
+                // 若后端已转入后台守护线程计算（针对全市场 5000+ 或大股票池）
+                if (data.status === 'running') {
+                    tsWaitingBackground = true;
+                    // 保持 tsProgressTimer 继续轮询进度，完成后自动触发 loadTsData(false)
                     return;
                 }
 
@@ -15168,6 +15186,29 @@
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = await resp.json();
+                if (data.status === 'running') {
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span id="fina-loading-status">全市场标的正在后台极速重算量化多因子与财报体检，请稍候...</span></div></td></tr>`;
+                        if (window.lucide) lucide.createIcons();
+                    }
+                    const checkTimer = setInterval(async () => {
+                        try {
+                            const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(finaCurrentUniverse)}`);
+                            const pData = await pRes.json();
+                            const stEl = document.getElementById('fina-loading-status');
+                            if (pData && pData.status === 'running') {
+                                if (stEl) stEl.innerText = `正在重算 ${finaCurrentUniverse} (${pData.completed}/${pData.total || '5000+'} - ${pData.pct}%)...`;
+                            } else if (pData && pData.status === 'done') {
+                                clearInterval(checkTimer);
+                                if (stEl) stEl.innerText = '计算就绪，正在呈现数据...';
+                                setTimeout(() => {
+                                    loadFinaAnalysisData(false);
+                                }, 300);
+                            }
+                        } catch (e) { }
+                    }, 400);
+                    return;
+                }
                 finaAllRows = data.rows || [];
 
                 // 填充行业分类下拉选项 (若仅有一个 '全部行业')

@@ -20,6 +20,10 @@ from easy_tdx.trading_system.engine import (
     fetch_stock_financials,
     evaluate_stock_history,
     compute_fina_score,
+    get_universe_eval_progress,
+    has_universe_cache,
+    is_universe_evaluating,
+    start_background_universe_eval,
 )
 from easy_tdx.watchlist_store import load_watchlist, save_watchlist
 from easy_tdx.screener.universe import get_universe_symbols
@@ -122,6 +126,18 @@ def get_signal_dashboard(
                         "industries": [],
                         "watchlist": [],
                     }
+            # 对于大股票池（如 all 全市场 5000+ 或 zz1000），若强制刷新或初次加载且缓存不存在/正在计算，立即转后台异步计算，防止反向代理/Cloudflare 超时 (504/524)
+            if univ in ("all", "zz1000") and not is_my_opt:
+                if force_ref or not has_universe_cache(univ) or is_universe_evaluating(univ):
+                    if not is_universe_evaluating(univ):
+                        start_background_universe_eval(univ, force_refresh=force_ref)
+                    return {
+                        "success": True,
+                        "status": "running",
+                        "message": f"{univ} 股票池量化模型正在后台极速重算...",
+                        "progress": get_universe_eval_progress(univ),
+                    }
+
             all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=univ, force_refresh=force_ref)
 
         # 确保每只标的均含有真实股票名称与量化体检得分
@@ -250,6 +266,18 @@ def get_resonance_screener(
                         "industries": [],
                         "watchlist": [],
                     }
+            # 对于大股票池（如 all 全市场 5000+ 或 zz1000），若强制刷新或初次加载且缓存不存在/正在计算，立即转后台异步计算，防止反向代理/Cloudflare 超时 (504/524)
+            if universe in ("all", "zz1000") and not my_optional:
+                if force_refresh or not has_universe_cache(universe) or is_universe_evaluating(universe):
+                    if not is_universe_evaluating(universe):
+                        start_background_universe_eval(universe, force_refresh=force_refresh)
+                    return {
+                        "success": True,
+                        "status": "running",
+                        "message": f"{universe} 股票池量化模型正在后台极速重算...",
+                        "progress": get_universe_eval_progress(universe),
+                    }
+
             all_stocks = evaluate_universe(symbols=symbols, universe_type=universe, force_refresh=force_refresh)
 
         watchlist_set = set(load_watchlist())

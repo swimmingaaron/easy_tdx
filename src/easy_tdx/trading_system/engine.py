@@ -136,6 +136,39 @@ def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
     })
 
 
+def has_universe_cache(universe_type: str = "core") -> bool:
+    """检查指定股票池是否已存在可用内存或磁盘缓存。"""
+    mem_key = f"univ_{universe_type}"
+    if mem_key in _MEM_CACHE:
+        return True
+    import glob
+    pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_*.json")
+    cand_files = glob.glob(pattern)
+    return bool(cand_files)
+
+
+def is_universe_evaluating(universe_type: str = "core") -> bool:
+    """检查指定股票池是否正在后台计算中。"""
+    with _EVAL_LOCK:
+        return universe_type in _ACTIVE_EVAL_EVENTS
+
+
+def start_background_universe_eval(universe_type: str = "core", force_refresh: bool = True) -> bool:
+    """如果未在运行，则启动后台守护线程异步执行 evaluate_universe。"""
+    with _EVAL_LOCK:
+        if universe_type in _ACTIVE_EVAL_EVENTS:
+            return False
+    import threading
+    t = threading.Thread(
+        target=evaluate_universe,
+        kwargs={"universe_type": universe_type, "force_refresh": force_refresh},
+        daemon=True,
+    )
+    t.start()
+    return True
+
+
+
 def _get_market_prefix(code: str) -> str:
     c = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     if c.startswith("6") or c.startswith("9"):
@@ -187,6 +220,11 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
             logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
     except Exception as e:
         logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+
+    # 若为快速模式(如全市场/大批量筛选)，直接返回原生 TDX 股东人数，避免发起外部高延迟 HTTP 请求
+    if quick:
+        _HOLDERS_CACHE[clean_code] = (now, res)
+        return res
 
     # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细
     try:
@@ -1691,7 +1729,8 @@ def evaluate_universe(
 
         def _worker(s: str):
             try:
-                df = fetch_security_kline(s, count=750)
+                bar_count = 160 if total_syms > 300 else 750
+                df = fetch_security_kline(s, count=bar_count)
                 if df is not None and not df.empty and len(df) >= 20:
                     res = evaluate_kline_strategy(s, df, q_map.get(s))
                     if res:
@@ -1732,7 +1771,7 @@ def evaluate_universe(
 
                         # 3. 股东户数与集中度 (获取原生股东人数与前十大集中度)
                         try:
-                            h_info = fetch_stock_holders(s, quick=False)
+                            h_info = fetch_stock_holders(s, quick=(total_syms > 300))
                             res["holders_num"] = int(h_info.get("holders_num", 0))
                             res["holders_str"] = str(h_info.get("holders_str", "--"))
                             res["holder_ratio"] = float(h_info.get("holder_ratio", 0.0))
