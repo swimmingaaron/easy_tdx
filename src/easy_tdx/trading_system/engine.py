@@ -447,99 +447,83 @@ def _calculate_consecutive_flow(df: pd.DataFrame, realtime_quote: Optional[Dict[
 
 def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> List[int]:
     """
-    计算经典通达信 ZIG 转向序列每根 K 线的趋势天数序列。
-    包含通达信未来函数特性：当价格自近期极值反向变动时，即时生成端点转向信号，
-    向上为正天数（反转首日为 +1），向下为负天数（反转首日为 -1）。
+    计算与 K 线图（calcZigZagDetailed + calcZigSignals）100% 完全一致的 ZIG 转向天数序列。
+    向上为正天数（反转首日为 +1，次日为 +2 ...），
+    向下为负天数（反转首日为 -1，次日为 -2 ...）。
     """
     n = len(close)
-    if n < 5:
-        return [(1 if close[i] >= close[0] else -1) for i in range(n)]
+    if n == 0:
+        return []
+    if n == 1:
+        return [1]
 
-    pivots: List[Tuple[int, float, int]] = []  # (idx, price, type: +1 for peak, -1 for trough)
-    trend = 0  # 1 for up, -1 for down
-    min_idx, min_p = 0, float(close[0])
-    max_idx, max_p = 0, float(close[0])
-    last_pivot_idx = 0
-    last_pivot_price = float(close[0])
+    prices = [float(c) for c in close]
+    x = change_pct if change_pct <= 1.0 else change_pct / 100.0
 
-    for i in range(1, n):
-        cur_p = float(close[i])
+    peer_i = 0
+    candidate_i = None
+    state = 0  # 0: start, 1: rise, 2: fall
+    troughs = []
+    peaks = []
 
-        if trend == 0:
-            if cur_p < min_p:
-                min_idx, min_p = i, cur_p
-            if cur_p > max_p:
-                max_idx, max_p = i, cur_p
+    for scan_i in range(1, n):
+        if state == 0:
+            if prices[peer_i] != 0:
+                if prices[scan_i] >= prices[peer_i] * (1.0 + x):
+                    candidate_i = scan_i
+                    state = 1
+                    troughs.append((peer_i, scan_i))
+                elif prices[scan_i] <= prices[peer_i] * (1.0 - x):
+                    candidate_i = scan_i
+                    state = 2
+                    peaks.append((peer_i, scan_i))
+        elif state == 1:
+            if prices[scan_i] >= prices[candidate_i]:
+                candidate_i = scan_i
+            elif prices[candidate_i] != 0 and prices[scan_i] <= prices[candidate_i] * (1.0 - x):
+                peer_i = candidate_i
+                state = 2
+                peaks.append((candidate_i, scan_i))
+                candidate_i = scan_i
+        elif state == 2:
+            if prices[scan_i] <= prices[candidate_i]:
+                candidate_i = scan_i
+            elif prices[candidate_i] != 0 and prices[scan_i] >= prices[candidate_i] * (1.0 + x):
+                peer_i = candidate_i
+                state = 1
+                troughs.append((candidate_i, scan_i))
+                candidate_i = scan_i
 
-            if min_p > 0 and (cur_p - min_p) / min_p >= change_pct:
-                trend = 1
-                pivots.append((min_idx, min_p, -1))
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif max_p > 0 and (max_p - cur_p) / max_p >= change_pct:
-                trend = -1
-                pivots.append((max_idx, max_p, 1))
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-        elif trend == 1:
-            if cur_p > last_pivot_price:
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif last_pivot_price > 0 and (last_pivot_price - cur_p) / last_pivot_price >= change_pct:
-                pivots.append((last_pivot_idx, last_pivot_price, 1))
-                trend = -1
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-        elif trend == -1:
-            if cur_p < last_pivot_price:
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif last_pivot_price > 0 and (cur_p - last_pivot_price) / last_pivot_price >= change_pct:
-                pivots.append((last_pivot_idx, last_pivot_price, -1))
-                trend = 1
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-
-    # 通达信未来函数特性：处理末端未确认波段的即时极值拐点
-    all_pivots = list(pivots)
-    if trend == 1:
-        if last_pivot_idx < n - 1 and close[-1] < last_pivot_price:
-            all_pivots.append((last_pivot_idx, last_pivot_price, 1))
-    elif trend == -1:
-        if last_pivot_idx < n - 1 and close[-1] > last_pivot_price:
-            all_pivots.append((last_pivot_idx, last_pivot_price, -1))
-    elif trend == 0:
-        if min_idx < max_idx and max_idx < n - 1 and close[-1] < max_p:
-            all_pivots.append((max_idx, max_p, 1))
-        elif max_idx < min_idx and min_idx < n - 1 and close[-1] > min_p:
-            all_pivots.append((min_idx, min_p, -1))
-
-    if not all_pivots:
-        cur_day = 1 if close[-1] >= close[0] else -1
-        return [cur_day] * n
+    all_turns = []
+    for t in troughs:
+        all_turns.append((t[0], 'TROUGH'))
+    for p in peaks:
+        all_turns.append((p[0], 'PEAK'))
+    all_turns.sort(key=lambda item: item[0])
 
     zig_days = [0] * n
     for i in range(n):
-        if i <= all_pivots[0][0]:
-            first_p = all_pivots[0]
-            dist = first_p[0] - i + 1
-            zig_days[i] = dist if first_p[2] == 1 else -dist
-            continue
-        last_k = 0
-        for k in range(len(all_pivots) - 1, -1, -1):
-            if all_pivots[k][0] < i:
-                last_k = k
+        last_turn = None
+        for k in range(len(all_turns) - 1, -1, -1):
+            if all_turns[k][0] <= i:
+                last_turn = all_turns[k]
                 break
-        lp = all_pivots[last_k]
-        elapsed = i - lp[0]
-        zig_days[i] = elapsed if lp[2] == -1 else -elapsed
+        if last_turn:
+            elapsed = i - last_turn[0] + 1
+            zig_days[i] = elapsed if last_turn[1] == 'TROUGH' else -elapsed
+        elif all_turns:
+            first_turn = all_turns[0]
+            dist = first_turn[0] - i + 1
+            zig_days[i] = -dist if first_turn[1] == 'TROUGH' else dist
+        else:
+            zig_days[i] = (i + 1) if prices[i] >= prices[0] else -(i + 1)
 
     return zig_days
 
 
 def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarray, int]:
     """
-    计算经典 ZIG 转向序列与当前转向状态天数。
+    计算与 K 线图完全一致的 ZIG 转向序列与当前转向状态天数。
     返回值:
       zig_series: 沿极值点连线的序列
       current_days: 当前向上为正天数(反转首日为1)，向下为负天数(反转首日为-1)
