@@ -8437,77 +8437,21 @@
                             if (!pt) return;
                             const x = pt[0];
                             const yBottom = (params.coordSys && params.coordSys.height) ? (params.coordSys.y + params.coordSys.height) : api.coord([0, 0])[1];
-                            const yTop = (params.coordSys && params.coordSys.y !== undefined) ? params.coordSys.y : 0;
-                            const isBuy = api.value(2) === 1; // 1: 标红柱(全买), -1: 标绿柱(全卖)
-                            
-                            // 柱宽动态自适应蜡烛宽度
-                            const candleWidth = api.size ? api.size([1, 0])[0] : 10;
-                            const barWidth = Math.max(3.5, Math.min(12, candleWidth * 0.45));
-                            const pillarHeight = 42; // 底部柱体高度 42px
-                            const showBadge = candleWidth >= 7;
-
-                            const pillarColor = isBuy ? '#ef4444' : '#10b981';
-                            const borderColor = isBuy ? '#b91c1c' : '#047857';
-                            const bgBeamColor = isBuy ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)';
-
-                            const children = [
-                                // 1. 全高贯穿微光光柱 (将整根K线上下贯穿，标示反转日)
-                                {
-                                    type: 'rect',
-                                    shape: {
-                                        x: x - (barWidth * 1.5) / 2,
-                                        y: yTop,
-                                        width: barWidth * 1.5,
-                                        height: Math.max(0, yBottom - yTop)
-                                    },
-                                    style: {
-                                        fill: bgBeamColor
-                                    },
-                                    z: 1
-                                },
-                                // 2. 底部实心醒目转向柱 (TDX STICK 风格标红柱/标绿柱)
-                                {
-                                    type: 'rect',
-                                    shape: {
-                                        x: x - barWidth / 2,
-                                        y: yBottom - pillarHeight,
-                                        width: barWidth,
-                                        height: pillarHeight,
-                                        r: [2, 2, 0, 0]
-                                    },
-                                    style: {
-                                        fill: pillarColor,
-                                        stroke: borderColor,
-                                        lineWidth: 1.5,
-                                        shadowBlur: 6,
-                                        shadowColor: isBuy ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'
-                                    },
-                                    z: 7
-                                }
-                            ];
-
-                            // 3. 柱顶文字标识 (在蜡烛宽度足够时显示“买”/“卖”)
-                            if (showBadge) {
-                                children.push({
-                                    type: 'text',
-                                    style: {
-                                        text: isBuy ? '买' : '卖',
-                                        x: x,
-                                        y: yBottom - pillarHeight - 7,
-                                        textAlign: 'center',
-                                        textVerticalAlign: 'middle',
-                                        fill: isBuy ? '#fca5a5' : '#86efac',
-                                        fontSize: 9.5,
-                                        fontWeight: 'bold',
-                                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-                                    },
-                                    z: 8
-                                });
-                            }
-
+                            const lineLen = 20;
+                            const isBuy = api.value(2) === 1; // zig=1: 标红柱, zig=-1: 标绿柱
                             return {
-                                type: 'group',
-                                children: children
+                                type: 'line',
+                                shape: {
+                                    x1: x,
+                                    y1: yBottom,
+                                    x2: x,
+                                    y2: yBottom - lineLen
+                                },
+                                style: {
+                                    stroke: isBuy ? '#ef4444' : '#10b981', // zig=1: 红, zig=-1: 绿
+                                    lineWidth: 2
+                                },
+                                z: 6
                             };
                         },
                         data: zigResult.turnLines
