@@ -6958,11 +6958,11 @@
                 chgPctEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
             }
 
-            // Render chart with dynamically sliced bars (computes ZIG state days)
-            renderKpChart({ ...baseJson, data: slicedBars });
-
             // Update Dynamic Bar details
             updateKpBarDetails(currentBar, prevBar);
+
+            // Render chart with dynamically sliced bars
+            renderKpChart({ ...baseJson, data: slicedBars });
         }
 
         function stepKpDate(delta) {
