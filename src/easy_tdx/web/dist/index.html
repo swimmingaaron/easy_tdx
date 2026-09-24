@@ -14604,13 +14604,9 @@
 
                 let zigHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (r.zig !== undefined && r.zig !== null) {
-                    if (r.zig === 1) {
-                        zigHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white font-bold">反转 1</span>`;
-                    } else if (r.zig === -1) {
-                        zigHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-600 text-white font-bold">见顶 -1</span>`;
-                    } else if (r.zig > 1) {
+                    if (r.zig > 0) {
                         zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold">+${r.zig}</span>`;
-                    } else if (r.zig < -1) {
+                    } else if (r.zig < 0) {
                         zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">${r.zig}</span>`;
                     }
                 }
