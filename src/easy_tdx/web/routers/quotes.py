@@ -357,74 +357,7 @@ _KLINE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_BASE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_CACHE_LOCK = threading.Lock()
 
-def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> list[int]:
-    """Calculate ZIG trend duration days for every bar, strictly matching trading_system calculate_zig."""
-    n = len(close)
-    if n < 5:
-        return [(1 if close[i] >= close[0] else -1) for i in range(n)]
-
-    pivots: list[tuple[int, float, int]] = []  # (idx, price, type: +1 for peak, -1 for trough)
-    trend = 0  # 1 for up, -1 for down
-    min_idx, min_p = 0, float(close[0])
-    max_idx, max_p = 0, float(close[0])
-    last_pivot_idx = 0
-    last_pivot_price = float(close[0])
-
-    for i in range(1, n):
-        cur_p = float(close[i])
-
-        if trend == 0:
-            if cur_p < min_p:
-                min_idx, min_p = i, cur_p
-            if cur_p > max_p:
-                max_idx, max_p = i, cur_p
-
-            if min_p > 0 and (cur_p - min_p) / min_p >= change_pct:
-                trend = 1
-                pivots.append((min_idx, min_p, -1))
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif max_p > 0 and (max_p - cur_p) / max_p >= change_pct:
-                trend = -1
-                pivots.append((max_idx, max_p, 1))
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-        elif trend == 1:
-            if cur_p > last_pivot_price:
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif last_pivot_price > 0 and (last_pivot_price - cur_p) / last_pivot_price >= change_pct:
-                pivots.append((last_pivot_idx, last_pivot_price, 1))
-                trend = -1
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-        elif trend == -1:
-            if cur_p < last_pivot_price:
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-            elif last_pivot_price > 0 and (cur_p - last_pivot_price) / last_pivot_price >= change_pct:
-                pivots.append((last_pivot_idx, last_pivot_price, -1))
-                trend = 1
-                last_pivot_idx = i
-                last_pivot_price = cur_p
-
-    zig_days = [0] * n
-    for i in range(n):
-        last_p = None
-        for k in range(len(pivots) - 1, -1, -1):
-            if pivots[k][0] <= i:
-                last_p = pivots[k]
-                break
-        if last_p is not None:
-            elapsed = i - last_p[0] + 1
-            zig_days[i] = elapsed if last_p[2] == -1 else -elapsed
-        elif pivots:
-            dist = pivots[0][0] - i + 1
-            zig_days[i] = -dist if pivots[0][2] == -1 else dist
-        else:
-            zig_days[i] = (i + 1) if close[i] >= close[0] else -(i + 1)
-
-    return zig_days
+from easy_tdx.trading_system.engine import calculate_zig_series
 
 _STOCK_MAC_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _STOCK_MAC_LOCK = threading.Lock()

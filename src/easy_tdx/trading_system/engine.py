@@ -445,19 +445,17 @@ def _calculate_consecutive_flow(df: pd.DataFrame, realtime_quote: Optional[Dict[
 
 
 
-def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarray, int]:
+def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> List[int]:
     """
-    计算经典 ZIG 转向序列与当前转向状态天数。
-    返回值:
-      zig_series: 沿极值点连线的序列
-      current_days: 当前向上为正天数(反转首日为1)，向下为负天数(反转首日为-1)
+    计算经典通达信 ZIG 转向序列每根 K 线的趋势天数序列。
+    包含通达信未来函数特性：当价格自近期极值反向变动时，即时生成端点转向信号，
+    向上为正天数（反转首日为 +1），向下为负天数（反转首日为 -1）。
     """
     n = len(close)
     if n < 5:
-        return np.copy(close), 0
+        return [(1 if close[i] >= close[0] else -1) for i in range(n)]
 
     pivots: List[Tuple[int, float, int]] = []  # (idx, price, type: +1 for peak, -1 for trough)
-    
     trend = 0  # 1 for up, -1 for down
     min_idx, min_p = 0, float(close[0])
     max_idx, max_p = 0, float(close[0])
@@ -466,7 +464,7 @@ def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarr
 
     for i in range(1, n):
         cur_p = float(close[i])
-        
+
         if trend == 0:
             if cur_p < min_p:
                 min_idx, min_p = i, cur_p
@@ -502,18 +500,52 @@ def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarr
                 last_pivot_idx = i
                 last_pivot_price = cur_p
 
-    if not pivots:
-        return np.copy(close), 1 if close[-1] >= close[0] else -1
+    # 通达信未来函数特性：处理末端未确认波段的即时极值拐点
+    all_pivots = list(pivots)
+    if trend == 1:
+        if last_pivot_idx < n - 1 and close[-1] < last_pivot_price:
+            all_pivots.append((last_pivot_idx, last_pivot_price, 1))
+    elif trend == -1:
+        if last_pivot_idx < n - 1 and close[-1] > last_pivot_price:
+            all_pivots.append((last_pivot_idx, last_pivot_price, -1))
+    elif trend == 0:
+        if min_idx < max_idx and max_idx < n - 1 and close[-1] < max_p:
+            all_pivots.append((max_idx, max_p, 1))
+        elif max_idx < min_idx and min_idx < n - 1 and close[-1] > min_p:
+            all_pivots.append((min_idx, min_p, -1))
 
-    last_p = pivots[-1]
-    days_since_pivot = n - 1 - last_p[0]
-    
-    if last_p[2] == -1:
-        current_zig_day = max(1, days_since_pivot + 1)
-    else:
-        current_zig_day = -max(1, days_since_pivot + 1)
+    if not all_pivots:
+        cur_day = 1 if close[-1] >= close[0] else -1
+        return [cur_day] * n
 
-    return close, int(current_zig_day)
+    zig_days = [0] * n
+    for i in range(n):
+        if i <= all_pivots[0][0]:
+            first_p = all_pivots[0]
+            dist = first_p[0] - i + 1
+            zig_days[i] = dist if first_p[2] == 1 else -dist
+            continue
+        last_k = 0
+        for k in range(len(all_pivots) - 1, -1, -1):
+            if all_pivots[k][0] < i:
+                last_k = k
+                break
+        lp = all_pivots[last_k]
+        elapsed = i - lp[0]
+        zig_days[i] = elapsed if lp[2] == -1 else -elapsed
+
+    return zig_days
+
+
+def calculate_zig(close: np.ndarray, change_pct: float = 0.05) -> Tuple[np.ndarray, int]:
+    """
+    计算经典 ZIG 转向序列与当前转向状态天数。
+    返回值:
+      zig_series: 沿极值点连线的序列
+      current_days: 当前向上为正天数(反转首日为1)，向下为负天数(反转首日为-1)
+    """
+    series = calculate_zig_series(close, change_pct)
+    return close, int(series[-1]) if series else 0
 
 
 def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -572,6 +604,11 @@ def evaluate_kline_strategy(code: str, df: pd.DataFrame, realtime_quote: Optiona
         elif mkt_capt > 0:
             float_mkt_capt = mkt_capt
         dde_all = float(realtime_quote.get("main_net_5d", 0.0))
+
+    # 实时价格同步至最新收盘序列
+    if realtime_quote and "price" in realtime_quote and realtime_quote["price"] > 0:
+        close = close.copy()
+        close[-1] = cur_close
 
     # 量比 (优先使用 Level-2 官方实时量比，若无则基于过去5日均量折算)
     vr_quote = float(realtime_quote.get("vol_ratio", 0.0)) if realtime_quote else 0.0
