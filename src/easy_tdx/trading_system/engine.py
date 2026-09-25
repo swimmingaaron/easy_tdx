@@ -158,8 +158,117 @@ def save_persistent_holders_data(code: str, data: Dict[str, Any]):
         pass
 
 
-def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
-    """获取指定股票池的实时计算进度。"""
+def _normalize_period(period: Optional[str]) -> str:
+    p_map = {"日": "day", "周": "week", "月": "month", "30": "30m", "60": "60m", "120": "120m", "30分": "30m", "60分": "60m", "120分": "120m", "日线": "day", "周线": "week", "月线": "month"}
+    p_clean = str(period or "30m").lower().strip()
+    p_clean = p_map.get(p_clean, p_clean)
+    if p_clean not in ("30m", "60m", "120m", "day", "week", "month"):
+        p_clean = "30m"
+    return p_clean
+
+
+def is_in_trading_hours(now: Optional[datetime] = None) -> bool:
+    """判断当前时间是否处于 A 股连续竞价交易时段 (9:25-11:30, 13:00-15:00)。"""
+    if now is None:
+        now = datetime.now()
+    if now.weekday() >= 5:
+        return False
+    t = now.time()
+    from datetime import time as dt_time
+    m_start = dt_time(9, 25)
+    m_end = dt_time(11, 30)
+    a_start = dt_time(13, 0)
+    a_end = dt_time(15, 0)
+    return (m_start <= t <= m_end) or (a_start <= t <= a_end)
+
+
+def get_ongoing_30m_bar_label(now: Optional[datetime] = None) -> Optional[str]:
+    """获取当前盘中进行中的 30分钟 Bar 时间戳标签（对齐通达信右端点格式 YYYY-MM-DD HH:MM）。"""
+    if now is None:
+        now = datetime.now()
+    if not is_in_trading_hours(now):
+        return None
+    h, m = now.hour, now.minute
+    total_m = h * 60 + m
+    if total_m <= 10 * 60:
+        target_hm = "10:00"
+    elif total_m <= 10 * 60 + 30:
+        target_hm = "10:30"
+    elif total_m <= 11 * 60:
+        target_hm = "11:00"
+    elif total_m <= 11 * 60 + 30:
+        target_hm = "11:30"
+    elif total_m <= 13 * 60 + 30:
+        target_hm = "13:30"
+    elif total_m <= 14 * 60:
+        target_hm = "14:00"
+    elif total_m <= 14 * 60 + 30:
+        target_hm = "14:30"
+    else:
+        target_hm = "15:00"
+    return f"{now.strftime('%Y-%m-%d')} {target_hm}"
+
+
+def ensure_realtime_30m_kline(
+    df: pd.DataFrame, 
+    realtime_quote: Optional[Dict[str, Any]] = None,
+    now: Optional[datetime] = None,
+) -> pd.DataFrame:
+    """
+    确保 30 分钟 K 线末端数据与最新实时行情快照严格同步。
+    """
+    if df is None or df.empty:
+        return df
+    if not realtime_quote or not realtime_quote.get("price") or realtime_quote["price"] <= 0:
+        return df
+
+    if now is None:
+        now = datetime.now()
+
+    if not is_in_trading_hours(now):
+        return df
+
+    quote_time = str(realtime_quote.get("time", "")).strip().replace("-", "").replace(":", "").replace(" ", "")
+    today_str = now.strftime("%Y%m%d")
+    if len(quote_time) >= 8 and quote_time[:8] != today_str:
+        return df
+
+    cur_price = float(realtime_quote["price"])
+    ongoing_label = get_ongoing_30m_bar_label(now)
+    if not ongoing_label:
+        return df
+
+    df = df.copy()
+    last_dt = str(df.iloc[-1].get("datetime", "")).strip()
+
+    if last_dt == ongoing_label:
+        last_idx = df.index[-1]
+        df.loc[last_idx, "close"] = cur_price
+        if cur_price > df.loc[last_idx, "high"]:
+            df.loc[last_idx, "high"] = cur_price
+        if cur_price < df.loc[last_idx, "low"] and cur_price > 0:
+            df.loc[last_idx, "low"] = cur_price
+    elif last_dt < ongoing_label:
+        new_row = {
+            "datetime": ongoing_label,
+            "open": cur_price,
+            "high": cur_price,
+            "low": cur_price,
+            "close": cur_price,
+            "volume": 0,
+            "amount": 0.0,
+        }
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+    return df
+
+
+def get_universe_eval_progress(universe_type: str = "core", period: str = "30m") -> Dict[str, Any]:
+    """获取指定股票池与周期的实时计算进度。"""
+    p_clean = _normalize_period(period)
+    key = f"{universe_type}_{p_clean}"
+    if key in _EVAL_PROGRESS:
+        return _EVAL_PROGRESS[key]
     return _EVAL_PROGRESS.get(universe_type, {
         "status": "idle",
         "total": 0,
@@ -169,32 +278,37 @@ def get_universe_eval_progress(universe_type: str = "core") -> Dict[str, Any]:
     })
 
 
-def has_universe_cache(universe_type: str = "core") -> bool:
-    """检查指定股票池是否已存在可用内存或磁盘缓存。"""
-    mem_key = f"univ_{universe_type}"
+def has_universe_cache(universe_type: str = "core", period: str = "30m") -> bool:
+    """检查指定股票池与周期是否已存在可用内存或磁盘缓存。"""
+    p_clean = _normalize_period(period)
+    mem_key = f"univ_{universe_type}_{p_clean}"
     if mem_key in _MEM_CACHE:
         return True
     import glob
-    pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_*.json")
+    pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_{p_clean}_*.json")
     cand_files = glob.glob(pattern)
     return bool(cand_files)
 
 
-def is_universe_evaluating(universe_type: str = "core") -> bool:
-    """检查指定股票池是否正在后台计算中。"""
+def is_universe_evaluating(universe_type: str = "core", period: str = "30m") -> bool:
+    """检查指定股票池与周期是否正在后台计算中。"""
+    p_clean = _normalize_period(period)
+    key = f"{universe_type}_{p_clean}"
     with _EVAL_LOCK:
-        return universe_type in _ACTIVE_EVAL_EVENTS
+        return key in _ACTIVE_EVAL_EVENTS or universe_type in _ACTIVE_EVAL_EVENTS
 
 
-def start_background_universe_eval(universe_type: str = "core", force_refresh: bool = True) -> bool:
+def start_background_universe_eval(universe_type: str = "core", period: str = "30m", force_refresh: bool = True) -> bool:
     """如果未在运行，则启动后台守护线程异步执行 evaluate_universe。"""
+    p_clean = _normalize_period(period)
+    key = f"{universe_type}_{p_clean}"
     with _EVAL_LOCK:
-        if universe_type in _ACTIVE_EVAL_EVENTS:
+        if key in _ACTIVE_EVAL_EVENTS or universe_type in _ACTIVE_EVAL_EVENTS:
             return False
     import threading
     t = threading.Thread(
         target=evaluate_universe,
-        kwargs={"universe_type": universe_type, "force_refresh": force_refresh},
+        kwargs={"universe_type": universe_type, "period": p_clean, "force_refresh": force_refresh},
         daemon=True,
     )
     t.start()
@@ -1638,19 +1752,21 @@ def evaluate_universe(
     symbols: Optional[List[str]] = None,
     max_workers: int = 24,
     universe_type: str = "core",
+    period: str = "30m",
     force_refresh: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    全市场或指定代码池的高速多线程批量量化评估（支持内存与磁盘双重高速缓存）。
+    全市场或指定代码池的高速多线程批量量化评估（支持按K线周期与内存/磁盘双重高速缓存）。
     """
+    p_clean = _normalize_period(period)
     is_custom_symbols = symbols is not None
     today_str = date.today().strftime("%Y%m%d")
-    cache_f = os.path.join(_CACHE_DIR, f"universe_{universe_type}_{today_str}.json")
-    mem_key = f"univ_{universe_type}"
+    cache_f = os.path.join(_CACHE_DIR, f"universe_{universe_type}_{p_clean}_{today_str}.json")
+    mem_key = f"univ_{universe_type}_{p_clean}"
 
     # 自选/自定义股票池启用30秒轻量缓存与秒级实时快照刷新
     if is_custom_symbols and not force_refresh and symbols:
-        mem_key = f"univ_custom_{','.join(sorted(symbols))}"
+        mem_key = f"univ_custom_{p_clean}_{','.join(sorted(symbols))}"
         now = time.time()
         if mem_key in _MEM_CACHE:
             ts, cached_list = _MEM_CACHE[mem_key]
@@ -1688,25 +1804,28 @@ def evaluate_universe(
                     return [dict(x) for x in cached_list]
 
     # 仅对标准股票池启用缓存
+    eval_lock_key = f"{universe_type}_{p_clean}"
     if not is_custom_symbols and not force_refresh:
         now = time.time()
         # 1. 内存缓存 (优先极速命中)
         if mem_key in _MEM_CACHE:
             ts, cached_list = _MEM_CACHE[mem_key]
             if now - ts < 600.0:  # 10分钟内存缓存
-                _EVAL_PROGRESS[universe_type] = {
+                prog_val = {
                     "status": "done",
                     "total": len(cached_list),
                     "completed": len(cached_list),
                     "pct": 100.0,
                     "stock": f"命中内存Cache ({len(cached_list)} 只标的)",
                 }
+                _EVAL_PROGRESS[universe_type] = prog_val
+                _EVAL_PROGRESS[eval_lock_key] = prog_val
                 return [dict(x) for x in cached_list]
         # 2. 磁盘缓存 (优先当日缓存；若跨午夜、周末或开盘前尚未生成当日新缓存，自动秒级复用最近一次有效缓存)
         target_cache_f = cache_f
         if not os.path.exists(target_cache_f):
             import glob
-            pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_*.json")
+            pattern = os.path.join(_CACHE_DIR, f"universe_{universe_type}_{p_clean}_*.json")
             cand_files = sorted(glob.glob(pattern), reverse=True)
             if cand_files:
                 target_cache_f = cand_files[0]
@@ -1763,13 +1882,15 @@ def evaluate_universe(
                                 pass
                         _MEM_CACHE[mem_key] = (now, data)
                         logger.info(f"Loaded {len(data)} stocks from disk cache: {target_cache_f}")
-                        _EVAL_PROGRESS[universe_type] = {
+                        prog_val = {
                             "status": "done",
                             "total": len(data),
                             "completed": len(data),
                             "pct": 100.0,
                             "stock": f"命中磁盘Cache ({len(data)} 只标的)",
                         }
+                        _EVAL_PROGRESS[universe_type] = prog_val
+                        _EVAL_PROGRESS[eval_lock_key] = prog_val
                         return data
             except Exception as e:
                 logger.warning(f"Failed to read cache {target_cache_f}: {e}")
@@ -1780,17 +1901,17 @@ def evaluate_universe(
     wait_event = None
     if not is_custom_symbols:
         with _EVAL_LOCK:
-            if universe_type in _ACTIVE_EVAL_EVENTS:
-                wait_event = _ACTIVE_EVAL_EVENTS[universe_type]
+            if eval_lock_key in _ACTIVE_EVAL_EVENTS:
+                wait_event = _ACTIVE_EVAL_EVENTS[eval_lock_key]
             else:
                 wait_event = threading.Event()
-                _ACTIVE_EVAL_EVENTS[universe_type] = wait_event
+                _ACTIVE_EVAL_EVENTS[eval_lock_key] = wait_event
                 is_initiator = True
 
         if not is_initiator and wait_event:
-            logger.info(f"Another thread is already evaluating {universe_type}, waiting for existing run...")
+            logger.info(f"Another thread is already evaluating {eval_lock_key}, waiting for existing run...")
             wait_event.wait(timeout=240.0)
-            cached_res = _ACTIVE_EVAL_RESULTS.get(universe_type)
+            cached_res = _ACTIVE_EVAL_RESULTS.get(eval_lock_key) or _ACTIVE_EVAL_RESULTS.get(universe_type)
             if cached_res:
                 return [dict(x) for x in cached_res]
 
@@ -1802,19 +1923,21 @@ def evaluate_universe(
 
         total_syms = len(symbols)
         # 立即重置进度状态，消除上一轮残留的 done 导致的前端 100%->0% 倒退
-        _EVAL_PROGRESS[universe_type] = {
+        init_prog = {
             "status": "running",
             "stage": "quotes",
             "total": total_syms,
             "completed": 0,
             "pct": 1.0,
-            "stock": "正在获取实时行情与资金流快照...",
+            "stock": f"正在获取实时行情与资金流快照 (周期: {p_clean})...",
         }
+        _EVAL_PROGRESS[universe_type] = init_prog
+        _EVAL_PROGRESS[eval_lock_key] = init_prog
 
         # 批量获取快照与资金流，并支持进度平滑过渡 (1% ~ 10%)
         def _quote_progress(cur, tot):
             pct = round(1.0 + (cur / max(1, tot)) * 9.0, 1)
-            _EVAL_PROGRESS[universe_type] = {
+            q_prog = {
                 "status": "running",
                 "stage": "quotes",
                 "total": total_syms,
@@ -1822,6 +1945,8 @@ def evaluate_universe(
                 "pct": pct,
                 "stock": f"获取行情快照 ({cur}/{tot})...",
             }
+            _EVAL_PROGRESS[universe_type] = q_prog
+            _EVAL_PROGRESS[eval_lock_key] = q_prog
 
         quotes = fetch_realtime_pool_quotes(symbols, on_progress=_quote_progress if total_syms > 200 else None)
         q_map = {q["code"]: q for q in quotes}
@@ -1830,9 +1955,11 @@ def evaluate_universe(
 
         def _worker(s: str):
             try:
-                bar_count = 250 if total_syms > 300 else 750
-                df = fetch_security_kline(s, count=bar_count)
-                if df is not None and not df.empty and len(df) >= 20:
+                bar_count = 120 if p_clean in ("30m", "60m", "120m", "week", "month") else (250 if total_syms > 300 else 750)
+                df = fetch_security_kline(s, period=p_clean, count=bar_count)
+                if df is not None and not df.empty and len(df) >= 10:
+                    if p_clean == "30m":
+                        df = ensure_realtime_30m_kline(df, q_map.get(s))
                     res = evaluate_kline_strategy(s, df, q_map.get(s))
                     if res:
                         # 1. 板块代码与行业名称
@@ -1898,6 +2025,7 @@ def evaluate_universe(
             "pct": 10.0,
             "stock": "正在并行评估股票池量化模型与战法共振...",
         }
+        _EVAL_PROGRESS[eval_lock_key] = _EVAL_PROGRESS[universe_type]
 
         done_cnt = 0
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -1909,7 +2037,7 @@ def evaluate_universe(
                 done_cnt += 1
                 s_name = r.get("stock_name", "") if r else ""
                 pct = round(10.0 + (done_cnt / max(1, total_syms)) * 90.0, 1)
-                _EVAL_PROGRESS[universe_type] = {
+                prog_quant = {
                     "status": "running",
                     "stage": "quant",
                     "total": total_syms,
@@ -1917,6 +2045,8 @@ def evaluate_universe(
                     "pct": min(99.9, pct),
                     "stock": s_name,
                 }
+                _EVAL_PROGRESS[universe_type] = prog_quant
+                _EVAL_PROGRESS[eval_lock_key] = prog_quant
 
         # 统一清洗确保所有标的的股票名称均不含 "标的_" 临时替代码
         for r in results:
@@ -1936,13 +2066,14 @@ def evaluate_universe(
             except Exception as e:
                 logger.warning(f"Failed to save universe cache: {e}")
         elif is_custom_symbols and results and symbols:
-            mem_key = f"univ_custom_{','.join(sorted(symbols))}"
+            mem_key = f"univ_custom_{p_clean}_{','.join(sorted(symbols))}"
             _MEM_CACHE[mem_key] = (time.time(), results)
 
         if not is_custom_symbols:
             _ACTIVE_EVAL_RESULTS[universe_type] = results
+            _ACTIVE_EVAL_RESULTS[eval_lock_key] = results
 
-        _EVAL_PROGRESS[universe_type] = {
+        prog_done = {
             "status": "done",
             "stage": "done",
             "total": total_syms,
@@ -1950,12 +2081,15 @@ def evaluate_universe(
             "pct": 100.0,
             "stock": "计算完成",
         }
+        _EVAL_PROGRESS[universe_type] = prog_done
+        _EVAL_PROGRESS[eval_lock_key] = prog_done
 
         return results
     finally:
         if is_initiator and wait_event:
             with _EVAL_LOCK:
                 _ACTIVE_EVAL_EVENTS.pop(universe_type, None)
+                _ACTIVE_EVAL_EVENTS.pop(eval_lock_key, None)
                 wait_event.set()
 
 

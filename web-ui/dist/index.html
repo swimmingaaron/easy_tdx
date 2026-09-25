@@ -3451,6 +3451,33 @@
                             </select>
                         </div>
 
+                        <!-- K线周期选择 (日 周 月 30 60 120分, 默认30分) -->
+                        <div
+                            class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm">
+                            <span class="text-xs text-slate-600 dark:text-slate-400 select-none">周期:</span>
+                            <select id="ts-period-select" onchange="onTsPeriodChange(this.value)"
+                                class="bg-transparent text-xs text-cyan-600 dark:text-cyan-400 font-bold focus:outline-none cursor-pointer">
+                                <option value="30m" selected
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">30分钟
+                                </option>
+                                <option value="60m"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">60分钟
+                                </option>
+                                <option value="120m"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">120分钟
+                                </option>
+                                <option value="day"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">日线
+                                </option>
+                                <option value="week"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">周线
+                                </option>
+                                <option value="month"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">月线
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- 从服务器获取最新数据 / 使用Cache 控制器 (对齐设计图样式) -->
                         <div id="ts-cache-control-wrap"
                             class="flex items-center space-x-2 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm select-none"
@@ -14064,6 +14091,13 @@
         } catch (_) { }
 
 
+        let tsCurrentPeriod = '30m';
+        function onTsPeriodChange(val) {
+            tsCurrentPeriod = val || '30m';
+            const force = document.getElementById('ts-force-refresh')?.checked || false;
+            loadTradingSystemData(force);
+        }
+
         function onTsUniverseChange(val) {
             const force = document.getElementById('ts-force-refresh')?.checked || false;
             loadTradingSystemData(force);
@@ -14283,9 +14317,21 @@
 
             const uniSelect = document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe');
             const uniLabel = uniSelect ? (uniSelect.options[uniSelect.selectedIndex]?.text || uniSelect.value) : '标的池';
+            const periodSelect = document.getElementById('ts-period-select');
+            const activePeriod = periodSelect ? periodSelect.value : (tsCurrentPeriod || '30m');
+            tsCurrentPeriod = activePeriod;
+            const periodLabelsMap = {
+                '30m': '30分钟',
+                '60m': '60分钟',
+                '120m': '120分钟',
+                'day': '日线',
+                'week': '周线',
+                'month': '月线'
+            };
+            const curPeriodName = periodLabelsMap[activePeriod] || activePeriod;
 
             // 无论是否强制刷新还是使用 Cache，均展示高质感进度条
-            showTsProgress(uniLabel, force);
+            showTsProgress(`${uniLabel} (${curPeriodName})`, force);
 
             const activeUni = uniSelect ? uniSelect.value : 'core';
             if (tsProgressTimer) clearInterval(tsProgressTimer);
@@ -14300,20 +14346,20 @@
                 pollStep++;
                 try {
                     // 统一轮询后端真实进度 (无论 force 是 true 还是 false，只要后端在计算就反馈实时进度与处理个股)
-                    const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}`);
+                    const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(activeUni)}&period=${encodeURIComponent(activePeriod)}`);
                     if (myRunId !== tsCurrentRunId) return;
                     const pData = await pRes.json();
                     if (pData && pData.status === 'running') {
                         const stMsg = pData.stage === 'quotes'
-                            ? '正在批量获取全市场实时行情与资金流快照...'
-                            : '正在并行评估股票池量化模型与战法共振...';
+                            ? `正在批量获取全市场实时行情与资金流快照 (${curPeriodName})...`
+                            : `正在并行评估股票池量化模型与战法共振 (${curPeriodName})...`;
                         updateTsProgress(pData.completed, pData.total, pData.pct, pData.stock, stMsg);
                     } else if (pData && pData.status === 'done' && tsWaitingBackground) {
                         // 异步全市场后台计算完毕，自动无缝平滑拉取最终结果
                         tsWaitingBackground = false;
                         clearInterval(tsProgressTimer);
                         tsProgressTimer = null;
-                        updateTsProgress(pData.total, pData.total, 100.0, '全量标的计算完毕', '正在极速装载多因子量化共振数据...');
+                        updateTsProgress(pData.total, pData.total, 100.0, '全量标的计算完毕', `正在极速装载多因子量化共振数据 (${curPeriodName})...`);
                         // 将“从服务器获取最新数据”复位，避免后续刷新再次触发后台全量重算
                         const chkForce = document.getElementById('ts-force-refresh');
                         if (chkForce) chkForce.checked = false;
@@ -14324,7 +14370,7 @@
                     } else if (!force) {
                         // 使用 Cache 时的平滑极速过渡 (通常在 200~300ms 就会收到数据)
                         let sim = Math.min(95, 20 + pollStep * 15);
-                        updateTsProgress(0, 0, sim, '本地Cache载入中...', '正在从本地高速Cache载入量化多因子共振数据...');
+                        updateTsProgress(0, 0, sim, '本地Cache载入中...', `正在从本地高速Cache载入量化多因子共振数据 (${curPeriodName})...`);
                     }
                 } catch (err) {
                 } finally {
@@ -14341,7 +14387,7 @@
                 const myOpt = (document.getElementById('ts-chk-my-optional') || document.getElementById('ts-filter-my-opt'))?.checked || false;
                 const search = ((document.getElementById('ts-search-input') || document.getElementById('ts-filter-search'))?.value || '').trim();
 
-                url = `/api/trading_system/dashboard?min_buy=${minBuy}&max_sell=${maxSell}&industry=${encodeURIComponent(ind)}&universe=${uni}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
+                url = `/api/trading_system/dashboard?min_buy=${minBuy}&max_sell=${maxSell}&industry=${encodeURIComponent(ind)}&universe=${uni}&period=${encodeURIComponent(activePeriod)}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
             } else {
                 const minRules = document.getElementById('ts-screener-min-rules')?.value || '3';
                 const f1 = document.getElementById('ts-chk-r1')?.checked || false;
@@ -14354,7 +14400,7 @@
                 const myOpt = (document.getElementById('ts-chk-my-optional') || document.getElementById('ts-filter-my-opt'))?.checked || false;
                 const search = ((document.getElementById('ts-search-input') || document.getElementById('ts-filter-search'))?.value || '').trim();
 
-                url = `/api/trading_system/screener?min_rules=${minRules}&f_trend=${f1}&f_vol_price=${f2}&f_zombie=${f3}&f_macd=${f4}&f_boll=${f5}&industry=${encodeURIComponent(ind)}&universe=${uni}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
+                url = `/api/trading_system/screener?min_rules=${minRules}&f_trend=${f1}&f_vol_price=${f2}&f_zombie=${f3}&f_macd=${f4}&f_boll=${f5}&industry=${encodeURIComponent(ind)}&universe=${uni}&period=${encodeURIComponent(activePeriod)}&my_optional=${myOpt}&search_stock=${encodeURIComponent(search)}&sort_col=${tsSortCol}&sort_dir=${tsSortDir}&force_refresh=${force}`;
             }
 
             try {
@@ -14514,6 +14560,16 @@
             const tbody = document.getElementById('ts-table-body');
             if (!thead || !tbody) return;
 
+            const periodLabelsShort = {
+                '30m': '30分',
+                '60m': '60分',
+                '120m': '120分',
+                'day': '日线',
+                'week': '周线',
+                'month': '月线'
+            };
+            const zigPeriodTag = periodLabelsShort[tsCurrentPeriod] || '30分';
+
             if (mode === 'dashboard') {
                 thead.innerHTML = `
                 <tr>
@@ -14534,7 +14590,7 @@
                     <th class="py-2.5 px-2 text-right font-semibold ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('t_rate')">换手% ★</th>
                     <th class="py-2.5 px-2.5 text-right font-semibold">成交额</th>
                     <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('days')">连涨天</th>
-                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')">ZIG</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')" title="ZIG转向 (${zigPeriodTag})">ZIG (${zigPeriodTag})</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('ystz')">营业同比 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sjltz')">净利润同比 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pe_percentile')">PE(3年分位) ↕</th>
@@ -14570,7 +14626,7 @@
                     <th class="py-2.5 px-2 text-right ts-hover-header cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('t_rate')">换手% ★</th>
                     <th class="py-2.5 px-2.5 text-right font-semibold">成交额</th>
                     <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('days')">连涨天</th>
-                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')">ZIG</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('zig')" title="ZIG转向 (${zigPeriodTag})">ZIG (${zigPeriodTag})</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('ystz')">营业同比 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sjltz')">净利润同比 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pe_percentile')">PE(3年分位) ↕</th>

@@ -71,10 +71,13 @@ def toggle_watchlist_stock(req: WatchlistToggleReq) -> Dict[str, Any]:
 
 
 @router.get("/progress")
-def get_evaluation_progress(universe: str = Query("core")) -> Dict[str, Any]:
+def get_evaluation_progress(
+    universe: str = Query("core"),
+    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
+) -> Dict[str, Any]:
     """获取股票池量化计算实时进度与当前正在处理的股票"""
     from easy_tdx.trading_system.engine import get_universe_eval_progress
-    return get_universe_eval_progress(universe)
+    return get_universe_eval_progress(universe, period=period)
 
 
 @router.get("/dashboard")
@@ -85,6 +88,7 @@ def get_signal_dashboard(
     search_stock: str = Query("", description="搜索代码或名称"),
     my_optional: bool = Query(False, description="仅看我的自选"),
     universe: str = Query("core", description="股票池: core, hs300, zz500, all"),
+    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
     sort_col: str = Query("buy_score", description="排序字段"),
     sort_dir: str = Query("desc", description="排序方向: asc, desc"),
     selected_date: str = Query("", description="选定日期"),
@@ -109,12 +113,12 @@ def get_signal_dashboard(
         symbols_set = None
         if search_kw.isdigit() and len(search_kw) == 6:
             # 优先回溯历史或精准评估该股
-            single_res = evaluate_universe([search_kw], max_workers=1)
+            single_res = evaluate_universe([search_kw], max_workers=1, period=period)
             all_stocks = single_res
         elif symbols_str:
             clean_syms = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols_str.split(",") if s.strip()]
             symbols_set = set(clean_syms)
-            all_stocks = evaluate_universe(symbols=clean_syms, universe_type="custom", force_refresh=force_ref)
+            all_stocks = evaluate_universe(symbols=clean_syms, universe_type="custom", period=period, force_refresh=force_ref)
         else:
             wl_symbols = None
             if is_my_opt:
@@ -127,31 +131,34 @@ def get_signal_dashboard(
                         "rows": [],
                         "industries": [],
                         "watchlist": [],
+                        "period": period,
                     }
             # 对于大股票池（如 all 全市场 5000+ 或 zz1000）：
             # 1. 若强制刷新：如果未在计算则启动后台线程，立即返回 running 状态，避免反向代理超时
             # 2. 若未强制刷新：只要已有缓存，则直接读取缓存返回数据；若完全无缓存且未在计算，才启动后台线程
             if univ in ("all", "zz1000") and not is_my_opt:
                 if force_ref:
-                    if not is_universe_evaluating(univ):
-                        start_background_universe_eval(univ, force_refresh=True)
+                    if not is_universe_evaluating(univ, period=period):
+                        start_background_universe_eval(univ, period=period, force_refresh=True)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{univ} 股票池量化模型正在后台极速重算...",
-                        "progress": get_universe_eval_progress(univ),
+                        "progress": get_universe_eval_progress(univ, period=period),
+                        "period": period,
                     }
-                elif not has_universe_cache(univ):
-                    if not is_universe_evaluating(univ):
-                        start_background_universe_eval(univ, force_refresh=False)
+                elif not has_universe_cache(univ, period=period):
+                    if not is_universe_evaluating(univ, period=period):
+                        start_background_universe_eval(univ, period=period, force_refresh=False)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{univ} 股票池量化模型初次载入中，正在后台极速计算...",
-                        "progress": get_universe_eval_progress(univ),
+                        "progress": get_universe_eval_progress(univ, period=period),
+                        "period": period,
                     }
 
-            all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=univ, force_refresh=force_ref)
+            all_stocks = evaluate_universe(symbols=wl_symbols, universe_type=univ, period=period, force_refresh=force_ref)
 
         # 确保每只标的均含有真实股票名称与量化体检得分
         for s in all_stocks:
@@ -235,6 +242,7 @@ def get_signal_dashboard(
             "rows": filtered,
             "industries": industries,
             "watchlist": list(watchlist_set),
+            "period": period,
         }
     except Exception as e:
         logger.exception("Failed to get signal dashboard")
@@ -253,6 +261,7 @@ def get_resonance_screener(
     search_stock: str = Query("", description="搜索代码或名称"),
     my_optional: bool = Query(False, description="仅看我的自选"),
     universe: str = Query("core", description="股票池: core, hs300, zz500, all"),
+    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
     sort_col: str = Query("matched_count", description="排序字段"),
     sort_dir: str = Query("desc", description="排序方向: asc, desc"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
@@ -264,7 +273,7 @@ def get_resonance_screener(
     try:
         search_kw = search_stock.strip().upper()
         if search_kw.isdigit() and len(search_kw) == 6:
-            single_res = evaluate_universe([search_kw], max_workers=1)
+            single_res = evaluate_universe([search_kw], max_workers=1, period=period)
             all_stocks = single_res
         else:
             symbols = None
@@ -278,31 +287,34 @@ def get_resonance_screener(
                         "rows": [],
                         "industries": [],
                         "watchlist": [],
+                        "period": period,
                     }
             # 对于大股票池（如 all 全市场 5000+ 或 zz1000）：
             # 1. 若强制刷新：如果未在计算则启动后台线程，立即返回 running 状态，避免反向代理超时
             # 2. 若未强制刷新：只要已有缓存，则直接读取缓存返回数据；若完全无缓存且未在计算，才启动后台线程
             if universe in ("all", "zz1000") and not my_optional:
                 if force_refresh:
-                    if not is_universe_evaluating(universe):
-                        start_background_universe_eval(universe, force_refresh=True)
+                    if not is_universe_evaluating(universe, period=period):
+                        start_background_universe_eval(universe, period=period, force_refresh=True)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{universe} 股票池量化模型正在后台极速重算...",
-                        "progress": get_universe_eval_progress(universe),
+                        "progress": get_universe_eval_progress(universe, period=period),
+                        "period": period,
                     }
-                elif not has_universe_cache(universe):
-                    if not is_universe_evaluating(universe):
-                        start_background_universe_eval(universe, force_refresh=False)
+                elif not has_universe_cache(universe, period=period):
+                    if not is_universe_evaluating(universe, period=period):
+                        start_background_universe_eval(universe, period=period, force_refresh=False)
                     return {
                         "success": True,
                         "status": "running",
                         "message": f"{universe} 股票池量化模型初次载入中，正在后台极速计算...",
-                        "progress": get_universe_eval_progress(universe),
+                        "progress": get_universe_eval_progress(universe, period=period),
+                        "period": period,
                     }
 
-            all_stocks = evaluate_universe(symbols=symbols, universe_type=universe, force_refresh=force_refresh)
+            all_stocks = evaluate_universe(symbols=symbols, universe_type=universe, period=period, force_refresh=force_refresh)
 
         watchlist_set = set(load_watchlist())
 
@@ -370,6 +382,7 @@ def get_resonance_screener(
             "rows": filtered,
             "industries": industries,
             "watchlist": list(watchlist_set),
+            "period": period,
         }
     except Exception as e:
         logger.exception("Failed to get resonance screener")
