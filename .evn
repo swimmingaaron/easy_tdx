@@ -1,0 +1,3 @@
+WECHAT_WEBHOOK_URL=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=4c581bd2-2709-4f2c-b176-c13660c3d9d4
+# 若使用 PushPlus（推送个人微信）亦可配置：
+# PUSHPLUS_TOKEN=your_token_here
