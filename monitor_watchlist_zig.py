@@ -37,7 +37,9 @@ easy_tdx 自选监控池 30分钟 K线 ZIG 转向后台监测脚本
 from __future__ import annotations
 
 import argparse
+import base64
 import concurrent.futures
+import hashlib
 import io
 import json
 import logging
@@ -248,6 +250,12 @@ def ensure_realtime_30m_kline(
     if not is_in_trading_hours(now):
         return df
 
+    # 快照日期校验：如果快照包含明确时间戳且非今日（如行情源仍为上一交易日昨收状态），不追加未发生周期的伪造 Bar
+    quote_time = str(realtime_quote.get("time", "")).strip().replace("-", "").replace(":", "").replace(" ", "")
+    today_str = now.strftime("%Y%m%d")
+    if len(quote_time) >= 8 and quote_time[:8] != today_str:
+        return df
+
     cur_price = float(realtime_quote["price"])
     ongoing_label = get_ongoing_30m_bar_label(now)
     if not ongoing_label:
@@ -310,6 +318,7 @@ def check_single_stock_zig(
         zig_days = calculate_zig_series(closes, change_pct=change_pct)
         if not zig_days:
             return None
+        df["zig"] = zig_days
 
         cur_zig = int(zig_days[-1])
         # 仅关注反转首日 (+1 或 -1)
@@ -341,6 +350,7 @@ def check_single_stock_zig(
             "amount": float(last_bar.get("amount", 0.0)),
             "bar_time": bar_time,
             "is_realtime_verified": True,
+            "kline_df": df,
         }
     except Exception as e:
         logger.debug(f"检查 {code} ({name}) 30M ZIG 出错: {e}")
@@ -466,6 +476,229 @@ def scan_watchlist_zig(
     }
 
 
+def generate_kline_snapshot(
+    code: str,
+    name: str,
+    df: pd.DataFrame,
+    zig_val: int,
+    change_pct: float = 0.0,
+    delta_pct: float = 0.05,
+    n_bars: int = 50,
+) -> bytes:
+    """生成专业的 30M K线及 ZIG 转向快照图片字节流 (PNG)。"""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+    except ImportError:
+        logger.warning("未安装 matplotlib，跳过 30M K线快照图片生成。可通过 pip install matplotlib 安装。")
+        return b""
+
+    try:
+        if "zig" not in df.columns:
+            closes = df["close"].values.astype(float)
+            df["zig"] = calculate_zig_series(closes, change_pct=delta_pct)
+
+        df_plot = df.tail(n_bars).reset_index(drop=True)
+        if len(df_plot) < 5:
+            return b""
+
+        last_idx = len(df_plot) - 1
+        last_row = df_plot.iloc[last_idx]
+        last_c = float(last_row["close"])
+
+        # 设置中文字体与负号显示
+        plt.rcParams["font.sans-serif"] = [
+            "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "DejaVu Sans", "sans-serif"
+        ]
+        plt.rcParams["axes.unicode_minus"] = False
+
+        fig, (ax1, ax2) = plt.subplots(
+            2, 1,
+            figsize=(9.4, 5.8),
+            gridspec_kw={"height_ratios": [3.6, 1.0]},
+            facecolor="#18191d"
+        )
+        ax1.set_facecolor("#18191d")
+        ax2.set_facecolor("#18191d")
+
+        # 细灰背景网格
+        ax1.grid(True, linestyle="--", alpha=0.15, color="#ffffff")
+        ax2.grid(True, linestyle="--", alpha=0.15, color="#ffffff")
+
+        # 1. 蜡烛图
+        for i, row in df_plot.iterrows():
+            o = float(row["open"])
+            c = float(row["close"])
+            h = float(row["high"])
+            l = float(row["low"])
+            color = "#f23645" if c >= o else "#089981"
+            ax1.vlines(i, l, h, color=color, linewidth=1.2, zorder=2)
+            lower = min(o, c)
+            height = max(abs(c - o), 0.01)
+            rect = patches.Rectangle(
+                (i - 0.35, lower), 0.7, height,
+                facecolor=color, edgecolor=color, zorder=3
+            )
+            ax1.add_patch(rect)
+
+        # 2. 均线 MA5, MA10
+        ma5 = df_plot["close"].rolling(5).mean()
+        ma10 = df_plot["close"].rolling(10).mean()
+        ax1.plot(ma5, color="#ffd700", label="MA5", linewidth=1.1, alpha=0.8, zorder=4)
+        ax1.plot(ma10, color="#00bcd4", label="MA10", linewidth=1.1, alpha=0.8, zorder=4)
+
+        # 3. ZIG 波峰波谷折线 (ZigZag 转向轨迹)
+        pivots_x = []
+        pivots_y = []
+        full_zig = df["zig"].values
+        offset_in_full = len(df) - len(df_plot)
+        for idx_full in range(1, len(df)):
+            z_curr = full_zig[idx_full]
+            # 顶反转 (-1): 前一个点是波峰最高价
+            if z_curr == -1:
+                p_idx = (idx_full - 1) - offset_in_full
+                if 0 <= p_idx < len(df_plot):
+                    pivots_x.append(p_idx)
+                    pivots_y.append(float(df_plot.iloc[p_idx]["high"]))
+            # 底反转 (+1): 前一个点是波谷最低价
+            elif z_curr == 1:
+                p_idx = (idx_full - 1) - offset_in_full
+                if 0 <= p_idx < len(df_plot):
+                    pivots_x.append(p_idx)
+                    pivots_y.append(float(df_plot.iloc[p_idx]["low"]))
+
+        if pivots_x and pivots_x[-1] != last_idx:
+            pivots_x.append(last_idx)
+            pivots_y.append(last_c)
+
+        if len(pivots_x) >= 2:
+            ax1.plot(
+                pivots_x, pivots_y,
+                color="#ff9800", linestyle="--", linewidth=1.5,
+                alpha=0.9, zorder=5, label="ZIG 轨迹"
+            )
+
+        # 4. 标记当前视图中的所有反转点 (买入 / 卖出)
+        price_span = df_plot["high"].max() - df_plot["low"].min()
+        offset = max(price_span * 0.08, 0.3)
+
+        for i in range(len(df_plot)):
+            row_i = df_plot.iloc[i]
+            z_i = int(row_i.get("zig", 0))
+            c_val = float(row_i["close"])
+            l_val = float(row_i["low"])
+            h_val = float(row_i["high"])
+            is_latest = (i == last_idx)
+
+            if z_i == 1:
+                # 向上反转 -> 买入信号
+                tag = f"▲ 买入 (+1)\n¥{c_val:.2f}" if is_latest else f"▲ 买入\n¥{c_val:.2f}"
+                ax1.annotate(
+                    tag,
+                    xy=(i, l_val),
+                    xytext=(i, l_val - offset),
+                    arrowprops=dict(facecolor="#f23645", edgecolor="#ffffff", shrink=0.08, width=1.5, headwidth=5),
+                    ha="center", va="top", fontsize=9.5 if is_latest else 8.2, fontweight="bold", color="#ffffff",
+                    bbox=dict(
+                        boxstyle="round,pad=0.32",
+                        facecolor="#f23645",
+                        edgecolor="#ffffff" if is_latest else "none",
+                        alpha=0.95 if is_latest else 0.88
+                    ),
+                    zorder=7 if is_latest else 6
+                )
+            elif z_i == -1:
+                # 向下见顶 -> 卖出信号
+                tag = f"▼ 卖出 (-1)\n¥{c_val:.2f}" if is_latest else f"▼ 卖出\n¥{c_val:.2f}"
+                ax1.annotate(
+                    tag,
+                    xy=(i, h_val),
+                    xytext=(i, h_val + offset),
+                    arrowprops=dict(facecolor="#089981", edgecolor="#ffffff", shrink=0.08, width=1.5, headwidth=5),
+                    ha="center", va="bottom", fontsize=9.5 if is_latest else 8.2, fontweight="bold", color="#ffffff",
+                    bbox=dict(
+                        boxstyle="round,pad=0.32",
+                        facecolor="#089981",
+                        edgecolor="#ffffff" if is_latest else "none",
+                        alpha=0.95 if is_latest else 0.88
+                    ),
+                    zorder=7 if is_latest else 6
+                )
+
+        # Y 轴自适应留白，保证所有买卖点文字标签清晰完整
+        ax1.set_ylim(bottom=df_plot["low"].min() - offset * 1.8, top=df_plot["high"].max() + offset * 1.8)
+
+        # 5. 顶部 Header 与状态栏
+        chg_color = "#f23645" if change_pct >= 0 else "#089981"
+        sig_text = "向上反转买入 (+1)" if zig_val == 1 else "见顶向下卖出 (-1)"
+        title_str = f"{code} {name}  ·  30分钟 K线  [ 全反转点标记 ]"
+        bar_dt = str(last_row.get("datetime", ""))
+        status_str = f"最新收盘: ¥{last_c:.2f} ({change_pct:+.2f}%)   当前信号: {sig_text}   时间: {bar_dt}   ZIG阈值: {delta_pct*100:.1f}%"
+
+        fig.suptitle(title_str, fontsize=13, fontweight="bold", color="#ffffff", x=0.12, y=0.96, ha="left")
+        ax1.set_title(status_str, fontsize=9.2, color=chg_color, loc="left", pad=6)
+
+        # 6. 成交量副图
+        for i, row in df_plot.iterrows():
+            c = float(row["close"])
+            o = float(row["open"])
+            v = float(row.get("volume", 0))
+            color = "#f23645" if c >= o else "#089981"
+            ax2.bar(i, v, color=color, width=0.7, alpha=0.85)
+
+        # 7. X轴时间刻度
+        n = len(df_plot)
+        step = max(1, n // 6)
+        xticks = list(range(0, n, step))
+        if (n - 1) not in xticks:
+            xticks.append(n - 1)
+
+        def _fmt_x(dt_str: str) -> str:
+            s = str(dt_str).strip()
+            if len(s) >= 16:
+                return s[5:16]  # MM-DD HH:MM
+            return s
+
+        xlabels = [_fmt_x(df_plot.iloc[idx]["datetime"]) for idx in xticks]
+        ax2.set_xticks(xticks)
+        ax2.set_xticklabels(xlabels, color="#a0a0a0", fontsize=8)
+        ax1.set_xticks([])
+
+        ax1.yaxis.tick_right()
+        ax2.yaxis.tick_right()
+        for ax in (ax1, ax2):
+            ax.tick_params(colors="#a0a0a0", labelsize=8)
+            for spine in ax.spines.values():
+                spine.set_color("#2d2e33")
+
+        plt.tight_layout(rect=[0, 0, 1, 0.94])
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", dpi=130, facecolor=fig.get_facecolor(), edgecolor="none")
+        plt.close(fig)
+
+        img_bytes = buf.getvalue()
+
+        # 自动归档至 data/snapshots/
+        try:
+            snapshot_dir = PROJECT_ROOT / "data" / "snapshots"
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+            clean_time = bar_dt.replace("-", "").replace(":", "").replace(" ", "_")
+            sig_name = "BUY" if zig_val == 1 else "SELL"
+            img_path = snapshot_dir / f"{code}_{sig_name}_{clean_time}.png"
+            img_path.write_bytes(img_bytes)
+            logger.info(f"已生成 {code} {name} 30M K线快照: {img_path.relative_to(PROJECT_ROOT)}")
+        except Exception as e:
+            logger.debug(f"保存快照图片到本地出错: {e}")
+
+        return img_bytes
+    except Exception as exc:
+        logger.error(f"生成 {code} {name} 30M K线快照失败: {exc}")
+        return b""
+
+
 # ==============================================================================
 # 3. 微信通知推送实现 (支持企微机器人、Server酱、PushPlus、WxPusher)
 # ==============================================================================
@@ -589,6 +822,36 @@ class WeChatNotifier:
 
         return success
 
+    def send_image(self, image_bytes: bytes) -> bool:
+        """推送 K 线快照图片消息（支持企业微信机器人）。"""
+        if not image_bytes:
+            return False
+
+        success = False
+        # 1. 企业微信机器人原生图片接口 (msgtype: image, base64 + md5)
+        if self.wecom_webhook:
+            try:
+                b64_str = base64.b64encode(image_bytes).decode("utf-8")
+                md5_str = hashlib.md5(image_bytes).hexdigest()
+                payload = {
+                    "msgtype": "image",
+                    "image": {
+                        "base64": b64_str,
+                        "md5": md5_str,
+                    },
+                }
+                res_data = self._post_json(self.wecom_webhook, payload)
+                if res_data.get("errcode") == 0:
+                    logger.info("企业微信机器人 30M K线快照图片 发送成功！")
+                    success = True
+                else:
+                    logger.error(f"企业微信机器人图片发送失败: {res_data}")
+            except Exception as e:
+                logger.error(f"企业微信机器人发送图片异常: {e}")
+
+        return success
+
+
 
 def format_zig_message(
     scan_results: Dict[str, List[Dict[str, Any]]],
@@ -667,11 +930,38 @@ def run_single_scan_and_notify(
     if total_signals > 0 or notify_if_empty:
         if notifier.is_configured():
             notifier.send_notification(title, content)
+            # 为检测到的转向标的生成并推送 30M K 线走势快照图片
+            all_signals = buy_list + sell_list
+            for sig in all_signals[:5]:
+                kline_df = sig.get("kline_df")
+                if kline_df is not None and not kline_df.empty:
+                    img_bytes = generate_kline_snapshot(
+                        code=sig["code"],
+                        name=sig["name"],
+                        df=kline_df,
+                        zig_val=sig["zig"],
+                        change_pct=sig.get("chg_pct", 0.0),
+                        delta_pct=delta,
+                    )
+                    if img_bytes:
+                        notifier.send_image(img_bytes)
         else:
             logger.warning(
                 "检测到 ZIG 转向信号，但尚未配置微信通知通道（企业微信 Webhook / PushPlus / Server酱）。"
             )
             logger.info("提示: 启动时可通过 --webhook 参数传入企业微信 Webhook 链接。")
+            # 即使未配置通知，也生成并归档本地快照供查看
+            for sig in (buy_list + sell_list)[:5]:
+                kline_df = sig.get("kline_df")
+                if kline_df is not None and not kline_df.empty:
+                    generate_kline_snapshot(
+                        code=sig["code"],
+                        name=sig["name"],
+                        df=kline_df,
+                        zig_val=sig["zig"],
+                        change_pct=sig.get("chg_pct", 0.0),
+                        delta_pct=delta,
+                    )
     else:
         logger.info("当前自选股无 30M ZIG 转向首日(+1/-1)标的，跳过微信推送。")
 

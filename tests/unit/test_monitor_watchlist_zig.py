@@ -136,3 +136,64 @@ def test_ensure_realtime_30m_kline():
     assert df_on.iloc[-1]["datetime"] == "2026-09-25 10:30"
     assert df_on.iloc[-1]["close"] == 10.8
     assert df_on.iloc[-2]["close"] == 10.3  # Historical bar intact!
+
+    # Case 3: Quote timestamp belongs to previous day -> do NOT append fake ongoing bar
+    prev_quote = {"price": 10.8, "time": "20260924161412"}
+    df_prev = ensure_realtime_30m_kline(sample_df, prev_quote, now=fri_dt)
+    assert len(df_prev) == 2
+    assert df_prev.iloc[-1]["datetime"] == "2026-09-24 15:00"
+    assert df_prev.iloc[-1]["close"] == 10.3
+
+
+def test_generate_kline_snapshot_and_send_image(monkeypatch):
+    """Verify 30M K-line snapshot generation and image sending logic."""
+    import pandas as pd
+    from monitor_watchlist_zig import generate_kline_snapshot, WeChatNotifier
+
+    # Build dummy K-lines
+    rows = []
+    base_price = 10.0
+    for i in range(20):
+        c = base_price + (i * 0.1 if i < 15 else (15 * 0.1 - (i - 15) * 0.2))
+        rows.append({
+            "datetime": f"2026-09-25 {10 + i // 2:02d}:{(i % 2) * 30:02d}",
+            "open": c - 0.05,
+            "high": c + 0.1,
+            "low": c - 0.1,
+            "close": c,
+            "volume": 1000 + i * 50,
+            "amount": 10000.0,
+            "zig": 1 if i == 19 else (i - 18 if i >= 15 else -(i + 1)),
+        })
+    df = pd.DataFrame(rows)
+
+    # 1. Test generate_kline_snapshot
+    img_bytes = generate_kline_snapshot(
+        code="002436",
+        name="兴森科技",
+        df=df,
+        zig_val=1,
+        change_pct=2.5,
+        delta_pct=0.05,
+    )
+    assert isinstance(img_bytes, bytes)
+    assert len(img_bytes) > 1000  # Valid PNG data generated
+    assert img_bytes[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic header
+
+    # 2. Test WeChatNotifier.send_image mock
+    notifier = WeChatNotifier(wecom_webhook="https://qyapi.weixin.qq.com/mock")
+    sent_payload = []
+
+    def mock_post_json(url, data, timeout=8):
+        sent_payload.append(data)
+        return {"errcode": 0, "errmsg": "ok"}
+
+    monkeypatch.setattr(notifier, "_post_json", mock_post_json)
+    success = notifier.send_image(img_bytes)
+    assert success is True
+    assert len(sent_payload) == 1
+    assert sent_payload[0]["msgtype"] == "image"
+    assert "base64" in sent_payload[0]["image"]
+    assert "md5" in sent_payload[0]["image"]
+
+
