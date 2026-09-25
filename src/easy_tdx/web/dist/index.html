@@ -4421,6 +4421,9 @@
                         <button onclick="toggleKpZigMarks()" id="kp-sub-zig-marks"
                             class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0"
                             title="控制K线主图上的标记点(顶、底、买卖点)">买卖点</button>
+                        <button onclick="openKpZigHistoryModal()" id="kp-btn-zig-history"
+                            class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0"
+                            title="弹窗查看当前周期下所有历史点的日期、收盘价、涨幅、ZIG值">ZIG值</button>
                     </div>
                 </div>
 
@@ -4838,6 +4841,105 @@
             <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400"></i>
             <span>关闭K线窗口</span>
         </button>
+    </div>
+
+    <!-- ==================== K线窗口 ZIG 历史数据明细弹窗 ==================== -->
+    <div id="kp-zig-history-modal"
+        class="fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4"
+        onclick="if(event.target === this) closeKpZigHistoryModal()">
+        <div class="glass-card bg-[#0b0f19]/95 text-slate-100 border border-slate-700/80 rounded-2xl max-w-4xl w-full h-[85vh] max-h-[760px] flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl"
+            onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 gap-2 shrink-0">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                    <span class="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    </span>
+                    <div class="min-w-0">
+                        <div class="flex items-center space-x-2 flex-wrap">
+                            <h3 id="kp-zig-modal-title" class="text-sm font-bold text-white font-sans truncate">
+                                ZIG 历史点数据明细
+                            </h3>
+                            <span id="kp-zig-modal-period-badge" class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">
+                                周期: 30分
+                            </span>
+                            <span id="kp-zig-modal-count-badge" class="text-xs text-slate-400 font-mono shrink-0">
+                                共 0 条
+                            </span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-0.5 hidden sm:block">
+                            展示当前K线周期下所有历史蜡烛图点的收盘价、涨跌幅及 ZIG 转向序列值
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 shrink-0">
+                    <!-- 搜索框 -->
+                    <div class="relative">
+                        <input id="kp-zig-modal-search" type="text" placeholder="搜索日期/ZIG..."
+                            class="bg-slate-950 border border-slate-700 rounded-lg pl-2.5 pr-7 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-32 sm:w-44 font-mono transition"
+                            oninput="filterKpZigTable(this.value)">
+                        <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-500 pointer-events-none"></i>
+                    </div>
+                    <!-- 排序切换 -->
+                    <button type="button" onclick="toggleKpZigModalSort()" id="kp-zig-modal-sort-btn"
+                        class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition cursor-pointer font-sans whitespace-nowrap">
+                        最新在前 ↓
+                    </button>
+                    <!-- 关闭按钮 -->
+                    <button type="button" onclick="closeKpZigHistoryModal()"
+                        class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition text-lg leading-none cursor-pointer"
+                        title="关闭 (Esc)">&times;</button>
+                </div>
+            </div>
+
+            <!-- Summary Stats Bar -->
+            <div id="kp-zig-modal-summary"
+                class="px-4 py-2 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-300 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
+                <div class="flex items-center space-x-4 font-mono text-[11px]">
+                    <span>最新现价: <strong id="kp-zig-stat-cur-price" class="text-white">--</strong></span>
+                    <span>最新ZIG: <strong id="kp-zig-stat-cur-zig" class="text-rose-400">--</strong></span>
+                    <span>波谷(底点): <strong id="kp-zig-stat-troughs" class="text-cyan-400">0</strong> 个</span>
+                    <span>波峰(顶点): <strong id="kp-zig-stat-peaks" class="text-amber-400">0</strong> 个</span>
+                    <span>买点触发: <strong id="kp-zig-stat-buys" class="text-rose-400">0</strong> 次</span>
+                    <span>卖点触发: <strong id="kp-zig-stat-sells" class="text-emerald-400">0</strong> 次</span>
+                </div>
+                <div class="text-[11px] text-slate-500 font-sans hidden md:block">
+                    提示：ZIG正值代表底点向上第N周期，负值代表顶点向下第N周期
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="flex-1 overflow-auto bg-slate-900/40 p-2 sm:p-3">
+                <table class="w-full text-left border-separate border-spacing-0 text-xs font-mono">
+                    <thead class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur text-slate-400 font-sans text-[11px] shadow-sm select-none">
+                        <tr>
+                            <th class="py-2.5 px-3 text-center w-12 border-b border-slate-800">#</th>
+                            <th class="py-2.5 px-3 text-left border-b border-slate-800">日期 / 时间</th>
+                            <th class="py-2.5 px-3 text-right border-b border-slate-800">收盘价 (元)</th>
+                            <th class="py-2.5 px-3 text-right border-b border-slate-800">涨跌幅%</th>
+                            <th class="py-2.5 px-3 text-center border-b border-slate-800">ZIG值</th>
+                            <th class="py-2.5 px-3 text-left border-b border-slate-800">转向及形态属性</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kp-zig-modal-tbody" class="divide-y divide-slate-800/50">
+                        <tr>
+                            <td colspan="6" class="py-12 text-center text-slate-500 font-sans">
+                                数据加载中...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-2.5 sm:p-3 bg-slate-950/80 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+                <span id="kp-zig-modal-footer-hint">支持按日期、收盘价或ZIG值筛选。按 ESC 键即可关闭。</span>
+                <button type="button" onclick="closeKpZigHistoryModal()"
+                    class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer">
+                    关闭
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- easy_tdx Server Management & Speed Test Modal -->
@@ -6034,6 +6136,11 @@
                         }
                     }
                 } else if (e.key === 'Escape') {
+                    const zigHistModal = document.getElementById('kp-zig-history-modal');
+                    if (zigHistModal && !zigHistModal.classList.contains('hidden')) {
+                        closeKpZigHistoryModal();
+                        return;
+                    }
                     const menu = document.getElementById('kp-context-menu');
                     if (menu && !menu.classList.contains('hidden')) {
                         hideKpContextMenu();
@@ -6250,6 +6357,219 @@
                 renderKpChart(currentKpData);
             }
         }
+
+        // ==================== K线窗口 ZIG 历史数据明细弹窗控制逻辑 ==================== //
+        let kpZigModalSortOrder = 'desc'; // 'desc': 最新在前 (默认), 'asc': 最早在前
+        let kpZigModalRawItems = [];
+        let kpZigModalQuery = '';
+
+        function openKpZigHistoryModal() {
+            const modal = document.getElementById('kp-zig-history-modal');
+            if (!modal) return;
+
+            const bars = currentKpFullBars || [];
+            if (!bars || bars.length === 0) {
+                alert('当前暂无K线数据，请稍候加载完成后再试');
+                return;
+            }
+
+            // 重新计算并刷新当前周期的 ZIG 状态
+            const zigResult = calcZigSignals(bars);
+
+            const periodNameMap = {
+                'DAY': '日K',
+                'WEEK': '周K',
+                'MONTH': '月K',
+                'SEASON': '季K',
+                'YEAR': '年K',
+                '120M': '120分',
+                '60M': '60分',
+                '30M': '30分',
+                '15M': '15分',
+                '5M': '5分',
+                '1M': '1分',
+            };
+            const pName = periodNameMap[currentKpPeriod] || currentKpPeriod;
+
+            // 统计指标
+            let troughsCount = 0;
+            let peaksCount = 0;
+            let buysCount = 0;
+            let sellsCount = 0;
+            kpZigModalRawItems = [];
+
+            for (let i = 0; i < bars.length; i++) {
+                const b = bars[i];
+                const prev = i > 0 ? bars[i - 1] : null;
+                const prevClose = prev ? Number(prev.close || 0) : 0;
+                const curClose = Number(b.close || 0);
+                const chgPct = prevClose > 0 ? ((curClose - prevClose) / prevClose * 100) : 0;
+                const zigVal = (b.zig !== undefined && b.zig !== null) ? b.zig : (b.zig_days !== undefined ? b.zig_days : 0);
+
+                if (b.zig_trough) troughsCount++;
+                if (b.zig_peak) peaksCount++;
+                if (b.zig_buy) buysCount++;
+                if (b.zig_sell) sellsCount++;
+
+                kpZigModalRawItems.push({
+                    index: i + 1,
+                    datetime: b.datetime || '',
+                    close: curClose,
+                    chgPct: chgPct,
+                    zig: zigVal,
+                    isTrough: !!b.zig_trough,
+                    isPeak: !!b.zig_peak,
+                    isBuy: !!b.zig_buy,
+                    isSell: !!b.zig_sell,
+                });
+            }
+
+            // 更新标题与周期
+            const stockTitle = `${currentKpStockName || currentKpSymbol} (${currentKpSymbol})`;
+            const titleEl = document.getElementById('kp-zig-modal-title');
+            if (titleEl) titleEl.innerText = `${stockTitle} · 历史 ZIG 数据列表`;
+            const periodBadgeEl = document.getElementById('kp-zig-modal-period-badge');
+            if (periodBadgeEl) periodBadgeEl.innerText = `周期: ${pName}`;
+            const countBadgeEl = document.getElementById('kp-zig-modal-count-badge');
+            if (countBadgeEl) countBadgeEl.innerText = `共 ${kpZigModalRawItems.length} 条`;
+
+            // 更新顶部汇总
+            const lastItem = kpZigModalRawItems[kpZigModalRawItems.length - 1];
+            const statCurPrice = document.getElementById('kp-zig-stat-cur-price');
+            if (statCurPrice) statCurPrice.innerText = lastItem ? lastItem.close.toFixed(2) + ' 元' : '--';
+            const statCurZig = document.getElementById('kp-zig-stat-cur-zig');
+            if (statCurZig && lastItem) {
+                const sign = lastItem.zig > 0 ? '+' : '';
+                statCurZig.innerText = `${sign}${lastItem.zig}`;
+                statCurZig.className = lastItem.zig >= 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
+            }
+            const elTroughs = document.getElementById('kp-zig-stat-troughs');
+            if (elTroughs) elTroughs.innerText = troughsCount;
+            const elPeaks = document.getElementById('kp-zig-stat-peaks');
+            if (elPeaks) elPeaks.innerText = peaksCount;
+            const elBuys = document.getElementById('kp-zig-stat-buys');
+            if (elBuys) elBuys.innerText = buysCount;
+            const elSells = document.getElementById('kp-zig-stat-sells');
+            if (elSells) elSells.innerText = sellsCount;
+
+            // 清空搜索框
+            const searchInput = document.getElementById('kp-zig-modal-search');
+            if (searchInput) searchInput.value = '';
+            kpZigModalQuery = '';
+
+            renderKpZigTable();
+
+            modal.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeKpZigHistoryModal() {
+            const modal = document.getElementById('kp-zig-history-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function toggleKpZigModalSort() {
+            kpZigModalSortOrder = (kpZigModalSortOrder === 'desc') ? 'asc' : 'desc';
+            const btn = document.getElementById('kp-zig-modal-sort-btn');
+            if (btn) {
+                btn.innerText = (kpZigModalSortOrder === 'desc') ? '最新在前 ↓' : '最早在前 ↑';
+            }
+            renderKpZigTable();
+        }
+
+        function filterKpZigTable(val) {
+            kpZigModalQuery = String(val || '').trim().toLowerCase();
+            renderKpZigTable();
+        }
+
+        function renderKpZigTable() {
+            const tbody = document.getElementById('kp-zig-modal-tbody');
+            if (!tbody) return;
+
+            let items = kpZigModalRawItems.slice();
+            if (kpZigModalQuery) {
+                items = items.filter(it => {
+                    const dt = String(it.datetime).toLowerCase();
+                    const zigStr = String(it.zig);
+                    const closeStr = it.close.toFixed(2);
+                    return dt.includes(kpZigModalQuery) || zigStr.includes(kpZigModalQuery) || closeStr.includes(kpZigModalQuery);
+                });
+            }
+
+            if (kpZigModalSortOrder === 'desc') {
+                items.sort((a, b) => b.index - a.index);
+            } else {
+                items.sort((a, b) => a.index - b.index);
+            }
+
+            if (items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500 font-sans">未检索到匹配的 ZIG 记录</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const dtFormatted = formatDatetimeWithWeekday(item.datetime);
+                const chgColor = item.chgPct > 0 ? 'text-rose-400' : (item.chgPct < 0 ? 'text-emerald-400' : 'text-slate-400');
+                const chgSign = item.chgPct > 0 ? '+' : '';
+                const chgStr = `${chgSign}${item.chgPct.toFixed(2)}%`;
+
+                const zigColor = item.zig > 0 ? 'text-rose-400' : (item.zig < 0 ? 'text-emerald-400' : 'text-slate-400');
+                const zigSign = item.zig > 0 ? '+' : '';
+                const zigStr = `${zigSign}${item.zig}`;
+
+                let badges = [];
+                if (item.zig === 1) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-800">红柱: 全买</span>');
+                } else if (item.zig === -1) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800">绿柱: 全卖</span>');
+                }
+
+                if (item.isTrough) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800">波谷底</span>');
+                }
+                if (item.isPeak) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800">波峰顶</span>');
+                }
+                if (item.isBuy) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white shadow-xs">买点</span>');
+                }
+                if (item.isSell) {
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-black shadow-xs">卖点</span>');
+                }
+
+                if (badges.length === 0) {
+                    if (item.zig > 1) {
+                        badges.push(`<span class="text-slate-400 text-[11px] font-sans">上升第 ${item.zig} 周期</span>`);
+                    } else if (item.zig < -1) {
+                        badges.push(`<span class="text-slate-400 text-[11px] font-sans">下跌第 ${Math.abs(item.zig)} 周期</span>`);
+                    } else {
+                        badges.push('<span class="text-slate-500 text-[11px] font-sans">-</span>');
+                    }
+                }
+
+                const trBg = 'hover:bg-slate-800/40 transition group border-b border-slate-800/50';
+
+                html += `
+                    <tr class="${trBg}">
+                        <td class="py-2 px-3 text-center text-slate-400 text-[11px]">${item.index}</td>
+                        <td class="py-2 px-3 whitespace-nowrap font-medium" style="color: #e2e8f0;">${dtFormatted}</td>
+                        <td class="py-2 px-3 text-right font-bold whitespace-nowrap" style="color: #f8fafc;">${item.close.toFixed(2)}</td>
+                        <td class="py-2 px-3 text-right font-semibold whitespace-nowrap ${chgColor}">${chgStr}</td>
+                        <td class="py-2 px-3 text-center font-bold text-sm whitespace-nowrap ${zigColor}">${zigStr}</td>
+                        <td class="py-2 px-3 text-left whitespace-nowrap"><div class="flex items-center space-x-1.5">${badges.join('')}</div></td>
+                    </tr>
+                `;
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        window.openKpZigHistoryModal = openKpZigHistoryModal;
+        window.closeKpZigHistoryModal = closeKpZigHistoryModal;
+        window.toggleKpZigModalSort = toggleKpZigModalSort;
+        window.filterKpZigTable = filterKpZigTable;
 
         function calcZigZagDetailed(prices, percent = 5.0) {
             const n = prices.length;
@@ -6705,7 +7025,7 @@
             // dim0=datetime, dim1=close, dim2=zigVal(1:全买标红柱, -1:全卖标绿柱), dim3=index, dim4=low, dim5=high
             const turnLines = [];
             for (let i = 0; i < n; i++) {
-                const zd = (currentKpPeriod === 'DAY' && bars[i].zig_day !== undefined) ? bars[i].zig_day : (bars[i].zig_day !== undefined ? bars[i].zig_day : (bars[i].zig !== undefined ? bars[i].zig : zigDays[i]));
+                const zd = (currentKpPeriod === 'DAY' && bars[i].zig_day !== undefined) ? bars[i].zig_day : zigDays[i];
                 bars[i].zig = zd;
                 bars[i].zig_days = zd;
                 bars[i].zig_price = zigArr[i];
