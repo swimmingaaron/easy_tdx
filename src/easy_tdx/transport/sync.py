@@ -193,6 +193,11 @@ class TdxConnection:
                 header = parse_header(header_buf)
                 raw_body = self._recv_exact(header.zipsize)
             except OSError as e:
+                try:
+                    self._sock.close()
+                except OSError:
+                    pass
+                self._sock = None
                 raise TdxConnectionError(f"通信错误: {e}") from e
             body = decompress_body(header, raw_body)
             return cmd.parse_response(body)

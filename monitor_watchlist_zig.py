@@ -50,6 +50,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import urllib.request
 import urllib.parse
+import pandas as pd
 
 # 确保控制台支持 UTF-8 输出
 if sys.platform == "win32":
@@ -177,35 +178,104 @@ def get_next_slot_info(now: Optional[datetime] = None) -> Tuple[str, float]:
     return f"{next_day.strftime('%Y-%m-%d')} {first_sh:02d}:{first_sm:02d}", diff
 
 
+def is_in_trading_hours(now: Optional[datetime] = None) -> bool:
+    """判断当前时间是否处于 A 股盘中连续竞价交易时段 (09:25-11:30, 13:00-15:00)。"""
+    if now is None:
+        now = datetime.now()
+    if not is_trading_day(now):
+        return False
+    t = now.time()
+    from datetime import time as dt_time
+    m_start = dt_time(9, 25)
+    m_end = dt_time(11, 30)
+    a_start = dt_time(13, 0)
+    a_end = dt_time(15, 0)
+    return (m_start <= t <= m_end) or (a_start <= t <= a_end)
+
+
+def get_ongoing_30m_bar_label(now: Optional[datetime] = None) -> Optional[str]:
+    """获取当前盘中进行中的 30分钟 Bar 时间戳标签（对齐通达信右端点格式 YYYY-MM-DD HH:MM）。"""
+    if now is None:
+        now = datetime.now()
+    if not is_in_trading_hours(now):
+        return None
+    h, m = now.hour, now.minute
+    total_m = h * 60 + m
+    if total_m <= 10 * 60:
+        target_hm = "10:00"
+    elif total_m <= 10 * 60 + 30:
+        target_hm = "10:30"
+    elif total_m <= 11 * 60:
+        target_hm = "11:00"
+    elif total_m <= 11 * 60 + 30:
+        target_hm = "11:30"
+    elif total_m <= 13 * 60 + 30:
+        target_hm = "13:30"
+    elif total_m <= 14 * 60:
+        target_hm = "14:00"
+    elif total_m <= 14 * 60 + 30:
+        target_hm = "14:30"
+    else:
+        target_hm = "15:00"
+    return f"{now.strftime('%Y-%m-%d')} {target_hm}"
+
+
 # ==============================================================================
 # 2. 30分钟 K线 实时校准与 ZIG 计算
 # ==============================================================================
 
 def ensure_realtime_30m_kline(
     df: pd.DataFrame, 
-    realtime_quote: Optional[Dict[str, Any]] = None
+    realtime_quote: Optional[Dict[str, Any]] = None,
+    now: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
     确保 30 分钟 K 线末端数据与最新实时行情快照严格同步：
-    1. 将末端收盘价校准为最新实时成交现价（杜绝K线生成延迟）；
-    2. 动态刷新该根 30M Bar 的最高价/最低价与累计成交；
-    3. 确保后续计算出的 ZIG 100% 对应盘中最新瞬时真实状态。
+    1. 非盘中交易时段（收盘后、休市、午盘）：历史已收盘 K 线属于定型数据，严格保持原样，杜绝离线数据偏差；
+    2. 盘中交易时段：
+       - 若末根 Bar 正处于进行中窗口，将其收盘价校准为最新实时现价；
+       - 若数据源尚未产生进行中的 Bar，将实时快照作为新 Bar 追加至末尾，确保 100% 对应盘中最新瞬时真实状态。
     """
     if df is None or df.empty:
         return df
     if not realtime_quote or not realtime_quote.get("price") or realtime_quote["price"] <= 0:
         return df
 
-    cur_price = float(realtime_quote["price"])
-    df = df.copy()
+    if now is None:
+        now = datetime.now()
 
-    # 校准最后一根 30M Bar
-    last_idx = df.index[-1]
-    df.loc[last_idx, "close"] = cur_price
-    if cur_price > df.loc[last_idx, "high"]:
-        df.loc[last_idx, "high"] = cur_price
-    if cur_price < df.loc[last_idx, "low"] and cur_price > 0:
-        df.loc[last_idx, "low"] = cur_price
+    # 非盘中时段，不对历史定型 K 线进行覆盖
+    if not is_in_trading_hours(now):
+        return df
+
+    cur_price = float(realtime_quote["price"])
+    ongoing_label = get_ongoing_30m_bar_label(now)
+    if not ongoing_label:
+        return df
+
+    df = df.copy()
+    last_dt = str(df.iloc[-1].get("datetime", "")).strip()
+
+    if last_dt == ongoing_label:
+        # 当前末根 Bar 对应进行中的时间窗，更新收盘价与最高最低价
+        last_idx = df.index[-1]
+        df.loc[last_idx, "close"] = cur_price
+        if cur_price > df.loc[last_idx, "high"]:
+            df.loc[last_idx, "high"] = cur_price
+        if cur_price < df.loc[last_idx, "low"] and cur_price > 0:
+            df.loc[last_idx, "low"] = cur_price
+    elif last_dt < ongoing_label:
+        # 进行中的时间窗尚未产生，追加为临时最新 Bar
+        new_row = {
+            "datetime": ongoing_label,
+            "open": cur_price,
+            "high": cur_price,
+            "low": cur_price,
+            "close": cur_price,
+            "volume": 0,
+            "amount": 0.0,
+        }
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
     return df
 
@@ -226,6 +296,11 @@ def check_single_stock_zig(
         # 强制穿透缓存 (force_refresh=True)，获取原生 Socket 直连的最新 30M K线
         df = fetch_security_kline(code, period="30M", count=count, force_refresh=True)
         if df is None or len(df) < 10:
+            return None
+
+        # 检查是否为有效 30分钟 分时 K 线（必须具备 HH:MM 分时时间戳）
+        last_dt_str = str(df.iloc[-1].get("datetime", "")).strip()
+        if len(last_dt_str) < 16 or ":" not in last_dt_str:
             return None
 
         # 实时合线：将实时行情快照注入 30M K线末端，保证瞬时成交价最新
@@ -324,9 +399,9 @@ def fetch_realtime_snapshot_quotes(stock_codes: List[str]) -> Dict[str, Dict[str
 
 def scan_watchlist_zig(
     change_pct: float = 0.05, 
-    max_workers: int = 8
+    max_workers: int = 1
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """并发扫描整个 watchlist.json 中所有标的的 30分钟实时 ZIG。"""
+    """扫描整个 watchlist.json 中所有标的的 30分钟实时 ZIG。"""
     items = load_watchlist_items()
     if not items:
         logger.warning("未检测到有效自选股（watchlist.json 为空）")
@@ -342,25 +417,39 @@ def scan_watchlist_zig(
     buy_signals = []
     sell_signals = []
 
-    # 2. 线程池并发穿透缓存获取 30M K线并实时合线计算 ZIG
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                check_single_stock_zig, 
+    # 2. 依次/并发穿透缓存获取 30M K线并实时合线计算 ZIG
+    if max_workers <= 1:
+        for item in items:
+            res = check_single_stock_zig(
                 item, 
                 change_pct, 
                 120, 
                 quotes_map.get(item.get("code", ""))
-            ): item
-            for item in items
-        }
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
+            )
             if res:
                 if res["zig"] == 1:
                     buy_signals.append(res)
                 elif res["zig"] == -1:
                     sell_signals.append(res)
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    check_single_stock_zig, 
+                    item, 
+                    change_pct, 
+                    120, 
+                    quotes_map.get(item.get("code", ""))
+                ): item
+                for item in items
+            }
+            for future in concurrent.futures.as_completed(futures):
+                res = future.result()
+                if res:
+                    if res["zig"] == 1:
+                        buy_signals.append(res)
+                    elif res["zig"] == -1:
+                        sell_signals.append(res)
 
     # 排序：买入信号按涨幅从大到小，卖出信号按跌幅从小到大
     buy_signals.sort(key=lambda x: x["chg_pct"], reverse=True)

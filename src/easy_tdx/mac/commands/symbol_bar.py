@@ -9,6 +9,7 @@ from datetime import datetime
 from ..._binary import unpack_from
 from ...codec.mac_frame import build_mac_request
 from ...commands.base import BaseCommand
+from ...exceptions import TdxConnectionError
 from ..enums import Adjust, Period
 from ..models import MacBar
 
@@ -81,6 +82,14 @@ class SymbolBarCmd(BaseCommand[list[MacBar]]):
         return build_mac_request(_MSG_ID, body)
 
     def parse_response(self, body: bytes) -> list[MacBar]:
+        if len(body) >= 24:
+            _resp_mkt, resp_code_b = unpack_from("<H22s", body, 0, "symbol_bar header code")
+            resp_code = resp_code_b.split(b"\x00")[0].decode("gbk", errors="ignore").strip()
+            if resp_code and resp_code != self._code:
+                raise TdxConnectionError(
+                    f"MAC K-line response symbol mismatch: expected {self._code}, received {resp_code}"
+                )
+
         # 头部: market(2) + code(22) + category(2) + flag(1) + count(2) + start(4) = 33
         (category_flag, _flag, count, start) = unpack_from("<HBHI", body, 24, "symbol_bar header")
 

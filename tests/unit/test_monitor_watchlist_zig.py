@@ -91,3 +91,48 @@ def test_format_zig_message():
     assert "000002 万科A" in content
     assert "向下见顶" in content
     assert "600519 贵州茅台" in content
+
+
+def test_is_in_trading_hours():
+    """Verify trading hours detection for morning and afternoon sessions."""
+    from monitor_watchlist_zig import is_in_trading_hours
+    # Friday 10:00 -> True
+    assert is_in_trading_hours(datetime(2026, 9, 25, 10, 0, 0)) is True
+    # Friday 11:35 (lunch break) -> False
+    assert is_in_trading_hours(datetime(2026, 9, 25, 11, 35, 0)) is False
+    # Friday 14:00 -> True
+    assert is_in_trading_hours(datetime(2026, 9, 25, 14, 0, 0)) is True
+    # Friday 15:30 (after market) -> False
+    assert is_in_trading_hours(datetime(2026, 9, 25, 15, 30, 0)) is False
+    # Saturday 10:00 -> False
+    assert is_in_trading_hours(datetime(2026, 9, 26, 10, 0, 0)) is False
+
+
+def test_ensure_realtime_30m_kline():
+    """Verify realtime kline calibration during trading hours and preservation off-hours."""
+    import pandas as pd
+    from monitor_watchlist_zig import ensure_realtime_30m_kline
+
+    sample_df = pd.DataFrame({
+        "datetime": ["2026-09-24 14:30", "2026-09-24 15:00"],
+        "open": [10.0, 10.2],
+        "high": [10.5, 10.4],
+        "low": [9.9, 10.1],
+        "close": [10.2, 10.3],
+        "volume": [1000, 2000],
+        "amount": [10000.0, 20000.0],
+    })
+
+    # Case 1: Weekend or off-hours -> historical df must NOT be modified
+    sat_dt = datetime(2026, 9, 26, 10, 0, 0)
+    df_off = ensure_realtime_30m_kline(sample_df, {"price": 15.0}, now=sat_dt)
+    assert len(df_off) == 2
+    assert df_off.iloc[-1]["close"] == 10.3  # Unchanged!
+
+    # Case 2: During trading hours with new bar window -> appends ongoing bar
+    fri_dt = datetime(2026, 9, 25, 10, 25, 0)
+    df_on = ensure_realtime_30m_kline(sample_df, {"price": 10.8}, now=fri_dt)
+    assert len(df_on) == 3
+    assert df_on.iloc[-1]["datetime"] == "2026-09-25 10:30"
+    assert df_on.iloc[-1]["close"] == 10.8
+    assert df_on.iloc[-2]["close"] == 10.3  # Historical bar intact!

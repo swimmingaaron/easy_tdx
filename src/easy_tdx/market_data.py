@@ -409,8 +409,10 @@ def fetch_security_kline(
                 except Exception:
                     pass
                 _TDX_CLIENT = None
-        
-    # Fallback to realistic bars if TDX connection fails
+    # Fallback to realistic bars if TDX connection fails (only for offline demo, never for quantitative live scanning)
+    if force_refresh:
+        logger.warning(f"Failed to fetch live K-lines for {clean_sym}, returning empty DataFrame.")
+        return pd.DataFrame()
     return _generate_fallback_bars(clean_sym, n_bars=count)
 
 
