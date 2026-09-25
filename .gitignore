@@ -40,3 +40,8 @@ output/
 scripts/output/
 scripts/data/
 scratch/
+
+# 本地环境变量配置与密钥
+.env*
+.evn*
+notification_config.json

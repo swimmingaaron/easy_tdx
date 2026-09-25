@@ -68,19 +68,26 @@ if str(SRC_DIR) not in sys.path:
 
 
 def _load_env_file():
-    """读取工程目录下的 .env 文件或 notification_config.json 并载入环境变量。"""
-    for env_path in [PROJECT_ROOT / ".env", PROJECT_ROOT / "notification_config.json"]:
+    """读取工程目录下的 .evn / .env 文件或 notification_config.json 并载入环境变量。"""
+    candidate_files = [
+        PROJECT_ROOT / ".evn",
+        PROJECT_ROOT / ".env",
+        PROJECT_ROOT / "notification_config.json",
+        PROJECT_ROOT.parent / ".evn",
+        PROJECT_ROOT.parent / ".env",
+    ]
+    for env_path in candidate_files:
         if not env_path.is_file():
             continue
         try:
             if env_path.suffix == ".json":
-                with open(env_path, "r", encoding="utf-8") as f:
+                with open(env_path, "r", encoding="utf-8-sig") as f:
                     cfg = json.load(f)
                     for k, v in cfg.items():
                         if isinstance(v, str) and k.upper() not in os.environ:
                             os.environ[k.upper()] = v
             else:
-                with open(env_path, "r", encoding="utf-8") as f:
+                with open(env_path, "r", encoding="utf-8-sig") as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith("#") and "=" in line:
@@ -547,6 +554,10 @@ def main():
         action="store_true",
         help="启动后台常驻监控服务（在交易日 25分与 55分自动触发）",
     )
+    default_webhook = os.environ.get("WECHAT_WEBHOOK_URL") or os.environ.get("WECHAT_WEBHOOK")
+    default_pushplus = os.environ.get("PUSHPLUS_TOKEN")
+    default_serverchan = os.environ.get("SERVERCHAN_KEY")
+
     parser.add_argument(
         "--delta",
         type=float,
@@ -556,20 +567,20 @@ def main():
     parser.add_argument(
         "--webhook",
         type=str,
-        default=None,
-        help="企业微信机器人 Webhook 链接 (https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...)",
+        default=default_webhook,
+        help="企业微信机器人 Webhook 链接 (默认自动从 .env/.evn 中的 WECHAT_WEBHOOK_URL 读取)",
     )
     parser.add_argument(
         "--pushplus-token",
         type=str,
-        default=None,
-        help="PushPlus (推送加) Token，用于推送至个人微信",
+        default=default_pushplus,
+        help="PushPlus (推送加) Token，用于推送至个人微信 (默认自动从 PUSHPLUS_TOKEN 读取)",
     )
     parser.add_argument(
         "--serverchan-key",
         type=str,
-        default=None,
-        help="Server酱 SendKey，用于推送至微信服务号",
+        default=default_serverchan,
+        help="Server酱 SendKey，用于推送至微信服务号 (默认自动从 SERVERCHAN_KEY 读取)",
     )
     parser.add_argument(
         "--notify-empty",
