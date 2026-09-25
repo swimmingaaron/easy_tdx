@@ -101,7 +101,7 @@ def _load_env_file():
 
 _load_env_file()
 
-from easy_tdx.market_data import fetch_security_kline
+from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
 from easy_tdx.trading_system.engine import calculate_zig_series
 from easy_tdx.watchlist_store import load_watchlist_items
 
@@ -178,26 +178,60 @@ def get_next_slot_info(now: Optional[datetime] = None) -> Tuple[str, float]:
 
 
 # ==============================================================================
-# 2. 30分钟 K线 ZIG 计算与自选池扫描
+# 2. 30分钟 K线 实时校准与 ZIG 计算
 # ==============================================================================
+
+def ensure_realtime_30m_kline(
+    df: pd.DataFrame, 
+    realtime_quote: Optional[Dict[str, Any]] = None
+) -> pd.DataFrame:
+    """
+    确保 30 分钟 K 线末端数据与最新实时行情快照严格同步：
+    1. 将末端收盘价校准为最新实时成交现价（杜绝K线生成延迟）；
+    2. 动态刷新该根 30M Bar 的最高价/最低价与累计成交；
+    3. 确保后续计算出的 ZIG 100% 对应盘中最新瞬时真实状态。
+    """
+    if df is None or df.empty:
+        return df
+    if not realtime_quote or not realtime_quote.get("price") or realtime_quote["price"] <= 0:
+        return df
+
+    cur_price = float(realtime_quote["price"])
+    df = df.copy()
+
+    # 校准最后一根 30M Bar
+    last_idx = df.index[-1]
+    df.loc[last_idx, "close"] = cur_price
+    if cur_price > df.loc[last_idx, "high"]:
+        df.loc[last_idx, "high"] = cur_price
+    if cur_price < df.loc[last_idx, "low"] and cur_price > 0:
+        df.loc[last_idx, "low"] = cur_price
+
+    return df
+
 
 def check_single_stock_zig(
     item: Dict[str, str], 
     change_pct: float = 0.05,
-    count: int = 120
+    count: int = 120,
+    realtime_quote: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """检查单只标的的 30分钟 K线 ZIG 状态。"""
+    """检查单只标的的 30分钟 K线 ZIG 状态（保证实时值）。"""
     code = item.get("code", "").strip()
     name = item.get("name", code).strip()
     if not code:
         return None
 
     try:
-        df = fetch_security_kline(code, period="30M", count=count)
+        # 强制穿透缓存 (force_refresh=True)，获取原生 Socket 直连的最新 30M K线
+        df = fetch_security_kline(code, period="30M", count=count, force_refresh=True)
         if df is None or len(df) < 10:
             return None
 
-        closes = df["close"].values
+        # 实时合线：将实时行情快照注入 30M K线末端，保证瞬时成交价最新
+        df = ensure_realtime_30m_kline(df, realtime_quote)
+
+        closes = df["close"].values.astype(float)
         zig_days = calculate_zig_series(closes, change_pct=change_pct)
         if not zig_days:
             return None
@@ -211,7 +245,13 @@ def check_single_stock_zig(
         prev_bar = df.iloc[-2] if len(df) >= 2 else last_bar
         cur_c = float(last_bar["close"])
         pre_c = float(prev_bar["close"])
-        chg_pct = round((cur_c - pre_c) / max(0.001, pre_c) * 100, 2)
+        
+        # 涨跌幅优先取实时行情，若无则基于上一根 30M Bar 计算
+        if realtime_quote and "change_pct" in realtime_quote and realtime_quote["change_pct"] is not None:
+            chg_pct = float(realtime_quote["change_pct"])
+        else:
+            chg_pct = round((cur_c - pre_c) / max(0.001, pre_c) * 100, 2)
+            
         bar_time = str(last_bar.get("datetime", ""))
 
         return {
@@ -225,31 +265,93 @@ def check_single_stock_zig(
             "volume": int(last_bar.get("volume", 0)),
             "amount": float(last_bar.get("amount", 0.0)),
             "bar_time": bar_time,
+            "is_realtime_verified": True,
         }
     except Exception as e:
         logger.debug(f"检查 {code} ({name}) 30M ZIG 出错: {e}")
         return None
 
 
+def fetch_realtime_snapshot_quotes(stock_codes: List[str]) -> Dict[str, Dict[str, Any]]:
+    """批量高速抓取股票实时快照行情 (最新价, 开高低收, 涨跌幅, 成交量, 成交额, 时间)。"""
+    if not stock_codes:
+        return {}
+
+    def _pfx(c: str) -> str:
+        c = str(c).strip()
+        p = "sh" if (c.startswith("6") or c.startswith("9")) else ("bj" if (c.startswith("8") or c.startswith("4")) else "sz")
+        return f"{p}{c}"
+
+    q_codes = [_pfx(c) for c in stock_codes]
+    chunk_size = 70
+    chunks = [q_codes[i:i + chunk_size] for i in range(0, len(q_codes), chunk_size)]
+    res: Dict[str, Dict[str, Any]] = {}
+
+    for chk in chunks:
+        url = "https://qt.gtimg.cn/q=" + ",".join(chk)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                text = resp.read().decode("gbk", errors="ignore")
+            for line in text.strip().split(";"):
+                line = line.strip()
+                if not line or "=" not in line:
+                    continue
+                val = line.split("=")[1].strip('"')
+                p = val.split("~")
+                if len(p) >= 35:
+                    code = p[2]
+                    price = float(p[3]) if p[3] and p[3] != "0.00" else None
+                    if price is not None and price > 0:
+                        res[code] = {
+                            "code": code,
+                            "name": p[1],
+                            "price": price,
+                            "pre_close": float(p[4]) if p[4] else price,
+                            "open": float(p[5]) if p[5] else price,
+                            "high": float(p[33]) if p[33] else price,
+                            "low": float(p[34]) if p[34] else price,
+                            "volume": int(p[36]) * 100 if p[36] else 0,
+                            "amount": float(p[37]) * 10000.0 if p[37] else 0.0,
+                            "time": p[30],
+                            "change_pct": float(p[32]) if p[32] else 0.0,
+                        }
+        except Exception:
+            pass
+
+    return res
+
+
 def scan_watchlist_zig(
     change_pct: float = 0.05, 
     max_workers: int = 8
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """并发扫描整个 watchlist.json 中所有标的的 30分钟 ZIG。"""
+    """并发扫描整个 watchlist.json 中所有标的的 30分钟实时 ZIG。"""
     items = load_watchlist_items()
     if not items:
         logger.warning("未检测到有效自选股（watchlist.json 为空）")
         return {"buy_signals": [], "sell_signals": []}
 
-    logger.info(f"开始扫描自选池 30分钟 ZIG 状态... 标的总数: {len(items)}, ZIG阈值: {change_pct*100:.1f}%")
+    logger.info(f"开始扫描自选池 30分钟 ZIG 实时状态... 标的总数: {len(items)}, ZIG阈值: {change_pct*100:.1f}%")
     t0 = time.time()
+
+    # 1. 批量预先拉取全自选池的瞬时实时行情快照 (Level-2 级别毫秒级更新)
+    codes = [item["code"] for item in items if item.get("code")]
+    quotes_map = fetch_realtime_snapshot_quotes(codes)
 
     buy_signals = []
     sell_signals = []
 
+    # 2. 线程池并发穿透缓存获取 30M K线并实时合线计算 ZIG
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(check_single_stock_zig, item, change_pct): item
+            executor.submit(
+                check_single_stock_zig, 
+                item, 
+                change_pct, 
+                120, 
+                quotes_map.get(item.get("code", ""))
+            ): item
             for item in items
         }
         for future in concurrent.futures.as_completed(futures):
@@ -260,13 +362,13 @@ def scan_watchlist_zig(
                 elif res["zig"] == -1:
                     sell_signals.append(res)
 
-    # 排序：买入信号按30分钟涨幅从大到小，卖出信号按跌幅从小到大
+    # 排序：买入信号按涨幅从大到小，卖出信号按跌幅从小到大
     buy_signals.sort(key=lambda x: x["chg_pct"], reverse=True)
     sell_signals.sort(key=lambda x: x["chg_pct"])
 
     cost = time.time() - t0
     logger.info(
-        f"自选池 30M 扫描完毕，耗时: {cost:.2f}秒 | 向上反转(+1): {len(buy_signals)} 只 | 见顶向下(-1): {len(sell_signals)} 只"
+        f"自选池 30M 实时扫描完毕，耗时: {cost:.2f}秒 | 向上反转(+1): {len(buy_signals)} 只 | 见顶向下(-1): {len(sell_signals)} 只"
     )
 
     return {

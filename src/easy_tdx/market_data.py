@@ -242,7 +242,8 @@ def fetch_security_kline(
     symbol: str, 
     category: KlineCategory | str = KlineCategory.DAY, 
     count: int = 240,
-    period: str | None = None
+    period: str | None = None,
+    force_refresh: bool = False,
 ) -> pd.DataFrame:
     """Fetch historical K-line bars via TDX binary socket connection, with caching."""
     if period is not None:
@@ -293,7 +294,7 @@ def fetch_security_kline(
     now = time.time()
     
     # Check cache
-    if cache_key in _CACHE:
+    if not force_refresh and cache_key in _CACHE:
         ts, cached_df = _CACHE[cache_key]
         if now - ts < CACHE_TTL_SEC:
             return cached_df.copy()
