@@ -476,6 +476,64 @@ def scan_watchlist_zig(
     }
 
 
+_MATPLOTLIB_FONT_CONFIGURED = False
+
+def _configure_matplotlib_chinese_fonts() -> None:
+    """跨平台自动适配中文字体（macOS Apple Silicon M1-M4 / Windows / Linux），杜绝字体缺失方块乱码。"""
+    global _MATPLOTLIB_FONT_CONFIGURED
+    if _MATPLOTLIB_FONT_CONFIGURED:
+        return
+
+    import platform
+    import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+
+    # 1. macOS (Apple Silicon M1-M4 / Intel) 系统中文字体直接注册支持
+    if platform.system() == "Darwin":
+        mac_fonts = [
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            "/System/Library/Fonts/Supplemental/Songti.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+        ]
+        for fpath in mac_fonts:
+            if os.path.exists(fpath):
+                try:
+                    font_manager.fontManager.addfont(fpath)
+                except Exception:
+                    pass
+
+    # 2. 候选字体优先队列（macOS 优先 -> Windows 优先 -> Linux 开源）
+    candidates = [
+        "PingFang SC",          # macOS 苹方（系统默认首选）
+        "Hiragino Sans GB",     # macOS 冬青黑体
+        "Heiti SC",             # macOS 黑体-简
+        "STHeiti",              # macOS 华文黑体
+        "Songti SC",            # macOS 宋体-简
+        "Arial Unicode MS",     # macOS / 通用
+        "Microsoft YaHei",      # Windows 微软雅黑
+        "SimHei",               # Windows 中易黑体
+        "SimSun",               # Windows 宋体
+        "Noto Sans CJK SC",     # Linux 思源黑体
+        "WenQuanYi Micro Hei",  # Linux 文泉驿微米黑
+        "WenQuanYi Zen Hei",
+    ]
+
+    installed = {f.name for f in font_manager.fontManager.ttflist}
+    available = [f for f in candidates if f in installed]
+
+    if available:
+        plt.rcParams["font.sans-serif"] = available + ["sans-serif"]
+    else:
+        plt.rcParams["font.sans-serif"] = candidates + ["sans-serif"]
+
+    plt.rcParams["axes.unicode_minus"] = False
+    _MATPLOTLIB_FONT_CONFIGURED = True
+
+
 def generate_kline_snapshot(
     code: str,
     name: str,
@@ -508,11 +566,8 @@ def generate_kline_snapshot(
         last_row = df_plot.iloc[last_idx]
         last_c = float(last_row["close"])
 
-        # 设置中文字体与负号显示
-        plt.rcParams["font.sans-serif"] = [
-            "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "DejaVu Sans", "sans-serif"
-        ]
-        plt.rcParams["axes.unicode_minus"] = False
+        # 跨平台自动配置中文字体 (兼容 macOS M1-M4 苹方/冬青, Windows 微软雅黑, Linux 思源)
+        _configure_matplotlib_chinese_fonts()
 
         fig, (ax1, ax2) = plt.subplots(
             2, 1,
