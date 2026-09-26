@@ -10,7 +10,9 @@
         window.lucide = window.lucide || { createIcons: function () { } };
         (function () {
             try {
-                if (localStorage.getItem('tf-theme') === 'light') {
+                var saved = localStorage.getItem('tf-theme');
+                var isLight = saved === 'light' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+                if (isLight) {
                     document.documentElement.classList.add('light');
                     document.documentElement.classList.remove('dark');
                 } else {
@@ -1452,6 +1454,81 @@
         #kp-search-dropdown .text-amber-400,
         #bt-kline-search-dropdown .text-amber-400 {
             color: #f59e0b !important;
+        }
+
+        /* ==================== ZIG 历史数据明细弹窗 (暗色/亮色 随系统及主题) ==================== */
+        #kp-zig-history-modal .kp-zig-container {
+            background-color: var(--card-bg) !important;
+            border-color: var(--card-border) !important;
+            color: var(--text-primary) !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-header {
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-subtle) !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-summary {
+            background-color: rgba(13, 17, 23, 0.7) !important;
+            border-color: var(--border-subtle) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        html.light #kp-zig-history-modal .kp-zig-summary {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-body {
+            background-color: rgba(13, 17, 23, 0.4) !important;
+        }
+
+        html.light #kp-zig-history-modal .kp-zig-body {
+            background-color: #f8fafc !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-thead {
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-subtle) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        html.light #kp-zig-history-modal .kp-zig-thead {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-footer {
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-subtle) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        html.light #kp-zig-history-modal .kp-zig-footer {
+            background-color: #f1f5f9 !important;
+            color: #64748b !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-row {
+            border-bottom: 1px solid var(--border-subtle) !important;
+            transition: background-color 0.15s ease;
+        }
+
+        #kp-zig-history-modal .kp-zig-row:hover {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        html.light #kp-zig-history-modal .kp-zig-row:hover {
+            background-color: #edf2f7 !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-date {
+            color: var(--text-primary) !important;
+        }
+
+        #kp-zig-history-modal .kp-zig-price {
+            color: var(--text-primary) !important;
+            font-weight: 700;
         }
     </style>
 </head>
@@ -4259,8 +4336,8 @@
 
                     <span class="text-slate-700 mx-0.5 select-none">|</span>
 
-                    <button onclick="toggleTheme()"
-                        class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                    <button id="kp-theme-toggle-btn" onclick="toggleTheme()"
+                        class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
                         title="切换亮色/暗色模式">
                         <i id="kp-theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
                     </button>
@@ -4845,29 +4922,29 @@
 
     <!-- ==================== K线窗口 ZIG 历史数据明细弹窗 ==================== -->
     <div id="kp-zig-history-modal"
-        class="fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4"
+        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4"
         onclick="if(event.target === this) closeKpZigHistoryModal()">
-        <div class="glass-card bg-[#0b0f19]/95 text-slate-100 border border-slate-700/80 rounded-2xl max-w-4xl w-full h-[85vh] max-h-[760px] flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl"
+        <div class="kp-zig-container rounded-2xl max-w-4xl w-full h-[85vh] max-h-[760px] flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl border transition-colors duration-150"
             onclick="event.stopPropagation()">
             <!-- Modal Header -->
-            <div class="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 gap-2 shrink-0">
+            <div class="kp-zig-header p-3.5 sm:p-4 border-b flex items-center justify-between gap-2 shrink-0">
                 <div class="flex items-center space-x-2.5 min-w-0">
-                    <span class="p-1.5 rounded-lg bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
+                    <span class="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
                         <i data-lucide="trending-up" class="w-4 h-4"></i>
                     </span>
                     <div class="min-w-0">
                         <div class="flex items-center space-x-2 flex-wrap">
-                            <h3 id="kp-zig-modal-title" class="text-sm font-bold text-white font-sans truncate">
+                            <h3 id="kp-zig-modal-title" class="text-sm font-bold font-sans truncate" style="color: var(--text-primary);">
                                 ZIG 历史点数据明细
                             </h3>
-                            <span id="kp-zig-modal-period-badge" class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">
+                            <span id="kp-zig-modal-period-badge" class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 shrink-0">
                                 周期: 30分
                             </span>
-                            <span id="kp-zig-modal-count-badge" class="text-xs text-slate-400 font-mono shrink-0">
+                            <span id="kp-zig-modal-count-badge" class="text-xs font-mono shrink-0" style="color: var(--text-secondary);">
                                 共 0 条
                             </span>
                         </div>
-                        <p class="text-[11px] text-slate-400 mt-0.5 hidden sm:block">
+                        <p class="text-[11px] mt-0.5 hidden sm:block" style="color: var(--text-secondary);">
                             展示当前K线周期下所有历史蜡烛图点的收盘价、涨跌幅及 ZIG 转向序列值
                         </p>
                     </div>
@@ -4876,54 +4953,57 @@
                     <!-- 搜索框 -->
                     <div class="relative">
                         <input id="kp-zig-modal-search" type="text" placeholder="搜索日期/ZIG..."
-                            class="bg-slate-950 border border-slate-700 rounded-lg pl-2.5 pr-7 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 w-32 sm:w-44 font-mono transition"
+                            class="rounded-lg pl-2.5 pr-7 py-1 text-xs border focus:outline-none focus:border-cyan-500 w-32 sm:w-44 font-mono transition"
+                            style="background-color: var(--card-bg); border-color: var(--border-subtle); color: var(--text-primary);"
                             oninput="filterKpZigTable(this.value)">
-                        <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-500 pointer-events-none"></i>
+                        <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2 top-2 pointer-events-none" style="color: var(--text-secondary);"></i>
                     </div>
                     <!-- 排序切换 -->
                     <button type="button" onclick="toggleKpZigModalSort()" id="kp-zig-modal-sort-btn"
-                        class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition cursor-pointer font-sans whitespace-nowrap">
+                        class="px-2.5 py-1 text-xs rounded-lg border transition cursor-pointer font-sans whitespace-nowrap"
+                        style="background-color: var(--card-bg); border-color: var(--border-subtle); color: var(--text-primary);">
                         最新在前 ↓
                     </button>
                     <!-- 关闭按钮 -->
                     <button type="button" onclick="closeKpZigHistoryModal()"
-                        class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition text-lg leading-none cursor-pointer"
+                        class="w-7 h-7 rounded-lg flex items-center justify-center transition text-lg leading-none cursor-pointer border"
+                        style="background-color: var(--card-bg); border-color: var(--border-subtle); color: var(--text-secondary);"
                         title="关闭 (Esc)">&times;</button>
                 </div>
             </div>
 
             <!-- Summary Stats Bar -->
             <div id="kp-zig-modal-summary"
-                class="px-4 py-2 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-300 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
+                class="kp-zig-summary px-4 py-2 border-b flex items-center justify-between text-xs overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
                 <div class="flex items-center space-x-4 font-mono text-[11px]">
-                    <span>最新现价: <strong id="kp-zig-stat-cur-price" class="text-white">--</strong></span>
-                    <span>最新ZIG: <strong id="kp-zig-stat-cur-zig" class="text-rose-400">--</strong></span>
-                    <span>波谷(底点): <strong id="kp-zig-stat-troughs" class="text-cyan-400">0</strong> 个</span>
-                    <span>波峰(顶点): <strong id="kp-zig-stat-peaks" class="text-amber-400">0</strong> 个</span>
-                    <span>买点触发: <strong id="kp-zig-stat-buys" class="text-rose-400">0</strong> 次</span>
-                    <span>卖点触发: <strong id="kp-zig-stat-sells" class="text-emerald-400">0</strong> 次</span>
+                    <span>最新现价: <strong id="kp-zig-stat-cur-price" class="kp-zig-price">--</strong></span>
+                    <span>最新ZIG: <strong id="kp-zig-stat-cur-zig">--</strong></span>
+                    <span>波谷(底点): <strong id="kp-zig-stat-troughs" class="text-cyan-600 dark:text-cyan-400 font-bold">0</strong> 个</span>
+                    <span>波峰(顶点): <strong id="kp-zig-stat-peaks" class="text-amber-600 dark:text-amber-400 font-bold">0</strong> 个</span>
+                    <span>买点触发: <strong id="kp-zig-stat-buys" class="text-rose-600 dark:text-rose-400 font-bold">0</strong> 次</span>
+                    <span>卖点触发: <strong id="kp-zig-stat-sells" class="text-emerald-600 dark:text-emerald-400 font-bold">0</strong> 次</span>
                 </div>
-                <div class="text-[11px] text-slate-500 font-sans hidden md:block">
+                <div class="text-[11px] font-sans hidden md:block" style="color: var(--text-secondary);">
                     提示：ZIG正值代表底点向上第N周期，负值代表顶点向下第N周期
                 </div>
             </div>
 
             <!-- Table Container -->
-            <div class="flex-1 overflow-auto bg-slate-900/40 p-2 sm:p-3">
+            <div class="kp-zig-body flex-1 overflow-auto p-2 sm:p-3">
                 <table class="w-full text-left border-separate border-spacing-0 text-xs font-mono">
-                    <thead class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur text-slate-400 font-sans text-[11px] shadow-sm select-none">
+                    <thead class="kp-zig-thead sticky top-0 z-20 backdrop-blur font-sans text-[11px] shadow-xs select-none">
                         <tr>
-                            <th class="py-2.5 px-3 text-center w-12 border-b border-slate-800">#</th>
-                            <th class="py-2.5 px-3 text-left border-b border-slate-800">日期 / 时间</th>
-                            <th class="py-2.5 px-3 text-right border-b border-slate-800">收盘价 (元)</th>
-                            <th class="py-2.5 px-3 text-right border-b border-slate-800">涨跌幅%</th>
-                            <th class="py-2.5 px-3 text-center border-b border-slate-800">ZIG值</th>
-                            <th class="py-2.5 px-3 text-left border-b border-slate-800">转向及形态属性</th>
+                            <th class="py-2.5 px-3 text-center w-12 border-b" style="border-color: var(--border-subtle);">#</th>
+                            <th class="py-2.5 px-3 text-left border-b" style="border-color: var(--border-subtle);">日期 / 时间</th>
+                            <th class="py-2.5 px-3 text-right border-b" style="border-color: var(--border-subtle);">收盘价 (元)</th>
+                            <th class="py-2.5 px-3 text-right border-b" style="border-color: var(--border-subtle);">涨跌幅%</th>
+                            <th class="py-2.5 px-3 text-center border-b" style="border-color: var(--border-subtle);">ZIG值</th>
+                            <th class="py-2.5 px-3 text-left border-b" style="border-color: var(--border-subtle);">转向及形态属性</th>
                         </tr>
                     </thead>
-                    <tbody id="kp-zig-modal-tbody" class="divide-y divide-slate-800/50">
+                    <tbody id="kp-zig-modal-tbody">
                         <tr>
-                            <td colspan="6" class="py-12 text-center text-slate-500 font-sans">
+                            <td colspan="6" class="py-12 text-center font-sans" style="color: var(--text-secondary);">
                                 数据加载中...
                             </td>
                         </tr>
@@ -4932,10 +5012,11 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="p-2.5 sm:p-3 bg-slate-950/80 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
-                <span id="kp-zig-modal-footer-hint">支持按日期、收盘价或ZIG值筛选。按 ESC 键即可关闭。</span>
+            <div class="kp-zig-footer p-2.5 sm:p-3 border-t flex items-center justify-between text-[11px] shrink-0">
+                <span id="kp-zig-modal-footer-hint" style="color: var(--text-secondary);">支持按日期、收盘价或ZIG值筛选。按 ESC 键即可关闭。</span>
                 <button type="button" onclick="closeKpZigHistoryModal()"
-                    class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer">
+                    class="px-3 py-1 rounded border transition cursor-pointer"
+                    style="background-color: var(--card-bg); border-color: var(--border-subtle); color: var(--text-primary);">
                     关闭
                 </button>
             </div>
@@ -5215,10 +5296,27 @@
 
         function getTheme() {
             try {
-                return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+                const saved = localStorage.getItem(THEME_KEY);
+                if (saved === 'light' || saved === 'dark') {
+                    return saved;
+                }
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    return 'light';
+                }
+                return 'dark';
             } catch (e) {
                 return 'dark';
             }
+        }
+
+        if (window.matchMedia) {
+            try {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    if (!localStorage.getItem(THEME_KEY)) {
+                        applyTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+            } catch (e) { }
         }
 
         function applyTheme(theme, syncCharts = true) {
@@ -5254,6 +5352,12 @@
             }
 
             lucide.createIcons();
+
+            // If ZIG modal is open, re-render it to refresh theme styles immediately
+            const zigModal = document.getElementById('kp-zig-history-modal');
+            if (zigModal && !zigModal.classList.contains('hidden') && typeof renderKpZigTable === 'function') {
+                renderKpZigTable();
+            }
 
             if (syncCharts) {
                 // Re-render K-line preview chart
@@ -6441,7 +6545,7 @@
             if (statCurZig && lastItem) {
                 const sign = lastItem.zig > 0 ? '+' : '';
                 statCurZig.innerText = `${sign}${lastItem.zig}`;
-                statCurZig.className = lastItem.zig >= 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
+                statCurZig.className = lastItem.zig >= 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-bold';
             }
             const elTroughs = document.getElementById('kp-zig-stat-troughs');
             if (elTroughs) elTroughs.innerText = troughsCount;
@@ -6503,7 +6607,7 @@
             }
 
             if (items.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-500 font-sans">未检索到匹配的 ZIG 记录</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center font-sans" style="color: var(--text-secondary);">未检索到匹配的 ZIG 记录</td></tr>`;
                 return;
             }
 
@@ -6511,26 +6615,26 @@
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
                 const dtFormatted = formatDatetimeWithWeekday(item.datetime);
-                const chgColor = item.chgPct > 0 ? 'text-rose-400' : (item.chgPct < 0 ? 'text-emerald-400' : 'text-slate-400');
+                const chgColor = item.chgPct > 0 ? 'text-rose-600 dark:text-rose-400' : (item.chgPct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400');
                 const chgSign = item.chgPct > 0 ? '+' : '';
                 const chgStr = `${chgSign}${item.chgPct.toFixed(2)}%`;
 
-                const zigColor = item.zig > 0 ? 'text-rose-400' : (item.zig < 0 ? 'text-emerald-400' : 'text-slate-400');
+                const zigColor = item.zig > 0 ? 'text-rose-600 dark:text-rose-400' : (item.zig < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400');
                 const zigSign = item.zig > 0 ? '+' : '';
                 const zigStr = `${zigSign}${item.zig}`;
 
                 let badges = [];
                 if (item.zig === 1) {
-                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-800">红柱: 全买</span>');
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">红柱: 全买</span>');
                 } else if (item.zig === -1) {
-                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800">绿柱: 全卖</span>');
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">绿柱: 全卖</span>');
                 }
 
                 if (item.isTrough) {
-                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800">波谷底</span>');
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">波谷底</span>');
                 }
                 if (item.isPeak) {
-                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800">波峰顶</span>');
+                    badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">波峰顶</span>');
                 }
                 if (item.isBuy) {
                     badges.push('<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white shadow-xs">买点</span>');
@@ -6541,21 +6645,21 @@
 
                 if (badges.length === 0) {
                     if (item.zig > 1) {
-                        badges.push(`<span class="text-slate-400 text-[11px] font-sans">上升第 ${item.zig} 周期</span>`);
+                        badges.push(`<span class="text-slate-600 dark:text-slate-400 text-[11px] font-sans">上升第 ${item.zig} 周期</span>`);
                     } else if (item.zig < -1) {
-                        badges.push(`<span class="text-slate-400 text-[11px] font-sans">下跌第 ${Math.abs(item.zig)} 周期</span>`);
+                        badges.push(`<span class="text-slate-600 dark:text-slate-400 text-[11px] font-sans">下跌第 ${Math.abs(item.zig)} 周期</span>`);
                     } else {
-                        badges.push('<span class="text-slate-500 text-[11px] font-sans">-</span>');
+                        badges.push('<span class="text-slate-400 dark:text-slate-500 text-[11px] font-sans">-</span>');
                     }
                 }
 
-                const trBg = 'hover:bg-slate-800/40 transition group border-b border-slate-800/50';
+                const trBg = 'kp-zig-row group';
 
                 html += `
                     <tr class="${trBg}">
-                        <td class="py-2 px-3 text-center text-slate-400 text-[11px]">${item.index}</td>
-                        <td class="py-2 px-3 whitespace-nowrap font-medium" style="color: #e2e8f0;">${dtFormatted}</td>
-                        <td class="py-2 px-3 text-right font-bold whitespace-nowrap" style="color: #f8fafc;">${item.close.toFixed(2)}</td>
+                        <td class="py-2 px-3 text-center text-[11px]" style="color: var(--text-secondary);">${item.index}</td>
+                        <td class="py-2 px-3 whitespace-nowrap font-medium kp-zig-date">${dtFormatted}</td>
+                        <td class="py-2 px-3 text-right font-bold whitespace-nowrap kp-zig-price">${item.close.toFixed(2)}</td>
                         <td class="py-2 px-3 text-right font-semibold whitespace-nowrap ${chgColor}">${chgStr}</td>
                         <td class="py-2 px-3 text-center font-bold text-sm whitespace-nowrap ${zigColor}">${zigStr}</td>
                         <td class="py-2 px-3 text-left whitespace-nowrap"><div class="flex items-center space-x-1.5">${badges.join('')}</div></td>
