@@ -412,15 +412,31 @@ def get_kline(
                     return res_slice
     
     fetch_n = max(800, n_bars)
+    if clean_end_date and str(period).upper() in ("1M", "5M", "15M", "30M", "60M"):
+        fetch_n = max(2400, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
     if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
         e_cmp = clean_end_date if len(clean_end_date) > 10 else f"{clean_end_date} 23:59:59"
-        df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
+        if str(df["datetime"].iloc[0]) > e_cmp:
+            df = fetch_security_kline(raw_sym, count=4800, period=period)
+        if df is not None and not df.empty:
+            df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
     mkt, full_sym = _get_market_suffix(raw_sym)
     if clean_sym.startswith("88") and clean_sym not in _BOARD_NAME_MAP:
         _resolve_stock_board_info(clean_sym)
     stock_name = _BOARD_NAME_MAP.get(clean_sym) or get_stock_name(full_sym)
     board = _get_board_tag(full_sym)
+
+    if df is None or df.empty or len(df) == 0:
+        return {
+            "symbol": clean_sym,
+            "name": stock_name or clean_sym,
+            "board_tag": board,
+            "period": period,
+            "count": 0,
+            "quote": {},
+            "data": []
+        }
 
     c = df["close"].values
     h = df["high"].values
@@ -608,6 +624,17 @@ def get_kline(
             "td13_high": int(td13_h[i]),
             "td13_low": int(td13_l[i]),
         })
+
+    if not bars_data:
+        return {
+            "symbol": clean_sym,
+            "name": stock_name or clean_sym,
+            "board_tag": board,
+            "period": period,
+            "count": 0,
+            "quote": {},
+            "data": []
+        }
 
     last_bar = bars_data[-1]
     prev_bar = bars_data[-2] if len(bars_data) > 1 else last_bar
