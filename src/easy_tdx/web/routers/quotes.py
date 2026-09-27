@@ -411,13 +411,11 @@ def get_kline(
                     _KLINE_CACHE[cache_k] = (ts, res_slice)
                     return res_slice
     
-    fetch_n = max(500, n_bars * 2) if clean_end_date else max(240, n_bars)
+    fetch_n = max(800, n_bars * 3) if clean_end_date else max(240, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
     if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
         e_cmp = clean_end_date if len(clean_end_date) > 10 else f"{clean_end_date} 23:59:59"
         df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
-        if len(df) > n_bars:
-            df = df.iloc[-n_bars:].reset_index(drop=True)
     mkt, full_sym = _get_market_suffix(raw_sym)
     if clean_sym.startswith("88") and clean_sym not in _BOARD_NAME_MAP:
         _resolve_stock_board_info(clean_sym)

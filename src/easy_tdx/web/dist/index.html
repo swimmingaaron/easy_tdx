@@ -6948,25 +6948,9 @@
             }
             const totalSwingPct = minC > 0 ? ((maxC - minC) / minC * 100) : 0;
 
-            let baseDelta = cfg.zigDelta || 5.0;
-            if (!customCfg.zigDelta) {
-                if (['1M', '5M'].includes(currentKpPeriod)) {
-                    baseDelta = 1.0;
-                } else if (['15M', '30M'].includes(currentKpPeriod)) {
-                    baseDelta = 1.8;
-                } else if (['60M', '120M'].includes(currentKpPeriod)) {
-                    baseDelta = 2.8;
-                } else if (currentKpPeriod === 'DAY') {
-                    baseDelta = 5.0; // 通达信经典 5% 转向
-                } else {
-                    baseDelta = 8.0;
-                }
-            }
-
+            // 严格以 test_zig_analysis.py 与通达信系统为基准，默认转向阈值全周期统一为 5.0%
+            let baseDelta = (customCfg.zigDelta !== undefined) ? customCfg.zigDelta : (cfg.zigDelta || 5.0);
             let effectiveDelta = baseDelta;
-            if (currentKpPeriod !== 'DAY' && totalSwingPct > 0 && totalSwingPct < baseDelta * 2.5) {
-                effectiveDelta = Math.max(0.5, +(totalSwingPct / 3.2).toFixed(1));
-            }
 
             const detailed = calcZigZagDetailed(closes, effectiveDelta);
             const zigArr = detailed.z;
@@ -7548,28 +7532,30 @@
         }
 
         async function onKpCutoffDateChange(targetYMD) {
-            if (!currentKpFullBars || currentKpFullBars.length === 0 || !targetYMD) return;
-            const firstDate = currentKpFullBars[0].datetime.split(' ')[0];
-            if (targetYMD < firstDate) {
-                // 若用户选择的日期超出当前前端缓存的最早日期，向后端请求带 end_date 的历史切片
-                try {
-                    if (kpEchart) {
-                        kpEchart.showLoading({ text: '拉取历史回测数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
-                    }
-                    const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${targetYMD}&count=240`);
-                    if (resp.ok) {
-                        const json = await resp.json();
-                        if (json && json.data && json.data.length > 0) {
-                            _applyKpDataResponse(json);
-                            return;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Failed to fetch historical kline for cutoff date:', e);
-                } finally {
-                    if (kpEchart) try { kpEchart.hideLoading(); } catch (e) { }
+            if (!targetYMD) return;
+            // 回测时：向后端请求截至该日期的历史K线切片，确保具备充足历史上下文且零未来数据
+            try {
+                if (kpEchart) {
+                    kpEchart.showLoading({ text: '拉取历史回测数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
                 }
+                const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
+                const count = isDailyPlus ? (currentKpMonths * 22) : (currentKpPeriod === '120M' ? 120 : (currentKpPeriod === '60M' ? 160 : 240));
+                const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${targetYMD}&count=${count}`);
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json && json.data && json.data.length > 0) {
+                        _applyKpDataResponse(json);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch historical kline for cutoff date:', e);
+            } finally {
+                if (kpEchart) try { kpEchart.hideLoading(); } catch (e) { }
             }
+
+            // 本地兜底匹配
+            if (!currentKpFullBars || currentKpFullBars.length === 0) return;
             let matchedIdx = -1;
             for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
                 const bDate = currentKpFullBars[i].datetime.split(' ')[0];
@@ -7583,8 +7569,29 @@
             applyKpCutoffAndRender(currentKpData);
         }
 
-        function resetKpCutoffToLatest() {
+        async function resetKpCutoffToLatest() {
             stopKpReplay();
+            // 恢复最新交易日：重新拉取最新数据
+            try {
+                if (kpEchart) {
+                    kpEchart.showLoading({ text: '恢复最新数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
+                }
+                const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
+                const count = isDailyPlus ? (currentKpMonths * 22) : (currentKpPeriod === '120M' ? 120 : (currentKpPeriod === '60M' ? 160 : 240));
+                const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&count=${count}`);
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json && json.data && json.data.length > 0) {
+                        _applyKpDataResponse(json);
+                        showToast('已恢复最新', `已恢复至最新交易日 (${json.data[json.data.length - 1].datetime})`);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to reset to latest kline:', e);
+            } finally {
+                if (kpEchart) try { kpEchart.hideLoading(); } catch (e) { }
+            }
             if (!currentKpFullBars || currentKpFullBars.length === 0) return;
             currentKpCutoffIndex = currentKpFullBars.length - 1;
             applyKpCutoffAndRender(currentKpData);
