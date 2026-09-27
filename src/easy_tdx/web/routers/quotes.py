@@ -391,7 +391,7 @@ def get_kline(
     from easy_tdx.market_overview import is_trading_time
     now = time.time()
     effective_ttl = 5.0 if is_trading_time() else 3600.0
-    clean_end_date = end_date.strip() if end_date else None
+    clean_end_date = end_date.strip().replace("/", "-") if end_date else None
     cache_k = f"{clean_sym}_{period.upper()}_{n_bars}_{clean_end_date}" if clean_end_date else f"{clean_sym}_{period.upper()}_{n_bars}"
     base_k = f"{clean_sym}_{period.upper()}"
     with _KLINE_CACHE_LOCK:
@@ -815,7 +815,7 @@ def get_kline(
     is_daily_period = str(period).upper() in ("DAY", "DAILY")
     is_minute_period = any(p in str(period).upper() for p in ("1M", "5M", "15M", "30M", "60M", "120M", "MIN")) or str(period) in ("1", "5", "15", "30", "60", "120")
 
-    if is_daily_period and bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
+    if not clean_end_date and is_daily_period and bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
         bars_data[-1]["net_inflow"] = round(m1_real, 2)
 
         # Calibrate 3-day window

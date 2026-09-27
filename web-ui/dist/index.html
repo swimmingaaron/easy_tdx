@@ -5426,14 +5426,12 @@
         let currentKpStockName = '';
         let currentKpHoverIndex = null;
         let currentKpHoverDate = null;
+        let currentKpCutoffDate = null;
 
         function setKpPeriod(p) {
             currentKpPeriod = p;
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
-            if (typeof currentKpCutoffIndex !== 'undefined') {
-                currentKpCutoffIndex = -1;
-            }
             if (typeof stopKpReplay === 'function') {
                 stopKpReplay();
             }
@@ -5449,7 +5447,29 @@
                     }
                 }
             });
-            loadKlinePreviewData();
+
+            // 切换周期时若当前处于回测切片状态，保持右侧截止日期不变
+            let targetCutoff = currentKpCutoffDate;
+            if (!targetCutoff && typeof currentKpCutoffIndex !== 'undefined' && currentKpCutoffIndex >= 0 && currentKpFullBars && currentKpCutoffIndex < currentKpFullBars.length - 1) {
+                targetCutoff = currentKpFullBars[currentKpCutoffIndex]?.datetime || null;
+            }
+            if (!targetCutoff) {
+                const dateInp = document.getElementById('kp-cutoff-date');
+                if (dateInp && dateInp.value && currentKpFullBars && currentKpFullBars.length > 0) {
+                    const lastBarDate = currentKpFullBars[currentKpFullBars.length - 1].datetime.split(' ')[0];
+                    if (dateInp.value < lastBarDate) {
+                        targetCutoff = dateInp.value;
+                    }
+                }
+            }
+
+            if (targetCutoff) {
+                currentKpCutoffDate = targetCutoff;
+                loadKlinePreviewData(false, targetCutoff);
+            } else {
+                currentKpCutoffIndex = -1;
+                loadKlinePreviewData();
+            }
         }
 
         let isKpProfileOpen = false;
@@ -5831,6 +5851,7 @@
                 currentKpFullBars = [];
                 currentKpData = null;
                 currentKpCutoffIndex = -1;
+                currentKpCutoffDate = null;
                 if (kpEchart) {
                     try {
                         kpEchart.showLoading({
@@ -5902,7 +5923,10 @@
             const modalCard = modal.querySelector('.glass-card');
             if (modalCard) modalCard.scrollTop = 0;
 
-            currentKpCutoffIndex = -1;
+            if (isDifferentStock) {
+                currentKpCutoffIndex = -1;
+                currentKpCutoffDate = null;
+            }
             stopKpReplay();
 
             // Initialize/resize ECharts immediately for 0ms layout response
@@ -6305,7 +6329,6 @@
 
         function setKpMonths(m) {
             currentKpMonths = m;
-            currentKpCutoffIndex = -1;
             stopKpReplay();
             [2, 6, 12].forEach(val => {
                 const btn = document.getElementById(`kp-btn-${val}m`);
@@ -6315,30 +6338,7 @@
                         : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
                 }
             });
-            loadKlinePreviewData();
-        }
-
-        function setKpPeriod(p) {
-            currentKpPeriod = p;
-            if (typeof currentKpCutoffIndex !== 'undefined') {
-                currentKpCutoffIndex = -1;
-            }
-            if (typeof stopKpReplay === 'function') {
-                stopKpReplay();
-            }
-            const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
-            periods.forEach(k => {
-                const el = document.getElementById(`kp-period-${k}`);
-                if (el) {
-                    el.className = (k === p)
-                        ? 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition shadow-sm cursor-pointer shrink-0'
-                        : 'kp-period-btn h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
-                    if (k === p) {
-                        try { el.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' }); } catch (e) { }
-                    }
-                }
-            });
-            loadKlinePreviewData();
+            loadKlinePreviewData(false, currentKpCutoffDate);
         }
 
         // --- TD Sequential (通达信九转与十三转序列指标) ---
@@ -7443,12 +7443,12 @@
             const dateInp = document.getElementById('kp-cutoff-date');
             if (dateInp) {
                 dateInp.min = fullBars[0].datetime.split(' ')[0];
-                dateInp.max = fullBars[fullBars.length - 1].datetime.split(' ')[0];
+                dateInp.max = new Date().toISOString().split('T')[0];
                 dateInp.value = curDateYMD;
             }
 
             // Update Latest button & Stepper buttons state
-            const isAtLatest = currentKpCutoffIndex >= fullBars.length - 1;
+            const isAtLatest = !currentKpCutoffDate && (currentKpCutoffIndex >= fullBars.length - 1);
             const latestBtn = document.getElementById('kp-btn-latest-day');
             if (latestBtn) {
                 if (isAtLatest) {
@@ -7504,7 +7504,7 @@
             }
 
             // 回测推演时强制计算切片最新 ZIG 信号，确保顶部 Bar 详情与图表完全无未来数据
-            const isCutoff = currentKpCutoffIndex < fullBars.length - 1;
+            const isCutoff = !isAtLatest;
             calcZigSignals(slicedBars, { isCutoff: isCutoff, forceRecalc: isCutoff });
 
             // Update Dynamic Bar details
@@ -7528,6 +7528,10 @@
                 return;
             }
             currentKpCutoffIndex = newIdx;
+            const curBar = currentKpFullBars[currentKpCutoffIndex];
+            if (curBar) {
+                currentKpCutoffDate = curBar.datetime;
+            }
             applyKpCutoffAndRender(currentKpData);
 
             // 若回测步进至前序剩余不足 60 根，自动向后端拉取更多更早历史切片以维持充分波段上下文
@@ -7541,6 +7545,8 @@
 
         async function onKpCutoffDateChange(targetYMD) {
             if (!targetYMD) return;
+            const cleanYMD = targetYMD.replace(/\//g, '-');
+            currentKpCutoffDate = cleanYMD;
             // 回测时：向后端请求截至该日期的历史K线切片，确保具备充足历史上下文且零未来数据
             try {
                 if (kpEchart) {
@@ -7548,7 +7554,7 @@
                 }
                 const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
                 const count = isDailyPlus ? Math.max(240, currentKpMonths * 22) : 800;
-                const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${targetYMD}&count=${count}`);
+                const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${cleanYMD}&count=${count}`);
                 if (resp.ok) {
                     const json = await resp.json();
                     if (json && json.data && json.data.length > 0) {
@@ -7567,7 +7573,7 @@
             let matchedIdx = -1;
             for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
                 const bDate = currentKpFullBars[i].datetime.split(' ')[0];
-                if (bDate <= targetYMD) {
+                if (bDate <= cleanYMD) {
                     matchedIdx = i;
                     break;
                 }
@@ -7579,6 +7585,8 @@
 
         async function resetKpCutoffToLatest() {
             stopKpReplay();
+            currentKpCutoffDate = null;
+            currentKpCutoffIndex = -1;
             // 恢复最新交易日：重新拉取最新数据
             try {
                 if (kpEchart) {
@@ -7794,8 +7802,19 @@
                 mnEl.title = `主力净流入: ${mnStr}`;
             }
 
-            // If cutoff is unset, set to latest bar
-            if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
+            // If in cutoff mode, anchor cutoff index to currentKpCutoffDate
+            if (currentKpCutoffDate && currentKpFullBars.length > 0) {
+                const cleanTarget = currentKpCutoffDate.replace(/\//g, '-').trim();
+                const cmpTarget = cleanTarget.length > 10 ? cleanTarget : `${cleanTarget} 23:59:59`;
+                let matchedIdx = -1;
+                for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
+                    if (currentKpFullBars[i].datetime <= cmpTarget) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+                currentKpCutoffIndex = (matchedIdx >= 0) ? matchedIdx : currentKpFullBars.length - 1;
+            } else if (currentKpCutoffIndex < 0 || currentKpCutoffIndex >= currentKpFullBars.length) {
                 currentKpCutoffIndex = currentKpFullBars.length - 1;
             }
 
@@ -7803,13 +7822,15 @@
             applyKpCutoffAndRender(json);
         }
 
-        async function loadKlinePreviewData(forceRefresh = false) {
+        async function loadKlinePreviewData(forceRefresh = false, customEndDate = null) {
             const reqSym = currentKpSymbol;
             const reqPeriod = currentKpPeriod;
             const reqMonths = currentKpMonths;
             const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(reqPeriod);
             const count = isDailyPlus ? Math.max(240, reqMonths * 22) : 800;
-            const cacheKey = `${reqSym}_${reqPeriod}_${count}`;
+            const activeEndDate = customEndDate || currentKpCutoffDate;
+            const cleanEndDate = activeEndDate ? activeEndDate.replace(/\//g, '-').trim() : null;
+            const cacheKey = cleanEndDate ? `${reqSym}_${reqPeriod}_${count}_${cleanEndDate}` : `${reqSym}_${reqPeriod}_${count}`;
             const mySeq = ++_klineFetchSeq;
 
             // 1. Instant Cache Hit: If cached data exists, render IMMEDIATELY in 0ms!
@@ -7838,7 +7859,10 @@
 
             // 2. Fetch fresh data
             try {
-                const resp = await fetch(`/api/quotes/kline?symbol=${reqSym}&period=${reqPeriod}&months=${reqMonths}&count=${count}`);
+                const url = cleanEndDate
+                    ? `/api/quotes/kline?symbol=${reqSym}&period=${reqPeriod}&months=${reqMonths}&count=${count}&end_date=${encodeURIComponent(cleanEndDate)}`
+                    : `/api/quotes/kline?symbol=${reqSym}&period=${reqPeriod}&months=${reqMonths}&count=${count}`;
+                const resp = await fetch(url);
                 if (resp.ok) {
                     const json = await resp.json();
                     if (window._klineCache) {
@@ -7851,12 +7875,14 @@
                         }
                         _applyKpDataResponse(json);
 
-                        // 蜡烛图渲染完成后，空闲延迟预取周K，绝不抢占当前主图
-                        setTimeout(() => {
-                            if (mySeq === _klineFetchSeq && currentKpSymbol === reqSym && typeof prefetchKlinePeriod === 'function') {
-                                prefetchKlinePeriod('WEEK');
-                            }
-                        }, 1500);
+                        // 仅在非回测模式下预取周K
+                        if (!cleanEndDate) {
+                            setTimeout(() => {
+                                if (mySeq === _klineFetchSeq && currentKpSymbol === reqSym && typeof prefetchKlinePeriod === 'function') {
+                                    prefetchKlinePeriod('WEEK');
+                                }
+                            }, 1500);
+                        }
                     }
                 }
             } catch (e) {
