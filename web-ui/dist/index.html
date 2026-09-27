@@ -6471,14 +6471,16 @@
             const modal = document.getElementById('kp-zig-history-modal');
             if (!modal) return;
 
-            const bars = currentKpFullBars || [];
+            // 回测推演时：严格只取截止到当前回测日期的切片数据，防止未来数据泄露！
+            const isCutoff = currentKpCutoffIndex >= 0 && currentKpFullBars && currentKpCutoffIndex < currentKpFullBars.length - 1;
+            const bars = isCutoff ? currentKpFullBars.slice(0, currentKpCutoffIndex + 1) : (currentKpFullBars || []);
             if (!bars || bars.length === 0) {
                 alert('当前暂无K线数据，请稍候加载完成后再试');
                 return;
             }
 
-            // 重新计算并刷新当前周期的 ZIG 状态
-            const zigResult = calcZigSignals(bars);
+            // 重新计算并刷新当前周期的 ZIG 状态 (回测推演时强制重新计算，防止未来数据泄露)
+            const zigResult = calcZigSignals(bars, { isCutoff: isCutoff, forceRecalc: isCutoff });
 
             const periodNameMap = {
                 'DAY': '日K',
@@ -6531,7 +6533,10 @@
             // 更新标题与周期
             const stockTitle = `${currentKpStockName || currentKpSymbol} (${currentKpSymbol})`;
             const titleEl = document.getElementById('kp-zig-modal-title');
-            if (titleEl) titleEl.innerText = `${stockTitle} · 历史 ZIG 数据列表`;
+            if (titleEl) {
+                const cutoffText = isCutoff && bars.length > 0 ? ` (推演截至: ${bars[bars.length - 1].datetime})` : '';
+                titleEl.innerText = `${stockTitle} · 历史 ZIG 数据列表${cutoffText}`;
+            }
             const periodBadgeEl = document.getElementById('kp-zig-modal-period-badge');
             if (periodBadgeEl) periodBadgeEl.innerText = `周期: ${pName}`;
             const countBadgeEl = document.getElementById('kp-zig-modal-count-badge');
@@ -7231,9 +7236,10 @@
             // 构造日线与分时周期上的ZIG转向指示柱数据：在zig=1时标红柱(全买)，zig=-1时标绿柱(全卖)
             // dim0=datetime, dim1=close, dim2=zigVal(1:全买标红柱, -1:全卖标绿柱), dim3=index, dim4=low, dim5=high
             const turnLines = [];
+            const isCutoffMode = (currentKpCutoffIndex >= 0 && currentKpFullBars && currentKpCutoffIndex < currentKpFullBars.length - 1) || !!customCfg.isCutoff || !!customCfg.forceRecalc;
             for (let i = 0; i < n; i++) {
-                // 当服务端已提供精确的 zig_day 且用户未自定义 zigDelta 时优先使用服务端权威数据，否则使用前端精确模拟计算值
-                const zd = (bars[i].zig_day !== undefined && (!customCfg.zigDelta || customCfg.zigDelta === 5.0)) ? bars[i].zig_day : zigDays[i];
+                // 当处于回测推演切片模式时，强制使用基于历史切片计算的无未来数据 zigDays；仅在实时未切片且服务端已提供精确 zig_day 时使用服务端数据
+                const zd = (!isCutoffMode && bars[i].zig_day !== undefined && (!customCfg.zigDelta || customCfg.zigDelta === 5.0)) ? bars[i].zig_day : zigDays[i];
                 bars[i].zig = zd;
                 bars[i].zig_days = zd;
                 bars[i].zig_price = zigArr[i];
@@ -7513,11 +7519,21 @@
                 chgPctEl.className = `text-xs font-bold ${isUp ? 'text-rose-500' : 'text-emerald-400'}`;
             }
 
+            // 回测推演时强制计算切片最新 ZIG 信号，确保顶部 Bar 详情与图表完全无未来数据
+            const isCutoff = currentKpCutoffIndex < fullBars.length - 1;
+            calcZigSignals(slicedBars, { isCutoff: isCutoff, forceRecalc: isCutoff });
+
             // Update Dynamic Bar details
             updateKpBarDetails(currentBar, prevBar);
 
             // Render chart with dynamically sliced bars
             renderKpChart({ ...baseJson, data: slicedBars });
+
+            // 若历史 ZIG 列表弹窗处于打开状态，联动同步刷新显示该时点的最新 ZIG 明细
+            const zigModal = document.getElementById('kp-zig-history-modal');
+            if (zigModal && !zigModal.classList.contains('hidden')) {
+                openKpZigHistoryModal();
+            }
         }
 
         function stepKpDate(delta) {
@@ -7531,8 +7547,29 @@
             applyKpCutoffAndRender(currentKpData);
         }
 
-        function onKpCutoffDateChange(targetYMD) {
+        async function onKpCutoffDateChange(targetYMD) {
             if (!currentKpFullBars || currentKpFullBars.length === 0 || !targetYMD) return;
+            const firstDate = currentKpFullBars[0].datetime.split(' ')[0];
+            if (targetYMD < firstDate) {
+                // 若用户选择的日期超出当前前端缓存的最早日期，向后端请求带 end_date 的历史切片
+                try {
+                    if (kpEchart) {
+                        kpEchart.showLoading({ text: '拉取历史回测数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
+                    }
+                    const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${targetYMD}&count=240`);
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        if (json && json.data && json.data.length > 0) {
+                            _applyKpDataResponse(json);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch historical kline for cutoff date:', e);
+                } finally {
+                    if (kpEchart) try { kpEchart.hideLoading(); } catch (e) { }
+                }
+            }
             let matchedIdx = -1;
             for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
                 const bDate = currentKpFullBars[i].datetime.split(' ')[0];

@@ -534,3 +534,43 @@ def test_openapi_schema_generated():
     # they are verified in test_full_app_routes_registered instead.
     # Just ensure REST paths are present.
     assert "/api/v1/fund-flow" in schema["paths"]
+
+
+def test_kline_with_end_date_cutoff(monkeypatch):
+    """Test get_kline endpoint filtering with end_date for backtest/replay."""
+    import pandas as pd
+    from easy_tdx.web.routers.quotes import get_kline
+
+    fake_df = pd.DataFrame({
+        "datetime": [
+            "2026-07-16 15:00",
+            "2026-07-17 15:00",
+            "2026-07-20 10:00",
+            "2026-07-20 10:30",
+            "2026-07-20 11:30",
+        ],
+        "open": [7.8, 8.0, 8.5, 9.0, 9.2],
+        "high": [8.1, 8.3, 9.38, 9.4, 9.5],
+        "low": [7.75, 7.9, 8.4, 8.8, 9.0],
+        "close": [8.0, 8.2, 9.38, 9.1, 9.3],
+        "volume": [1000, 1200, 8000, 5000, 4000],
+        "amount": [8000.0, 9600.0, 75040.0, 45500.0, 37200.0],
+    })
+
+    monkeypatch.setattr(
+        "easy_tdx.web.routers.quotes.fetch_security_kline",
+        lambda *args, **kwargs: fake_df.copy(),
+    )
+
+    res = get_kline(
+        symbol="600722",
+        period="30M",
+        count=10,
+        end_date="2026-07-20 10:00",
+    )
+    assert res["symbol"] == "600722"
+    assert len(res["data"]) == 3
+    assert res["data"][-1]["datetime"] == "2026-07-20 10:00"
+    assert res["data"][-1]["close"] == 9.38
+    assert "zig_day" in res["data"][-1]
+

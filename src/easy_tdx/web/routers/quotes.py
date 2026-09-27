@@ -367,7 +367,8 @@ def get_kline(
     symbol: str = Query("000001", description="Stock symbol"),
     period: str = Query("DAY", description="K-line period (DAY, 1M, 5M, etc.)"),
     count: int = Query(120, description="Bars count"),
-    months: int = Query(6, description="Months range")
+    months: int = Query(6, description="Months range"),
+    end_date: str | None = Query(None, description="Cutoff end date for backtest/replay (YYYY-MM-DD or YYYY-MM-DD HH:MM)")
 ):
     """Get rich real-time K-line bars directly from TDX feed, moving averages, and technical indicators."""
     raw_sym = symbol.strip()
@@ -390,14 +391,15 @@ def get_kline(
     from easy_tdx.market_overview import is_trading_time
     now = time.time()
     effective_ttl = 5.0 if is_trading_time() else 3600.0
-    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}"
+    clean_end_date = end_date.strip() if end_date else None
+    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}_{clean_end_date}" if clean_end_date else f"{clean_sym}_{period.upper()}_{n_bars}"
     base_k = f"{clean_sym}_{period.upper()}"
     with _KLINE_CACHE_LOCK:
         if cache_k in _KLINE_CACHE:
             ts, cached_res = _KLINE_CACHE[cache_k]
             if now - ts < effective_ttl:
                 return cached_res
-        if base_k in _KLINE_BASE_CACHE:
+        if not clean_end_date and base_k in _KLINE_BASE_CACHE:
             ts, base_res = _KLINE_BASE_CACHE[base_k]
             if now - ts < effective_ttl:
                 b_data = base_res.get("data", [])
@@ -409,8 +411,13 @@ def get_kline(
                     _KLINE_CACHE[cache_k] = (ts, res_slice)
                     return res_slice
     
-    fetch_n = max(240, n_bars)
+    fetch_n = max(500, n_bars * 2) if clean_end_date else max(240, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
+    if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
+        e_cmp = clean_end_date if len(clean_end_date) > 10 else f"{clean_end_date} 23:59:59"
+        df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
+        if len(df) > n_bars:
+            df = df.iloc[-n_bars:].reset_index(drop=True)
     mkt, full_sym = _get_market_suffix(raw_sym)
     if clean_sym.startswith("88") and clean_sym not in _BOARD_NAME_MAP:
         _resolve_stock_board_info(clean_sym)
@@ -1061,8 +1068,9 @@ def get_kline(
     }
 
     with _KLINE_CACHE_LOCK:
-        _KLINE_BASE_CACHE[base_k] = (now, res)
-        _KLINE_CACHE[f"{clean_sym}_{period.upper()}_{len(bars_data)}"] = (now, res)
+        if not clean_end_date:
+            _KLINE_BASE_CACHE[base_k] = (now, res)
+            _KLINE_CACHE[f"{clean_sym}_{period.upper()}_{len(bars_data)}"] = (now, res)
         if len(bars_data) != n_bars:
             sliced_data = bars_data[-n_bars:]
             res_slice = dict(res)
