@@ -385,7 +385,7 @@ def get_kline(
         clean_sym = "000001"
         raw_sym = "000001"
         
-    n_bars = max(30, min(500, count if count != 120 else (months * 22 if months else 120)))
+    n_bars = max(30, min(800, count if count != 120 else (months * 22 if months else 120)))
 
     # Check in-memory endpoint cache (5s during trade session, 3600s off-hours)
     from easy_tdx.market_overview import is_trading_time
@@ -411,7 +411,7 @@ def get_kline(
                     _KLINE_CACHE[cache_k] = (ts, res_slice)
                     return res_slice
     
-    fetch_n = max(800, n_bars * 3) if clean_end_date else max(240, n_bars)
+    fetch_n = max(800, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
     if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
         e_cmp = clean_end_date if len(clean_end_date) > 10 else f"{clean_end_date} 23:59:59"

@@ -629,8 +629,8 @@ def calculate_zig_series(close: np.ndarray, change_pct: float = 0.05) -> List[in
             all_pivots.append((min_idx, min_p, -1))
 
     if not all_pivots:
-        cur_day = 1 if close[-1] >= close[0] else -1
-        return [cur_day] * n
+        is_up = close[-1] >= close[0]
+        return [i + 1 if is_up else -(i + 1) for i in range(n)]
 
     zig_days = [0] * n
     for i in range(n):

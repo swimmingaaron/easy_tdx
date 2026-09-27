@@ -6896,9 +6896,9 @@
             }
 
             if (all_pivots.length === 0) {
-                const cur_day = (lastC >= close[0]) ? 1 : -1;
+                const isUp = (lastC >= close[0]);
                 return {
-                    zig_days: new Array(n).fill(cur_day),
+                    zig_days: Array.from({ length: n }, (_, i) => isUp ? (i + 1) : -(i + 1)),
                     all_pivots: []
                 };
             }
@@ -7529,6 +7529,14 @@
             }
             currentKpCutoffIndex = newIdx;
             applyKpCutoffAndRender(currentKpData);
+
+            // 若回测步进至前序剩余不足 60 根，自动向后端拉取更多更早历史切片以维持充分波段上下文
+            if (delta < 0 && currentKpCutoffIndex < 60 && currentKpFullBars.length >= 100) {
+                const targetBar = currentKpFullBars[currentKpCutoffIndex];
+                if (targetBar && targetBar.datetime) {
+                    onKpCutoffDateChange(targetBar.datetime.split(' ')[0]);
+                }
+            }
         }
 
         async function onKpCutoffDateChange(targetYMD) {
@@ -7539,7 +7547,7 @@
                     kpEchart.showLoading({ text: '拉取历史回测数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
                 }
                 const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
-                const count = isDailyPlus ? (currentKpMonths * 22) : (currentKpPeriod === '120M' ? 120 : (currentKpPeriod === '60M' ? 160 : 240));
+                const count = isDailyPlus ? Math.max(240, currentKpMonths * 22) : 800;
                 const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${targetYMD}&count=${count}`);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -7577,7 +7585,7 @@
                     kpEchart.showLoading({ text: '恢复最新数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
                 }
                 const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
-                const count = isDailyPlus ? (currentKpMonths * 22) : (currentKpPeriod === '120M' ? 120 : (currentKpPeriod === '60M' ? 160 : 240));
+                const count = isDailyPlus ? Math.max(240, currentKpMonths * 22) : 800;
                 const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&count=${count}`);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -7708,7 +7716,7 @@
         function prefetchKlinePeriod(period) {
             if (!currentKpSymbol) return;
             const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(period);
-            const count = isDailyPlus ? (currentKpMonths * 22) : (period === '120M' ? 120 : (period === '60M' ? 160 : 240));
+            const count = isDailyPlus ? Math.max(240, currentKpMonths * 22) : 800;
             const cacheKey = `${currentKpSymbol}_${period}_${count}`;
             if (window._klineCache && window._klineCache.has(cacheKey)) return;
             fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${period}&months=${currentKpMonths}&count=${count}`)
@@ -7800,7 +7808,7 @@
             const reqPeriod = currentKpPeriod;
             const reqMonths = currentKpMonths;
             const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(reqPeriod);
-            const count = isDailyPlus ? (reqMonths * 22) : (reqPeriod === '120M' ? 120 : (reqPeriod === '60M' ? 160 : 240));
+            const count = isDailyPlus ? Math.max(240, reqMonths * 22) : 800;
             const cacheKey = `${reqSym}_${reqPeriod}_${count}`;
             const mySeq = ++_klineFetchSeq;
 
