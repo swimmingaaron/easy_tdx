@@ -24,6 +24,8 @@ from easy_tdx.trading_system.engine import (
     has_universe_cache,
     is_universe_evaluating,
     start_background_universe_eval,
+    _PERSISTENT_HOLDERS_DATA,
+    fetch_stock_holders,
 )
 from easy_tdx.watchlist_store import load_watchlist, save_watchlist, load_watchlist_items
 from easy_tdx.screener.universe import get_universe_symbols
@@ -170,6 +172,19 @@ def get_signal_dashboard(
                     s["stock_name"] = rn
             if s.get("fina_score") is None:
                 s["fina_score"] = compute_fina_score([s])
+            if sc in _PERSISTENT_HOLDERS_DATA:
+                p_data = _PERSISTENT_HOLDERS_DATA[sc]
+                if (not s.get("holder_ratio") or float(s.get("holder_ratio") or 0) <= 0) and float(p_data.get("holder_ratio") or 0) > 0:
+                    s["holder_ratio"] = float(p_data["holder_ratio"])
+                if (not s.get("holder_focus") or s.get("holder_focus") == "--") and p_data.get("holder_focus") and p_data["holder_focus"] != "--":
+                    s["holder_focus"] = p_data["holder_focus"]
+                if not s.get("holders_changes") and p_data.get("holders_changes"):
+                    s["holders_changes"] = list(p_data["holders_changes"])
+                if not s.get("holders_history") and p_data.get("holders_history"):
+                    s["holders_history"] = list(p_data["holders_history"])
+                if (not s.get("holders_num") or s.get("holders_num") == 0) and p_data.get("holders_num"):
+                    s["holders_num"] = int(p_data["holders_num"])
+                    s["holders_str"] = str(p_data.get("holders_str", "--"))
 
         watchlist_set = set(load_watchlist())
 
@@ -419,3 +434,23 @@ def get_stock_history_signals(code: str, days: int = Query(45, description="回�
     except Exception as e:
         logger.exception(f"Failed to fetch history for {clean_code}")
         return {"success": False, "error": str(e), "stock_code": clean_code}
+
+
+@router.get("/holders_batch")
+def batch_fetch_holders(symbols: str = Query(..., description="逗号分隔的个股代码列表，最多30个")) -> Dict[str, Any]:
+    """批量异步补全个股股东人数与集中度数据（如前台当前页标的缺失股东集中度时调用）。"""
+    sym_list = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols.split(",") if s.strip()][:30]
+    results = {}
+    for code in sym_list:
+        try:
+            h = fetch_stock_holders(code, quick=False)
+            results[code] = {
+                "holder_ratio": h.get("holder_ratio", 0.0),
+                "holder_focus": h.get("holder_focus", "--"),
+                "holders_changes": h.get("holders_changes", []),
+                "holders_num": h.get("holders_num", 0),
+                "holders_str": h.get("holders_str", "--"),
+            }
+        except Exception as e:
+            logger.debug(f"Failed to batch fetch holders for {code}: {e}")
+    return {"success": True, "data": results}
