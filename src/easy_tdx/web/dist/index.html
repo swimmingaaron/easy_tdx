@@ -2710,8 +2710,9 @@
                                     class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
                                     连涨天 <span id="wl-sort-days" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('zig')"
-                                    class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
-                                    ZIG <span id="wl-sort-zig" class="text-[10px] text-slate-500">↕</span></th>
+                                    class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400"
+                                    title="ZIG转向 (日线)">
+                                    ZIG (日线) <span id="wl-sort-zig" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('ystz')"
                                     class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
                                     营业同比 <span id="wl-sort-ystz" class="text-[10px] text-slate-500">↕</span></th>
@@ -11172,13 +11173,13 @@
                     }
                     const daysTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${daysHtml}</td>`;
 
-                    // 16. ZIG (向上波段持续天数红色+，向下波段持续天数绿色-)
+                    // 16. ZIG (日线转向，向上波段持续天数红色+，向下波段持续天数绿色-)
                     const zig = Number(q.zig || 0);
                     let zigHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
                     if (zig > 0) {
-                        zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天">+${zig}</span>`;
+                        zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天 (日线)">+${zig}</span>`;
                     } else if (zig < 0) {
-                        zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天">-${Math.abs(zig)}</span>`;
+                        zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天 (日线)">-${Math.abs(zig)}</span>`;
                     }
                     const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
 
@@ -11320,7 +11321,7 @@
                     if (window.lucide) lucide.createIcons();
                 }
 
-                const resp = await fetch(`/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}`);
+                const resp = await fetch(`/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`);
                 if (resp.ok) {
                     const json = await resp.json();
                     const rows = json.rows || [];
