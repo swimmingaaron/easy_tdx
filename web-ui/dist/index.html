@@ -5466,11 +5466,10 @@
 
             if (targetCutoff) {
                 currentKpCutoffDate = targetCutoff;
-                loadKlinePreviewData(false, targetCutoff);
             } else {
                 currentKpCutoffIndex = -1;
-                loadKlinePreviewData();
             }
+            loadKlinePreviewData();
         }
 
         let isKpProfileOpen = false;
@@ -7523,19 +7522,33 @@
 
         function stepKpDate(delta) {
             if (!currentKpFullBars || currentKpFullBars.length === 0) return;
-            const newIdx = Math.max(1, Math.min(currentKpFullBars.length - 1, currentKpCutoffIndex + delta));
+            const newIdx = Math.max(0, Math.min(currentKpFullBars.length - 1, currentKpCutoffIndex + delta));
             if (newIdx === currentKpCutoffIndex) {
+                // 如果用户按右方向步进，但当前受限于本地切片数组末尾，且该末尾并非今天真实最新交易日
+                if (delta > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1) {
+                    const lastBar = currentKpFullBars[currentKpCutoffIndex];
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    if (lastBar && lastBar.datetime.split(' ')[0] < todayStr) {
+                        currentKpCutoffDate = null;
+                        loadKlinePreviewData(true).then(() => {
+                            if (currentKpFullBars && currentKpFullBars.length > 0) {
+                                stepKpDate(1);
+                            }
+                        });
+                        return;
+                    }
+                }
                 if (currentKpReplayTimer) stopKpReplay();
                 return;
             }
             currentKpCutoffIndex = newIdx;
             const curBar = currentKpFullBars[currentKpCutoffIndex];
             if (curBar) {
-                currentKpCutoffDate = curBar.datetime;
+                currentKpCutoffDate = (currentKpCutoffIndex >= currentKpFullBars.length - 1) ? null : curBar.datetime;
             }
             applyKpCutoffAndRender(currentKpData);
 
-            // 若回测步进至前序剩余不足 60 根，自动向后端拉取更多更早历史切片以维持充分波段上下文
+            // 若回测向左步进至前序剩余不足 60 根，自动向后端拉取更多更早历史切片以维持充分波段上下文
             if (delta < 0 && currentKpCutoffIndex < 60 && currentKpFullBars.length >= 100) {
                 const targetBar = currentKpFullBars[currentKpCutoffIndex];
                 if (targetBar && targetBar.datetime) {
@@ -7548,13 +7561,34 @@
             if (!targetYMD) return;
             const cleanYMD = targetYMD.replace(/\//g, '-');
             currentKpCutoffDate = cleanYMD;
-            // 回测时：向后端请求截至该日期的历史K线切片，确保具备充足历史上下文且零未来数据
+
+            // 1. 优先直接在当前已加载的完整数据中精确定位（0ms 零延迟，且完美保留未来切片用于向右步进回测）
+            if (currentKpFullBars && currentKpFullBars.length > 0) {
+                const earliestDate = currentKpFullBars[0].datetime.split(' ')[0];
+                if (cleanYMD >= earliestDate) {
+                    let matchedIdx = -1;
+                    const cmpTarget = cleanYMD.length > 10 ? cleanYMD : `${cleanYMD} 23:59:59`;
+                    for (let i = currentKpFullBars.length - 1; i >= 0; i--) {
+                        if (currentKpFullBars[i].datetime <= cmpTarget) {
+                            matchedIdx = i;
+                            break;
+                        }
+                    }
+                    if (matchedIdx >= 0) {
+                        currentKpCutoffIndex = matchedIdx;
+                        currentKpCutoffDate = currentKpFullBars[matchedIdx].datetime;
+                        applyKpCutoffAndRender(currentKpData);
+                        return;
+                    }
+                }
+            }
+
+            // 2. 超出当前已加载的最早日期时，向后端拉取包含更深历史的切片
             try {
                 if (kpEchart) {
                     kpEchart.showLoading({ text: '拉取历史回测数据...', color: '#06b6d4', textColor: '#94a3b8', maskColor: 'rgba(11, 15, 25, 0.4)' });
                 }
-                const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(currentKpPeriod);
-                const count = isDailyPlus ? Math.max(240, currentKpMonths * 22) : 800;
+                const count = 800;
                 const resp = await fetch(`/api/quotes/kline?symbol=${currentKpSymbol}&period=${currentKpPeriod}&end_date=${cleanYMD}&count=${count}`);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -7827,9 +7861,8 @@
             const reqSym = currentKpSymbol;
             const reqPeriod = currentKpPeriod;
             const reqMonths = currentKpMonths;
-            const isDailyPlus = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR'].includes(reqPeriod);
-            const count = isDailyPlus ? Math.max(240, reqMonths * 22) : 800;
-            const activeEndDate = customEndDate || currentKpCutoffDate;
+            const count = 800;
+            const activeEndDate = customEndDate;
             const cleanEndDate = activeEndDate ? activeEndDate.replace(/\//g, '-').trim() : null;
             const cacheKey = cleanEndDate ? `${reqSym}_${reqPeriod}_${count}_${cleanEndDate}` : `${reqSym}_${reqPeriod}_${count}`;
             const mySeq = ++_klineFetchSeq;
