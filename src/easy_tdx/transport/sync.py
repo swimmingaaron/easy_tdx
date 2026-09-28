@@ -1,5 +1,6 @@
 """同步 TCP 连接（基于 socket）。"""
 
+import logging
 import socket
 import threading
 import time
@@ -16,7 +17,9 @@ from ..config import (
     get_port,
     get_timeout,
 )
-from ..exceptions import TdxConnectionError
+from ..exceptions import TdxConnectionError, TdxError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..commands.base import BaseCommand
@@ -192,12 +195,14 @@ class TdxConnection:
                 header_buf = self._recv_exact(HEADER_SIZE)
                 header = parse_header(header_buf)
                 raw_body = self._recv_exact(header.zipsize)
-            except OSError as e:
+            except (OSError, TdxError) as e:
                 try:
                     self._sock.close()
                 except OSError:
                     pass
                 self._sock = None
+                if isinstance(e, TdxConnectionError):
+                    raise
                 raise TdxConnectionError(f"通信错误: {e}") from e
             body = decompress_body(header, raw_body)
             return cmd.parse_response(body)
@@ -274,7 +279,8 @@ class TdxConnection:
                     hdr = parse_header(hdr_buf)
                     if hdr.zipsize > 0:
                         _recv_exact_sock(self._sock, hdr.zipsize)
-                except OSError:
+                except (OSError, TdxError) as e:
+                    logger.debug("tdx-heartbeat 探测连接断开 (%s)，关闭套接字", e)
                     try:
                         self._sock.close()
                     except OSError:
@@ -297,7 +303,7 @@ class TdxConnection:
                 hdr = parse_header(hdr_buf)
                 if hdr.zipsize > 0:
                     self._recv_exact(hdr.zipsize)
-            except OSError:
+            except (OSError, TdxError):
                 # 部分服务器的握手无响应，忽略错误
                 pass
 

@@ -86,3 +86,26 @@ def test_ping_all_skips_handshake_failure_without_crash() -> None:
     hosts_ok = [h for h, _ in results]
     assert "good" in hosts_ok
     assert "bad" not in hosts_ok
+
+
+def test_heartbeat_loop_handles_server_close_gracefully() -> None:
+    """心跳线程遇到服务器关闭连接（抛出 TdxConnectionError）时，应安全关闭 socket 并退出，不冒泡异常。"""
+    sock = _FakeSocket()
+    conn = TdxConnection("127.0.0.1", port=7709, timeout=0.2)
+    conn._sock = sock  # type: ignore[assignment]
+    conn._stop_event = None
+
+    import threading
+    conn._stop_event = threading.Event()
+    conn._heartbeat_interval = 0.01
+    conn._last_active = 0.0
+
+    with patch(
+        "easy_tdx.transport.sync._recv_exact_sock",
+        side_effect=TdxConnectionError("连接被服务器关闭"),
+    ):
+        # 直接调用单次 heartbeat loop 的一次迭代处理，或启动线程
+        conn._heartbeat_loop()
+
+    assert sock.closed is True
+    assert conn._sock is None
