@@ -1,11 +1,14 @@
 """Quotes API Endpoints for easy_tdx."""
 from __future__ import annotations
 from typing import Any
+import os
+import json
 import threading
 import time
 import math
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel
 from fastapi import APIRouter, Query
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline, fetch_realtime_pool_quotes
@@ -1168,6 +1171,66 @@ def get_stock_profile(
         "symbol": symbol,
         "data": data
     }
+
+
+# ==================== K-Line Drawings Storage API ====================
+_DRAWINGS_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "kline_drawings.json")
+
+def _load_all_drawings() -> dict:
+    if os.path.exists(_DRAWINGS_FILE):
+        try:
+            with open(_DRAWINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_all_drawings(data: dict):
+    os.makedirs(os.path.dirname(_DRAWINGS_FILE), exist_ok=True)
+    try:
+        with open(_DRAWINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+@router.get("/drawings")
+def get_drawings(
+    symbol: str = Query(..., description="Stock symbol, e.g. 600887"),
+    period: str = Query("DAY", description="K-line period, e.g. DAY, 30M")
+):
+    """Retrieve saved drawings for a specific stock and period."""
+    clean_sym = symbol.strip().upper()
+    clean_p = period.strip().upper()
+    key = f"{clean_sym}_{clean_p}"
+    all_drawings = _load_all_drawings()
+    return {
+        "status": "success",
+        "symbol": clean_sym,
+        "period": clean_p,
+        "drawings": all_drawings.get(key, [])
+    }
+
+class DrawingsPayload(BaseModel):
+    symbol: str
+    period: str
+    drawings: list[dict[str, Any]]
+
+@router.post("/drawings")
+def save_drawings(payload: DrawingsPayload):
+    """Save drawings for a specific stock and period."""
+    clean_sym = payload.symbol.strip().upper()
+    clean_p = payload.period.strip().upper()
+    key = f"{clean_sym}_{clean_p}"
+    all_drawings = _load_all_drawings()
+    all_drawings[key] = payload.drawings
+    _save_all_drawings(all_drawings)
+    return {
+        "status": "success",
+        "symbol": clean_sym,
+        "period": clean_p,
+        "count": len(payload.drawings)
+    }
+
 
 
 

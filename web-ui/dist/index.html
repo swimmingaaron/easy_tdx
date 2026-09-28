@@ -4502,11 +4502,22 @@
                         <button onclick="openKpZigHistoryModal()" id="kp-btn-zig-history"
                             class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0"
                             title="弹窗查看当前周期下所有历史点的日期、收盘价、涨幅、ZIG值">ZIG值</button>
+                        <button onclick="toggleKpDrawToolbar()" id="kp-btn-draw-toggle"
+                            class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer flex items-center space-x-1 shrink-0"
+                            title="展开/收起画线工具栏，支持线段、射线、水平线、垂直线及多周期持久化保存">
+                            <i data-lucide="pen-tool" class="w-3 h-3 text-amber-400"></i>
+                            <span>画线</span>
+                            <span id="kp-draw-count-badge" class="hidden ml-1 px-1 py-0.1 bg-amber-500/20 text-amber-300 text-[9px] rounded-full border border-amber-500/40">0</span>
+                        </button>
                     </div>
                 </div>
 
                 <div
                     class="hidden md:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
+                    <span><kbd
+                            class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">↑</kbd><kbd
+                            class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">↓</kbd>
+                        缩放</span>
                     <span><kbd
                             class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←</kbd><kbd
                             class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">→</kbd>
@@ -4635,6 +4646,99 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Collapsible Multi-Period K-Line Drawing Toolbar -->
+            <div id="kp-draw-toolbar"
+                class="hidden bg-slate-900/95 border border-amber-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shadow-xl shrink-0 transition-all gap-2 flex-wrap">
+                <div class="flex items-center space-x-1 shrink-0">
+                    <span class="text-[10px] text-amber-400/90 font-bold flex items-center space-x-1 mr-1">
+                        <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-amber-400"></i>
+                        <span>画线:</span>
+                    </span>
+                    <button type="button" onclick="setKpDrawTool('none')" id="kp-draw-tool-none"
+                        class="kp-draw-tool-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-700 transition cursor-pointer flex items-center space-x-1"
+                        title="指针模式（十字光标正常平移缩放）">
+                        <i data-lucide="mouse-pointer" class="w-3 h-3"></i>
+                        <span>指针</span>
+                    </button>
+                    <button type="button" onclick="setKpDrawTool('segment')" id="kp-draw-tool-segment"
+                        class="kp-draw-tool-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="线段：两点连线，用于绘制通道与形态">
+                        <i data-lucide="trending-up" class="w-3 h-3"></i>
+                        <span>线段</span>
+                    </button>
+                    <button type="button" onclick="setKpDrawTool('ray')" id="kp-draw-tool-ray"
+                        class="kp-draw-tool-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="射线：两点确定方向，自动向右延伸">
+                        <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+                        <span>射线</span>
+                    </button>
+                    <button type="button" onclick="setKpDrawTool('hline')" id="kp-draw-tool-hline"
+                        class="kp-draw-tool-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="水平线：单击设定水平支撑/阻力价格线">
+                        <i data-lucide="minus" class="w-3 h-3"></i>
+                        <span>水平线</span>
+                    </button>
+                    <button type="button" onclick="setKpDrawTool('vline')" id="kp-draw-tool-vline"
+                        class="kp-draw-tool-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="垂直线：单击设定时间节点或变盘日">
+                        <i data-lucide="separator-vertical" class="w-3 h-3"></i>
+                        <span>垂直线</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-2 shrink-0">
+                    <div class="flex items-center space-x-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 select-none mr-0.5">颜色:</span>
+                        <button type="button" onclick="setKpDrawColor('#fbbf24')"
+                            class="kp-draw-color-btn w-3.5 h-3.5 rounded-full bg-[#fbbf24] border-2 border-white transition transform hover:scale-110"
+                            title="金色" data-color="#fbbf24"></button>
+                        <button type="button" onclick="setKpDrawColor('#38bdf8')"
+                            class="kp-draw-color-btn w-3.5 h-3.5 rounded-full bg-[#38bdf8] border-2 border-transparent transition transform hover:scale-110"
+                            title="蓝色" data-color="#38bdf8"></button>
+                        <button type="button" onclick="setKpDrawColor('#f43f5e')"
+                            class="kp-draw-color-btn w-3.5 h-3.5 rounded-full bg-[#f43f5e] border-2 border-transparent transition transform hover:scale-110"
+                            title="红色" data-color="#f43f5e"></button>
+                        <button type="button" onclick="setKpDrawColor('#34d399')"
+                            class="kp-draw-color-btn w-3.5 h-3.5 rounded-full bg-[#34d399] border-2 border-transparent transition transform hover:scale-110"
+                            title="绿色" data-color="#34d399"></button>
+                        <button type="button" onclick="setKpDrawColor('#f8fafc')"
+                            class="kp-draw-color-btn w-3.5 h-3.5 rounded-full bg-[#f8fafc] border-2 border-transparent transition transform hover:scale-110"
+                            title="白色" data-color="#f8fafc"></button>
+                    </div>
+
+                    <div class="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-amber-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="kp-draw-status">指针正常模式</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-1 shrink-0">
+                    <button type="button" onclick="undoKpDrawing()" id="kp-btn-draw-undo"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="撤销上一笔画线">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3 text-slate-300"></i>
+                        <span>撤销</span>
+                    </button>
+                    <button type="button" onclick="clearKpDrawings()" id="kp-btn-draw-clear"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-rose-300 hover:text-rose-200 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 transition cursor-pointer flex items-center space-x-1"
+                        title="清空当前股票在当前周期的所有画线">
+                        <i data-lucide="trash-2" class="w-3 h-3 text-rose-400"></i>
+                        <span>清空</span>
+                    </button>
+                    <button type="button" onclick="toggleKpDrawListModal(true)" id="kp-btn-draw-list"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="查看并管理所有画线列表">
+                        <i data-lucide="list" class="w-3 h-3 text-slate-300"></i>
+                        <span>管理</span>
+                    </button>
+                    <button type="button" onclick="toggleKpDrawToolbar(false)"
+                        class="h-6 w-6 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer flex items-center justify-center"
+                        title="收起画线栏">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
                 </div>
             </div>
 
@@ -4919,6 +5023,45 @@
             <i data-lucide="x" class="w-3.5 h-3.5 text-rose-400"></i>
             <span>关闭K线窗口</span>
         </button>
+    </div>
+
+    <!-- ==================== K线窗口 自选画线管理弹窗 ==================== -->
+    <div id="kp-draw-list-modal"
+        class="fixed inset-0 z-[85] bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-3"
+        onclick="if(event.target === this) toggleKpDrawListModal(false)">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            onclick="event.stopPropagation()">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="pen-tool" class="w-4 h-4 text-amber-400"></i>
+                    <span class="font-bold text-slate-100 text-sm">自选画线管理</span>
+                    <span id="kp-draw-list-target" class="text-xs text-amber-400/90 font-mono"></span>
+                </div>
+                <button type="button" onclick="toggleKpDrawListModal(false)"
+                    class="text-slate-400 hover:text-white transition cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-3 overflow-y-auto max-h-[50vh] flex-1">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="text-[11px] text-slate-400 uppercase bg-slate-800/50 border-b border-slate-800">
+                        <tr>
+                            <th class="px-3 py-2">#</th>
+                            <th class="px-3 py-2">类型</th>
+                            <th class="px-3 py-2">参数/坐标</th>
+                            <th class="px-3 py-2 text-right">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kp-draw-list-tbody" class="divide-y divide-slate-800/60 font-mono">
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-2.5 border-t border-slate-800 bg-slate-950/50 flex justify-between items-center text-xs text-slate-400">
+                <span>提示：删除操作实时同步至图表及本地持久化存储</span>
+                <button type="button" onclick="toggleKpDrawListModal(false)"
+                    class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition cursor-pointer">关闭</button>
+            </div>
+        </div>
     </div>
 
     <!-- ==================== K线窗口 ZIG 历史数据明细弹窗 ==================== -->
@@ -5433,6 +5576,10 @@
             currentKpPeriod = p;
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
+            if (typeof kpDrawFirstPoint !== 'undefined') kpDrawFirstPoint = null;
+            if (typeof kpDrawPreviewPoint !== 'undefined') kpDrawPreviewPoint = null;
+            if (typeof loadKpDrawingsFromBackend === 'function') loadKpDrawingsFromBackend();
+            if (typeof updateKpDrawUI === 'function') updateKpDrawUI();
             if (typeof stopKpReplay === 'function') {
                 stopKpReplay();
             }
@@ -5943,6 +6090,10 @@
             }
 
             // 核心优先：以最高优先级立即触发当前K线蜡烛图加载与渲染 (0ms 延迟)
+            if (typeof kpDrawFirstPoint !== 'undefined') kpDrawFirstPoint = null;
+            if (typeof kpDrawPreviewPoint !== 'undefined') kpDrawPreviewPoint = null;
+            if (typeof loadKpDrawingsFromBackend === 'function') loadKpDrawingsFromBackend();
+            if (typeof updateKpDrawUI === 'function') updateKpDrawUI();
             loadKlinePreviewData();
 
             // 资料财务优先权控制：仅当用户已展开资料财务面板时才拉取，折叠时绝不抢占K线网络与计算资源
@@ -6264,6 +6415,18 @@
                         }
                     }
                 } else if (e.key === 'Escape') {
+                    if (typeof kpDrawFirstPoint !== 'undefined' && kpDrawFirstPoint) {
+                        kpDrawFirstPoint = null;
+                        kpDrawPreviewPoint = null;
+                        renderKpDrawLines();
+                        updateKpDrawStatus('已取消本次画线');
+                        return;
+                    }
+                    const drawListModal = document.getElementById('kp-draw-list-modal');
+                    if (drawListModal && !drawListModal.classList.contains('hidden')) {
+                        toggleKpDrawListModal(false);
+                        return;
+                    }
                     const zigHistModal = document.getElementById('kp-zig-history-modal');
                     if (zigHistModal && !zigHistModal.classList.contains('hidden')) {
                         closeKpZigHistoryModal();
@@ -6279,6 +6442,18 @@
                     // When K-line modal is active, F5 or Ctrl+R refreshes modal data only without full page reload
                     e.preventDefault();
                     refreshKpData(true);
+                } else if (e.key === 'ArrowUp') {
+                    // Up arrow: zoom in / enlarge K-line bars
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        if (typeof zoomKpChart === 'function') zoomKpChart(0.8);
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    // Down arrow: zoom out / shrink K-line bars
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        if (typeof zoomKpChart === 'function') zoomKpChart(1.25);
+                    }
                 } else if (e.key === 'ArrowLeft') {
                     // Left arrow steps back 1 day (前日)
                     if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
@@ -9080,6 +9255,11 @@
                         },
                         markPoint: {
                             data: markPointData
+                        },
+                        markLine: {
+                            silent: true,
+                            animation: false,
+                            data: (typeof buildKpDrawMarkLines === 'function') ? buildKpDrawMarkLines(dates) : []
                         }
                     },
                     { name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma5, showSymbol: false, lineStyle: { width: 1.1, color: '#A1A1AA' } },
@@ -9130,6 +9310,9 @@
 
             window._currentKpBaseMarks = markPointData || [];
             kpEchart._currentBars = bars;
+            kpEchart._dates = dates;
+            if (typeof initKpDrawInteractions === 'function') initKpDrawInteractions();
+            if (typeof updateKpDrawUI === 'function') updateKpDrawUI();
 
             // 监听 dataZoom 事件（鼠标滚轮缩放、底部滑动条拖动、图表左右平移拖拽），极速动态调整可视区域内最高价、最低价与Y轴自适应
             kpEchart.off('dataZoom');
@@ -9374,6 +9557,498 @@
                     }
                 ]
             }, { notMerge: false, lazyUpdate: true });
+        }
+
+        // ==================== K-Line Arrow Key Zoom ==================== //
+        function zoomKpChart(factor) {
+            if (!kpEchart) return;
+            const opt = kpEchart.getOption();
+            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+            let start = opt.dataZoom[0].start;
+            let end = opt.dataZoom[0].end;
+            if (start === undefined || start === null) start = 40;
+            if (end === undefined || end === null) end = 100;
+            const span = end - start;
+            const newSpan = Math.max(2, Math.min(100, span * factor));
+            const delta = (newSpan - span) / 2;
+            let newStart = Math.max(0, start - delta);
+            let newEnd = Math.min(100, end + delta);
+            if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
+            if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
+
+            currentKpZoomStart = newStart;
+            currentKpZoomEnd = newEnd;
+            kpEchart.dispatchAction({
+                type: 'dataZoom',
+                start: newStart,
+                end: newEnd
+            });
+        }
+
+        // ==================== K-Line Drawing Tools Engine ==================== //
+        let kpDrawActiveTool = 'none'; // 'none' | 'segment' | 'ray' | 'hline' | 'vline'
+        let kpDrawColor = '#fbbf24';   // Default gold
+        let kpDrawFirstPoint = null;   // { date, price, xIdx }
+        let kpDrawPreviewPoint = null; // { date, price, xIdx }
+        const kpDrawStorageCache = {};
+
+        function getKpDrawStorageKey(sym, period) {
+            const s = sym || currentKpSymbol || 'UNKNOWN';
+            const p = period || currentKpPeriod || 'DAY';
+            return `easy_tdx_kline_drawings_${s}_${p}`;
+        }
+
+        function getKpCurrentDrawings() {
+            const key = getKpDrawStorageKey();
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (e) {
+                console.error('Failed to read drawings from localStorage:', e);
+            }
+            return kpDrawStorageCache[key] || [];
+        }
+
+        function saveKpCurrentDrawings(drawings) {
+            const key = getKpDrawStorageKey();
+            const s = currentKpSymbol;
+            const p = currentKpPeriod;
+            kpDrawStorageCache[key] = drawings;
+            try {
+                localStorage.setItem(key, JSON.stringify(drawings));
+            } catch (e) {
+                console.warn('Failed to save drawings to localStorage:', e);
+            }
+
+            // Asynchronously sync to backend persistence file
+            if (s && p) {
+                fetch('/api/quotes/drawings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: s, period: p, drawings: drawings })
+                }).catch(() => { });
+            }
+        }
+
+        async function loadKpDrawingsFromBackend() {
+            const s = currentKpSymbol;
+            const p = currentKpPeriod;
+            if (!s || !p) return;
+            const key = getKpDrawStorageKey(s, p);
+            try {
+                const res = await fetch(`/api/quotes/drawings?symbol=${encodeURIComponent(s)}&period=${encodeURIComponent(p)}`);
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json && Array.isArray(json.drawings)) {
+                        const local = getKpCurrentDrawings();
+                        // If backend has data and local is empty, populate local
+                        if (json.drawings.length > 0 && local.length === 0) {
+                            saveKpCurrentDrawings(json.drawings);
+                            renderKpDrawLines();
+                        }
+                    }
+                }
+            } catch (e) { }
+        }
+
+        function toggleKpDrawToolbar(force) {
+            const toolbar = document.getElementById('kp-draw-toolbar');
+            const btn = document.getElementById('kp-btn-draw-toggle');
+            if (!toolbar) return;
+            const willShow = (force !== undefined) ? force : toolbar.classList.contains('hidden');
+            if (willShow) {
+                toolbar.classList.remove('hidden');
+                if (btn) {
+                    btn.classList.add('bg-amber-950', 'text-amber-300', 'border-amber-800');
+                    btn.classList.remove('text-slate-400');
+                }
+            } else {
+                toolbar.classList.add('hidden');
+                setKpDrawTool('none');
+                if (btn) {
+                    btn.classList.remove('bg-amber-950', 'text-amber-300', 'border-amber-800');
+                    btn.classList.add('text-slate-400');
+                }
+            }
+        }
+
+        function setKpDrawTool(tool) {
+            kpDrawActiveTool = tool;
+            kpDrawFirstPoint = null;
+            kpDrawPreviewPoint = null;
+            renderKpDrawLines();
+
+            // Update toolbar button states
+            ['segment', 'ray', 'hline', 'vline'].forEach(t => {
+                const b = document.getElementById(`kp-tool-${t}`);
+                if (b) {
+                    if (t === tool) {
+                        b.classList.add('bg-amber-500/20', 'border-amber-500/80', 'text-amber-300', 'shadow-sm');
+                        b.classList.remove('text-slate-300', 'border-slate-800');
+                    } else {
+                        b.classList.remove('bg-amber-500/20', 'border-amber-500/80', 'text-amber-300', 'shadow-sm');
+                        b.classList.add('text-slate-300', 'border-slate-800');
+                    }
+                }
+            });
+
+            // Set chart canvas cursor
+            if (kpEchart) {
+                const zr = kpEchart.getZr();
+                if (zr) {
+                    zr.setCursorStyle(tool !== 'none' ? 'crosshair' : 'default');
+                }
+            }
+
+            // Update status text
+            if (tool === 'none') {
+                updateKpDrawStatus('已退出画线模式');
+            } else if (tool === 'segment') {
+                updateKpDrawStatus('【线段】：请在K线主图点击第1点（起点）');
+            } else if (tool === 'ray') {
+                updateKpDrawStatus('【射线】：请在K线主图点击第1点（起点）');
+            } else if (tool === 'hline') {
+                updateKpDrawStatus('【水平线】：请在K线主图点击任意位置确定价格水平线');
+            } else if (tool === 'vline') {
+                updateKpDrawStatus('【垂直线】：请在K线主图点击任意位置确定时间垂直线');
+            }
+        }
+
+        function setKpDrawColor(color) {
+            kpDrawColor = color;
+            ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#ffffff'].forEach(c => {
+                const el = document.getElementById(`kp-color-${c.replace('#', '')}`);
+                if (el) {
+                    if (c === color) {
+                        el.classList.add('ring-2', 'ring-white', 'scale-110');
+                    } else {
+                        el.classList.remove('ring-2', 'ring-white', 'scale-110');
+                    }
+                }
+            });
+            updateKpDrawStatus(`画笔颜色已设置为 ${color}`);
+        }
+
+        function updateKpDrawStatus(text) {
+            const el = document.getElementById('kp-draw-status');
+            if (el) el.innerText = text;
+        }
+
+        function updateKpDrawUI() {
+            const drawings = getKpCurrentDrawings();
+            const countEl = document.getElementById('kp-draw-count');
+            if (countEl) countEl.innerText = drawings.length;
+        }
+
+        function addKpDrawing(drawing) {
+            const list = getKpCurrentDrawings();
+            list.push(drawing);
+            saveKpCurrentDrawings(list);
+            renderKpDrawLines();
+            updateKpDrawUI();
+        }
+
+        function undoKpDrawing() {
+            const list = getKpCurrentDrawings();
+            if (list.length > 0) {
+                const removed = list.pop();
+                saveKpCurrentDrawings(list);
+                renderKpDrawLines();
+                updateKpDrawUI();
+                updateKpDrawStatus(`已撤销最近绘制的【${removed.type}】`);
+            } else {
+                updateKpDrawStatus('当前暂无任何自选画线可撤销');
+            }
+        }
+
+        function clearKpDrawings() {
+            const list = getKpCurrentDrawings();
+            if (list.length === 0) {
+                updateKpDrawStatus('当前无画线记录');
+                return;
+            }
+            if (confirm(`确定要清空【${currentKpSymbol} ${currentKpPeriod}周期】的所有画线（共 ${list.length} 条）吗？`)) {
+                saveKpCurrentDrawings([]);
+                kpDrawFirstPoint = null;
+                kpDrawPreviewPoint = null;
+                renderKpDrawLines();
+                updateKpDrawUI();
+                updateKpDrawStatus('已清空当前周期的全部画线');
+            }
+        }
+
+        function deleteKpDrawing(id) {
+            let list = getKpCurrentDrawings();
+            list = list.filter(d => d.id !== id);
+            saveKpCurrentDrawings(list);
+            renderKpDrawLines();
+            updateKpDrawUI();
+            renderKpDrawList();
+        }
+
+        function toggleKpDrawListModal(show) {
+            const modal = document.getElementById('kp-draw-list-modal');
+            if (!modal) return;
+            const willShow = (show !== undefined) ? show : modal.classList.contains('hidden');
+            if (willShow) {
+                renderKpDrawList();
+                modal.classList.remove('hidden');
+                lucide.createIcons();
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function renderKpDrawList() {
+            const tbody = document.getElementById('kp-draw-list-tbody');
+            const targetEl = document.getElementById('kp-draw-list-target');
+            if (targetEl) targetEl.innerText = `[${currentKpSymbol} · ${currentKpPeriod}]`;
+            if (!tbody) return;
+
+            const list = getKpCurrentDrawings();
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">当前股票/周期下暂无画线</td></tr>`;
+                return;
+            }
+
+            const typeNames = { segment: '线段', ray: '射线', hline: '水平线', vline: '垂直线' };
+            let html = '';
+            list.forEach((d, idx) => {
+                let desc = '';
+                if (d.type === 'hline') desc = `价格: ¥${d.price}`;
+                else if (d.type === 'vline') desc = `时间: ${d.date}`;
+                else if (d.p1 && d.p2) desc = `(${d.p1.date}, ¥${d.p1.price}) → (${d.p2.date}, ¥${d.p2.price})`;
+
+                html += `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="px-3 py-2 text-slate-500">${idx + 1}</td>
+                        <td class="px-3 py-2 font-medium" style="color: ${d.color || '#fbbf24'};">
+                            <span class="inline-block w-2 h-2 rounded-full mr-1.5" style="background-color: ${d.color || '#fbbf24'};"></span>
+                            ${typeNames[d.type] || d.type}
+                        </td>
+                        <td class="px-3 py-2 text-slate-300 truncate max-w-[220px]" title="${desc}">${desc}</td>
+                        <td class="px-3 py-2 text-right">
+                            <button type="button" onclick="deleteKpDrawing('${d.id}')"
+                                class="px-2 py-0.5 rounded text-xs bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 transition cursor-pointer">
+                                删除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function buildKpDrawMarkLines(dates, previewPt) {
+            const drawings = getKpCurrentDrawings();
+            const markLines = [];
+            const dList = dates || (kpEchart ? kpEchart._dates : []) || [];
+            if (!dList || dList.length === 0) return markLines;
+
+            const minDate = dList[0];
+            const maxDate = dList[dList.length - 1];
+
+            drawings.forEach(d => {
+                const color = d.color || '#fbbf24';
+                if (d.type === 'hline' && d.price !== undefined) {
+                    markLines.push({
+                        yAxis: d.price,
+                        lineStyle: { color: color, type: 'dashed', width: 1.5 },
+                        label: {
+                            show: true,
+                            position: 'insideEndTop',
+                            formatter: `H: ¥${d.price}`,
+                            color: color,
+                            fontSize: 10,
+                            fontFamily: 'JetBrains Mono, monospace',
+                            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                            padding: [1, 4],
+                            borderRadius: 2
+                        }
+                    });
+                } else if (d.type === 'vline' && d.date) {
+                    markLines.push({
+                        xAxis: d.date,
+                        lineStyle: { color: color, type: 'dashed', width: 1.5 },
+                        label: {
+                            show: true,
+                            position: 'insideEndTop',
+                            formatter: `${d.date}`,
+                            color: color,
+                            fontSize: 10,
+                            fontFamily: 'JetBrains Mono, monospace',
+                            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                            padding: [1, 4],
+                            borderRadius: 2
+                        }
+                    });
+                } else if ((d.type === 'segment' || d.type === 'ray') && d.p1 && d.p2) {
+                    if (d.type === 'segment') {
+                        markLines.push([
+                            {
+                                coord: [d.p1.date, d.p1.price],
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                lineStyle: { color: color, type: 'solid', width: 2 },
+                                label: { show: false }
+                            },
+                            {
+                                coord: [d.p2.date, d.p2.price],
+                                symbol: 'circle',
+                                symbolSize: 4
+                            }
+                        ]);
+                    } else if (d.type === 'ray') {
+                        const i1 = dList.indexOf(d.p1.date);
+                        const i2 = dList.indexOf(d.p2.date);
+                        let pEnd = { date: d.p2.date, price: d.p2.price };
+                        if (i1 >= 0 && i2 >= 0 && i2 !== i1) {
+                            const slope = (d.p2.price - d.p1.price) / (i2 - i1);
+                            const targetIdx = i2 > i1 ? (dList.length - 1) : 0;
+                            const extPrice = +(d.p1.price + slope * (targetIdx - i1)).toFixed(2);
+                            pEnd = { date: dList[targetIdx], price: extPrice };
+                        } else if (i1 < 0 || i2 < 0) {
+                            pEnd = { date: maxDate, price: d.p2.price };
+                        }
+                        markLines.push([
+                            {
+                                coord: [d.p1.date, d.p1.price],
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                lineStyle: { color: color, type: 'dashed', width: 2 },
+                                label: { show: false }
+                            },
+                            {
+                                coord: [pEnd.date, pEnd.price],
+                                symbol: 'arrow',
+                                symbolSize: 6
+                            }
+                        ]);
+                    }
+                }
+            });
+
+            // If user is currently drawing and has set point 1, render dynamic rubberband preview line
+            if (kpDrawFirstPoint && previewPt) {
+                const color = kpDrawColor || '#fbbf24';
+                markLines.push([
+                    {
+                        coord: [kpDrawFirstPoint.date, kpDrawFirstPoint.price],
+                        symbol: 'circle',
+                        symbolSize: 5,
+                        lineStyle: { color: color, type: 'dotted', width: 2 },
+                        label: { show: false }
+                    },
+                    {
+                        coord: [previewPt.date, previewPt.price],
+                        symbol: kpDrawActiveTool === 'ray' ? 'arrow' : 'circle',
+                        symbolSize: 6
+                    }
+                ]);
+            }
+
+            return markLines;
+        }
+
+        function renderKpDrawLines(previewPt) {
+            if (!kpEchart) return;
+            const dates = kpEchart._dates || [];
+            const markLines = buildKpDrawMarkLines(dates, previewPt);
+            kpEchart.setOption({
+                series: [
+                    {
+                        markLine: {
+                            silent: true,
+                            animation: false,
+                            data: markLines
+                        }
+                    }
+                ]
+            }, { notMerge: false, lazyUpdate: true });
+        }
+
+        function initKpDrawInteractions() {
+            if (!kpEchart) return;
+            const zr = kpEchart.getZr();
+            if (!zr || zr._kpDrawBound) return;
+            zr._kpDrawBound = true;
+
+            zr.on('click', (e) => {
+                if (!kpDrawActiveTool || kpDrawActiveTool === 'none') return;
+                if (!kpEchart || !kpEchart._dates || kpEchart._dates.length === 0) return;
+
+                const pt = [e.offsetX, e.offsetY];
+                if (!kpEchart.containPixel({ gridIndex: 0 }, pt)) return;
+
+                const coord = kpEchart.convertFromPixel({ gridIndex: 0 }, pt);
+                if (!coord || coord.length < 2) return;
+
+                const xIdx = Math.max(0, Math.min(kpEchart._dates.length - 1, Math.round(coord[0])));
+                const date = kpEchart._dates[xIdx];
+                const price = +coord[1].toFixed(2);
+
+                if (kpDrawActiveTool === 'hline') {
+                    addKpDrawing({
+                        id: 'kp_draw_' + Date.now(),
+                        type: 'hline',
+                        price: price,
+                        color: kpDrawColor,
+                        created_at: new Date().toISOString()
+                    });
+                    updateKpDrawStatus(`已绘制水平线: ¥${price}`);
+                } else if (kpDrawActiveTool === 'vline') {
+                    addKpDrawing({
+                        id: 'kp_draw_' + Date.now(),
+                        type: 'vline',
+                        date: date,
+                        color: kpDrawColor,
+                        created_at: new Date().toISOString()
+                    });
+                    updateKpDrawStatus(`已绘制垂直线: ${date}`);
+                } else if (kpDrawActiveTool === 'segment' || kpDrawActiveTool === 'ray') {
+                    if (!kpDrawFirstPoint) {
+                        kpDrawFirstPoint = { date, price, xIdx };
+                        updateKpDrawStatus(`起点已定: [${date}, ¥${price}]，请点击第二点（终点）`);
+                    } else {
+                        const p1 = { date: kpDrawFirstPoint.date, price: kpDrawFirstPoint.price };
+                        const p2 = { date: date, price: price };
+                        const tool = kpDrawActiveTool;
+                        kpDrawFirstPoint = null;
+                        kpDrawPreviewPoint = null;
+                        addKpDrawing({
+                            id: 'kp_draw_' + Date.now(),
+                            type: tool,
+                            p1: p1,
+                            p2: p2,
+                            color: kpDrawColor,
+                            created_at: new Date().toISOString()
+                        });
+                        updateKpDrawStatus(`已绘制${tool === 'ray' ? '射线' : '线段'}: ${p1.date} -> ${p2.date}`);
+                    }
+                }
+            });
+
+            zr.on('mousemove', (e) => {
+                if (!kpDrawActiveTool || kpDrawActiveTool === 'none') return;
+                if (!kpDrawFirstPoint) return;
+                if (!kpEchart || !kpEchart._dates) return;
+
+                const pt = [e.offsetX, e.offsetY];
+                if (!kpEchart.containPixel({ gridIndex: 0 }, pt)) return;
+
+                const coord = kpEchart.convertFromPixel({ gridIndex: 0 }, pt);
+                if (!coord || coord.length < 2) return;
+
+                const xIdx = Math.max(0, Math.min(kpEchart._dates.length - 1, Math.round(coord[0])));
+                const date = kpEchart._dates[xIdx];
+                const price = +coord[1].toFixed(2);
+
+                kpDrawPreviewPoint = { date, price, xIdx };
+                renderKpDrawLines(kpDrawPreviewPoint);
+            });
         }
 
         // ==================== Autocomplete Engine ==================== //

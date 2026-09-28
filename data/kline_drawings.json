@@ -1,0 +1,18 @@
+{
+  "600887_DAY": [
+    {
+      "id": "test_1",
+      "type": "hline",
+      "price": 28.5
+    }
+  ],
+  "300223_DAY": [
+    {
+      "id": "kp_draw_1790587636095",
+      "type": "hline",
+      "price": 119.58,
+      "color": "#fbbf24",
+      "created_at": "2026-09-28T09:27:16.095Z"
+    }
+  ]
+}
