@@ -177,7 +177,9 @@ python run.py --help
 | **shrink_pullback** | 缩量回踩强支撑 | daily_analysis | 多头趋势中缩量回踩 MA5/MA10 支撑线且不破位，提供安全边际低吸点 |
 | **volume_breakout_platform** | 放量平台突破 | daily_analysis | 长期横盘整理后，单日成交量超过 5日均量 2 倍以上并长阳突破平台阻力 |
 | **wave_theory_impulse** | 波浪理论主升浪 | daily_analysis | 识别第 2 浪调整结束点，在第 3 浪主升浪确认突破时重仓进场 |
-| *(其余 33 套基础策略)* | 双均线/MACD/KDJ/布林带/海龟/ERP等 | technical / short_term / factor / macro | 涵盖经典技术指标、动量短线、Alpha 因子分层与宏观择时策略 |
+| **td_sequential** | 通达信上升九转 | technical | 狄马克 TD 序列严格 9 转递增模型，高 3 确认启动，高 9 预警见顶 |
+| **ma_quadrilateral** | 通达信均线四边形 | technical | MA5/MA10 分别上穿 MA20/MA60 在限定窗口内形成 4 个不同周期的独立金叉交点构成几何四边形，捕捉多头均线密集发散主升加速 |
+| *(其余 31 套基础策略)* | 双均线/MACD/KDJ/布林带/海龟/ERP等 | technical / short_term / factor / macro | 涵盖经典技术指标、动量短线、Alpha 因子分层与宏观择时策略 |
 
 ---
 

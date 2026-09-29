@@ -375,6 +375,16 @@ def _evaluate_stock_for_strategy(
                 if last_c < ma20_last * 0.96:
                     return None
 
+            # 均线四边形加速专项时效控制:
+            if strategy_name == "ma_quadrilateral":
+                if days_ago > max(20, lookback_bars):
+                    return None
+                last_c = float(sig_df.iloc[-1]["close"])
+                c_vals = sig_df["close"].values
+                ma20_last = float(MA(c_vals, min(20, len(c_vals)))[-1])
+                if last_c < ma20_last * 0.97:
+                    return None
+
         last_bar = sig_df.iloc[-1]
         stock_name = get_stock_name(sym)
 
@@ -445,6 +455,11 @@ def _evaluate_stock_for_strategy(
                 status_label = f"今日{w_type}" if p_clean == "DAY" else f"最新{p_name}{w_type}"
             else:
                 status_label = f"{days_ago}日前{w_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前{w_type}"
+        elif strategy_name == "ma_quadrilateral":
+            if days_ago == 0:
+                status_label = "今日四边形金叉加速" if p_clean == "DAY" else f"最新{p_name}四边形金叉"
+            else:
+                status_label = f"{days_ago}日前四边形金叉" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形金叉"
         else:
             if days_ago == 0:
                 status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
@@ -469,6 +484,9 @@ def _evaluate_stock_for_strategy(
             else:
                 wave_badge = f"{w_type}"
             patterns = [wave_badge] + [p for p in patterns if "浪" not in p]
+        elif strategy_name == "ma_quadrilateral":
+            quad_badge = "均线四边形加速"
+            patterns = [quad_badge] + [p for p in patterns if "四边形" not in p]
 
         pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
@@ -495,6 +513,9 @@ def _evaluate_stock_for_strategy(
             else:
                 wave_badge = f"{w_type}"
             trigger_patterns = [wave_badge] + [p for p in trigger_patterns if "浪" not in p]
+        elif strategy_name == "ma_quadrilateral":
+            if "均线四边形加速" not in trigger_patterns:
+                trigger_patterns = ["均线四边形加速"] + [p for p in trigger_patterns if "四边形" not in p]
 
         trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
 
