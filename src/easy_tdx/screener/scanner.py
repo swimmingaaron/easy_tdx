@@ -21,7 +21,7 @@ from easy_tdx.strategies.registry import get_strategy
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.screener.universe import get_universe_symbols, CORE_UNIVERSE
-from easy_tdx.MyTT import REF, BARSLASTCOUNT, TD_SEQUENTIAL
+from easy_tdx.MyTT import REF, BARSLASTCOUNT, TD_SEQUENTIAL, MA
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +268,7 @@ def clear_screener_cache() -> None:
         logger.info("Cleared screener in-memory daily kline cache.")
 
 
-def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = False) -> pd.DataFrame | None:
+def _fetch_kline_internal(sym: str, period: str = "DAY", force_refresh: bool = False) -> pd.DataFrame | None:
     today_str = date.today().strftime("%Y%m%d")
     now_ts = time.time()
     p_clean = str(period).strip().upper()
@@ -296,7 +296,14 @@ def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = Fal
 
 def _get_or_fetch_daily_kline(sym: str, force_refresh: bool = False) -> pd.DataFrame | None:
     """Backwards compatibility wrapper for daily kline."""
-    return _get_or_fetch_kline(sym, period="DAY", force_refresh=force_refresh)
+    return _fetch_kline_internal(sym, period="DAY", force_refresh=force_refresh)
+
+
+def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = False) -> pd.DataFrame | None:
+    p_clean = str(period).strip().upper()
+    if p_clean == "DAY":
+        return _get_or_fetch_daily_kline(sym, force_refresh=force_refresh)
+    return _fetch_kline_internal(sym, period=p_clean, force_refresh=force_refresh)
 
 
 def _evaluate_stock_for_strategy(
@@ -349,6 +356,24 @@ def _evaluate_stock_for_strategy(
             trigger_bar = sig_df.loc[trigger_idx]
             trigger_loc = sig_df.index.get_loc(trigger_idx)
             days_ago = len(sig_df) - 1 - trigger_loc
+
+            # 触发后若已产生卖出破位信号，则该信号已终结或止损，坚决排除
+            if "sell_signal" in sig_df.columns:
+                recent_sells = sig_df["sell_signal"].iloc[trigger_loc + 1:].astype(bool)
+                if recent_sells.any():
+                    return None
+
+            # 波浪理论主升3浪专项风控：
+            if strategy_name == "wave_theory_impulse":
+                # 主升浪必须具备强时效性（启动后10根K线内，避免追高末期）
+                if days_ago > 10:
+                    return None
+                # 当前最新价格不能跌穿 MA20*0.96，否则视为破位回调
+                last_c = float(sig_df.iloc[-1]["close"])
+                c_vals = sig_df["close"].values
+                ma20_last = float(MA(c_vals, min(20, len(c_vals)))[-1])
+                if last_c < ma20_last * 0.96:
+                    return None
 
         last_bar = sig_df.iloc[-1]
         stock_name = get_stock_name(sym)
@@ -406,14 +431,20 @@ def _evaluate_stock_for_strategy(
 
         if strategy_name == "td_sequential":
             if cur_h_seq == 3:
-                status_label = f"最新{p_name}高3" if p_clean != "DAY" else "今日高3序列"
+                status_label = "今日高3序列" if p_clean == "DAY" else f"最新{p_name}高3"
             elif cur_h_seq == 9:
-                status_label = f"{p_name}高9 (见顶警示)"
+                status_label = "高9序列 (见顶警示)" if p_clean == "DAY" else f"{p_name}高9 (见顶警示)"
             elif cur_h_seq == 13:
-                status_label = f"{p_name}高13 (极致反转)"
+                status_label = "高13序列 (极致反转)" if p_clean == "DAY" else f"{p_name}高13 (极致反转)"
             else:
                 unit_text = f"{days_ago}日前启动" if p_clean == "DAY" else f"{days_ago}{p_unit}前启动"
-                status_label = f"{p_name}高{cur_h_seq}序列 ({unit_text})"
+                status_label = f"高{cur_h_seq}序列 ({unit_text})" if p_clean == "DAY" else f"{p_name}高{cur_h_seq}序列 ({unit_text})"
+        elif strategy_name == "wave_theory_impulse":
+            w_type = str(trigger_bar.get("wave_type") or "3浪确认")
+            if days_ago == 0:
+                status_label = f"今日{w_type}" if p_clean == "DAY" else f"最新{p_name}{w_type}"
+            else:
+                status_label = f"{days_ago}日前{w_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前{w_type}"
         else:
             if days_ago == 0:
                 status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
@@ -429,6 +460,15 @@ def _evaluate_stock_for_strategy(
         if strategy_name == "td_sequential":
             td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
             patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
+        elif strategy_name == "wave_theory_impulse":
+            w_type = str(trigger_bar.get("wave_type") or "3浪主升")
+            w_rise = float(trigger_bar.get("wave1_rise") or 0.0)
+            w_retrace = float(trigger_bar.get("wave2_retrace") or 0.0)
+            if w_rise > 0 and w_retrace > 0:
+                wave_badge = f"{w_type}(1浪+{w_rise}%/回踩{w_retrace}%)"
+            else:
+                wave_badge = f"{w_type}"
+            patterns = [wave_badge] + [p for p in patterns if "浪" not in p]
 
         pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
@@ -446,6 +486,15 @@ def _evaluate_stock_for_strategy(
         if strategy_name == "td_sequential":
             if "高3序列" not in trigger_patterns:
                 trigger_patterns = ["高3序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
+        elif strategy_name == "wave_theory_impulse":
+            w_type = str(trigger_bar.get("wave_type") or "3浪主升")
+            w_rise = float(trigger_bar.get("wave1_rise") or 0.0)
+            w_retrace = float(trigger_bar.get("wave2_retrace") or 0.0)
+            if w_rise > 0 and w_retrace > 0:
+                wave_badge = f"{w_type}(1浪+{w_rise}%/回踩{w_retrace}%)"
+            else:
+                wave_badge = f"{w_type}"
+            trigger_patterns = [wave_badge] + [p for p in trigger_patterns if "浪" not in p]
 
         trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
 
