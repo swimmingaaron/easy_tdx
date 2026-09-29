@@ -208,11 +208,18 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     geo_order_ok = (last_1 < last_3) and (last_2 < last_4) and (last_1 <= last_2) and (last_3 <= last_4)
                     height_ok = (ma60[i] >= ma20[i] * 1.001)
 
-                    # 4. 均线系统呈多头排列或者由下跌开始走平 (MA20和MA60不深跌)
-                    ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.985)
+                    # 4. 底边与顶边稳定性: 5日线金叉20日线(P1)前，60日线必须持续位于20日线上方形成稳固的箱体顶底(至少5日以上)
+                    #    坚决排除如 600233 这类 20日线与 60日线在四边形内部刚刚死叉相撞的倒挂形态
+                    base_stable = (last_1 >= 5) and bool(np.all(ma60[last_1 - 5 : last_1 + 1] >= ma20[last_1 - 5 : last_1 + 1]))
+
+                    # 5. 均线系统呈多头排列或者由下跌开始走平:
+                    #    - P1 发生时，MA20 不能处于断崖式深跌跳水中 (5日跌幅不能超过 1.5%)
+                    #    - 闭合发生日 i，MA20 跌势必须完全止住 (走平或微翘)
+                    ma20_slope_p1 = (last_1 < 5) or (ma20[last_1] >= ma20[last_1 - 5] * 0.985)
+                    ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.992)
                     ma60_slope_ok = (i < 5) or (ma60[i] >= ma60[i - 5] * 0.985)
 
-                    if geo_order_ok and height_ok and ma20_slope_ok and ma60_slope_ok:
+                    if geo_order_ok and height_ok and base_stable and ma20_slope_p1 and ma20_slope_ok and ma60_slope_ok:
                         xg[i] = True
 
                         # 计算四边形规则度 (近似平行四边形评分，满分 100 分):
@@ -286,11 +293,11 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 is_above_ma60 = (cur_c >= cur_ma60 * 0.985) and (cur_l >= cur_ma60 * 0.97)
 
                 if xg[i] and not xg[i - 1]:
-                    # 刚闭合当日突破：
+                    # 刚闭合当日突破: 必须保持主动进攻姿态，不能在 10日线以下被动收盘
                     if cur_c >= cur_ma5 * 0.995 and cur_ma5 >= cur_ma10:
                         trigger_buy = True
                         buy_type = "沿5日线强攻"
-                    else:
+                    elif cur_c >= cur_ma10:
                         trigger_buy = True
                         buy_type = "闭合加速"
                 elif is_within_watch:
