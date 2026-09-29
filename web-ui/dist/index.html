@@ -3890,9 +3890,9 @@
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
                                     onclick="changeFinaSort('amount')">成交额 ↕</th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
-                                    onclick="changeFinaSort('days')">连涨 ↕</th>
+                                    onclick="changeFinaSort('days')" title="连涨天数 (日K线)">连涨(日) ↕</th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
-                                    onclick="changeFinaSort('zig')">ZIG ↕</th>
+                                    onclick="changeFinaSort('zig')" title="ZIG转向天数 (日K线)">ZIG(日) ↕</th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
                                     onclick="changeFinaSort('ystz')">营业同比 ↕</th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
@@ -17377,33 +17377,33 @@
         async function loadFinaAnalysisData(force = false) {
             const tbody = document.getElementById('fina-table-body');
 
-            // 1. 若本地全局行情已有数据，立即先呈现毫秒级瞬时预览，彻底杜绝空白等待
-            if ((!finaAllRows || finaAllRows.length === 0) && window.tsAllRows && window.tsAllRows.length > 0) {
+            // 1. 若本地全局行情已有数据且为日K线周期，立即先呈现毫秒级瞬时预览，彻底杜绝空白等待
+            if ((!finaAllRows || finaAllRows.length === 0) && window.tsAllRows && window.tsAllRows.length > 0 && window.tsPeriod === 'day') {
                 finaAllRows = window.tsAllRows.map(r => ({ ...r, fina_score: r.fina_score || 50 }));
                 applyFinaFiltersAndSort();
             } else if (tbody && (!finaAllRows || finaAllRows.length === 0)) {
-                tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span>正在连接 easy_tdx 原生接口载入财报量化体检数据...</span></div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span>正在连接 easy_tdx 原生接口载入财报量化体检数据(日K)...</span></div></td></tr>`;
                 if (window.lucide) lucide.createIcons();
             }
 
             try {
                 const myOptional = (finaCurrentUniverse === 'optional');
-                const url = `/api/trading_system/dashboard?universe=${encodeURIComponent(finaCurrentUniverse)}&force_refresh=${force}&my_optional=${myOptional}&sort_col=${encodeURIComponent(finaSortCol)}&sort_dir=${encodeURIComponent(finaSortDir)}`;
+                const url = `/api/trading_system/dashboard?universe=${encodeURIComponent(finaCurrentUniverse)}&period=day&force_refresh=${force}&my_optional=${myOptional}&sort_col=${encodeURIComponent(finaSortCol)}&sort_dir=${encodeURIComponent(finaSortDir)}`;
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = await resp.json();
                 if (data.status === 'running') {
                     if (tbody) {
-                        tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span id="fina-loading-status">全市场标的正在后台极速重算量化多因子与财报体检，请稍候...</span></div></td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="22" class="py-12 text-center text-slate-400 font-sans"><div class="flex items-center justify-center space-x-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i><span id="fina-loading-status">全市场标的正在后台极速重算日K量化多因子与财报体检，请稍候...</span></div></td></tr>`;
                         if (window.lucide) lucide.createIcons();
                     }
                     const checkTimer = setInterval(async () => {
                         try {
-                            const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(finaCurrentUniverse)}`);
+                            const pRes = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(finaCurrentUniverse)}&period=day`);
                             const pData = await pRes.json();
                             const stEl = document.getElementById('fina-loading-status');
                             if (pData && pData.status === 'running') {
-                                if (stEl) stEl.innerText = `正在重算 ${finaCurrentUniverse} (${pData.completed}/${pData.total || '5000+'} - ${pData.pct}%)...`;
+                                if (stEl) stEl.innerText = `正在重算 ${finaCurrentUniverse} 日线行情 (${pData.completed}/${pData.total || '5000+'} - ${pData.pct}%)...`;
                             } else if (pData && pData.status === 'done') {
                                 clearInterval(checkTimer);
                                 if (stEl) stEl.innerText = '计算就绪，正在呈现数据...';
@@ -17637,22 +17637,23 @@
                     const amtTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amtStr}</td>`;
 
                     // 15. 连涨 (4连阴 改为 +4 绿色，5连阳 改为 +5 红色)
+                    // 15. 连涨 (日K线连涨天数，+N连阳 红色，+N连阴 绿色)
                     const days = Number(s.days || 0);
                     let daysHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">0</span>';
                     if (days > 0) {
-                        daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="连续 ${days} 天上涨 (+${days}连阳)">+${days}</span>`;
+                        daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="连续 ${days} 天上涨 (+${days}连阳，日K线)">+${days}</span>`;
                     } else if (days < 0) {
-                        daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="连续 ${Math.abs(days)} 天下跌 (+${Math.abs(days)}连阴)">+${Math.abs(days)}</span>`;
+                        daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="连续 ${Math.abs(days)} 天下跌 (+${Math.abs(days)}连阴，日K线)">+${Math.abs(days)}</span>`;
                     }
                     const daysTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${daysHtml}</td>`;
 
-                    // 16. ZIG (zig的天数: 向上波段显示+天数红色, 向下波段显示-天数绿色)
+                    // 16. ZIG (日K线转向，向上波段持续天数红色+，向下波段持续天数绿色-)
                     const zig = Number(s.zig || 0);
                     let zigHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
                     if (zig > 0) {
-                        zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天">+${zig}</span>`;
+                        zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天 (日K线)">+${zig}</span>`;
                     } else if (zig < 0) {
-                        zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天">-${Math.abs(zig)}</span>`;
+                        zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天 (日K线)">-${Math.abs(zig)}</span>`;
                     }
                     const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
 
