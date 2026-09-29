@@ -1,4 +1,4 @@
-"""通达信均线四边形策略 (Moving Average Quadrilateral Strategy) - 优化增强版.
+"""通达信均线四边形策略 (Moving Average Quadrilateral Strategy) - 实战图解深度优化版.
 
 通达信指标公式源语:
 ------------------------
@@ -36,12 +36,18 @@ XG: EXIST(P1,10) AND EXIST(P2,10) AND EXIST(P3,10) AND EXIST(P4,10)
 AND D1!=D2 AND D1!=D3 AND D1!=D4
 AND D2!=D3 AND D2!=D4 AND D3!=D4;
 
-四边形擒牛技巧核心精要:
-------------------------
-1. 图形结构：由 5、10、20、60 日均线围成一个几何四边形（近似于平行四边形），形状越规则越好。
-2. 均线要求：四边形的左边为 5日线，右边为 10日线，下边为 20日线，上边为 60日线。均线系统呈多头排列或者由下跌开始走平。
-3. 买入位置：四边形形成后，等股价回踩 10日线、20日线、60日线均可抢筹！也有的沿 5日线强势上涨一时不回调（游资大单涨停抢筹横扫千军）。
-4. 图形原理：机构在低位拉高建仓时留下的量价时空闭合轨迹。
+四边形擒牛实战图解 (教科书级形态深度精要):
+----------------------------------------
+1. 图形结构：5、10、20、60日均线在低位围成规则的平行四边形。
+   - 左边为 5日线(白线)，右边为 10日线(黄线)，下边为 20日线(紫线)，上边为 60日线(绿线)。
+   - 形状越规则对称，说明主力资金建仓节奏越稳健有序。
+2. 均线要求：四边形构筑时，MA20 与 MA60 由下跌转为走平或微翘；突破后 MA20 亦随后金叉 MA60 形成大级别金三角多头全排列。
+3. 空中加油与买入位置：
+   - 【位置 A·闭合加速】：四边形闭合首日或大阳线直接脱离成本区。
+   - 【位置 B·回踩10日线抢筹】：在 60日线(绿线)上方强势横盘，连续以长下影线探底 10日线(黄线)且收盘不破（图示实战典型）。
+   - 【位置 C·空中加油二次起爆】：在 10日线确认支撑后放量长阳突破横盘平台，MA5 重新拐头上翘，展开第二波主升浪！
+   - 【位置 D·回踩20/60日线】：波段深度回踩中长线支撑低吸。
+4. 底价锚定：记录四边形起爆前阶段最低价（如实战图中的 5.39 元），作为防守基准与空间测算锚。
 """
 from __future__ import annotations
 import numpy as np
@@ -56,7 +62,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
     name = "ma_quadrilateral"
     display_name = "通达信均线四边形策略"
     category = "technical"
-    description = "MA5与MA10相继向上金叉MA20与MA60闭合成规则四边形，支持沿5日线主升强攻与回踩10/20/60日线抢筹多点位擒牛。"
+    description = "MA5与MA10相继向上金叉MA20与MA60闭合成规则四边形，支持底价锚定、MA60上方空中加油回踩10日线抢筹与二次起爆擒牛。"
 
     params_list = [
         Param(
@@ -72,12 +78,12 @@ class MAQuadrilateralStrategy(BaseStrategy):
         Param(
             "pullback_window",
             int,
-            default=8,
+            default=12,
             min_value=3,
-            max_value=15,
+            max_value=20,
             step=1,
-            label="回踩观察窗口 (8)",
-            description="四边形闭合后持续寻找回踩10/20/60日均线低吸买点的K线周期",
+            label="回踩观察窗口 (12)",
+            description="四边形闭合后持续寻找回踩10/20/60日均线抢筹与空中加油二次起爆买点的K线周期",
         ),
         Param(
             "stop_loss_pct",
@@ -112,7 +118,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
     ]
     params_schema = {
         "window": 10,
-        "pullback_window": 8,
+        "pullback_window": 12,
         "stop_loss_pct": 5.0,
         "take_profit_pct": 15.0,
         "max_hold_bars": 20,
@@ -127,10 +133,11 @@ class MAQuadrilateralStrategy(BaseStrategy):
             res["xg"] = False
             res["quad_buy_type"] = ""
             res["quad_regularity"] = 0.0
+            res["quad_bottom_price"] = 0.0
             return res
 
         window = int(self.params.get("window", 10))
-        pullback_window = int(self.params.get("pullback_window", 8))
+        pullback_window = int(self.params.get("pullback_window", 12))
         sl_pct = float(self.params.get("stop_loss_pct", 5.0))
         tp_pct = float(self.params.get("take_profit_pct", 15.0))
         max_hold = int(self.params.get("max_hold_bars", 20))
@@ -138,6 +145,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
         c = res["close"].values
         h = res["high"].values
         l = res["low"].values
+        o = res["open"].values if "open" in res.columns else c
 
         ma5 = MA(c, 5)
         ma10 = MA(c, 10)
@@ -160,8 +168,12 @@ class MAQuadrilateralStrategy(BaseStrategy):
         p3 = CROSS(ma10, ma20)
         p4 = CROSS(ma10, ma60)
 
+        # 第五交点: MA20 上穿 MA60 (大级别金三角/多头大反转确认)
+        p5_cross = CROSS(ma20, ma60)
+
         xg = np.zeros(n, dtype=bool)
         quad_regularity = np.zeros(n, dtype=float)
+        quad_bottom_price = np.zeros(n, dtype=float)
         quad_buy_types = ["" for _ in range(n)]
 
         last_1 = -9999
@@ -189,14 +201,14 @@ class MAQuadrilateralStrategy(BaseStrategy):
             ):
                 # 互异性条件: D1!=D2 AND D1!=D3 AND D1!=D4 AND D2!=D3 AND D2!=D4 AND D3!=D4
                 if len({last_1, last_2, last_3, last_4}) == 4:
-                    # 严格符合“四边形擒牛技巧”空间几何拓扑结构:
-                    # 1. 左边为5日线，右边为10日线: 5日线金叉先于10日线金叉 (last_1 < last_3 且 last_2 < last_4)
-                    # 2. 下边为20日线，上边为60日线: 先金叉下边20日线，再金叉上边60日线 (last_1 <= last_2 且 last_3 <= last_4)
-                    # 3. 几何高度真实存在: 在形成期间 MA60 位于 MA20 上方构成上下边界
+                    # 空间几何拓扑结构校验:
+                    # 1. 左边5日线，右边10日线: 5日线金叉先于10日线 (last_1 < last_3 且 last_2 < last_4)
+                    # 2. 下边20日线，上边60日线: 先金叉下边20线，再金叉上边60线 (last_1 <= last_2 且 last_3 <= last_4)
+                    # 3. 几何高度真实存在: 形成期间 MA60 位于 MA20 上方构成真实上下边通道
                     geo_order_ok = (last_1 < last_3) and (last_2 < last_4) and (last_1 <= last_2) and (last_3 <= last_4)
                     height_ok = (ma60[i] >= ma20[i] * 1.001)
 
-                    # 4. 均线系统呈多头排列或者由下跌开始走平 (MA20和MA60不加速深跌)
+                    # 4. 均线系统呈多头排列或者由下跌开始走平 (MA20和MA60不深跌)
                     ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.985)
                     ma60_slope_ok = (i < 5) or (ma60[i] >= ma60[i - 5] * 0.985)
 
@@ -215,19 +227,26 @@ class MAQuadrilateralStrategy(BaseStrategy):
                             score = min(100.0, score + 5.0)
                         quad_regularity[i] = round(score, 1)
 
-        # 3. 买卖交易信号与擒牛买点类型生成
+                        # 记录起爆底价 (如实战图中的 5.39 元)
+                        lookback_start = max(0, min(last_1, last_2, last_3, last_4) - 8)
+                        bot_val = float(np.min(l[lookback_start : i + 1]))
+                        quad_bottom_price[i] = round(bot_val, 2)
+
+        # 3. 买卖交易信号与图解买点精确定位
         buy_sig = np.zeros(n, dtype=bool)
         sell_sig = np.zeros(n, dtype=bool)
         in_pos = False
         buy_price = 0.0
         buy_idx = 0
         last_formed_bar = -9999
+        tested_ma10 = False
 
         # 死叉破位: MA5 下穿 MA20 或收盘跌破 MA20 趋势破位
         dead_cross = CROSS(ma20, ma5)
 
         for i in range(1, n):
             cur_c = float(c[i])
+            cur_o = float(o[i])
             cur_l = float(l[i])
             cur_h = float(h[i])
             cur_ma5 = float(ma5[i])
@@ -237,6 +256,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
             if xg[i] and not xg[i - 1]:
                 last_formed_bar = i
+                tested_ma10 = False
 
             if in_pos:
                 # 卖出条件:
@@ -252,17 +272,21 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 if is_dead or is_sl or is_tp or is_timeout:
                     sell_sig[i] = True
                     in_pos = False
+                    tested_ma10 = False
             else:
-                # 寻找四边形买入点:
+                # 寻找四边形实战买入点:
                 # 条件 A: 四边形刚闭合 (xg[i] and not xg[i-1])
-                # 条件 B: 四边形形成后 pullback_window 内，股价回踩 10日线/20日线/60日线抢筹，或沿5日线强势加速
+                # 条件 B: 四边形形成后 pullback_window 内，股价空中加油回踩10日线抢筹、二次起爆或回踩20/60日线
                 is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
 
                 trigger_buy = False
                 buy_type = ""
 
+                # 是否处于 MA60 突破上方强势运行 (空中加油平台特征)
+                is_above_ma60 = (cur_c >= cur_ma60 * 0.985) and (cur_l >= cur_ma60 * 0.97)
+
                 if xg[i] and not xg[i - 1]:
-                    # 刚闭合当日：
+                    # 刚闭合当日突破：
                     if cur_c >= cur_ma5 * 0.995 and cur_ma5 >= cur_ma10:
                         trigger_buy = True
                         buy_type = "沿5日线强攻"
@@ -270,20 +294,31 @@ class MAQuadrilateralStrategy(BaseStrategy):
                         trigger_buy = True
                         buy_type = "闭合加速"
                 elif is_within_watch:
-                    # 形成后的后续交易日内回踩低吸机会:
-                    # 1. 沿5日线强势不回调
-                    if cur_l >= cur_ma5 * 0.99 and cur_c > cur_ma5 and cur_ma5 > cur_ma10:
+                    # 实战图解重点形态：
+                    # 1. 【回踩10日线抢筹】(图中中央青蓝洗盘K线，低点精准触碰黄色10日线，收盘守住10日线)
+                    if cur_l <= cur_ma10 * 1.015 and cur_c >= cur_ma10 * 0.985 and is_above_ma60:
+                        trigger_buy = True
+                        tested_ma10 = True
+                        # 若带长下影线或探底回升阳线，更为精准
+                        has_lower_shadow = (cur_c - cur_l) >= (cur_h - cur_l) * 0.35 or (cur_c >= cur_o)
+                        buy_type = "回踩10日线抢筹" if has_lower_shadow else "回踩10日线"
+
+                    # 2. 【空中加油二次起爆】(图中右侧确认10日线支撑后，长阳突破平台高点展开第二波主升浪)
+                    elif tested_ma10 and (cur_c > cur_ma5) and (cur_c > float(c[i - 1])) and is_above_ma60 and (cur_ma5 >= cur_ma10):
+                        trigger_buy = True
+                        buy_type = "空中加油二次起爆"
+
+                    # 3. 【沿5日线强势不回调】(极度强势行情)
+                    elif cur_l >= cur_ma5 * 0.99 and cur_c > cur_ma5 and cur_ma5 > cur_ma10:
                         trigger_buy = True
                         buy_type = "沿5日线强攻"
-                    # 2. 回踩10日线抢筹 (探到10日线附近且收盘守住10日线)
-                    elif cur_l <= cur_ma10 * 1.015 and cur_c >= cur_ma10 * 0.985:
-                        trigger_buy = True
-                        buy_type = "回踩10日线"
-                    # 3. 回踩20日线抢筹 (下探20日月线强支撑)
+
+                    # 4. 【回踩20日线强支撑抢筹】
                     elif cur_l <= cur_ma20 * 1.015 and cur_c >= cur_ma20 * 0.985:
                         trigger_buy = True
                         buy_type = "回踩20日线"
-                    # 4. 回踩60日线抢筹 (下探60日季线支撑)
+
+                    # 5. 【回踩60日线季线支撑】
                     elif cur_l <= cur_ma60 * 1.015 and cur_c >= cur_ma60 * 0.985:
                         trigger_buy = True
                         buy_type = "回踩60日线"
@@ -294,9 +329,11 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     buy_price = cur_c
                     buy_idx = i
                     quad_buy_types[i] = buy_type
-                    # 继承形成日的四边形规则度
+                    # 继承形成日的四边形规则度与起爆底价
                     if quad_regularity[i] == 0.0 and last_formed_bar >= 0:
                         quad_regularity[i] = quad_regularity[last_formed_bar]
+                    if quad_bottom_price[i] == 0.0 and last_formed_bar >= 0:
+                        quad_bottom_price[i] = quad_bottom_price[last_formed_bar]
 
         res["ma5"] = ma5
         res["ma10"] = ma10
@@ -311,6 +348,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
         res["xg"] = xg
         res["quad_regularity"] = quad_regularity
+        res["quad_bottom_price"] = quad_bottom_price
         res["quad_buy_type"] = quad_buy_types
         res["buy_signal"] = buy_sig
         res["sell_signal"] = sell_sig

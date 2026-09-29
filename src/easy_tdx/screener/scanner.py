@@ -492,7 +492,10 @@ def _evaluate_stock_for_strategy(
             if not q_type:
                 q_type = "闭合加速"
             q_score = float(trigger_bar.get("quad_regularity") or 0.0)
-            if q_score > 0:
+            q_bot = float(trigger_bar.get("quad_bottom_price") or 0.0)
+            if q_bot > 0 and q_score > 0:
+                quad_badge = f"四边形·{q_type}(底{q_bot}元/规则度{q_score:.0f}分)"
+            elif q_score > 0:
                 quad_badge = f"四边形·{q_type}(规则度{q_score:.0f}分)"
             else:
                 quad_badge = f"四边形·{q_type}"
@@ -528,7 +531,10 @@ def _evaluate_stock_for_strategy(
             if not q_type:
                 q_type = "闭合加速"
             q_score = float(trigger_bar.get("quad_regularity") or 0.0)
-            if q_score > 0:
+            q_bot = float(trigger_bar.get("quad_bottom_price") or 0.0)
+            if q_bot > 0 and q_score > 0:
+                t_badge = f"四边形·{q_type}(底{q_bot}元/规则度{q_score:.0f}分)"
+            elif q_score > 0:
                 t_badge = f"四边形·{q_type}(规则度{q_score:.0f}分)"
             else:
                 t_badge = f"四边形·{q_type}"

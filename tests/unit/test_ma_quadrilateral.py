@@ -49,7 +49,7 @@ def test_ma_quadrilateral_metadata():
     assert "window" in st.params_schema
     assert st.params_schema["window"] == 10
     assert "pullback_window" in st.params_schema
-    assert st.params_schema["pullback_window"] == 8
+    assert st.params_schema["pullback_window"] == 12
 
 
 def test_ma_quadrilateral_signals():
@@ -67,15 +67,17 @@ def test_ma_quadrilateral_signals():
     assert "band_kk" in sig_df.columns
     assert "quad_regularity" in sig_df.columns
     assert "quad_buy_type" in sig_df.columns
+    assert "quad_bottom_price" in sig_df.columns
     
     # Must have triggered quadrilateral xg and buy signals
     assert sig_df["xg"].any(), "Should detect quadrilateral condition XG"
     assert sig_df["buy_signal"].any(), "Should generate buy signal on quadrilateral formation"
     
-    # Check regularity score is positive on triggered bar
+    # Check regularity score and bottom price are positive on triggered bar
     triggered_bars = sig_df[sig_df["buy_signal"]]
     assert len(triggered_bars) > 0
     assert (triggered_bars["quad_regularity"] > 0).any()
+    assert (triggered_bars["quad_bottom_price"] > 0).any()
     assert (triggered_bars["quad_buy_type"] != "").any()
     
     # 2. Test flat dataset without MA cross
@@ -105,13 +107,16 @@ def test_ma_quadrilateral_same_day_rejection():
 
 
 def test_ma_quadrilateral_pullback_entry():
-    """Test pullback entry (e.g. 回踩10日线 / 回踩20日线)."""
+    """Test pullback entry (e.g. 回踩10日线抢筹 / 空中加油二次起爆 / 回踩20日线)."""
     st = get_strategy("ma_quadrilateral", window=12, pullback_window=10)
     df = make_quadrilateral_kline(n_bars=100, trigger_quad=True)
     
     sig_df = st.generate_signals(df)
     buy_types = set(sig_df[sig_df["buy_signal"]]["quad_buy_type"].values)
-    valid_types = {"闭合加速", "沿5日线强攻", "回踩10日线", "回踩20日线", "回踩60日线"}
+    valid_types = {
+        "闭合加速", "沿5日线强攻", "回踩10日线", "回踩10日线抢筹",
+        "空中加油二次起爆", "回踩20日线", "回踩60日线"
+    }
     assert any(bt in valid_types for bt in buy_types)
 
 
