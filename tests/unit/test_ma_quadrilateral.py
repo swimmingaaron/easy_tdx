@@ -13,8 +13,8 @@ def make_quadrilateral_kline(n_bars: int = 100, trigger_quad: bool = True) -> pd
     dates = pd.date_range("2026-06-01", periods=n_bars, freq="B").strftime("%Y-%m-%d")
     
     if not trigger_quad:
-        # Flat oscillation without moving average cross convergence
-        closes = np.full(n_bars, 10.0) + np.random.normal(0, 0.05, n_bars)
+        # Pure flat sequence without moving average cross
+        closes = np.full(n_bars, 10.0)
     else:
         # Construct a sequence where MA5, MA10 sequentially cross MA20, MA60
         # Phase 1 (0-60): Downtrend / consolidation around 8.0-9.0
@@ -48,6 +48,8 @@ def test_ma_quadrilateral_metadata():
     assert st.category == "technical"
     assert "window" in st.params_schema
     assert st.params_schema["window"] == 10
+    assert "pullback_window" in st.params_schema
+    assert st.params_schema["pullback_window"] == 8
 
 
 def test_ma_quadrilateral_signals():
@@ -61,10 +63,20 @@ def test_ma_quadrilateral_signals():
     assert "buy_signal" in sig_df.columns
     assert "ma5" in sig_df.columns
     assert "ma60" in sig_df.columns
+    assert "band_mm" in sig_df.columns
+    assert "band_kk" in sig_df.columns
+    assert "quad_regularity" in sig_df.columns
+    assert "quad_buy_type" in sig_df.columns
     
     # Must have triggered quadrilateral xg and buy signals
     assert sig_df["xg"].any(), "Should detect quadrilateral condition XG"
     assert sig_df["buy_signal"].any(), "Should generate buy signal on quadrilateral formation"
+    
+    # Check regularity score is positive on triggered bar
+    triggered_bars = sig_df[sig_df["buy_signal"]]
+    assert len(triggered_bars) > 0
+    assert (triggered_bars["quad_regularity"] > 0).any()
+    assert (triggered_bars["quad_buy_type"] != "").any()
     
     # 2. Test flat dataset without MA cross
     flat_df = make_quadrilateral_kline(n_bars=100, trigger_quad=False)
@@ -76,11 +88,8 @@ def test_ma_quadrilateral_same_day_rejection():
     """Verify that if golden crosses happen on the same day (D1 == D2), XG is rejected."""
     st = get_strategy("ma_quadrilateral", window=10)
     
-    # When crosses happen on the same day, they do not satisfy D1!=D2
-    # Verify exact XG logic rejects identical bar crosses
     n = 80
     dates = pd.date_range("2026-06-01", periods=n, freq="B").strftime("%Y-%m-%d")
-    # Single huge gap up candle causing MA5 to cross MA20 and MA60 simultaneously
     closes = np.full(n, 10.0)
     df = pd.DataFrame({
         "datetime": dates,
@@ -93,6 +102,17 @@ def test_ma_quadrilateral_same_day_rejection():
     })
     sig_df = st.generate_signals(df)
     assert not sig_df["xg"].any()
+
+
+def test_ma_quadrilateral_pullback_entry():
+    """Test pullback entry (e.g. 回踩10日线 / 回踩20日线)."""
+    st = get_strategy("ma_quadrilateral", window=12, pullback_window=10)
+    df = make_quadrilateral_kline(n_bars=100, trigger_quad=True)
+    
+    sig_df = st.generate_signals(df)
+    buy_types = set(sig_df[sig_df["buy_signal"]]["quad_buy_type"].values)
+    valid_types = {"闭合加速", "沿5日线强攻", "回踩10日线", "回踩20日线", "回踩60日线"}
+    assert any(bt in valid_types for bt in buy_types)
 
 
 def test_ma_quadrilateral_screener_evaluation():

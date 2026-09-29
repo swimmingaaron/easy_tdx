@@ -456,10 +456,13 @@ def _evaluate_stock_for_strategy(
             else:
                 status_label = f"{days_ago}日前{w_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前{w_type}"
         elif strategy_name == "ma_quadrilateral":
+            q_type = str(trigger_bar.get("quad_buy_type") or "闭合加速")
+            if not q_type:
+                q_type = "闭合加速"
             if days_ago == 0:
-                status_label = "今日四边形金叉加速" if p_clean == "DAY" else f"最新{p_name}四边形金叉"
+                status_label = f"今日四边形·{q_type}" if p_clean == "DAY" else f"最新{p_name}四边形·{q_type}"
             else:
-                status_label = f"{days_ago}日前四边形金叉" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形金叉"
+                status_label = f"{days_ago}日前四边形·{q_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形·{q_type}"
         else:
             if days_ago == 0:
                 status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
@@ -485,7 +488,14 @@ def _evaluate_stock_for_strategy(
                 wave_badge = f"{w_type}"
             patterns = [wave_badge] + [p for p in patterns if "浪" not in p]
         elif strategy_name == "ma_quadrilateral":
-            quad_badge = "均线四边形加速"
+            q_type = str(trigger_bar.get("quad_buy_type") or "闭合加速")
+            if not q_type:
+                q_type = "闭合加速"
+            q_score = float(trigger_bar.get("quad_regularity") or 0.0)
+            if q_score > 0:
+                quad_badge = f"四边形·{q_type}(规则度{q_score:.0f}分)"
+            else:
+                quad_badge = f"四边形·{q_type}"
             patterns = [quad_badge] + [p for p in patterns if "四边形" not in p]
 
         pattern_status = " · ".join(patterns) if patterns else "震荡整理"
@@ -514,8 +524,16 @@ def _evaluate_stock_for_strategy(
                 wave_badge = f"{w_type}"
             trigger_patterns = [wave_badge] + [p for p in trigger_patterns if "浪" not in p]
         elif strategy_name == "ma_quadrilateral":
-            if "均线四边形加速" not in trigger_patterns:
-                trigger_patterns = ["均线四边形加速"] + [p for p in trigger_patterns if "四边形" not in p]
+            q_type = str(trigger_bar.get("quad_buy_type") or "闭合加速")
+            if not q_type:
+                q_type = "闭合加速"
+            q_score = float(trigger_bar.get("quad_regularity") or 0.0)
+            if q_score > 0:
+                t_badge = f"四边形·{q_type}(规则度{q_score:.0f}分)"
+            else:
+                t_badge = f"四边形·{q_type}"
+            if t_badge not in trigger_patterns:
+                trigger_patterns = [t_badge] + [p for p in trigger_patterns if "四边形" not in p]
 
         trigger_pattern_status = " · ".join(trigger_patterns) if trigger_patterns else "震荡整理"
 
