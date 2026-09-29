@@ -4751,54 +4751,54 @@
 
             <!-- Collapsible Wave Theory Analysis Toolbar -->
             <div id="kp-wave-toolbar"
-                class="hidden bg-slate-900/95 border border-cyan-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shadow-xl shrink-0 transition-all gap-2 flex-wrap">
+                class="hidden bg-slate-50/95 dark:bg-slate-900/95 border border-slate-200 dark:border-cyan-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shadow-md dark:shadow-xl shrink-0 transition-all gap-2 flex-wrap">
                 <div class="flex items-center space-x-2 shrink-0">
-                    <span class="text-[10px] text-cyan-400 font-bold flex items-center space-x-1 mr-1">
-                        <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <span class="text-[11px] text-cyan-600 dark:text-cyan-400 font-bold flex items-center space-x-1 mr-1">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400"></i>
                         <span>波浪理论 (主升3浪):</span>
                     </span>
                     <button type="button" onclick="autoDetectKpWave()" id="kp-btn-wave-auto"
-                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-700 transition cursor-pointer flex items-center space-x-1"
+                        class="h-6 px-2.5 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-950 dark:text-cyan-300 dark:hover:bg-cyan-900 border border-cyan-500 dark:border-cyan-700 transition cursor-pointer flex items-center space-x-1 shadow-sm"
                         title="自动智能识别本股最近有效浪形结构 (P0起点, P1顶, P2底)">
-                        <i data-lucide="sparkles" class="w-3 h-3 text-cyan-300"></i>
+                        <i data-lucide="sparkles" class="w-3 h-3 text-cyan-100 dark:text-cyan-300"></i>
                         <span>智能测算</span>
                     </button>
                     <button type="button" onclick="startKpWaveManualPick()" id="kp-btn-wave-pick"
-                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        class="h-6 px-2.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition cursor-pointer flex items-center space-x-1"
                         title="依次点击K线上的3个点：P0(1浪底) -> P1(1浪顶) -> P2(2浪底)">
-                        <i data-lucide="crosshair" class="w-3 h-3 text-amber-400"></i>
+                        <i data-lucide="crosshair" class="w-3 h-3 text-amber-500 dark:text-amber-400"></i>
                         <span id="kp-wave-pick-text">手动标定</span>
                     </button>
-                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer ml-1 select-none">
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer ml-1 select-none">
                         <input type="checkbox" id="kp-wave-show-hlines" onchange="renderKpDrawLines()" checked
-                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            class="rounded border-slate-300 dark:border-slate-700 text-cyan-600 focus:ring-cyan-500">
                         <span>P0/P1/P2水平线</span>
                     </label>
-                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none">
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer select-none">
                         <input type="checkbox" id="kp-wave-show-wpath" onchange="renderKpDrawLines()" checked
-                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            class="rounded border-slate-300 dark:border-slate-700 text-cyan-600 focus:ring-cyan-500">
                         <span>标出W形态</span>
                     </label>
-                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none">
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer select-none">
                         <input type="checkbox" id="kp-wave-show-targets" onchange="renderKpDrawLines()" checked
-                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                            class="rounded border-slate-300 dark:border-slate-700 text-cyan-600 focus:ring-cyan-500">
                         <span>3浪目标线</span>
                     </label>
                 </div>
 
                 <div class="flex items-center space-x-2 shrink-0">
-                    <div id="kp-wave-summary-pill" class="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-cyan-300">
-                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                        <span id="kp-wave-status-text">未测算</span>
+                    <div id="kp-wave-summary-pill" class="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-lg bg-white/95 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-[11px] shadow-sm">
+                        <span class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shrink-0"></span>
+                        <div id="kp-wave-status-text" class="flex items-center text-slate-700 dark:text-slate-300">未测算</div>
                     </div>
                     <button type="button" onclick="clearKpWaveOverlay()" id="kp-btn-wave-clear"
-                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-rose-300 hover:text-rose-200 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 transition cursor-pointer flex items-center space-x-1"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-200 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/80 dark:hover:bg-rose-900 border border-rose-200 dark:border-rose-800 transition cursor-pointer flex items-center space-x-1"
                         title="清空当前波浪标注">
-                        <i data-lucide="trash-2" class="w-3 h-3 text-rose-400"></i>
+                        <i data-lucide="trash-2" class="w-3 h-3 text-rose-500 dark:text-rose-400"></i>
                         <span>清空</span>
                     </button>
                     <button type="button" onclick="toggleKpWaveOverlay(false)"
-                        class="h-6 w-6 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer flex items-center justify-center"
+                        class="h-6 w-6 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer flex items-center justify-center"
                         title="收起波浪栏">
                         <i data-lucide="x" class="w-3.5 h-3.5"></i>
                     </button>
@@ -10889,9 +10889,51 @@
             } catch (e) { }
         }
 
-        function updateKpWaveStatus(text) {
+        function updateKpWaveStatus(htmlOrText) {
             const el = document.getElementById('kp-wave-status-text');
-            if (el) el.innerText = text;
+            if (!el) return;
+            if (typeof htmlOrText === 'string' && (htmlOrText.includes('<') || htmlOrText.includes('&lt;'))) {
+                el.innerHTML = htmlOrText;
+            } else if (typeof htmlOrText === 'object' && htmlOrText !== null) {
+                el.innerHTML = formatKpWaveStatusHTML(htmlOrText);
+            } else {
+                el.innerHTML = `<span class="text-amber-600 dark:text-amber-400 font-medium">${htmlOrText}</span>`;
+            }
+        }
+
+        function formatKpWaveStatusHTML(w) {
+            if (!w || !w.p0 || !w.p1 || !w.p2) return '<span class="text-slate-400">未测算</span>';
+            const delta = w.delta != null ? w.delta : +(w.p1.price - w.p0.price).toFixed(2);
+            const t1618 = +(w.p2.price + 1.618 * delta).toFixed(2);
+            const t1000 = +(w.p2.price + 1.000 * delta).toFixed(2);
+            const isBreakout = w.p3 && w.p3.price >= w.p1.price;
+            const rise = w.rise != null ? w.rise : (w.p0.price > 0 ? +(((w.p1.price - w.p0.price) / w.p0.price) * 100).toFixed(1) : 0);
+            const retrace = w.retrace != null ? w.retrace : (delta > 0 ? +(((w.p1.price - w.p2.price) / delta) * 100).toFixed(1) : 0);
+
+            return `
+                <div class="flex items-center flex-wrap gap-1.5 text-[11px] font-sans">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800/80 font-mono shadow-xs">
+                        <span class="opacity-75 text-[10px] mr-1 font-sans">P0底</span><strong>¥${w.p0.price}</strong>
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80 font-mono shadow-xs">
+                        <span class="opacity-75 text-[10px] mr-1 font-sans">P1顶</span><strong>¥${w.p1.price}</strong><span class="text-[9px] opacity-75 ml-1 font-sans">(+${rise}%)</span>
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 font-mono shadow-xs">
+                        <span class="opacity-75 text-[10px] mr-1 font-sans">P2底</span><strong>¥${w.p2.price}</strong><span class="text-[9px] opacity-75 ml-1 font-sans">(回撤${retrace}%)</span>
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800/80 font-mono shadow-xs">
+                        <span class="opacity-75 text-[10px] mr-1 font-sans">等长</span><strong>¥${t1000}</strong>
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-200 border border-rose-400 dark:border-rose-800 font-mono font-bold shadow-xs">
+                        <span class="text-[10px] mr-1 font-sans text-rose-700 dark:text-rose-300">🎯黄金</span><strong>¥${t1618}</strong>
+                    </span>
+                    ${isBreakout ? `
+                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 font-bold text-[10px]">
+                            🚀 已突破过顶
+                        </span>
+                    ` : ''}
+                </div>
+            `;
         }
 
         function updateKpWaveToolbarUI() {
@@ -10900,14 +10942,14 @@
             const toolbar = document.getElementById('kp-wave-toolbar');
             if (isKpWaveActive) {
                 if (btn) {
-                    btn.classList.add('bg-cyan-950', 'text-cyan-300', 'border-cyan-800');
+                    btn.classList.add('bg-cyan-500/20', 'text-cyan-600', 'dark:text-cyan-300', 'border-cyan-400/40', 'dark:border-cyan-800');
                     btn.classList.remove('text-slate-400');
                 }
                 if (badge) badge.classList.remove('hidden');
                 if (toolbar) toolbar.classList.remove('hidden');
             } else {
                 if (btn) {
-                    btn.classList.remove('bg-cyan-950', 'text-cyan-300', 'border-cyan-800');
+                    btn.classList.remove('bg-cyan-500/20', 'text-cyan-600', 'dark:text-cyan-300', 'border-cyan-400/40', 'dark:border-cyan-800');
                     btn.classList.add('text-slate-400');
                 }
                 if (badge) badge.classList.add('hidden');
@@ -10928,11 +10970,7 @@
                 const saved = getKpCurrentWave();
                 if (saved) {
                     kpWaveData = saved;
-                    const delta = kpWaveData.delta;
-                    const t1618 = +(kpWaveData.p2.price + 1.618 * delta).toFixed(2);
-                    const t1000 = +(kpWaveData.p2.price + 1.000 * delta).toFixed(2);
-                    const isBreakout = kpWaveData.p3 && kpWaveData.p3.price >= kpWaveData.p1.price;
-                    updateKpWaveStatus(`P0: ¥${kpWaveData.p0.price} | P1: ¥${kpWaveData.p1.price} | P2: ¥${kpWaveData.p2.price} | 3浪黄金: ¥${t1618} (等长: ¥${t1000})${isBreakout ? ' 🚀已突破过顶' : ''}`);
+                    updateKpWaveStatus(kpWaveData);
                     renderKpDrawLines();
                 } else {
                     autoDetectKpWave();
@@ -10951,6 +10989,7 @@
             const saved = getKpCurrentWave();
             if (saved) {
                 kpWaveData = saved;
+                updateKpWaveStatus(kpWaveData);
             } else {
                 autoDetectKpWave();
             }
@@ -11070,9 +11109,7 @@
             kpWaveData = { p0, p1, p2, p3, delta, retrace, rise };
             saveKpCurrentWave(kpWaveData);
 
-            const isBreakout = p3.price >= p1.price;
-            updateKpWaveStatus(`P0: ¥${p0.price} | P1: ¥${p1.price} | P2: ¥${p2.price} | 1浪: +${rise}% | 2浪回撤: ${retrace}% | 3浪黄金: ¥${t1618} | 强主升: ¥${t2000}${isBreakout ? ' 🚀已突破' : ''}`);
-
+            updateKpWaveStatus(kpWaveData);
             renderKpDrawLines();
         }
 
@@ -11142,9 +11179,7 @@
                 kpWaveData = { p0, p1, p2, p3, delta, retrace, rise };
                 saveKpCurrentWave(kpWaveData);
 
-                const isBreakout = p3.price >= p1.price;
-                updateKpWaveStatus(`标定完成: P0: ¥${p0.price} | P1: ¥${p1.price} | P2: ¥${p2.price} | 3浪黄金: ¥${t1618} | 强主升: ¥${t2000}${isBreakout ? ' 🚀已突破' : ''}`);
-
+                updateKpWaveStatus(kpWaveData);
                 renderKpDrawLines();
             }
         }
@@ -11169,84 +11204,98 @@
             const { p0, p1, p2, p3, delta } = kpWaveData;
             if (!p0 || !p1 || !p2) return [];
 
+            const isDark = (typeof getTheme === 'function' ? getTheme() === 'dark' : false);
             const retracePct = delta > 0 ? (((p1.price - p2.price) / delta) * 100).toFixed(1) : 0;
             const wave1RisePct = p0.price > 0 ? (((p1.price - p0.price) / p0.price) * 100).toFixed(1) : 0;
+
+            // Common label styling helper for eye comfort & crisp contrast in light/dark
+            const makeLabelStyle = (cfg) => {
+                return {
+                    show: true,
+                    position: 'insideEndTop',
+                    formatter: cfg.formatter,
+                    color: isDark ? cfg.darkText : cfg.lightText,
+                    fontSize: 10,
+                    fontWeight: cfg.bold ? 'bold' : '600',
+                    fontFamily: 'JetBrains Mono, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    backgroundColor: isDark ? cfg.darkBg : cfg.lightBg,
+                    borderColor: isDark ? cfg.darkBorder : cfg.lightBorder,
+                    borderWidth: 1,
+                    padding: [2, 6],
+                    borderRadius: 3,
+                    shadowBlur: isDark ? 4 : 2,
+                    shadowColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.06)'
+                };
+            };
 
             // 1. P0, P1, P2 水平基准线
             if (showHlines) {
                 // P0 水平线 (1浪底 / 防守止损线)
                 markLines.push({
                     yAxis: p0.price,
-                    lineStyle: { color: '#38bdf8', type: 'dashed', width: 1.5 },
-                    label: {
-                        show: true,
-                        position: 'insideEndTop',
-                        formatter: `P0 1浪底: ¥${p0.price}`,
-                        color: '#38bdf8',
-                        fontSize: 10,
-                        fontFamily: 'JetBrains Mono, monospace',
-                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                        borderColor: '#0284c7',
-                        borderWidth: 1,
-                        padding: [1, 4],
-                        borderRadius: 2
-                    }
+                    lineStyle: { color: isDark ? '#38bdf8' : '#0284c7', type: 'dashed', width: 1.4 },
+                    label: makeLabelStyle({
+                        formatter: ` P0 1浪底: ¥${p0.price} `,
+                        lightBg: '#f0f9ff',
+                        lightBorder: '#7dd3fc',
+                        lightText: '#0369a1',
+                        darkBg: 'rgba(12, 74, 110, 0.90)',
+                        darkBorder: '#38bdf8',
+                        darkText: '#e0f2fe'
+                    })
                 });
 
                 // P1 水平线 (1浪顶 / 颈线突破位)
                 markLines.push({
                     yAxis: p1.price,
-                    lineStyle: { color: '#f59e0b', type: 'dashed', width: 1.5 },
-                    label: {
-                        show: true,
-                        position: 'insideEndTop',
-                        formatter: `P1 1浪顶(颈线): ¥${p1.price} (+${wave1RisePct}%)`,
-                        color: '#f59e0b',
-                        fontSize: 10,
-                        fontFamily: 'JetBrains Mono, monospace',
-                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                        borderColor: '#d97706',
-                        borderWidth: 1,
-                        padding: [1, 4],
-                        borderRadius: 2
-                    }
+                    lineStyle: { color: isDark ? '#f59e0b' : '#d97706', type: 'dashed', width: 1.4 },
+                    label: makeLabelStyle({
+                        formatter: ` P1 1浪顶(颈线): ¥${p1.price} (+${wave1RisePct}%) `,
+                        lightBg: '#fffbeb',
+                        lightBorder: '#fcd34d',
+                        lightText: '#b45309',
+                        darkBg: 'rgba(120, 53, 15, 0.90)',
+                        darkBorder: '#f59e0b',
+                        darkText: '#fef3c7'
+                    })
                 });
 
                 // P2 水平线 (2浪底 / 洗盘支撑位)
                 markLines.push({
                     yAxis: p2.price,
-                    lineStyle: { color: '#10b981', type: 'dashed', width: 1.5 },
-                    label: {
-                        show: true,
-                        position: 'insideEndTop',
-                        formatter: `P2 2浪底: ¥${p2.price} (回撤${retracePct}%)`,
-                        color: '#10b981',
-                        fontSize: 10,
-                        fontFamily: 'JetBrains Mono, monospace',
-                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                        borderColor: '#059669',
-                        borderWidth: 1,
-                        padding: [1, 4],
-                        borderRadius: 2
-                    }
+                    lineStyle: { color: isDark ? '#10b981' : '#059669', type: 'dashed', width: 1.4 },
+                    label: makeLabelStyle({
+                        formatter: ` P2 2浪底: ¥${p2.price} (回撤${retracePct}%) `,
+                        lightBg: '#f0fdf4',
+                        lightBorder: '#86efac',
+                        lightText: '#047857',
+                        darkBg: 'rgba(6, 78, 59, 0.90)',
+                        darkBorder: '#34d399',
+                        darkText: '#d1fae5'
+                    })
                 });
             }
 
             // 2. 标出 W 形态路径 (3段连线: P0 -> P1 -> P2 -> P3)
             if (showWPath) {
+                const pathColor = isDark ? '#22d3ee' : '#0891b2';
+                const circleFill = isDark ? '#083344' : '#ffffff';
+
                 // P0 -> P1 (1浪起伏)
                 markLines.push([
                     {
                         coord: [p0.date, p0.price],
                         symbol: 'circle',
                         symbolSize: 6,
-                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        itemStyle: { color: circleFill, borderColor: pathColor, borderWidth: 2 },
+                        lineStyle: { color: pathColor, type: 'solid', width: 2.2 },
                         label: { show: false }
                     },
                     {
                         coord: [p1.date, p1.price],
                         symbol: 'circle',
-                        symbolSize: 6
+                        symbolSize: 6,
+                        itemStyle: { color: circleFill, borderColor: pathColor, borderWidth: 2 }
                     }
                 ]);
 
@@ -11255,13 +11304,14 @@
                     {
                         coord: [p1.date, p1.price],
                         symbol: 'none',
-                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        lineStyle: { color: pathColor, type: 'solid', width: 2.2 },
                         label: { show: false }
                     },
                     {
                         coord: [p2.date, p2.price],
                         symbol: 'circle',
-                        symbolSize: 6
+                        symbolSize: 6,
+                        itemStyle: { color: circleFill, borderColor: pathColor, borderWidth: 2 }
                     }
                 ]);
 
@@ -11271,13 +11321,14 @@
                     {
                         coord: [p2.date, p2.price],
                         symbol: 'none',
-                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        lineStyle: { color: pathColor, type: 'solid', width: 2.2 },
                         label: { show: false }
                     },
                     {
                         coord: [targetP3.date, targetP3.price],
                         symbol: 'arrow',
-                        symbolSize: 8
+                        symbolSize: 8,
+                        itemStyle: { color: pathColor }
                     }
                 ]);
             }
@@ -11285,31 +11336,84 @@
             // 3. 3 浪潜在目标线 (Fibonacci Expansion Targets from P2)
             if (showTargets && delta > 0) {
                 const targets = [
-                    { ratio: 1.000, name: '3浪等长', color: '#a855f7', borderColor: '#7e22ce', type: 'dashed' },
-                    { ratio: 1.382, name: '3浪扩展', color: '#6366f1', borderColor: '#4338ca', type: 'dashed' },
-                    { ratio: 1.618, name: '🎯 3浪黄金', color: '#f43f5e', borderColor: '#e11d48', type: 'solid', width: 2 },
-                    { ratio: 2.000, name: '3浪强主升', color: '#ef4444', borderColor: '#b91c1c', type: 'dashed' }
+                    {
+                        ratio: 1.000,
+                        name: '3浪等长',
+                        lightColor: '#7c3aed',
+                        darkColor: '#c084fc',
+                        type: 'dashed',
+                        lightBg: '#faf5ff',
+                        lightBorder: '#d8b4fe',
+                        lightText: '#6b21a8',
+                        darkBg: 'rgba(88, 28, 135, 0.90)',
+                        darkBorder: '#c084fc',
+                        darkText: '#f3e8ff'
+                    },
+                    {
+                        ratio: 1.382,
+                        name: '3浪扩展',
+                        lightColor: '#4f46e5',
+                        darkColor: '#818cf8',
+                        type: 'dashed',
+                        lightBg: '#eef2ff',
+                        lightBorder: '#a5b4fc',
+                        lightText: '#3730a3',
+                        darkBg: 'rgba(49, 46, 129, 0.90)',
+                        darkBorder: '#818cf8',
+                        darkText: '#e0e7ff'
+                    },
+                    {
+                        ratio: 1.618,
+                        name: '🎯 3浪黄金',
+                        lightColor: '#e11d48',
+                        darkColor: '#fb7185',
+                        type: 'solid',
+                        width: 2.0,
+                        bold: true,
+                        lightBg: '#fff1f2',
+                        lightBorder: '#fda4af',
+                        lightText: '#9f1239',
+                        darkBg: 'rgba(136, 19, 55, 0.90)',
+                        darkBorder: '#fb7185',
+                        darkText: '#ffe4e6'
+                    },
+                    {
+                        ratio: 2.000,
+                        name: '3浪强主升',
+                        lightColor: '#dc2626',
+                        darkColor: '#f87171',
+                        type: 'dashed',
+                        lightBg: '#fef2f2',
+                        lightBorder: '#fca5a5',
+                        lightText: '#991b1b',
+                        darkBg: 'rgba(127, 29, 29, 0.90)',
+                        darkBorder: '#f87171',
+                        darkText: '#fee2e2'
+                    }
                 ];
 
                 targets.forEach(t => {
                     const targetPrice = +(p2.price + t.ratio * delta).toFixed(2);
                     const riseFromP2 = (((targetPrice - p2.price) / p2.price) * 100).toFixed(1);
+                    const lineColor = isDark ? t.darkColor : t.lightColor;
+
                     markLines.push({
                         yAxis: targetPrice,
-                        lineStyle: { color: t.color, type: t.type || 'dashed', width: t.width || 1.2 },
-                        label: {
-                            show: true,
-                            position: 'insideEndTop',
-                            formatter: `${t.name}(${t.ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}x): ¥${targetPrice} (+${riseFromP2}%)`,
-                            color: t.color,
-                            fontSize: 10,
-                            fontFamily: 'JetBrains Mono, monospace',
-                            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                            borderColor: t.borderColor,
-                            borderWidth: 1,
-                            padding: [1, 4],
-                            borderRadius: 2
-                        }
+                        lineStyle: {
+                            color: lineColor,
+                            type: t.type || 'dashed',
+                            width: t.width || 1.3
+                        },
+                        label: makeLabelStyle({
+                            formatter: ` ${t.name}(${t.ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}x): ¥${targetPrice} (+${riseFromP2}%) `,
+                            bold: t.bold,
+                            lightBg: t.lightBg,
+                            lightBorder: t.lightBorder,
+                            lightText: t.lightText,
+                            darkBg: t.darkBg,
+                            darkBorder: t.darkBorder,
+                            darkText: t.darkText
+                        })
                     });
                 });
             }
@@ -11321,6 +11425,8 @@
             if (!isKpWaveActive || !kpWaveData) return [];
             const { p0, p1, p2, p3 } = kpWaveData;
             if (!p0 || !p1 || !p2) return [];
+            const isDark = (typeof getTheme === 'function' ? getTheme() === 'dark' : false);
+
             const pts = [
                 {
                     name: 'P0 1浪底',
@@ -11328,8 +11434,14 @@
                     symbol: 'pin',
                     symbolSize: 26,
                     symbolOffset: [0, 8],
-                    itemStyle: { color: '#0284c7', borderColor: '#38bdf8', borderWidth: 1 },
-                    label: { show: true, formatter: 'P0', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                    itemStyle: {
+                        color: isDark ? '#0284c7' : '#0284c7',
+                        borderColor: isDark ? '#38bdf8' : '#e0f2fe',
+                        borderWidth: 1.5,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0,0,0,0.25)'
+                    },
+                    label: { show: true, formatter: 'P0', color: '#ffffff', fontSize: 10, fontWeight: 'bold' }
                 },
                 {
                     name: 'P1 1浪顶',
@@ -11337,8 +11449,14 @@
                     symbol: 'pin',
                     symbolSize: 26,
                     symbolOffset: [0, -8],
-                    itemStyle: { color: '#d97706', borderColor: '#fbbf24', borderWidth: 1 },
-                    label: { show: true, formatter: 'P1', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                    itemStyle: {
+                        color: isDark ? '#d97706' : '#d97706',
+                        borderColor: isDark ? '#fbbf24' : '#fef3c7',
+                        borderWidth: 1.5,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0,0,0,0.25)'
+                    },
+                    label: { show: true, formatter: 'P1', color: '#ffffff', fontSize: 10, fontWeight: 'bold' }
                 },
                 {
                     name: 'P2 2浪底',
@@ -11346,8 +11464,14 @@
                     symbol: 'pin',
                     symbolSize: 26,
                     symbolOffset: [0, 8],
-                    itemStyle: { color: '#059669', borderColor: '#34d399', borderWidth: 1 },
-                    label: { show: true, formatter: 'P2', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                    itemStyle: {
+                        color: isDark ? '#059669' : '#059669',
+                        borderColor: isDark ? '#34d399' : '#d1fae5',
+                        borderWidth: 1.5,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0,0,0,0.25)'
+                    },
+                    label: { show: true, formatter: 'P2', color: '#ffffff', fontSize: 10, fontWeight: 'bold' }
                 }
             ];
 
@@ -11358,8 +11482,14 @@
                     symbol: 'pin',
                     symbolSize: 28,
                     symbolOffset: [0, -10],
-                    itemStyle: { color: '#e11d48', borderColor: '#f43f5e', borderWidth: 1.5 },
-                    label: { show: true, formatter: '浪3', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                    itemStyle: {
+                        color: isDark ? '#e11d48' : '#e11d48',
+                        borderColor: isDark ? '#f43f5e' : '#ffe4e6',
+                        borderWidth: 1.5,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0,0,0,0.25)'
+                    },
+                    label: { show: true, formatter: '浪3', color: '#ffffff', fontSize: 10, fontWeight: 'bold' }
                 });
             }
             return pts;
