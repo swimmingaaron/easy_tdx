@@ -51,6 +51,8 @@ def test_ma_quadrilateral_metadata():
     assert st.params_schema["window"] == 10
     assert "pullback_window" in st.params_schema
     assert st.params_schema["pullback_window"] == 12
+    assert "no_candle_in_quad" in st.params_schema
+    assert st.params_schema["no_candle_in_quad"] is True
 
 
 def test_ma_quadrilateral_signals():
@@ -158,3 +160,24 @@ def test_ma_quadrilateral_rejects_unstable_base():
     })
     sig_df = st.generate_signals(df)
     assert not sig_df["xg"].any(), "Should reject pattern where MA20 dead-crossed MA60 right before P1 (like 600233)"
+
+
+def test_ma_quadrilateral_rejects_candle_inside_quad():
+    """Verify that when a candle's body or shadow enters the quadrilateral region, XG is rejected."""
+    st_strict = get_strategy("ma_quadrilateral", no_candle_in_quad=True)
+    st_lenient = get_strategy("ma_quadrilateral", no_candle_in_quad=False)
+    
+    # Start with a valid breakout dataset
+    df = make_quadrilateral_kline(n_bars=95, trigger_quad=True)
+    
+    # Artificially inject a candle lower shadow at bar 75 dipping straight into the quadrilateral
+    # At bar 75, MA10 is around 9.35 and MA60 is around 9.85. We drop low to 9.50 (inside [9.35, 9.85])
+    df_penetrated = df.copy()
+    df_penetrated.loc[75, "low"] = 9.50
+    df_penetrated.loc[75, "open"] = 9.55
+    
+    res_strict = st_strict.generate_signals(df_penetrated)
+    assert not res_strict["xg"].any(), "Candle penetrating inside quadrilateral must be rejected when no_candle_in_quad=True"
+    
+    res_lenient = st_lenient.generate_signals(df_penetrated)
+    assert res_lenient["xg"].any(), "Should allow penetration when no_candle_in_quad=False"

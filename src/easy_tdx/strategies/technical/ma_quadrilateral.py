@@ -106,6 +106,13 @@ class MAQuadrilateralStrategy(BaseStrategy):
             description="达到此盈利幅度提前止盈离场（0 为仅由均线破位死叉卖出）",
         ),
         Param(
+            "no_candle_in_quad",
+            bool,
+            default=True,
+            label="四边形内无K线",
+            description="四边形形成区域内严禁有蜡烛图穿越（实体、上影线、下影线均不得进入四边形内部）",
+        ),
+        Param(
             "max_hold_bars",
             int,
             default=20,
@@ -119,6 +126,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
     params_schema = {
         "window": 10,
         "pullback_window": 12,
+        "no_candle_in_quad": True,
         "stop_loss_pct": 5.0,
         "take_profit_pct": 15.0,
         "max_hold_bars": 20,
@@ -138,6 +146,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
         window = int(self.params.get("window", 10))
         pullback_window = int(self.params.get("pullback_window", 12))
+        no_candle_req = bool(self.params.get("no_candle_in_quad", True))
         sl_pct = float(self.params.get("stop_loss_pct", 5.0))
         tp_pct = float(self.params.get("take_profit_pct", 15.0))
         max_hold = int(self.params.get("max_hold_bars", 20))
@@ -219,7 +228,31 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.992)
                     ma60_slope_ok = (i < 5) or (ma60[i] >= ma60[i - 5] * 0.985)
 
-                    if geo_order_ok and height_ok and base_stable and ma20_slope_p1 and ma20_slope_ok and ma60_slope_ok:
+                    # 6. 四边形区域内严禁有蜡烛图 (实体、上影线、下影线均不得穿入四边形区域内部):
+                    # 几何定义: 四边形区域在柱子 k 的垂直投影为 (y_bot, y_top),
+                    # 其中 y_top = min(ma5[k], ma60[k]), y_bot = max(ma10[k], ma20[k]).
+                    # 若 y_top > y_bot，则该柱存在四边形面积切片。
+                    # 若 high[k] > y_bot 且 low[k] < y_top，说明蜡烛图 (实体或上下影线) 穿入了四边形内部！
+                    no_candle_inside = True
+                    if no_candle_req:
+                        quad_start = min(last_1, last_2, last_3, last_4)
+                        for k in range(quad_start, i + 1):
+                            y_top = min(ma5[k], ma60[k])
+                            y_bot = max(ma10[k], ma20[k])
+                            if y_top > y_bot:
+                                if (h[k] > y_bot) and (l[k] < y_top):
+                                    no_candle_inside = False
+                                    break
+
+                    if (
+                        geo_order_ok
+                        and height_ok
+                        and base_stable
+                        and ma20_slope_p1
+                        and ma20_slope_ok
+                        and ma60_slope_ok
+                        and no_candle_inside
+                    ):
                         xg[i] = True
 
                         # 计算四边形规则度 (近似平行四边形评分，满分 100 分):
