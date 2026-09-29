@@ -24,5 +24,60 @@
       "color": "#38bdf8",
       "created_at": "2026-09-28T14:15:56.159Z"
     }
+  ],
+  "603116_DAY": [
+    {
+      "id": "kp_draw_1790664262667",
+      "type": "hline",
+      "price": 6.56,
+      "color": "#38bdf8",
+      "created_at": "2026-09-29T06:44:22.667Z"
+    }
+  ],
+  "603507_DAY": [
+    {
+      "id": "kp_draw_1790665786794",
+      "type": "hline",
+      "price": 36.71,
+      "color": "#38bdf8",
+      "created_at": "2026-09-29T07:09:46.794Z"
+    }
+  ],
+  "300850_DAY": [
+    {
+      "id": "kp_draw_1790666052031",
+      "type": "hline",
+      "price": 30.81,
+      "color": "#fbbf24",
+      "created_at": "2026-09-29T07:14:12.031Z"
+    },
+    {
+      "id": "kp_draw_1790666235317",
+      "type": "hline",
+      "price": 24.41,
+      "color": "#fbbf24",
+      "created_at": "2026-09-29T07:17:15.317Z"
+    },
+    {
+      "id": "kp_draw_1790666502665",
+      "type": "hline",
+      "price": 34.76,
+      "color": "#fbbf24",
+      "created_at": "2026-09-29T07:21:42.665Z"
+    },
+    {
+      "id": "kp_draw_1790666517169",
+      "type": "hline",
+      "price": 37.2,
+      "color": "#fbbf24",
+      "created_at": "2026-09-29T07:21:57.169Z"
+    },
+    {
+      "id": "kp_draw_1790666540395",
+      "type": "hline",
+      "price": 41.17,
+      "color": "#fbbf24",
+      "created_at": "2026-09-29T07:22:20.395Z"
+    }
   ]
 }

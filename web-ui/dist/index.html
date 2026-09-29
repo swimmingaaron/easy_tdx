@@ -4509,6 +4509,13 @@
                             <span>画线</span>
                             <span id="kp-draw-count-badge" class="hidden ml-1 px-1 py-0.1 bg-amber-500/20 text-amber-300 text-[9px] rounded-full border border-amber-500/40">0</span>
                         </button>
+                        <button onclick="toggleKpWaveOverlay()" id="kp-btn-wave-toggle"
+                            class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer flex items-center space-x-1 shrink-0"
+                            title="波浪理论：划出 P0(1浪底)、P1(1浪顶)、P2(2浪底)水平线，标出 W 形态路径及 3 浪潜在目标线 (1.0x, 1.382x, 1.618x, 2.0x)">
+                            <i data-lucide="activity" class="w-3 h-3 text-cyan-400"></i>
+                            <span>波浪</span>
+                            <span id="kp-wave-badge" class="hidden ml-1 px-1 py-0.1 bg-cyan-500/20 text-cyan-300 text-[9px] rounded-full border border-cyan-500/40 font-mono">ON</span>
+                        </button>
                     </div>
                 </div>
 
@@ -4737,6 +4744,62 @@
                     <button type="button" onclick="toggleKpDrawToolbar(false)"
                         class="h-6 w-6 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer flex items-center justify-center"
                         title="收起画线栏">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible Wave Theory Analysis Toolbar -->
+            <div id="kp-wave-toolbar"
+                class="hidden bg-slate-900/95 border border-cyan-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-xs backdrop-blur-md shadow-xl shrink-0 transition-all gap-2 flex-wrap">
+                <div class="flex items-center space-x-2 shrink-0">
+                    <span class="text-[10px] text-cyan-400 font-bold flex items-center space-x-1 mr-1">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span>波浪理论 (主升3浪):</span>
+                    </span>
+                    <button type="button" onclick="autoDetectKpWave()" id="kp-btn-wave-auto"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-700 transition cursor-pointer flex items-center space-x-1"
+                        title="自动智能识别本股最近有效浪形结构 (P0起点, P1顶, P2底)">
+                        <i data-lucide="sparkles" class="w-3 h-3 text-cyan-300"></i>
+                        <span>智能测算</span>
+                    </button>
+                    <button type="button" onclick="startKpWaveManualPick()" id="kp-btn-wave-pick"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition cursor-pointer flex items-center space-x-1"
+                        title="依次点击K线上的3个点：P0(1浪底) -> P1(1浪顶) -> P2(2浪底)">
+                        <i data-lucide="crosshair" class="w-3 h-3 text-amber-400"></i>
+                        <span id="kp-wave-pick-text">手动标定</span>
+                    </button>
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer ml-1 select-none">
+                        <input type="checkbox" id="kp-wave-show-hlines" onchange="renderKpDrawLines()" checked
+                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                        <span>P0/P1/P2水平线</span>
+                    </label>
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none">
+                        <input type="checkbox" id="kp-wave-show-wpath" onchange="renderKpDrawLines()" checked
+                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                        <span>标出W形态</span>
+                    </label>
+                    <label class="flex items-center space-x-1.5 text-[11px] text-slate-300 cursor-pointer select-none">
+                        <input type="checkbox" id="kp-wave-show-targets" onchange="renderKpDrawLines()" checked
+                            class="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500">
+                        <span>3浪目标线</span>
+                    </label>
+                </div>
+
+                <div class="flex items-center space-x-2 shrink-0">
+                    <div id="kp-wave-summary-pill" class="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-cyan-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <span id="kp-wave-status-text">未测算</span>
+                    </div>
+                    <button type="button" onclick="clearKpWaveOverlay()" id="kp-btn-wave-clear"
+                        class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-rose-300 hover:text-rose-200 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 transition cursor-pointer flex items-center space-x-1"
+                        title="清空当前波浪标注">
+                        <i data-lucide="trash-2" class="w-3 h-3 text-rose-400"></i>
+                        <span>清空</span>
+                    </button>
+                    <button type="button" onclick="toggleKpWaveOverlay(false)"
+                        class="h-6 w-6 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer flex items-center justify-center"
+                        title="收起波浪栏">
                         <i data-lucide="x" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
@@ -9964,7 +10027,10 @@
                             borderColor0: '#2D9B65'
                         },
                         markPoint: {
-                            data: markPointData
+                            data: [
+                                ...markPointData,
+                                ...((typeof buildKpWaveMarkPoints === 'function') ? buildKpWaveMarkPoints() : [])
+                            ]
                         },
                         markLine: {
                             silent: true,
@@ -10023,6 +10089,7 @@
             kpEchart._dates = dates;
             if (typeof initKpDrawInteractions === 'function') initKpDrawInteractions();
             if (typeof updateKpDrawUI === 'function') updateKpDrawUI();
+            if (typeof updateKpWaveOnChartRender === 'function') updateKpWaveOnChartRender();
 
             // 监听 dataZoom 事件（鼠标滚轮缩放、底部滑动条拖动、图表左右平移拖拽），极速动态调整可视区域内最高价、最低价与Y轴自适应
             kpEchart.off('dataZoom');
@@ -10660,6 +10727,14 @@
                 ]);
             }
 
+            // If wave theory overlay is active, merge wave mark lines
+            if (typeof buildKpWaveMarkLines === 'function') {
+                const waveLines = buildKpWaveMarkLines(dList);
+                if (waveLines && waveLines.length > 0) {
+                    markLines.push(...waveLines);
+                }
+            }
+
             return markLines;
         }
 
@@ -10667,9 +10742,14 @@
             if (!kpEchart) return;
             const dates = kpEchart._dates || [];
             const markLines = buildKpDrawMarkLines(dates, previewPt);
+            const baseMarks = window._currentKpBaseMarks || [];
+            const waveMarks = (typeof buildKpWaveMarkPoints === 'function') ? buildKpWaveMarkPoints() : [];
             kpEchart.setOption({
                 series: [
                     {
+                        markPoint: {
+                            data: [...baseMarks, ...waveMarks]
+                        },
                         markLine: {
                             silent: true,
                             animation: false,
@@ -10687,6 +10767,19 @@
             zr._kpDrawBound = true;
 
             zr.on('click', (e) => {
+                if (typeof kpWavePickStep !== 'undefined' && kpWavePickStep > 0) {
+                    const pt = [e.offsetX, e.offsetY];
+                    if (kpEchart.containPixel({ gridIndex: 0 }, pt)) {
+                        const coord = kpEchart.convertFromPixel({ gridIndex: 0 }, pt);
+                        if (coord && coord.length >= 2) {
+                            const xIdx = Math.max(0, Math.min(kpEchart._dates.length - 1, Math.round(coord[0])));
+                            const date = kpEchart._dates[xIdx];
+                            const price = +coord[1].toFixed(2);
+                            handleKpWaveCanvasClick(date, price, xIdx);
+                            return;
+                        }
+                    }
+                }
                 if (!kpDrawActiveTool || kpDrawActiveTool === 'none') return;
                 if (!kpEchart || !kpEchart._dates || kpEchart._dates.length === 0) return;
 
@@ -10759,6 +10852,517 @@
                 kpDrawPreviewPoint = { date, price, xIdx };
                 renderKpDrawLines(kpDrawPreviewPoint);
             });
+        }
+
+        // ==================== Wave Theory Analysis Engine (波浪理论) ==================== //
+        let isKpWaveActive = false;
+        let kpWaveData = null; // { p0: {date, price, idx}, p1: {date, price, idx}, p2: {date, price, idx}, p3: {date, price, idx}, delta, retrace, rise }
+        let kpWavePickStep = 0; // 0: none, 1: picking P0, 2: picking P1, 3: picking P2
+        let kpWaveTempPick = {};
+
+        function getKpWaveStorageKey(sym, period) {
+            const s = sym || currentKpSymbol || 'UNKNOWN';
+            const p = period || currentKpPeriod || 'DAY';
+            return `easy_tdx_kline_wave_${s}_${p}`;
+        }
+
+        function getKpCurrentWave() {
+            const key = getKpWaveStorageKey();
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.p0 && parsed.p1 && parsed.p2) return parsed;
+                }
+            } catch (e) { }
+            return null;
+        }
+
+        function saveKpCurrentWave(data) {
+            const key = getKpWaveStorageKey();
+            try {
+                if (data) {
+                    localStorage.setItem(key, JSON.stringify(data));
+                } else {
+                    localStorage.removeItem(key);
+                }
+            } catch (e) { }
+        }
+
+        function updateKpWaveStatus(text) {
+            const el = document.getElementById('kp-wave-status-text');
+            if (el) el.innerText = text;
+        }
+
+        function updateKpWaveToolbarUI() {
+            const btn = document.getElementById('kp-btn-wave-toggle');
+            const badge = document.getElementById('kp-wave-badge');
+            const toolbar = document.getElementById('kp-wave-toolbar');
+            if (isKpWaveActive) {
+                if (btn) {
+                    btn.classList.add('bg-cyan-950', 'text-cyan-300', 'border-cyan-800');
+                    btn.classList.remove('text-slate-400');
+                }
+                if (badge) badge.classList.remove('hidden');
+                if (toolbar) toolbar.classList.remove('hidden');
+            } else {
+                if (btn) {
+                    btn.classList.remove('bg-cyan-950', 'text-cyan-300', 'border-cyan-800');
+                    btn.classList.add('text-slate-400');
+                }
+                if (badge) badge.classList.add('hidden');
+                if (toolbar) toolbar.classList.add('hidden');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function toggleKpWaveOverlay(force) {
+            if (force !== undefined) {
+                isKpWaveActive = !!force;
+            } else {
+                isKpWaveActive = !isKpWaveActive;
+            }
+            updateKpWaveToolbarUI();
+
+            if (isKpWaveActive) {
+                const saved = getKpCurrentWave();
+                if (saved) {
+                    kpWaveData = saved;
+                    const delta = kpWaveData.delta;
+                    const t1618 = +(kpWaveData.p2.price + 1.618 * delta).toFixed(2);
+                    const t1000 = +(kpWaveData.p2.price + 1.000 * delta).toFixed(2);
+                    const isBreakout = kpWaveData.p3 && kpWaveData.p3.price >= kpWaveData.p1.price;
+                    updateKpWaveStatus(`P0: ¥${kpWaveData.p0.price} | P1: ¥${kpWaveData.p1.price} | P2: ¥${kpWaveData.p2.price} | 3浪黄金: ¥${t1618} (等长: ¥${t1000})${isBreakout ? ' 🚀已突破过顶' : ''}`);
+                    renderKpDrawLines();
+                } else {
+                    autoDetectKpWave();
+                }
+            } else {
+                kpWavePickStep = 0;
+                kpWaveTempPick = {};
+                const pickText = document.getElementById('kp-wave-pick-text');
+                if (pickText) pickText.innerText = '手动标定';
+                renderKpDrawLines();
+            }
+        }
+
+        function updateKpWaveOnChartRender() {
+            if (!isKpWaveActive) return;
+            const saved = getKpCurrentWave();
+            if (saved) {
+                kpWaveData = saved;
+            } else {
+                autoDetectKpWave();
+            }
+        }
+
+        function autoDetectKpWave() {
+            if (!kpEchart || !kpEchart._currentBars || kpEchart._currentBars.length < 15) {
+                updateKpWaveStatus('K线数据不足');
+                return;
+            }
+            const bars = kpEchart._currentBars;
+            const n = bars.length;
+
+            // Find prominent swing peaks in recent 65 bars (before last 2 bars)
+            const peaks = [];
+            for (let i = Math.max(10, n - 65); i < n - 2; i++) {
+                const h = bars[i].high;
+                if (h >= bars[i - 1].high && h >= bars[i + 1].high) {
+                    // Check if followed by pullback of at least 4%
+                    let minSub = Infinity;
+                    for (let k = i + 1; k < Math.min(n, i + 35); k++) {
+                        if (bars[k].low < minSub) minSub = bars[k].low;
+                    }
+                    if ((h - minSub) / h >= 0.04) {
+                        peaks.push({ idx: i, high: h });
+                    }
+                }
+            }
+
+            let bestWave = null;
+            peaks.forEach(p => {
+                const i1 = p.idx;
+                const h1 = p.high;
+
+                // P2 is lowest low between i1 and current bar
+                let i2 = i1 + 1;
+                let minL2 = bars[i2].low;
+                for (let k = i1 + 1; k < Math.min(n, i1 + 35); k++) {
+                    if (bars[k].low <= minL2) {
+                        minL2 = bars[k].low;
+                        i2 = k;
+                    }
+                }
+
+                // P0 is lowest low in 25 bars leading up to i1
+                let i0 = Math.max(0, i1 - 1);
+                let minL0 = bars[i0].low;
+                for (let k = Math.max(0, i1 - 25); k < i1; k++) {
+                    if (bars[k].low <= minL0) {
+                        minL0 = bars[k].low;
+                        i0 = k;
+                    }
+                }
+
+                // Wave 3 peak / latest price
+                let maxH3 = -Infinity;
+                let i3 = i2;
+                for (let k = i2; k < n; k++) {
+                    if (bars[k].high > maxH3) {
+                        maxH3 = bars[k].high;
+                        i3 = k;
+                    }
+                }
+
+                const rise1 = (h1 - minL0) / minL0;
+                const retrace2 = (h1 - minL0) > 0 ? (h1 - minL2) / (h1 - minL0) : 0;
+
+                if (rise1 >= 0.08 && retrace2 >= 0.15 && retrace2 <= 0.88 && minL2 > minL0) {
+                    let score = rise1 * 10;
+                    if (maxH3 >= h1) score += 100;
+                    if (bars[n - 1].close >= h1 * 0.98) score += 30;
+                    if (i2 >= n - 15) score += 20;
+
+                    if (!bestWave || score > bestWave.score) {
+                        bestWave = { score, i0, i1, i2, i3, maxH3 };
+                    }
+                }
+            });
+
+            // Fallback if no strict wave found: use recent swing extrema
+            if (!bestWave) {
+                let bP2 = n - 2;
+                let minP2 = bars[bP2].low;
+                for (let i = Math.max(2, n - 35); i < n - 1; i++) {
+                    if (bars[i].low < minP2) { minP2 = bars[i].low; bP2 = i; }
+                }
+                let bP1 = Math.max(1, bP2 - 1);
+                let maxP1 = bars[bP1].high;
+                for (let i = Math.max(1, bP2 - 35); i < bP2; i++) {
+                    if (bars[i].high > maxP1) { maxP1 = bars[i].high; bP1 = i; }
+                }
+                let bP0 = Math.max(0, bP1 - 1);
+                let minP0 = bars[bP0].low;
+                for (let i = Math.max(0, bP1 - 25); i < bP1; i++) {
+                    if (bars[i].low < minP0) { minP0 = bars[i].low; bP0 = i; }
+                }
+                let bP3 = bP2;
+                let maxP3 = bars[bP2].high;
+                for (let i = bP2; i < n; i++) {
+                    if (bars[i].high > maxP3) { maxP3 = bars[i].high; bP3 = i; }
+                }
+                bestWave = { i0: bP0, i1: bP1, i2: bP2, i3: bP3, maxH3: maxP3 };
+            }
+
+            const p0 = { idx: bestWave.i0, date: bars[bestWave.i0].datetime, price: +bars[bestWave.i0].low.toFixed(2) };
+            const p1 = { idx: bestWave.i1, date: bars[bestWave.i1].datetime, price: +bars[bestWave.i1].high.toFixed(2) };
+            const p2 = { idx: bestWave.i2, date: bars[bestWave.i2].datetime, price: +bars[bestWave.i2].low.toFixed(2) };
+            const p3 = { idx: bestWave.i3, date: bars[bestWave.i3].datetime, price: +bestWave.maxH3.toFixed(2) };
+
+            const delta = +(p1.price - p0.price).toFixed(2);
+            const retrace = delta > 0 ? +(((p1.price - p2.price) / delta) * 100).toFixed(1) : 0;
+            const rise = p0.price > 0 ? +(((p1.price - p0.price) / p0.price) * 100).toFixed(1) : 0;
+            const t1618 = +(p2.price + 1.618 * delta).toFixed(2);
+            const t1000 = +(p2.price + 1.000 * delta).toFixed(2);
+            const t2000 = +(p2.price + 2.000 * delta).toFixed(2);
+
+            kpWaveData = { p0, p1, p2, p3, delta, retrace, rise };
+            saveKpCurrentWave(kpWaveData);
+
+            const isBreakout = p3.price >= p1.price;
+            updateKpWaveStatus(`P0: ¥${p0.price} | P1: ¥${p1.price} | P2: ¥${p2.price} | 1浪: +${rise}% | 2浪回撤: ${retrace}% | 3浪黄金: ¥${t1618} | 强主升: ¥${t2000}${isBreakout ? ' 🚀已突破' : ''}`);
+
+            renderKpDrawLines();
+        }
+
+        function startKpWaveManualPick() {
+            if (kpWavePickStep > 0) {
+                kpWavePickStep = 0;
+                kpWaveTempPick = {};
+                const pickText = document.getElementById('kp-wave-pick-text');
+                if (pickText) pickText.innerText = '手动标定';
+                updateKpWaveStatus('已取消手动标点');
+                return;
+            }
+            kpWavePickStep = 1;
+            kpWaveTempPick = {};
+            const pickText = document.getElementById('kp-wave-pick-text');
+            if (pickText) pickText.innerText = '点击选择P0...';
+            updateKpWaveStatus('👉 请在K线主图上点击第 1 个点：P0 (1浪启动低点)...');
+        }
+
+        function handleKpWaveCanvasClick(date, price, xIdx) {
+            const pickText = document.getElementById('kp-wave-pick-text');
+            if (kpWavePickStep === 1) {
+                kpWaveTempPick.p0 = { date, price, idx: xIdx };
+                kpWavePickStep = 2;
+                if (pickText) pickText.innerText = '点击选择P1...';
+                updateKpWaveStatus(`✅ P0已定 [${date}, ¥${price}] 👉 请点击选择 P1 (1浪顶点)...`);
+            } else if (kpWavePickStep === 2) {
+                kpWaveTempPick.p1 = { date, price, idx: xIdx };
+                kpWavePickStep = 3;
+                if (pickText) pickText.innerText = '点击选择P2...';
+                updateKpWaveStatus(`✅ P1已定 [${date}, ¥${price}] 👉 请点击选择 P2 (2浪回踩低点)...`);
+            } else if (kpWavePickStep === 3) {
+                kpWaveTempPick.p2 = { date, price, idx: xIdx };
+                kpWavePickStep = 0;
+                if (pickText) pickText.innerText = '手动标定';
+
+                const p0 = kpWaveTempPick.p0;
+                const p1 = kpWaveTempPick.p1;
+                const p2 = kpWaveTempPick.p2;
+
+                const bars = kpEchart._currentBars || [];
+                let p3Price = p1.price;
+                let p3Date = bars[bars.length - 1]?.datetime || date;
+                if (bars.length > 0 && p2.idx < bars.length) {
+                    let m = -Infinity;
+                    let mIdx = p2.idx;
+                    for (let i = p2.idx; i < bars.length; i++) {
+                        if (bars[i].high > m) {
+                            m = bars[i].high;
+                            mIdx = i;
+                        }
+                    }
+                    if (m > -Infinity) {
+                        p3Price = +m.toFixed(2);
+                        p3Date = bars[mIdx].datetime;
+                    }
+                }
+                const p3 = { date: p3Date, price: p3Price, idx: bars.length - 1 };
+
+                const delta = +(p1.price - p0.price).toFixed(2);
+                const retrace = delta > 0 ? +(((p1.price - p2.price) / delta) * 100).toFixed(1) : 0;
+                const rise = p0.price > 0 ? +(((p1.price - p0.price) / p0.price) * 100).toFixed(1) : 0;
+                const t1618 = +(p2.price + 1.618 * delta).toFixed(2);
+                const t1000 = +(p2.price + 1.000 * delta).toFixed(2);
+                const t2000 = +(p2.price + 2.000 * delta).toFixed(2);
+
+                kpWaveData = { p0, p1, p2, p3, delta, retrace, rise };
+                saveKpCurrentWave(kpWaveData);
+
+                const isBreakout = p3.price >= p1.price;
+                updateKpWaveStatus(`标定完成: P0: ¥${p0.price} | P1: ¥${p1.price} | P2: ¥${p2.price} | 3浪黄金: ¥${t1618} | 强主升: ¥${t2000}${isBreakout ? ' 🚀已突破' : ''}`);
+
+                renderKpDrawLines();
+            }
+        }
+
+        function clearKpWaveOverlay() {
+            kpWaveData = null;
+            saveKpCurrentWave(null);
+            kpWavePickStep = 0;
+            kpWaveTempPick = {};
+            const pickText = document.getElementById('kp-wave-pick-text');
+            if (pickText) pickText.innerText = '手动标定';
+            updateKpWaveStatus('波浪数据已清除');
+            renderKpDrawLines();
+        }
+
+        function buildKpWaveMarkLines(dates) {
+            if (!isKpWaveActive || !kpWaveData) return [];
+            const markLines = [];
+            const showHlines = document.getElementById('kp-wave-show-hlines')?.checked ?? true;
+            const showTargets = document.getElementById('kp-wave-show-targets')?.checked ?? true;
+            const showWPath = document.getElementById('kp-wave-show-wpath')?.checked ?? true;
+            const { p0, p1, p2, p3, delta } = kpWaveData;
+            if (!p0 || !p1 || !p2) return [];
+
+            const retracePct = delta > 0 ? (((p1.price - p2.price) / delta) * 100).toFixed(1) : 0;
+            const wave1RisePct = p0.price > 0 ? (((p1.price - p0.price) / p0.price) * 100).toFixed(1) : 0;
+
+            // 1. P0, P1, P2 水平基准线
+            if (showHlines) {
+                // P0 水平线 (1浪底 / 防守止损线)
+                markLines.push({
+                    yAxis: p0.price,
+                    lineStyle: { color: '#38bdf8', type: 'dashed', width: 1.5 },
+                    label: {
+                        show: true,
+                        position: 'insideEndTop',
+                        formatter: `P0 1浪底: ¥${p0.price}`,
+                        color: '#38bdf8',
+                        fontSize: 10,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                        borderColor: '#0284c7',
+                        borderWidth: 1,
+                        padding: [1, 4],
+                        borderRadius: 2
+                    }
+                });
+
+                // P1 水平线 (1浪顶 / 颈线突破位)
+                markLines.push({
+                    yAxis: p1.price,
+                    lineStyle: { color: '#f59e0b', type: 'dashed', width: 1.5 },
+                    label: {
+                        show: true,
+                        position: 'insideEndTop',
+                        formatter: `P1 1浪顶(颈线): ¥${p1.price} (+${wave1RisePct}%)`,
+                        color: '#f59e0b',
+                        fontSize: 10,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                        borderColor: '#d97706',
+                        borderWidth: 1,
+                        padding: [1, 4],
+                        borderRadius: 2
+                    }
+                });
+
+                // P2 水平线 (2浪底 / 洗盘支撑位)
+                markLines.push({
+                    yAxis: p2.price,
+                    lineStyle: { color: '#10b981', type: 'dashed', width: 1.5 },
+                    label: {
+                        show: true,
+                        position: 'insideEndTop',
+                        formatter: `P2 2浪底: ¥${p2.price} (回撤${retracePct}%)`,
+                        color: '#10b981',
+                        fontSize: 10,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                        borderColor: '#059669',
+                        borderWidth: 1,
+                        padding: [1, 4],
+                        borderRadius: 2
+                    }
+                });
+            }
+
+            // 2. 标出 W 形态路径 (3段连线: P0 -> P1 -> P2 -> P3)
+            if (showWPath) {
+                // P0 -> P1 (1浪起伏)
+                markLines.push([
+                    {
+                        coord: [p0.date, p0.price],
+                        symbol: 'circle',
+                        symbolSize: 6,
+                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        label: { show: false }
+                    },
+                    {
+                        coord: [p1.date, p1.price],
+                        symbol: 'circle',
+                        symbolSize: 6
+                    }
+                ]);
+
+                // P1 -> P2 (2浪回撤)
+                markLines.push([
+                    {
+                        coord: [p1.date, p1.price],
+                        symbol: 'none',
+                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        label: { show: false }
+                    },
+                    {
+                        coord: [p2.date, p2.price],
+                        symbol: 'circle',
+                        symbolSize: 6
+                    }
+                ]);
+
+                // P2 -> P3 (3浪主升)
+                const targetP3 = p3 || { date: (dates && dates.length > 0) ? dates[dates.length - 1] : p2.date, price: p1.price };
+                markLines.push([
+                    {
+                        coord: [p2.date, p2.price],
+                        symbol: 'none',
+                        lineStyle: { color: '#06b6d4', type: 'solid', width: 2.5 },
+                        label: { show: false }
+                    },
+                    {
+                        coord: [targetP3.date, targetP3.price],
+                        symbol: 'arrow',
+                        symbolSize: 8
+                    }
+                ]);
+            }
+
+            // 3. 3 浪潜在目标线 (Fibonacci Expansion Targets from P2)
+            if (showTargets && delta > 0) {
+                const targets = [
+                    { ratio: 1.000, name: '3浪等长', color: '#a855f7', borderColor: '#7e22ce', type: 'dashed' },
+                    { ratio: 1.382, name: '3浪扩展', color: '#6366f1', borderColor: '#4338ca', type: 'dashed' },
+                    { ratio: 1.618, name: '🎯 3浪黄金', color: '#f43f5e', borderColor: '#e11d48', type: 'solid', width: 2 },
+                    { ratio: 2.000, name: '3浪强主升', color: '#ef4444', borderColor: '#b91c1c', type: 'dashed' }
+                ];
+
+                targets.forEach(t => {
+                    const targetPrice = +(p2.price + t.ratio * delta).toFixed(2);
+                    const riseFromP2 = (((targetPrice - p2.price) / p2.price) * 100).toFixed(1);
+                    markLines.push({
+                        yAxis: targetPrice,
+                        lineStyle: { color: t.color, type: t.type || 'dashed', width: t.width || 1.2 },
+                        label: {
+                            show: true,
+                            position: 'insideEndTop',
+                            formatter: `${t.name}(${t.ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}x): ¥${targetPrice} (+${riseFromP2}%)`,
+                            color: t.color,
+                            fontSize: 10,
+                            fontFamily: 'JetBrains Mono, monospace',
+                            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                            borderColor: t.borderColor,
+                            borderWidth: 1,
+                            padding: [1, 4],
+                            borderRadius: 2
+                        }
+                    });
+                });
+            }
+
+            return markLines;
+        }
+
+        function buildKpWaveMarkPoints() {
+            if (!isKpWaveActive || !kpWaveData) return [];
+            const { p0, p1, p2, p3 } = kpWaveData;
+            if (!p0 || !p1 || !p2) return [];
+            const pts = [
+                {
+                    name: 'P0 1浪底',
+                    coord: [p0.date, p0.price],
+                    symbol: 'pin',
+                    symbolSize: 26,
+                    symbolOffset: [0, 8],
+                    itemStyle: { color: '#0284c7', borderColor: '#38bdf8', borderWidth: 1 },
+                    label: { show: true, formatter: 'P0', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                },
+                {
+                    name: 'P1 1浪顶',
+                    coord: [p1.date, p1.price],
+                    symbol: 'pin',
+                    symbolSize: 26,
+                    symbolOffset: [0, -8],
+                    itemStyle: { color: '#d97706', borderColor: '#fbbf24', borderWidth: 1 },
+                    label: { show: true, formatter: 'P1', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                },
+                {
+                    name: 'P2 2浪底',
+                    coord: [p2.date, p2.price],
+                    symbol: 'pin',
+                    symbolSize: 26,
+                    symbolOffset: [0, 8],
+                    itemStyle: { color: '#059669', borderColor: '#34d399', borderWidth: 1 },
+                    label: { show: true, formatter: 'P2', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                }
+            ];
+
+            if (p3) {
+                pts.push({
+                    name: '3浪主升',
+                    coord: [p3.date, p3.price],
+                    symbol: 'pin',
+                    symbolSize: 28,
+                    symbolOffset: [0, -10],
+                    itemStyle: { color: '#e11d48', borderColor: '#f43f5e', borderWidth: 1.5 },
+                    label: { show: true, formatter: '浪3', color: '#ffffff', fontSize: 9, fontWeight: 'bold' }
+                });
+            }
+            return pts;
         }
 
         // ==================== Autocomplete Engine ==================== //
