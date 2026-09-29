@@ -100,7 +100,7 @@ def load_watchlist_items() -> list[dict[str, str]]:
         return [{"code": c, "name": get_stock_name(c) or c} for c in DEFAULT_WATCHLIST]
 
 
-def save_watchlist(symbols: list[Any]) -> list[str]:
+def save_watchlist(symbols: list[Any], allow_empty: bool = False) -> list[str]:
     """Persist watchlist symbols and names to all configuration paths."""
     from easy_tdx.stock_lookup import get_stock_name
     items = []
@@ -120,7 +120,7 @@ def save_watchlist(symbols: list[Any]) -> list[str]:
                 name = get_stock_name(sym) or sym
             items.append({"code": sym, "name": name})
 
-    if not items:
+    if not items and not allow_empty:
         for c in DEFAULT_WATCHLIST:
             clean_codes.append(c)
             items.append({"code": c, "name": get_stock_name(c) or c})

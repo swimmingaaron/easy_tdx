@@ -39,6 +39,7 @@ router = APIRouter(prefix="/api/trading_system", tags=["trading_system"])
 class WatchlistToggleReq(BaseModel):
     stock_code: str
     status: bool  # True for add, False for remove
+    stock_name: Optional[str] = None
 
 
 @router.get("/watchlist")
@@ -55,18 +56,45 @@ def get_current_watchlist() -> Dict[str, Any]:
 
 @router.post("/toggle_watchlist")
 def toggle_watchlist_stock(req: WatchlistToggleReq) -> Dict[str, Any]:
-    """一键将个股加入或移出自选。"""
+    """一键将个股加入或移出自选，持久化保存到 watchlist.json。"""
     clean_code = req.stock_code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     try:
-        current = load_watchlist()
+        existing_items = load_watchlist_items()
+        items_map = {str(item["code"]): str(item.get("name") or "") for item in existing_items}
+
         if req.status:
-            if clean_code not in current:
-                current.append(clean_code)
+            # 添加自选
+            name = (req.stock_name or "").strip()
+            if not name or name.startswith("标的_"):
+                name = items_map.get(clean_code) or get_stock_name(clean_code) or clean_code
+            items_map[clean_code] = name
+            # 保证最新加入的排在前面
+            new_items = [{"code": clean_code, "name": name}] + [
+                {"code": c, "name": n} for c, n in items_map.items() if c != clean_code
+            ]
         else:
-            current = [c for c in current if c != clean_code]
-        saved = save_watchlist(current)
-        items = load_watchlist_items()
-        return {"success": True, "stock_code": clean_code, "status": req.status, "watchlist": saved, "items": items}
+            # 移出自选
+            items_map.pop(clean_code, None)
+            new_items = [{"code": c, "name": n} for c, n in items_map.items()]
+
+        saved = save_watchlist(new_items, allow_empty=True)
+        fresh_items = load_watchlist_items()
+
+        # 触发清理实时行情缓存
+        try:
+            import easy_tdx.web.routers.quotes as q_mod
+            with q_mod._REALTIME_QUOTES_LOCK:
+                q_mod._REALTIME_QUOTES_CACHE = None
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "stock_code": clean_code,
+            "status": req.status,
+            "watchlist": saved,
+            "items": fresh_items,
+        }
     except Exception as e:
         logger.error(f"Failed to toggle watchlist for {clean_code}: {e}")
         return {"success": False, "error": str(e)}

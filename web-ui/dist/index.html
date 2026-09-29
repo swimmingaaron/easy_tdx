@@ -17546,14 +17546,20 @@
                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
             </td>`;
 
-                    // 2. 自选
+                    // 2. 自选 (保存到 watchlist.json, 删除同理)
                     const optTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
-                <button onclick="toggleFinaWatchlist('${code}')" class="text-sm transition cursor-pointer hover:scale-125" title="${isOpt ? '移出自选' : '加入自选'}">
+                <button onclick="toggleFinaWatchlist('${code}')" class="text-sm transition cursor-pointer hover:scale-125 select-none" title="${isOpt ? '移出自选 (从 watchlist.json 删除)' : '加入自选 (保存到 watchlist.json)'}">
                     ${isOpt ? '⭐' : '☆'}
                 </button>
-            </td>`;            // 3. 代码 (点击打开 K 线预览)
+            </td>`;
+
+                    // 3. 代码 (超级链接到雪球)
+                    const xqUrl = `https://xueqiu.com/S/${pfx}${code}`;
                     const codeTd = `<td class="py-2.5 px-2.5 text-left font-mono font-bold whitespace-nowrap">
-                <span onclick="openKlineModal('${code}', '${name}')" class="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer" title="点击查看【${name}】K线行情">${code}</span>
+                <a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:underline inline-flex items-center space-x-1" title="点击在雪球查看【${name}】(${code}) 实时行情与资讯">
+                    <span>${code}</span>
+                    <i data-lucide="external-link" class="w-3 h-3 opacity-60 inline-block"></i>
+                </a>
             </td>`;
 
                     // 4. 名称 (点击查看 K 线行情)
@@ -17795,18 +17801,48 @@
                 const resp = await fetch('/api/trading_system/toggle_watchlist', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stock_code: code, status: targetStatus })
+                    body: JSON.stringify({
+                        stock_code: code,
+                        status: targetStatus,
+                        stock_name: s.stock_name || ''
+                    })
                 });
                 const res = await resp.json();
                 if (res.success) {
                     s.is_optional = targetStatus;
-                    applyFinaFiltersAndSort();
-                    if (window.showToast) {
-                        showToast(targetStatus ? '已加自选' : '已移出自选', `${s.stock_name} (${code}) ${targetStatus ? '已添加至自选股池' : '已从自选股移出'}`);
+
+                    // 1. 同步前端全局自选缓存与 localStorage
+                    const updatedSymbols = res.watchlist || [];
+                    _cachedWatchlistSymbols = [...updatedSymbols];
+                    try {
+                        localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(updatedSymbols));
+                    } catch (e) { }
+
+                    // 2. 更新页面自选数量角标与 K 线窗口自选状态
+                    const countBadge = document.getElementById('watchlist-count-badge');
+                    if (countBadge) countBadge.innerText = `${updatedSymbols.length} 只标的`;
+                    if (typeof updateKpWatchlistButton === 'function') updateKpWatchlistButton();
+
+                    // 3. 同步触发后台行情池刷新，保证切换回自选监控时实时同步
+                    if (typeof loadRealtimeQuotes === 'function') {
+                        loadRealtimeQuotes();
                     }
+
+                    // 4. 重新应用当前页面的筛选与排序
+                    applyFinaFiltersAndSort();
+
+                    if (window.showToast) {
+                        showToast(
+                            targetStatus ? '已加自选' : '已移出自选',
+                            `${s.stock_name} (${code}) ${targetStatus ? '已保存至 watchlist.json' : '已从 watchlist.json 移除'}`
+                        );
+                    }
+                } else {
+                    if (window.showToast) showToast('操作失败', res.error || '自选更新异常');
                 }
             } catch (e) {
                 console.error('Failed to toggle watchlist:', e);
+                if (window.showToast) showToast('网络错误', '无法连接服务器更新自选');
             }
         }
 
