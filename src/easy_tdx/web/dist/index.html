@@ -15829,6 +15829,13 @@
                             if (cancelBtn) cancelBtn.classList.add('hidden');
                             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
 
+                            // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                            const scrInput = document.getElementById('screener-force-refresh');
+                            if (scrInput && scrInput.checked) {
+                                scrInput.checked = false;
+                                onScreenerRefreshModeChange(scrInput);
+                            }
+
                             if (task.task_status === 'completed') {
                                 const matches = task.matches || [];
                                 const modeDesc = forceRefresh ? '服务器实时数据' : '本地Cache数据';
@@ -15857,6 +15864,13 @@
                 if (progContainer) progContainer.classList.add('hidden');
                 if (cancelBtn) cancelBtn.classList.add('hidden');
                 if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="py-10 text-center text-rose-400 text-xs">启动选股任务失败: ${err.message}</td></tr>`;
+
+                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                const scrInput = document.getElementById('screener-force-refresh');
+                if (scrInput && scrInput.checked) {
+                    scrInput.checked = false;
+                    onScreenerRefreshModeChange(scrInput);
+                }
             }
         }
 
@@ -16298,6 +16312,13 @@
                             if (cancelBtn) cancelBtn.classList.add('hidden');
                             if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
 
+                            // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                            const f4dInput = document.getElementById('ai-4d-force-refresh');
+                            if (f4dInput && f4dInput.checked) {
+                                f4dInput.checked = false;
+                                on4DRefreshModeChange(f4dInput);
+                            }
+
                             if (task.task_status === 'completed') {
                                 const list = task.data || [];
                                 if (progLabel) progLabel.innerText = `诊断完成！【${universeDesc}】共 ${total} 只标的评估完毕，已按 4D 综合得分降序排列 (耗时 ${elapsed}s)`;
@@ -16337,6 +16358,13 @@
                 if (progContainer) progContainer.classList.add('hidden');
                 if (cancelBtn) cancelBtn.classList.add('hidden');
                 if (tbody) tbody.innerHTML = `<tr><td colspan="15" class="py-10 text-center text-rose-400 text-xs font-mono">启动 4D 诊断任务失败: ${err.message}</td></tr>`;
+
+                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                const f4dInput = document.getElementById('ai-4d-force-refresh');
+                if (f4dInput && f4dInput.checked) {
+                    f4dInput.checked = false;
+                    on4DRefreshModeChange(f4dInput);
+                }
             }
         }
 
@@ -17120,9 +17148,12 @@
                         clearInterval(tsProgressTimer);
                         tsProgressTimer = null;
                         updateTsProgress(pData.total, pData.total, 100.0, '全量标的计算完毕', `正在极速装载多因子量化共振数据 (${curPeriodName})...`);
-                        // 将“从服务器获取最新数据”复位，避免后续刷新再次触发后台全量重算
+                        // 将“从服务器获取最新数据”复位，切换至 cache 模式
                         const chkForce = document.getElementById('ts-force-refresh');
-                        if (chkForce) chkForce.checked = false;
+                        if (chkForce && chkForce.checked) {
+                            chkForce.checked = false;
+                            onTsRefreshModeChange(chkForce);
+                        }
                         setTimeout(() => {
                             loadTradingSystemData(false);
                         }, 200);
@@ -17233,9 +17264,21 @@
                 renderTsTable(tsRowsData, currentTsMode);
                 const elCountBadge = document.getElementById('ts-count-badge');
                 if (elCountBadge) elCountBadge.innerText = `${data.total_count || tsRowsData.length} 只标的`;
+
+                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                const chkForce = document.getElementById('ts-force-refresh');
+                if (chkForce && chkForce.checked) {
+                    chkForce.checked = false;
+                    onTsRefreshModeChange(chkForce);
+                }
             } catch (e) {
                 hideTsProgress(0);
                 tbody.innerHTML = `<tr><td colspan="30" class="py-8 text-center text-rose-400">网络异常: ${e.message}</td></tr>`;
+                const chkForce = document.getElementById('ts-force-refresh');
+                if (chkForce && chkForce.checked) {
+                    chkForce.checked = false;
+                    onTsRefreshModeChange(chkForce);
+                }
             }
         }
         window.loadTradingSystemData = loadTradingSystemData;
@@ -18773,6 +18816,13 @@
                 }
             } catch (e) {
                 console.error("Sector leader search error:", e);
+            } finally {
+                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                const slChk = document.getElementById('sl-use-cache');
+                if (slChk && !slChk.checked) {
+                    slChk.checked = true;
+                    onSlCacheModeChange(slChk);
+                }
             }
         }
 
@@ -18828,6 +18878,13 @@
                 }
             } catch (e) {
                 console.error("Failed to load sector leaders data:", e);
+            } finally {
+                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
+                const slChk = document.getElementById('sl-use-cache');
+                if (slChk && !slChk.checked) {
+                    slChk.checked = true;
+                    onSlCacheModeChange(slChk);
+                }
             }
         }
 
