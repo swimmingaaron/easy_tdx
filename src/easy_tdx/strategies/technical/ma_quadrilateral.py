@@ -222,9 +222,9 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     base_stable = (last_1 >= 5) and bool(np.all(ma60[last_1 - 5 : last_1 + 1] >= ma20[last_1 - 5 : last_1 + 1]))
 
                     # 5. 均线系统呈多头排列或者由下跌开始走平:
-                    #    - P1 发生时，MA20 不能处于断崖式深跌跳水中 (5日跌幅不能超过 1.5%)
+                    #    - P1 发生时，MA20 不能处于断崖式深跌跳水中 (5日跌幅不能超过 2.0%)
                     #    - 闭合发生日 i，MA20 跌势必须完全止住 (走平或微翘)
-                    ma20_slope_p1 = (last_1 < 5) or (ma20[last_1] >= ma20[last_1 - 5] * 0.985)
+                    ma20_slope_p1 = (last_1 < 5) or (ma20[last_1] >= ma20[last_1 - 5] * 0.980)
                     ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.992)
                     ma60_slope_ok = (i < 5) or (ma60[i] >= ma60[i - 5] * 0.985)
 
@@ -233,10 +233,11 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     # 其中 y_top = min(ma5[k], ma60[k]), y_bot = max(ma10[k], ma20[k]).
                     # 若 y_top > y_bot，则该柱存在四边形面积切片。
                     # 若 high[k] > y_bot 且 low[k] < y_top，说明蜡烛图 (实体或上下影线) 穿入了四边形内部！
+                    # 注意: 从 P1 金叉突破后的次日 (quad_start + 1) 开始严格检测四边形内部，避免 P1 突破柱自身跨线被误判
                     no_candle_inside = True
                     if no_candle_req:
                         quad_start = min(last_1, last_2, last_3, last_4)
-                        for k in range(quad_start, i + 1):
+                        for k in range(quad_start + 1, i + 1):
                             y_top = min(ma5[k], ma60[k])
                             y_bot = max(ma10[k], ma20[k])
                             if y_top > y_bot:
