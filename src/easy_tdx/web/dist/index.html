@@ -444,6 +444,21 @@
             border-color: rgba(226, 232, 240, 0.9) !important;
         }
 
+        html.light #kp-nav-group {
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #kp-prev-btn, html.light #kp-next-btn {
+            color: #334155 !important;
+        }
+        html.light #kp-prev-btn:hover:not(:disabled), html.light #kp-next-btn:hover:not(:disabled) {
+            color: #0f172a !important;
+            background: #e2e8f0 !important;
+        }
+        html.light #kp-nav-info {
+            color: #0284c7 !important;
+        }
+
         /* ==================== K线窗口专属：彻底杜绝手机双击放大与手势缩放导致的图像变形截断 ==================== */
         #kline-preview-modal {
             touch-action: manipulation;
@@ -4250,6 +4265,23 @@
                     <span id="kp-full-symbol-inline" class="hidden">300142.SZ</span>
                     <span id="kp-stock-name-inline" class="hidden">沃森生物</span>
 
+                    <!-- Prev / Next Stock Navigation Group (上一个 / 下一个标的快速切换) -->
+                    <div id="kp-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm ml-1 shrink-0">
+                        <button id="kp-prev-btn" onclick="switchKlinePrevStock()"
+                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                            title="上一个标的 (快捷键: PageUp 或 Alt+←)">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            <span>上一个</span>
+                        </button>
+                        <span id="kp-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在列表中的序号">--/--</span>
+                        <button id="kp-next-btn" onclick="switchKlineNextStock()"
+                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                            title="下一个标的 (快捷键: PageDown 或 Alt+→)">
+                            <span>下一个</span>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                    </div>
+
                     <div class="flex items-baseline space-x-1 font-mono ml-1">
                         <span id="kp-price" class="text-base sm:text-lg font-black text-rose-500">14.28</span>
                         <span id="kp-change" class="text-xs font-bold text-rose-500">+0.85</span>
@@ -6024,8 +6056,157 @@
         }
 
         let _currentLoadedKpSymbol = '';
+        let _currentKlineNavList = null;
+        let _currentKlineNavIndex = -1;
+
+        function normalizeStockCode(code) {
+            if (!code) return '';
+            const s = String(code).trim();
+            const m = s.match(/\d{6}/);
+            if (m) return m[0];
+            return s.replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+        }
+
+        function findStockIndexInList(list, sym, name) {
+            if (!Array.isArray(list) || list.length === 0) return -1;
+            const normSym = normalizeStockCode(sym);
+            const normName = String(name || '').trim();
+            return list.findIndex(item => {
+                if (!item) return false;
+                const itemSym = normalizeStockCode(item.symbol || item.code || item.stock_code);
+                if (normSym && itemSym && normSym === itemSym) return true;
+                const itemName = String(item.name || item.stock_name || '').trim();
+                if (normName && itemName && normName === itemName) return true;
+                return false;
+            });
+        }
+
+        function getActiveKlineStockList() {
+            const sym = currentKpSymbol;
+            const name = currentKpStockName || (document.getElementById('kp-stock-name')?.innerText || '');
+
+            // 1. If explicitly set nav list contains current stock, prioritize it
+            if (Array.isArray(_currentKlineNavList) && _currentKlineNavList.length > 0) {
+                const idx = findStockIndexInList(_currentKlineNavList, sym, name);
+                if (idx !== -1) {
+                    return { list: _currentKlineNavList, index: idx };
+                }
+            }
+
+            // 2. Check screener matches (window._lastScreenerMatches)
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                const idx = findStockIndexInList(window._lastScreenerMatches, sym, name);
+                if (idx !== -1) {
+                    _currentKlineNavList = window._lastScreenerMatches;
+                    return { list: _currentKlineNavList, index: idx };
+                }
+            }
+
+            // 3. Check watchlist rows (_cachedWatchlistRows)
+            if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) {
+                const idx = findStockIndexInList(_cachedWatchlistRows, sym, name);
+                if (idx !== -1) {
+                    _currentKlineNavList = _cachedWatchlistRows;
+                    return { list: _currentKlineNavList, index: idx };
+                }
+            }
+
+            // 4. Check sector leaders if available
+            if (typeof _cachedSectorLeaders !== 'undefined' && Array.isArray(_cachedSectorLeaders) && _cachedSectorLeaders.length > 0) {
+                const flatLeaders = [];
+                _cachedSectorLeaders.forEach(b => {
+                    if (b.leader) flatLeaders.push(b.leader);
+                    if (b.pioneer) flatLeaders.push(b.pioneer);
+                    if (b.capacity) flatLeaders.push(b.capacity);
+                    if (b.ladder) flatLeaders.push(b.ladder);
+                });
+                const idx = findStockIndexInList(flatLeaders, sym, name);
+                if (idx !== -1) {
+                    _currentKlineNavList = flatLeaders;
+                    return { list: _currentKlineNavList, index: idx };
+                }
+            }
+
+            return { list: null, index: -1 };
+        }
+
+        function updateKlineNavButtons() {
+            const prevBtn = document.getElementById('kp-prev-btn');
+            const nextBtn = document.getElementById('kp-next-btn');
+            const navInfo = document.getElementById('kp-nav-info');
+            if (!prevBtn || !nextBtn || !navInfo) return;
+
+            const { list, index } = getActiveKlineStockList();
+            if (!list || index === -1 || list.length <= 1) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                prevBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                nextBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                navInfo.innerText = (list && list.length === 1) ? '1/1' : '--/--';
+                prevBtn.title = '无上一只标的';
+                nextBtn.title = '无下一只标的';
+                return;
+            }
+
+            _currentKlineNavIndex = index;
+            const total = list.length;
+            navInfo.innerText = `${index + 1}/${total}`;
+
+            // Previous stock button
+            if (index > 0) {
+                prevBtn.disabled = false;
+                prevBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                const prevItem = list[index - 1];
+                const prevName = prevItem.name || prevItem.stock_name || prevItem.symbol || prevItem.code || '上一只';
+                prevBtn.title = `上一个: ${prevName} (快捷键: PageUp 或 Alt+←)`;
+            } else {
+                prevBtn.disabled = true;
+                prevBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                prevBtn.title = '已经是第一只标的';
+            }
+
+            // Next stock button
+            if (index < total - 1) {
+                nextBtn.disabled = false;
+                nextBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                const nextItem = list[index + 1];
+                const nextName = nextItem.name || nextItem.stock_name || nextItem.symbol || nextItem.code || '下一只';
+                nextBtn.title = `下一个: ${nextName} (快捷键: PageDown 或 Alt+→)`;
+            } else {
+                nextBtn.disabled = true;
+                nextBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                nextBtn.title = '已经是最后一只标的';
+            }
+        }
+
+        function switchKlinePrevStock() {
+            const { list, index } = getActiveKlineStockList();
+            if (!list || index <= 0) return;
+            const target = list[index - 1];
+            const sym = target.symbol || target.code || target.stock_code;
+            const name = target.name || target.stock_name || '';
+            const period = target.period || currentKpPeriod || 'DAY';
+            openKlineModal(sym, name, period);
+        }
+
+        function switchKlineNextStock() {
+            const { list, index } = getActiveKlineStockList();
+            if (!list || index === -1 || index >= list.length - 1) return;
+            const target = list[index + 1];
+            const sym = target.symbol || target.code || target.stock_code;
+            const name = target.name || target.stock_name || '';
+            const period = target.period || currentKpPeriod || 'DAY';
+            openKlineModal(sym, name, period);
+        }
+
+        window.switchKlinePrevStock = switchKlinePrevStock;
+        window.switchKlineNextStock = switchKlineNextStock;
+        window.updateKlineNavButtons = updateKlineNavButtons;
         window.openKlineModal = openKlineModal;
-        function openKlineModal(sym, name, preferredPeriod = null) {
+        function openKlineModal(sym, name, preferredPeriod = null, customNavList = null) {
+            if (customNavList && Array.isArray(customNavList)) {
+                _currentKlineNavList = customNavList;
+            }
             lockViewportForKlineModal();
             const kModal = document.getElementById('kline-preview-modal');
             if (kModal) { kModal.style.zIndex = '70'; kModal.classList.remove('hidden'); }
@@ -6050,11 +6231,12 @@
 
             // Render temporary name while fetching
             if (name) {
-                document.getElementById('kp-stock-name').innerText = '';
+                document.getElementById('kp-stock-name').innerText = name;
                 document.getElementById('kp-stock-name-inline').innerText = name;
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
             document.getElementById('kp-full-symbol-inline').innerText = currentKpSymbol;
+            updateKlineNavButtons();
 
             // 若切换为不同个股，立即重置历史柱线并展示平滑 Loading，避免旧标的残影
             if (isDifferentStock) {
@@ -6528,6 +6710,16 @@
                     if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
                         e.preventDefault();
                         stepKpDate(1);
+                    }
+                } else if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft') || (e.key === '[' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName))) {
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        switchKlinePrevStock();
+                    }
+                } else if (e.key === 'PageDown' || (e.altKey && e.key === 'ArrowRight') || (e.key === ']' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName))) {
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        switchKlineNextStock();
                     }
                 } else if (e.code === 'Space') {
                     // Spacebar toggles auto regression replay
@@ -8434,6 +8626,7 @@
             if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
             if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
             updateKpWatchlistButton();
+            updateKlineNavButtons();
 
             const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
             const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
