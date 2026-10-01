@@ -366,6 +366,8 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     sell_sig[i] = True
                     in_pos = False
                     tested_ma10 = False
+                    # 一旦平仓离场，当前四边形生命周期终结，避免同一四边形在走弱后反复假买
+                    last_formed_bar = -9999
             else:
                 is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
                 trigger_buy = False
@@ -377,6 +379,16 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 # 辅助动能确认: 买入时 J>=50, RSI6>=50
                 momentum_ok = (j_val[i] >= 48.0) and (rsi6_val[i] >= 48.0)
 
+                # 回踩空中加油健康度严密校验:
+                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.995)，绝不能在死叉状态下抄底
+                # 2. 趋势防守健全: 收盘价必须坚守在生命线 MA20 之上 (cur_c >= cur_ma20 * 0.99)
+                # 3. 历史防守完整: 自四边形形成以来，从未有效跌破过 MA20 (收盘价 >= MA20*0.985)
+                c_since = c[last_formed_bar : i + 1] if last_formed_bar > 0 else []
+                ma20_since = ma20[last_formed_bar : i + 1] if last_formed_bar > 0 else []
+                never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.985))
+                ma_aligned = (cur_ma5 >= cur_ma10 * 0.995) and (cur_c >= cur_ma20 * 0.99)
+                pullback_valid = is_within_watch and momentum_ok and ma_aligned and never_broke_ma20
+
                 if xg[i] and not xg[i - 1]:
                     # 刚闭合当日突破: 必须保持主动进攻姿态
                     if cur_c >= cur_ma5 * 0.99 and cur_ma5 >= cur_ma10:
@@ -385,7 +397,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     elif cur_c >= cur_ma10:
                         trigger_buy = True
                         buy_type = "闭合加速"
-                elif is_within_watch and momentum_ok:
+                elif pullback_valid:
                     # 实战图解重点形态：
                     # 1. 【回踩10日线抢筹】(图中洗盘K线低点精准触碰黄色10日线，收盘守住10日线)
                     if cur_l <= cur_ma10 * 1.02 and cur_c >= cur_ma10 * 0.985 and is_above_ma60:

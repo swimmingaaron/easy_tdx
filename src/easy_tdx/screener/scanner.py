@@ -375,15 +375,31 @@ def _evaluate_stock_for_strategy(
                 if last_c < ma20_last * 0.96:
                     return None
 
-            # 均线四边形加速专项时效控制:
+            # 均线四边形加速专项时效与风控控制:
             if strategy_name == "ma_quadrilateral":
                 if days_ago > max(20, lookback_bars):
                     return None
+                # 1. 信号触发后若已经触发过离场/止损 (sell_signal)，则不可再作为有效标的推荐
+                if trigger_loc < len(sig_df) - 1:
+                    post_signals = sig_df.iloc[trigger_loc + 1:]
+                    if "sell_signal" in post_signals.columns and post_signals["sell_signal"].any():
+                        return None
+
+                # 2. 当前最新价格与短中期均线动态监控
                 last_c = float(sig_df.iloc[-1]["close"])
                 c_vals = sig_df["close"].values
+                ma5_last = float(MA(c_vals, min(5, len(c_vals)))[-1])
+                ma10_last = float(MA(c_vals, min(10, len(c_vals)))[-1])
                 ma20_last = float(MA(c_vals, min(20, len(c_vals)))[-1])
-                if last_c < ma20_last * 0.97:
+
+                # 跌破 MA20 趋势生命线直接淘汰
+                if last_c < ma20_last * 0.98:
                     return None
+
+                # 若距离信号已过去3天以上，短线已见顶走坏（MA5死叉MA10且收盘在MA10下方），淘汰避免追高或抄底接飞刀
+                if days_ago >= 3:
+                    if last_c < ma10_last and ma5_last < ma10_last:
+                        return None
 
         last_bar = sig_df.iloc[-1]
         stock_name = get_stock_name(sym)
