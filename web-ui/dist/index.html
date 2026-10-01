@@ -13742,7 +13742,7 @@
                     const opTd = `
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
-                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
+                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
                                 <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
                             </div>
@@ -16051,8 +16051,8 @@
                     }
                 }
 
-                // 1. 诊断 (优化背景与微胶囊高对比度质感)
-                const btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-400/40 text-indigo-200 bg-indigo-900/60 hover:bg-indigo-600 hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看【${name}】近8期深度财报与AI体检">诊断</button>`;
+                // 1. 诊断 (参考图片标准样式: 淡紫背景、indigo-600文字、indigo-200边框)
+                const btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>`;
 
                 // 2. 自选
                 const isChecked = (window.tsWatchlist && window.tsWatchlist.has(code)) ? 'checked' : '';
@@ -18076,8 +18076,8 @@
                 let mktCaptStr = mktCaptVal > 0 ? fmtMoneyTs(mktCaptVal) : '-';
                 let mktCaptTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">${mktCaptStr}</td>`;
 
-                // 诊断: 优雅微胶囊按钮 (indigo)
-                let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看近8期深度财报与AI体检">诊断</button>`;
+                // 诊断: 优雅微胶囊按钮 (indigo, 严格匹配参考图片)
+                let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>`;
 
                 // 1. 代码: 专业金融高对比度黑白加粗字体，直达雪球 (用户需求 1)
                 let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
@@ -18917,7 +18917,7 @@
 
                     // 1. 诊断按钮 (严格调用 openTsFinaModal，100%保证弹窗响应)
                     const diagTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
-                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
             </td>`;
 
                     // 2. 自选 (保存到 watchlist.json, 删除同理)
@@ -19788,7 +19788,7 @@
                             <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap space-x-1">${rolePills}</td>
                             <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
-                                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看深度8期财报">诊断</button>
+                                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看深度8期财报">诊断</button>
                                     <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
                                     <button onclick="toggleWatchlistStockBtn('${code}', '${name}', this)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 transition cursor-pointer" title="加入/移出自选">+自选</button>
                                 </div>
