@@ -13594,13 +13594,13 @@
 
                     // 5. 卖出分
                     const sScore = Number(q.sell_score || 0);
-                    let sBadge = '<span class="text-slate-400 dark:text-slate-500 font-mono">-</span>';
+                    let sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50" title="无卖出风险信号，持股安全">0分 安全</span>`;
                     if (sScore >= 5) {
                         sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-xs">▲ ${sScore}分 顶危</span>`;
                     } else if (sScore >= 3) {
-                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">${sScore}分 卖出</span>`;
-                    } else if (sScore > 0) {
-                        sBadge = `<span class="text-slate-600 dark:text-slate-400 font-mono text-xs">${sScore}分</span>`;
+                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 shadow-xs">${sScore}分 卖出</span>`;
+                    } else if (sScore >= 1) {
+                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60">${sScore}分 警惕</span>`;
                     }
                     if (q.star_sell) sBadge += `<span class="ml-1 text-emerald-500 dark:text-emerald-400 font-bold" title="绿星预警">★</span>`;
                     const sellTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${sBadge}</td>`;
@@ -16051,8 +16051,8 @@
                     }
                 }
 
-                // 1. 诊断
-                const btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-800/60 text-indigo-400 bg-indigo-950/40 hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>`;
+                // 1. 诊断 (优化背景与微胶囊高对比度质感)
+                const btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-400/40 text-indigo-200 bg-indigo-900/60 hover:bg-indigo-600 hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看【${name}】近8期深度财报与AI体检">诊断</button>`;
 
                 // 2. 自选
                 const isChecked = (window.tsWatchlist && window.tsWatchlist.has(code)) ? 'checked' : '';
@@ -17550,15 +17550,16 @@
         function renderScoreBadgeTs(score, kind = 'buy') {
             score = Number(score) || 0;
             if (kind === 'buy') {
-                if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-sm">${score}分 强烈买入</span>`;
-                if (score >= 8) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-sm">${score}分 买入</span>`;
-                if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white">${score}分 关注</span>`;
+                if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">${score}分 强烈买入</span>`;
+                if (score >= 8) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-xs">${score}分 买入</span>`;
+                if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white shadow-xs">${score}分 关注</span>`;
                 return `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">${score}分 观望</span>`;
             } else {
-                // 卖出分列不用动态闪烁 (静态醒目徽章)
-                if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-sm">▲ ${score}分 顶危</span>`;
-                if (score >= 3) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">${score}分 卖出</span>`;
-                return `<span class="text-slate-400 dark:text-slate-500 font-mono">-</span>`;
+                // 卖出分列 (高分危险，低分安全，不为空)
+                if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-xs" title="卖出信号强烈，注意高位回调">▲ ${score}分 顶危</span>`;
+                if (score >= 3) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 shadow-xs" title="出现阶段性减仓或卖出预警">${score}分 卖出</span>`;
+                if (score >= 1) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60" title="轻度卖出信号预警">${score}分 警惕</span>`;
+                return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50" title="无卖出风险信号，持股安全">0分 安全</span>`;
             }
         }
 
@@ -18076,7 +18077,7 @@
                 let mktCaptTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">${mktCaptStr}</td>`;
 
                 // 诊断: 优雅微胶囊按钮 (indigo)
-                let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>`;
+                let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看近8期深度财报与AI体检">诊断</button>`;
 
                 // 1. 代码: 专业金融高对比度黑白加粗字体，直达雪球 (用户需求 1)
                 let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
@@ -18916,7 +18917,7 @@
 
                     // 1. 诊断按钮 (严格调用 openTsFinaModal，100%保证弹窗响应)
                     const diagTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
-                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
             </td>`;
 
                     // 2. 自选 (保存到 watchlist.json, 删除同理)
@@ -19787,7 +19788,7 @@
                             <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap space-x-1">${rolePills}</td>
                             <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
-                                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看深度8期财报">诊断</button>
+                                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2.5 py-0.5 rounded-md text-xs border border-indigo-200 dark:border-indigo-400/40 text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white hover:border-indigo-300 transition-all duration-150 cursor-pointer font-semibold shadow-xs active:scale-95" title="查看深度8期财报">诊断</button>
                                     <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
                                     <button onclick="toggleWatchlistStockBtn('${code}', '${name}', this)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 transition cursor-pointer" title="加入/移出自选">+自选</button>
                                 </div>
