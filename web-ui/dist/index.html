@@ -5049,7 +5049,13 @@
             </div>
 
             <!-- Row 4: Modal ECharts Canvas Container (Expands flexibly to fill available screen height) -->
-            <div id="echarts-preview-modal-container" class="w-full flex-1 min-h-[300px] h-full"></div>
+            <div class="relative w-full flex-1 min-h-[300px] h-full overflow-hidden">
+                <div id="echarts-preview-modal-container" class="w-full h-full"></div>
+                <!-- 蜡烛图左上角：形态特征高对比度 HTML 悬浮胶囊标签 (利好鲜红，利空鲜绿，实时回测联动) -->
+                <div id="kp-pattern-badge-overlay"
+                    class="absolute left-[65px] top-[14px] z-30 pointer-events-none hidden items-center space-x-1 px-2.5 py-1 rounded bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/70 shadow-md text-[11px] select-none transition-all">
+                </div>
+            </div>
         </div>
     </div>
 
@@ -6381,6 +6387,8 @@
             hideKpContextMenu();
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
+            const badge = document.getElementById('kp-pattern-badge-overlay');
+            if (badge) badge.classList.add('hidden');
             document.getElementById('kline-preview-modal').classList.add('hidden');
         }
 
@@ -9372,6 +9380,46 @@
             return { date: dateStr, patterns: (clientPats && clientPats.length > 0) ? clientPats : ['震荡整理'] };
         }
 
+        function updateKpPatternBadgeOverlay(dateStr, patternList, gridLeft) {
+            const el = document.getElementById('kp-pattern-badge-overlay');
+            if (!el) return;
+            if (gridLeft !== undefined && gridLeft !== null) {
+                el.style.left = `${gridLeft + 10}px`;
+            }
+            const isDark = document.documentElement.classList.contains('dark');
+            const maxPats = (typeof isMobile !== 'undefined' && isMobile) ? 3 : 7;
+            const pats = (patternList && patternList.length > 0) ? patternList.slice(0, maxPats) : ['震荡整理'];
+
+            const dateColor = isDark ? '#38bdf8' : '#0284c7';
+            const lblColor = isDark ? '#cbd5e1' : '#334155';
+
+            let html = `<span style="font-family: 'JetBrains Mono', Consolas, monospace; font-weight: 800; color: ${dateColor}; margin-right: 4px;">${dateStr || ''}</span>`
+                     + `<span style="font-weight: 700; color: ${lblColor}; margin-right: 6px;">形态特征:</span>`;
+
+            const tokens = pats.map(p => {
+                const type = getPatternType(p);
+                if (type === 'up') {
+                    return `<span style="color: #ef4444 !important; font-weight: 800; padding: 0 1px;">${p}</span>`;
+                } else if (type === 'down') {
+                    return `<span style="color: #10b981 !important; font-weight: 800; padding: 0 1px;">${p}</span>`;
+                } else {
+                    const neutColor = isDark ? '#94a3b8' : '#64748b';
+                    return `<span style="color: ${neutColor} !important; font-weight: 600; padding: 0 1px;">${p}</span>`;
+                }
+            });
+
+            const sepColor = isDark ? '#475569' : '#cbd5e1';
+            html += tokens.join(`<span style="color: ${sepColor}; margin: 0 4px;">·</span>`);
+            if (patternList && patternList.length > maxPats) {
+                const neutColor = isDark ? '#94a3b8' : '#64748b';
+                html += `<span style="color: ${neutColor}; font-size: 10px; margin-left: 4px;">等${patternList.length}项</span>`;
+            }
+
+            el.innerHTML = html;
+            el.style.display = 'flex';
+            el.classList.remove('hidden');
+        }
+
         function renderKpChart(json) {
             if (!kpEchart || !json) return;
             const bars = json.data || [];
@@ -10528,24 +10576,10 @@
                 patternRichText += `{neutral| 等${patternList.length}项}`;
             }
 
+            // 8. 蜡烛图左上角：形态特征高对比度 HTML 悬浮胶囊标签 (利好鲜红，利空鲜绿，实时回测联动)
+            updateKpPatternBadgeOverlay(latestPatDate, patternList, gridLeft);
+
             const kpGraphicElements = [
-                {
-                    type: 'text',
-                    left: gridLeft + 10,
-                    top: 14,
-                    z: 25,
-                    style: {
-                        text: patternRichText,
-                        rich: patternRichStyles,
-                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
-                        borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                        padding: [3, 8],
-                        shadowBlur: 4,
-                        shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
-                    }
-                },
                 {
                     type: 'text',
                     left: gridLeft + 10,
@@ -12790,14 +12824,13 @@
 
             const option = {
                 backgroundColor: 'transparent',
-                graphic: [
+                title: [
                     {
-                        type: 'text',
+                        text: btPatternRichText,
                         left: 65,
                         top: 32,
                         z: 25,
-                        style: {
-                            text: btPatternRichText,
+                        textStyle: {
                             rich: {
                                 date: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: '"JetBrains Mono", Consolas, monospace' },
                                 lbl: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#cbd5e1' : '#334155' },
@@ -12805,15 +12838,15 @@
                                 down: { fontWeight: 'bold', fontSize: 11, color: '#10b981', padding: [0, 1] },
                                 neutral: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', padding: [0, 1] },
                                 sep: { fontSize: 11, color: isDark ? '#475569' : '#cbd5e1', padding: [0, 1] }
-                            },
-                            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
-                            borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
-                            borderWidth: 1,
-                            borderRadius: 4,
-                            padding: [3, 8],
-                            shadowBlur: 4,
-                            shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
-                        }
+                            }
+                        },
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
+                        borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        padding: [3, 8],
+                        shadowBlur: 4,
+                        shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
                     }
                 ],
                 tooltip: {
