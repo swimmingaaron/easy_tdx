@@ -255,6 +255,66 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
             s.setdefault("flow_3d_str", "0.0万")
             s.setdefault("flow_5d_str", "0.0万")
 
+    # 进一步自动补齐量化共振交易系统多因子数据 (买入分, 卖出分, 连续净流入, 换手, 估值分位, 股东集中度, 营业/净利润同比等)
+    try:
+        from easy_tdx.trading_system.engine import evaluate_universe
+        sym_codes = [s.get("code") or s.get("symbol") for s in stocks if s.get("code") or s.get("symbol")]
+        if sym_codes:
+            ts_res = evaluate_universe(symbols=sym_codes, universe_type="custom", period="day")
+            if ts_res:
+                ts_map = {r["stock_code"]: r for r in ts_res if "stock_code" in r}
+                for s in stocks:
+                    c = s.get("code") or s.get("symbol")
+                    tr = ts_map.get(c)
+                    if tr:
+                        s["buy_score"] = tr.get("buy_score", 0)
+                        s["sell_score"] = tr.get("sell_score", 0)
+                        s["consec_days"] = tr.get("consec_days", 0)
+                        s["consec_amount"] = tr.get("consec_amount", 0.0)
+                        s["t_rate"] = tr.get("t_rate", 0.0)
+                        s["v_rate"] = tr.get("v_rate", 0.0)
+                        s["days"] = tr.get("days", 0)
+                        s["zig"] = tr.get("zig", 0)
+                        s["ystz"] = tr.get("ystz", 0.0)
+                        s["sjltz"] = tr.get("sjltz", 0.0)
+                        s["pe_percentile"] = tr.get("pe_percentile", 0.0)
+                        s["holder_ratio"] = tr.get("holder_ratio", 0.0)
+                        s["holder_focus"] = tr.get("holder_focus", "--")
+                        s["holders_num"] = tr.get("holders_num", 0)
+                        s["holders_str"] = tr.get("holders_str", "--")
+                        s["holders_changes"] = tr.get("holders_changes", [])
+                        s["pattern_score"] = tr.get("pattern_score", 0)
+                        if tr.get("amount") and not s.get("amount"):
+                            s["amount"] = tr["amount"]
+                        if tr.get("mkt_capt") and not s.get("mkt_capt"):
+                            s["mkt_capt"] = tr["mkt_capt"]
+                        if tr.get("industry") and tr["industry"] != "--" and (not s.get("industry") or s.get("industry") == "--"):
+                            s["industry"] = tr["industry"]
+                            s["board_name"] = tr["industry"]
+                        if tr.get("board_code") and not s.get("board_code"):
+                            s["board_code"] = tr["board_code"]
+    except Exception as e:
+        logger.debug(f"Failed to enrich screener stocks with trading system data: {e}")
+
+    for s in stocks:
+        s.setdefault("buy_score", 0)
+        s.setdefault("sell_score", 0)
+        s.setdefault("consec_days", 0)
+        s.setdefault("consec_amount", 0.0)
+        s.setdefault("t_rate", 0.0)
+        s.setdefault("v_rate", 0.0)
+        s.setdefault("days", 0)
+        s.setdefault("zig", 0)
+        s.setdefault("ystz", 0.0)
+        s.setdefault("sjltz", 0.0)
+        s.setdefault("pe_percentile", 0.0)
+        s.setdefault("holder_ratio", 0.0)
+        s.setdefault("holder_focus", "--")
+        s.setdefault("holders_num", 0)
+        s.setdefault("holders_str", "--")
+        s.setdefault("holders_changes", [])
+        s.setdefault("pattern_score", 0)
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 _DAILY_KLINE_CACHE: dict[str, tuple[str, float, pd.DataFrame]] = {}
