@@ -237,11 +237,18 @@ class MAQuadrilateralStrategy(BaseStrategy):
             ):
                 # 空间几何拓扑结构校验:
                 # 1. 均线时序顺畅: MA5 金叉必须先于或同步于 MA10 (last_1 <= last_3 且 last_2 <= last_4)
-                #    允许大阳线一穿二 (同日突破20与60)，坚决杜绝死叉倒挂
-                geo_order_ok = (last_1 <= last_3) and (last_2 <= last_4)
+                #    且由下至上穿越逻辑顺畅，杜绝逆向严重时间倒挂 (last_1 - last_2 <= 2 且 last_3 - last_4 <= 2)
+                geo_order_ok = (
+                    (last_1 <= last_3)
+                    and (last_2 <= last_4)
+                    and (last_1 - last_2 <= 2)
+                    and (last_3 - last_4 <= 2)
+                )
 
-                # 2. 避免全部交点同一天伪信号 (如全平或死水数据)
-                not_all_same = not (last_1 == last_2 == last_3 == last_4)
+                # 2. 通达信原版非退化四边形约束 (D2!=D4 且 D1!=D3):
+                #    5日线与10日线上穿60日线不可在同日发生(顶边退化)，上穿20日线亦不可在同日发生(底边退化)
+                no_degenerate = (last_2 != last_4) and (last_1 != last_3)
+                not_all_same = not (last_1 == last_2 == last_3 == last_4) and no_degenerate
 
                 # 3. 底边与顶边稳定性: 坚决排除如 600233 这类 20日线暴跌死叉下穿 60日线的下坠倒挂形态
                 # 若 20日线在金叉前5日高于60日线且当前跌破60日线且斜率为负，属于跳水死叉
@@ -366,8 +373,9 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     sell_sig[i] = True
                     in_pos = False
                     tested_ma10 = False
-                    # 一旦平仓离场，当前四边形生命周期终结，避免同一四边形在走弱后反复假买
-                    last_formed_bar = -9999
+                    # 若因死叉或硬止损出局，说明四边形支撑已被有效打穿，熔断形态生命周期
+                    if is_dead or is_sl:
+                        last_formed_bar = -9999
             else:
                 is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
                 trigger_buy = False
@@ -379,15 +387,14 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 # 辅助动能确认: 买入时 J>=50, RSI6>=50
                 momentum_ok = (j_val[i] >= 48.0) and (rsi6_val[i] >= 48.0)
 
-                # 回踩空中加油健康度严密校验:
-                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.995)，绝不能在死叉状态下抄底
-                # 2. 趋势防守健全: 收盘价必须坚守在生命线 MA20 之上 (cur_c >= cur_ma20 * 0.99)
-                # 3. 历史防守完整: 自四边形形成以来，从未有效跌破过 MA20 (收盘价 >= MA20*0.985)
+                # 严格空中加油与健康回踩确认:
+                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.995)
+                # 2. 四边形闭合以来，从未破位跌穿 MA20 防守线
                 c_since = c[last_formed_bar : i + 1] if last_formed_bar > 0 else []
                 ma20_since = ma20[last_formed_bar : i + 1] if last_formed_bar > 0 else []
                 never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.985))
-                ma_aligned = (cur_ma5 >= cur_ma10 * 0.995) and (cur_c >= cur_ma20 * 0.99)
-                pullback_valid = is_within_watch and momentum_ok and ma_aligned and never_broke_ma20
+                ma5_above_ma10 = cur_ma5 >= cur_ma10 * 0.995
+                pullback_valid = is_within_watch and momentum_ok and ma5_above_ma10 and never_broke_ma20
 
                 if xg[i] and not xg[i - 1]:
                     # 刚闭合当日突破: 必须保持主动进攻姿态
