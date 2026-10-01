@@ -9091,6 +9091,200 @@
             `;
         }
 
+        // =========================================================================
+        // K线蜡烛图左上角：形态特征量化识别引擎与分类器 (支持最新日期与历史回测推演)
+        // =========================================================================
+        function isBullPattern(name) {
+            if (!name) return false;
+            const bullKeywords = ['突破', '红三兵', '海', '蓉', '多头', '多方', '启明', '早晨', '曙光', '东升', '阳包阴', '吞没', '锤子', '双针', '回踩', '金蜘蛛', '价托', '金叉', '支撑', '量增', '买点', '启动', '翻红', '买入', '底背离', '底离'];
+            return bullKeywords.some(k => name.includes(k));
+        }
+
+        function isBearPattern(name) {
+            if (!name) return false;
+            const bearKeywords = ['乌鸦', '盖顶', '大雨', '阴包阳', '空头', '黄昏', '下降三法', '射击', '流星', '吊颈', '空方', '死蜘蛛', '价压', '死叉', '压制', '卖点', '见顶', '回落', '卖出', '顶背离', '顶离'];
+            return bearKeywords.some(k => name.includes(k));
+        }
+
+        function detectClientPatterns(bars) {
+            if (!bars || bars.length < 3) return ['震荡整理'];
+            const n = bars.length;
+            const cur = bars[n - 1];
+            const prev = bars[n - 2];
+            const prev2 = n >= 3 ? bars[n - 3] : prev;
+
+            const cur_c = Number(cur.close);
+            const cur_o = Number(cur.open);
+            const cur_h = Number(cur.high);
+            const cur_l = Number(cur.low);
+            const cur_v = Number(cur.volume || 0);
+
+            const prev_c = Number(prev.close);
+            const prev_o = Number(prev.open);
+            const prev_h = Number(prev.high);
+            const prev_l = Number(prev.low);
+            const prev_v = Number(prev.volume || 0);
+
+            const cur_body = Math.abs(cur_c - cur_o);
+            const cur_range = Math.max(0.001, cur_h - cur_l);
+            const chgPct = prev_c > 0 ? ((cur_c - prev_c) / prev_c * 100) : 0;
+            const vr = Number(cur.vol_ratio || 1.0);
+
+            const patterns = [];
+
+            // 1. 放量突破
+            if (n >= 20) {
+                let maxH20 = -Infinity;
+                for (let i = Math.max(0, n - 21); i < n - 1; i++) {
+                    if (bars[i] && bars[i].high > maxH20) maxH20 = bars[i].high;
+                }
+                if (cur_c >= maxH20 && vr >= 1.4 && cur_c > cur_o && chgPct >= 1.5) {
+                    patterns.push('放量突破');
+                }
+            }
+
+            // 2. 均线形态
+            const ma5 = Number(cur.ma5 || 0);
+            const ma10 = Number(cur.ma10 || 0);
+            const ma20 = Number(cur.ma20 || 0);
+            const ma60 = Number(cur.ma60 || 0);
+
+            if (ma5 > 0 && ma10 > 0 && ma20 > 0) {
+                if (cur_c >= ma5 && ma5 >= ma10 && ma10 >= ma20) {
+                    patterns.push('均线多头');
+                } else if (cur_c <= ma5 && ma5 <= ma10 && ma10 <= ma20) {
+                    patterns.push(ma60 > 0 && ma20 <= ma60 ? '空头排列' : '均线空头');
+                }
+                if (ma60 > 0 && cur_l <= Math.min(ma5, ma10, ma20, ma60) && cur_c >= Math.max(ma5, ma10, ma20, ma60) && cur_c > cur_o && chgPct >= 1.8) {
+                    patterns.push('蛟龙出海');
+                } else if (cur_l <= Math.min(ma5, ma10, ma20) && cur_c >= Math.max(ma5, ma10, ma20) && cur_c > cur_o && chgPct >= 2.0) {
+                    patterns.push('出水芙蓉');
+                }
+            }
+
+            // 3. 经典看涨 K 线
+            if (n >= 3) {
+                const p2_c = Number(prev2.close);
+                const p2_o = Number(prev2.open);
+                if (cur_c > prev_c && prev_c > p2_c && cur_c > cur_o && prev_c > prev_o && p2_c > p2_o) {
+                    patterns.push('红三兵');
+                }
+                if (p2_c < p2_o && (p2_o - p2_c) / p2_o >= 0.015 && Math.abs(prev_c - prev_o) / prev_o <= 0.012 && cur_c > cur_o && cur_c >= (p2_o + p2_c) / 2) {
+                    patterns.push('启明星');
+                }
+                if (p2_c > p2_o && prev_c < prev_o && cur_c > cur_o && cur_c > p2_c) {
+                    patterns.push('多方炮');
+                }
+            }
+            if (prev_c < prev_o && cur_c > cur_o && cur_o <= prev_c && cur_c >= prev_o) {
+                patterns.push('阳包阴');
+            }
+            if (prev_c < prev_o && (prev_o - prev_c) / prev_o >= 0.015) {
+                if (cur_c > cur_o && cur_c > prev_o) {
+                    patterns.push('旭日东升');
+                } else if (cur_o < prev_c && cur_c > cur_o && cur_c >= (prev_o + prev_c) / 2) {
+                    patterns.push('曙光初现');
+                }
+            }
+            const upper_shadow = cur_h - Math.max(cur_c, cur_o);
+            const lower_shadow = Math.min(cur_c, cur_o) - cur_l;
+            if (cur_range >= 0.01 * cur_c) {
+                if (lower_shadow >= 2.0 * cur_body && (lower_shadow / cur_range) >= 0.5 && (upper_shadow / cur_range) <= 0.15) {
+                    patterns.push('锤子线');
+                } else if (upper_shadow >= 2.0 * cur_body && (upper_shadow / cur_range) >= 0.5 && (lower_shadow / cur_range) <= 0.15) {
+                    patterns.push('倒锤子线');
+                }
+            }
+
+            // 4. 经典看跌 K 线
+            if (n >= 3) {
+                const p2_c = Number(prev2.close);
+                const p2_o = Number(prev2.open);
+                if (cur_c < prev_c && prev_c < p2_c && cur_c < cur_o && prev_c < prev_o && p2_c < p2_o) {
+                    patterns.push('三只乌鸦');
+                }
+                if (p2_c > p2_o && (p2_c - p2_o) / p2_o >= 0.015 && Math.abs(prev_c - prev_o) / prev_o <= 0.012 && cur_c < cur_o && cur_c <= (p2_o + p2_c) / 2) {
+                    patterns.push('黄昏之星');
+                }
+                if (p2_c < p2_o && prev_c > prev_o && cur_c < cur_o && cur_c < p2_c) {
+                    patterns.push('空方炮');
+                }
+            }
+            if (prev_c > prev_o && cur_c < cur_o && cur_o >= prev_c && cur_c <= prev_o) {
+                patterns.push('阴包阳');
+            }
+            if (prev_c > prev_o && (prev_c - prev_o) / prev_o >= 0.015) {
+                if (cur_c < cur_o && cur_c < prev_o) {
+                    patterns.push('倾盆大雨');
+                } else if (cur_o > prev_c && cur_c < cur_o && cur_c <= (prev_o + prev_c) / 2 && cur_c > prev_o) {
+                    patterns.push('乌云盖顶');
+                }
+            }
+            if (cur_range >= 0.01 * cur_c) {
+                if (upper_shadow >= 2.0 * cur_body && (upper_shadow / cur_range) >= 0.5 && (lower_shadow / cur_range) <= 0.15) {
+                    patterns.push('射击之星');
+                } else if (lower_shadow >= 2.0 * cur_body && (lower_shadow / cur_range) >= 0.5 && (upper_shadow / cur_range) <= 0.15) {
+                    patterns.push('吊颈线');
+                }
+            }
+
+            // 5. 指标共振形态
+            if (cur.kdj_k != null && cur.kdj_d != null && prev.kdj_k != null && prev.kdj_d != null) {
+                if (cur.kdj_k > cur.kdj_d && prev.kdj_k <= prev.kdj_d) {
+                    patterns.push(cur.kdj_k < 45 ? 'KDJ低位金叉' : 'KDJ金叉');
+                } else if (cur.kdj_k < cur.kdj_d && prev.kdj_k >= prev.kdj_d) {
+                    patterns.push(cur.kdj_k > 70 ? 'KDJ高位死叉' : 'KDJ死叉');
+                }
+            }
+            if (cur.macd_dif != null && cur.macd_dea != null && prev.macd_dif != null && prev.macd_dea != null) {
+                if (cur.macd_dif > cur.macd_dea && prev.macd_dif <= prev.macd_dea) {
+                    patterns.push(cur.macd_dif > 0 ? 'MACD零上金叉' : 'MACD金叉');
+                } else if (cur.macd_dif < cur.macd_dea && prev.macd_dif >= prev.macd_dea) {
+                    patterns.push('MACD死叉');
+                }
+            }
+            if (cur.boll_low != null && cur_l <= cur.boll_low * 1.015 && cur_c > cur.boll_low) {
+                patterns.push('布林下轨支撑');
+            } else if (cur.boll_up != null && cur_h >= cur.boll_up * 0.985 && cur_c < cur_h) {
+                patterns.push('布林上轨压制');
+            }
+            if (cur_c > prev_c && cur_v > prev_v * 1.25) {
+                patterns.push('价涨量增');
+            } else if (cur_c <= prev_c && cur_v < prev_v * 0.75 && ma20 > 0 && cur_c >= ma20 * 0.985) {
+                patterns.push('缩量回踩');
+            }
+            if (cur.td9_low === 9 || cur.td13_low === 13) {
+                patterns.push(cur.td13_low === 13 ? 'TD13买点' : 'TD9买点');
+            } else if (cur.td9_high === 9 || cur.td13_high === 13) {
+                patterns.push(cur.td13_high === 13 ? 'TD13卖点' : 'TD9卖点');
+            }
+            if (cur.zig_buy) patterns.push('ZIG波谷启动');
+            else if (cur.zig_sell) patterns.push('ZIG见顶回落');
+
+            return patterns.length > 0 ? patterns : ['震荡整理'];
+        }
+
+        function getKpLatestPatterns(bars, json) {
+            if (!bars || bars.length === 0) return { date: '', patterns: ['震荡整理'] };
+            const lastBar = bars[bars.length - 1];
+            const rawDt = String(lastBar.datetime || '').trim();
+            const dateStr = rawDt.split(' ')[0] || rawDt;
+
+            // 1. 若当前为最新全量数据（未被历史推演切片），优先读取后端专业分析结果
+            if (json && Array.isArray(json.patterns) && json.patterns.length > 0) {
+                const fullBars = json.data || [];
+                const fullLastBar = fullBars.length > 0 ? fullBars[fullBars.length - 1] : null;
+                const fullLastDt = fullLastBar ? String(fullLastBar.datetime || '').trim().split(' ')[0] : '';
+                if (!fullLastDt || fullLastDt === dateStr) {
+                    return { date: dateStr, patterns: json.patterns };
+                }
+            }
+
+            // 2. 否则进行动态前端量化推演检测
+            const clientPats = detectClientPatterns(bars);
+            return { date: dateStr, patterns: (clientPats && clientPats.length > 0) ? clientPats : ['震荡整理'] };
+        }
+
         function renderKpChart(json) {
             if (!kpEchart || !json) return;
             const bars = json.data || [];
@@ -10193,25 +10387,98 @@
                 } catch (e) { }
             }
 
+            // 8. K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
+            const patternInfo = getKpLatestPatterns(bars, json);
+            const latestPatDate = patternInfo.date || dates[dates.length - 1] || '';
+            const patternList = patternInfo.patterns || ['震荡整理'];
+
+            const maxPatsToShow = isMobile ? 3 : 7;
+            const displayPats = patternList.slice(0, maxPatsToShow);
+
+            let patternRichText = `{date|${latestPatDate}} {lbl|形态特征: }`;
+            const patternRichStyles = {
+                date: {
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 10 : 11,
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontFamily: '"JetBrains Mono", Consolas, monospace'
+                },
+                lbl: {
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 10 : 11,
+                    color: isDark ? '#cbd5e1' : '#334155'
+                },
+                up: {
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 10 : 11,
+                    color: '#ef4444',
+                    padding: [0, 1]
+                },
+                down: {
+                    fontWeight: 'bold',
+                    fontSize: isMobile ? 10 : 11,
+                    color: '#10b981',
+                    padding: [0, 1]
+                },
+                neutral: {
+                    fontSize: isMobile ? 10 : 11,
+                    color: isDark ? '#94a3b8' : '#64748b',
+                    padding: [0, 1]
+                },
+                sep: {
+                    fontSize: isMobile ? 10 : 11,
+                    color: isDark ? '#475569' : '#cbd5e1',
+                    padding: [0, 1]
+                }
+            };
+
+            const patTokens = displayPats.map(p => {
+                const tag = isBullPattern(p) ? 'up' : (isBearPattern(p) ? 'down' : 'neutral');
+                return `{${tag}|${p}}`;
+            });
+            patternRichText += patTokens.join('{sep| · }');
+            if (patternList.length > maxPatsToShow) {
+                patternRichText += `{neutral| 等${patternList.length}项}`;
+            }
+
+            const kpGraphicElements = [
+                {
+                    type: 'text',
+                    left: gridLeft + 10,
+                    top: 14,
+                    z: 25,
+                    style: {
+                        text: patternRichText,
+                        rich: patternRichStyles,
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
+                        borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        padding: [3, 8],
+                        shadowBlur: 4,
+                        shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
+                    }
+                },
+                {
+                    type: 'text',
+                    left: gridLeft + 10,
+                    top: 40,
+                    z: 10,
+                    style: {
+                        text: json.data1 || (json.symbol ? `${json.symbol}|${json.zs_block || json.board_tag || '主板'}` : ''),
+                        font: 'bold 11px "JetBrains Mono", Consolas, monospace',
+                        fill: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.85)',
+                    }
+                }
+            ];
+
             const option = {
                 animation: false,
                 backgroundColor: 'transparent',
                 axisPointer: {
                     link: [{ xAxisIndex: 'all' }]
                 },
-                graphic: [
-                    {
-                        type: 'text',
-                        left: 75,
-                        top: 36,
-                        z: 10,
-                        style: {
-                            text: json.data1 || (json.symbol ? `${json.symbol}|${json.zs_block || json.board_tag || '主板'}` : ''),
-                            font: 'bold 11px "JetBrains Mono", Consolas, monospace',
-                            fill: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.85)',
-                        }
-                    }
-                ],
+                graphic: kpGraphicElements,
                 tooltip: {
                     trigger: 'axis',
                     alwaysShowContent: true,
@@ -12420,10 +12687,48 @@
             const tooltipBorder = isDark ? '#2a2e39' : '#e2e8f0';
             const tooltipTextColor = isDark ? '#d1d5db' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
-            const tooltipDivider = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+            // K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
+            const btPats = detectClientPatterns(bars);
+            const btLatestDate = dates[dates.length - 1] || '';
+            const btDisplayPats = btPats.slice(0, 5);
+            let btPatternRichText = `{date|${btLatestDate}} {lbl|形态特征: }`;
+            const btPatTokens = btDisplayPats.map(p => {
+                const tag = isBullPattern(p) ? 'up' : (isBearPattern(p) ? 'down' : 'neutral');
+                return `{${tag}|${p}}`;
+            });
+            btPatternRichText += btPatTokens.join('{sep| · }');
+            if (btPats.length > 5) {
+                btPatternRichText += `{neutral| 等${btPats.length}项}`;
+            }
 
             const option = {
                 backgroundColor: 'transparent',
+                graphic: [
+                    {
+                        type: 'text',
+                        left: 65,
+                        top: 32,
+                        z: 25,
+                        style: {
+                            text: btPatternRichText,
+                            rich: {
+                                date: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: '"JetBrains Mono", Consolas, monospace' },
+                                lbl: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#cbd5e1' : '#334155' },
+                                up: { fontWeight: 'bold', fontSize: 11, color: '#ef4444', padding: [0, 1] },
+                                down: { fontWeight: 'bold', fontSize: 11, color: '#10b981', padding: [0, 1] },
+                                neutral: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', padding: [0, 1] },
+                                sep: { fontSize: 11, color: isDark ? '#475569' : '#cbd5e1', padding: [0, 1] }
+                            },
+                            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
+                            borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            padding: [3, 8],
+                            shadowBlur: 4,
+                            shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
+                        }
+                    }
+                ],
                 tooltip: {
                     trigger: 'axis',
                     alwaysShowContent: true,
