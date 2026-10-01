@@ -32,8 +32,8 @@ D3:=REF(DD,BARSLAST(P3));
 P4:=CROSS(MA10,MA60);
 D4:=REF(DD,BARSLAST(P4));
 { P3、P4 交叉点收盘价不能低于 MA60 }
-C3_OK:=REF(C>=MA60*0.995,BARSLAST(P3));
-C4_OK:=REF(C>=MA60*0.995,BARSLAST(P4));
+C3_OK:=REF(C>=MA60,BARSLAST(P3));
+C4_OK:=REF(C>=MA60,BARSLAST(P4));
 XG: EXIST(P1,10) AND EXIST(P2,10) AND EXIST(P3,10) AND EXIST(P4,10) 
 AND D1!=D2 AND D1!=D3 AND D1!=D4
 AND D2!=D3 AND D2!=D4 AND D3!=D4
@@ -313,8 +313,8 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
                 # 8. P3 与 P4 交叉点收盘价硬约束:
                 #    P3(10日线上穿20日线) 与 P4(10日线上穿60日线) 交叉发生当日，收盘价均不能低于生命线 MA60
-                p3_c_ok = (last_3 >= 0) and (c[last_3] >= ma60[last_3] * 0.995)
-                p4_c_ok = (last_4 >= 0) and (c[last_4] >= ma60[last_4] * 0.995)
+                p3_c_ok = (last_3 >= 0) and (c[last_3] >= ma60[last_3])
+                p4_c_ok = (last_4 >= 0) and (c[last_4] >= ma60[last_4])
                 p3_p4_above_ma60 = p3_c_ok and p4_c_ok
 
                 if (
