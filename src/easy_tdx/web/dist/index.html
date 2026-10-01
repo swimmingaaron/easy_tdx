@@ -4475,9 +4475,9 @@
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                     </button>
 
-                    <button type="button" onclick="resetKpCutoffToLatest()" id="kp-btn-latest-day"
+                    <button type="button" onclick="moveKpToLatestBar()" id="kp-btn-latest-day"
                         class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer hidden shrink-0"
-                        title="恢复至最新交易日">
+                        title="恢复至最新交易日 (快捷键: End)">
                         <span>今</span>
                     </button>
 
@@ -6711,6 +6711,18 @@
                         e.preventDefault();
                         stepKpDate(1);
                     }
+                } else if (e.key === 'End') {
+                    // End key: 移动到最新的日柱上
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        moveKpToLatestBar();
+                    }
+                } else if (e.key === 'Home') {
+                    // Home key: 移动到最早的日柱上
+                    if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                        e.preventDefault();
+                        moveKpToEarliestBar();
+                    }
                 } else if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft') || (e.key === '[' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName))) {
                     if (!['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
                         e.preventDefault();
@@ -8479,6 +8491,119 @@
             applyKpCutoffAndRender(currentKpData);
             showToast('已恢复最新', `已恢复至最新交易日 (${currentKpFullBars[currentKpCutoffIndex].datetime})`);
         }
+
+        function moveKpToLatestBar() {
+            if (typeof stopKpReplay === 'function') stopKpReplay();
+
+            // 1. 如果处于历史回测/切片截止模式，立即恢复至最新全量K线
+            const wasCutoff = (typeof currentKpCutoffIndex !== 'undefined' && currentKpCutoffIndex >= 0 && currentKpFullBars && currentKpCutoffIndex < currentKpFullBars.length - 1) || !!currentKpCutoffDate;
+            if (wasCutoff) {
+                if (currentKpFullBars && currentKpFullBars.length > 0) {
+                    currentKpCutoffIndex = currentKpFullBars.length - 1;
+                    currentKpCutoffDate = null;
+                    const dateInp = document.getElementById('kp-cutoff-date');
+                    if (dateInp) dateInp.value = '';
+                    const latestBtn = document.getElementById('kp-btn-latest-day');
+                    if (latestBtn) latestBtn.classList.add('hidden');
+                    if (typeof currentKpData !== 'undefined' && currentKpData) {
+                        applyKpCutoffAndRender(currentKpData);
+                    }
+                } else if (typeof resetKpCutoffToLatest === 'function') {
+                    resetKpCutoffToLatest();
+                }
+            }
+
+            // 2. 将可视区域 (dataZoom) 平移至最右侧最新K线 (end: 100)
+            if (typeof kpEchart !== 'undefined' && kpEchart) {
+                try {
+                    const opt = kpEchart.getOption();
+                    if (opt && opt.dataZoom && opt.dataZoom[0]) {
+                        const curStart = (opt.dataZoom[0].start != null) ? opt.dataZoom[0].start : 40;
+                        const curEnd = (opt.dataZoom[0].end != null) ? opt.dataZoom[0].end : 100;
+                        const span = Math.min(100, Math.max(2, curEnd - curStart));
+                        const newStart = Math.max(0, 100 - span);
+                        currentKpZoomStart = newStart;
+                        currentKpZoomEnd = 100;
+                        kpEchart.dispatchAction({
+                            type: 'dataZoom',
+                            start: newStart,
+                            end: 100
+                        });
+                    }
+                } catch (e) { }
+            }
+
+            // 3. 将悬浮十字光标与上方行情明细更新至最新一根日柱
+            const bars = (typeof currentKpFullBars !== 'undefined' && currentKpFullBars && currentKpFullBars.length > 0)
+                ? currentKpFullBars
+                : ((typeof currentKpData !== 'undefined' && currentKpData && currentKpData.data) || []);
+            if (bars && bars.length > 0) {
+                const lastIdx = bars.length - 1;
+                const lastBar = bars[lastIdx];
+                currentKpHoverIndex = lastIdx;
+                currentKpHoverDate = lastBar.datetime;
+                if (typeof updateKpBarDetails === 'function') {
+                    updateKpBarDetails(lastBar, lastIdx > 0 ? bars[lastIdx - 1] : null);
+                }
+                if (typeof kpEchart !== 'undefined' && kpEchart) {
+                    try {
+                        kpEchart.dispatchAction({
+                            type: 'showTip',
+                            seriesIndex: 0,
+                            dataIndex: lastIdx
+                        });
+                    } catch (e) { }
+                }
+            }
+        }
+
+        function moveKpToEarliestBar() {
+            if (typeof stopKpReplay === 'function') stopKpReplay();
+
+            const bars = (typeof currentKpFullBars !== 'undefined' && currentKpFullBars && currentKpFullBars.length > 0)
+                ? currentKpFullBars
+                : ((typeof currentKpData !== 'undefined' && currentKpData && currentKpData.data) || []);
+            if (!bars || bars.length === 0) return;
+
+            // 将可视区域 (dataZoom) 平移至最左侧最早K线 (start: 0)
+            if (typeof kpEchart !== 'undefined' && kpEchart) {
+                try {
+                    const opt = kpEchart.getOption();
+                    if (opt && opt.dataZoom && opt.dataZoom[0]) {
+                        const curStart = (opt.dataZoom[0].start != null) ? opt.dataZoom[0].start : 40;
+                        const curEnd = (opt.dataZoom[0].end != null) ? opt.dataZoom[0].end : 100;
+                        const span = Math.min(100, Math.max(2, curEnd - curStart));
+                        const newEnd = Math.min(100, span);
+                        currentKpZoomStart = 0;
+                        currentKpZoomEnd = newEnd;
+                        kpEchart.dispatchAction({
+                            type: 'dataZoom',
+                            start: 0,
+                            end: newEnd
+                        });
+                    }
+                } catch (e) { }
+            }
+
+            // 更新至最早一根K线
+            currentKpHoverIndex = 0;
+            currentKpHoverDate = bars[0].datetime;
+            if (typeof updateKpBarDetails === 'function') {
+                updateKpBarDetails(bars[0], null);
+            }
+            if (typeof kpEchart !== 'undefined' && kpEchart) {
+                try {
+                    kpEchart.dispatchAction({
+                        type: 'showTip',
+                        seriesIndex: 0,
+                        dataIndex: 0
+                    });
+                } catch (e) { }
+            }
+        }
+
+        window.moveKpToLatestBar = moveKpToLatestBar;
+        window.moveKpToEarliestBar = moveKpToEarliestBar;
 
         function toggleKpReplayPlay() {
             if (currentKpReplayTimer) {
