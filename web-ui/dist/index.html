@@ -4855,9 +4855,9 @@
                 <div
                     class="flex items-center space-x-2 sm:space-x-3 text-[10px] sm:text-[11px] overflow-x-auto whitespace-nowrap no-scrollbar">
                     <span style="color:#A1A1AA">MA5:15.06</span>
-                    <span style="color:#3B82F6">MA10:14.27</span>
-                    <span style="color:#F97316">MA20:13.52</span>
-                    <span style="color:#8B5CF6">MA60:12.85</span>
+                    <span style="color:#EAB308">MA10:14.27</span>
+                    <span style="color:#A855F7">MA20:13.52</span>
+                    <span style="color:#22C55E">MA60:12.85</span>
                 </div>
             </div>
 
@@ -8924,9 +8924,9 @@
                 </div>
                 <div class="flex items-center space-x-3 text-[11px] font-mono select-none overflow-x-auto whitespace-nowrap no-scrollbar h-[18px]">
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>
-                    <span style="color:#3B82F6">MA10:${bar.ma10 ? Number(bar.ma10).toFixed(2) : '—'}</span>
-                    <span style="color:#F97316">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
-                    <span style="color:#8B5CF6">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
+                    <span style="color:#EAB308">MA10:${bar.ma10 ? Number(bar.ma10).toFixed(2) : '—'}</span>
+                    <span style="color:#A855F7">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
+                    <span style="color:#22C55E">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
                     ${subMaLine}
                     ${isZigActive && bar.zig !== undefined && bar.zig !== null ? `
@@ -10232,9 +10232,9 @@
                         }
                     },
                     { name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma5, showSymbol: false, lineStyle: { width: 1.1, color: '#A1A1AA' } },
-                    { name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma10, showSymbol: false, lineStyle: { width: 1.1, color: '#3B82F6' } },
-                    { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
-                    { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#8B5CF6' } },
+                    { name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma10, showSymbol: false, lineStyle: { width: 1.1, color: '#EAB308' } },
+                    { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#A855F7' } },
+                    { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#22C55E' } },
                     ...middleSeries,
                     ...bottomInflowSeries,
                     ...(isZigActive && zigResult && zigResult.turnLines && zigResult.turnLines.length > 0 ? [{
