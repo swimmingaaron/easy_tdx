@@ -16025,23 +16025,23 @@
                 // 若有全局交易系统或批次缓存，自动补齐对应财务与多因子指标
                 const tr = tsMap.get(code) || scrCache[code] || null;
                 if (tr) {
-                    if (tr.buy_score !== undefined && tr.buy_score !== null && (!m.buy_score || m.buy_score === 0)) m.buy_score = tr.buy_score;
-                    if (tr.sell_score !== undefined && tr.sell_score !== null && (!m.sell_score || m.sell_score === 0)) m.sell_score = tr.sell_score;
-                    if (tr.consec_days !== undefined && tr.consec_days !== null && (!m.consec_days || m.consec_days === 0)) m.consec_days = tr.consec_days;
-                    if (tr.consec_amount !== undefined && tr.consec_amount !== null && (!m.consec_amount || m.consec_amount === 0)) m.consec_amount = tr.consec_amount;
-                    if (tr.t_rate !== undefined && tr.t_rate !== null && (!m.t_rate || m.t_rate === 0)) m.t_rate = tr.t_rate;
-                    if (tr.v_rate !== undefined && tr.v_rate !== null && (!m.v_rate || m.v_rate === 0)) m.v_rate = tr.v_rate;
-                    if (tr.days !== undefined && tr.days !== null && (!m.days || m.days === 0)) m.days = tr.days;
-                    if (tr.zig !== undefined && tr.zig !== null && (!m.zig || m.zig === 0)) m.zig = tr.zig;
-                    if (tr.ystz !== undefined && tr.ystz !== null && (!m.ystz || m.ystz === 0)) m.ystz = tr.ystz;
-                    if (tr.sjltz !== undefined && tr.sjltz !== null && (!m.sjltz || m.sjltz === 0)) m.sjltz = tr.sjltz;
-                    if (tr.pe_percentile !== undefined && tr.pe_percentile !== null && (!m.pe_percentile || m.pe_percentile === 0)) m.pe_percentile = tr.pe_percentile;
-                    if (tr.holder_ratio !== undefined && tr.holder_ratio !== null && (!m.holder_ratio || m.holder_ratio === 0)) m.holder_ratio = tr.holder_ratio;
+                    if (tr.buy_score !== undefined && tr.buy_score !== null) m.buy_score = tr.buy_score;
+                    if (tr.sell_score !== undefined && tr.sell_score !== null) m.sell_score = tr.sell_score;
+                    if (tr.consec_days !== undefined && tr.consec_days !== null) m.consec_days = tr.consec_days;
+                    if (tr.consec_amount !== undefined && tr.consec_amount !== null) m.consec_amount = tr.consec_amount;
+                    if (tr.t_rate !== undefined && tr.t_rate !== null) m.t_rate = tr.t_rate;
+                    if (tr.v_rate !== undefined && tr.v_rate !== null) m.v_rate = tr.v_rate;
+                    if (tr.days !== undefined && tr.days !== null) m.days = tr.days;
+                    if (tr.zig !== undefined && tr.zig !== null) m.zig = tr.zig;
+                    if (tr.ystz !== undefined && tr.ystz !== null) m.ystz = tr.ystz;
+                    if (tr.sjltz !== undefined && tr.sjltz !== null) m.sjltz = tr.sjltz;
+                    if (tr.pe_percentile !== undefined && tr.pe_percentile !== null) m.pe_percentile = tr.pe_percentile;
+                    if (tr.holder_ratio !== undefined && tr.holder_ratio !== null) m.holder_ratio = tr.holder_ratio;
                     if (tr.holder_focus && tr.holder_focus !== '--') m.holder_focus = tr.holder_focus;
-                    if (tr.holders_num !== undefined && tr.holders_num !== null && (!m.holders_num || m.holders_num === 0)) m.holders_num = tr.holders_num;
+                    if (tr.holders_num !== undefined && tr.holders_num !== null) m.holders_num = tr.holders_num;
                     if (tr.holders_str && tr.holders_str !== '--') m.holders_str = tr.holders_str;
-                    if (tr.holders_changes && Array.isArray(tr.holders_changes) && tr.holders_changes.length > 0 && (!m.holders_changes || m.holders_changes.length === 0)) m.holders_changes = tr.holders_changes;
-                    if (tr.pattern_score !== undefined && tr.pattern_score !== null && (!m.pattern_score || m.pattern_score === 0)) m.pattern_score = tr.pattern_score;
+                    if (tr.holders_changes && Array.isArray(tr.holders_changes) && tr.holders_changes.length > 0) m.holders_changes = tr.holders_changes;
+                    if (tr.pattern_score !== undefined && tr.pattern_score !== null) m.pattern_score = tr.pattern_score;
                     if (tr.mkt_capt && !m.mkt_capt) m.mkt_capt = tr.mkt_capt;
                     if (tr.price && !m.price) m.price = tr.price;
                     if (tr.board_code && !m.board_code) m.board_code = tr.board_code;
@@ -16221,8 +16221,18 @@
 
             // 异步补全当前页尚未拥有量化打分/估值数据的个股
             const missingCodes = pageMatches
-                .map(m => m.symbol || m.code)
-                .filter(c => c && (!window._screenerTsFetched || !window._screenerTsFetched.has(c)) && (!m.holder_ratio && !m.consec_days && !m.t_rate && !m.ystz));
+                .filter(stock => {
+                    const c = String(stock.symbol || stock.code || '');
+                    if (!c) return false;
+                    if (window._screenerTsFetched && window._screenerTsFetched.has(c)) return false;
+                    const hasData = (stock.holder_ratio && Number(stock.holder_ratio) > 0) ||
+                        (stock.consec_days !== undefined && stock.consec_days !== null && Number(stock.consec_days) !== 0) ||
+                        (stock.ystz !== undefined && stock.ystz !== null && Number(stock.ystz) !== 0) ||
+                        (stock.t_rate !== undefined && stock.t_rate !== null && Number(stock.t_rate) > 0);
+                    return !hasData;
+                })
+                .map(stock => String(stock.symbol || stock.code));
+
             if (missingCodes.length > 0 && !window._screenerTsFetching) {
                 window._screenerTsFetched = window._screenerTsFetched || new Set();
                 missingCodes.forEach(c => window._screenerTsFetched.add(c));
@@ -16234,30 +16244,30 @@
                     .then(res => res.json())
                     .then(data => {
                         window._screenerTsFetching = false;
-                        if (data && data.success && data.rows && data.rows.length > 0) {
+                        if (data && (data.success || data.rows) && data.rows && data.rows.length > 0) {
                             window._screenerTsCache = window._screenerTsCache || {};
                             data.rows.forEach(r => {
                                 window._screenerTsCache[r.stock_code] = r;
                                 if (window._lastScreenerMatches) {
-                                    const item = window._lastScreenerMatches.find(x => (x.symbol || x.code) === r.stock_code);
+                                    const item = window._lastScreenerMatches.find(x => String(x.symbol || x.code) === String(r.stock_code));
                                     if (item) {
-                                        if (r.buy_score !== undefined && (!item.buy_score || item.buy_score === 0)) item.buy_score = r.buy_score;
-                                        if (r.sell_score !== undefined && (!item.sell_score || item.sell_score === 0)) item.sell_score = r.sell_score;
-                                        if (r.consec_days !== undefined && (!item.consec_days || item.consec_days === 0)) item.consec_days = r.consec_days;
-                                        if (r.consec_amount !== undefined && (!item.consec_amount || item.consec_amount === 0)) item.consec_amount = r.consec_amount;
-                                        if (r.t_rate !== undefined && (!item.t_rate || item.t_rate === 0)) item.t_rate = r.t_rate;
-                                        if (r.v_rate !== undefined && (!item.v_rate || item.v_rate === 0)) item.v_rate = r.v_rate;
-                                        if (r.days !== undefined && (!item.days || item.days === 0)) item.days = r.days;
-                                        if (r.zig !== undefined && (!item.zig || item.zig === 0)) item.zig = r.zig;
-                                        if (r.ystz !== undefined && (!item.ystz || item.ystz === 0)) item.ystz = r.ystz;
-                                        if (r.sjltz !== undefined && (!item.sjltz || item.sjltz === 0)) item.sjltz = r.sjltz;
-                                        if (r.pe_percentile !== undefined && (!item.pe_percentile || item.pe_percentile === 0)) item.pe_percentile = r.pe_percentile;
-                                        if (r.holder_ratio !== undefined && (!item.holder_ratio || item.holder_ratio === 0)) item.holder_ratio = r.holder_ratio;
+                                        if (r.buy_score !== undefined && r.buy_score !== null) item.buy_score = r.buy_score;
+                                        if (r.sell_score !== undefined && r.sell_score !== null) item.sell_score = r.sell_score;
+                                        if (r.consec_days !== undefined && r.consec_days !== null) item.consec_days = r.consec_days;
+                                        if (r.consec_amount !== undefined && r.consec_amount !== null) item.consec_amount = r.consec_amount;
+                                        if (r.t_rate !== undefined && r.t_rate !== null) item.t_rate = r.t_rate;
+                                        if (r.v_rate !== undefined && r.v_rate !== null) item.v_rate = r.v_rate;
+                                        if (r.days !== undefined && r.days !== null) item.days = r.days;
+                                        if (r.zig !== undefined && r.zig !== null) item.zig = r.zig;
+                                        if (r.ystz !== undefined && r.ystz !== null) item.ystz = r.ystz;
+                                        if (r.sjltz !== undefined && r.sjltz !== null) item.sjltz = r.sjltz;
+                                        if (r.pe_percentile !== undefined && r.pe_percentile !== null) item.pe_percentile = r.pe_percentile;
+                                        if (r.holder_ratio !== undefined && r.holder_ratio !== null) item.holder_ratio = r.holder_ratio;
                                         if (r.holder_focus && r.holder_focus !== '--') item.holder_focus = r.holder_focus;
-                                        if (r.holders_num !== undefined && (!item.holders_num || item.holders_num === 0)) item.holders_num = r.holders_num;
+                                        if (r.holders_num !== undefined && r.holders_num !== null) item.holders_num = r.holders_num;
                                         if (r.holders_str && r.holders_str !== '--') item.holders_str = r.holders_str;
                                         if (r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0) item.holders_changes = r.holders_changes;
-                                        if (r.pattern_score !== undefined && (!item.pattern_score || item.pattern_score === 0)) item.pattern_score = r.pattern_score;
+                                        if (r.pattern_score !== undefined && r.pattern_score !== null) item.pattern_score = r.pattern_score;
                                         if (r.mkt_capt && !item.mkt_capt) item.mkt_capt = r.mkt_capt;
                                         if (r.price && !item.price) item.price = r.price;
                                         if (r.board_code && !item.board_code) item.board_code = r.board_code;
@@ -16278,6 +16288,8 @@
         }
 
         function renderScreenerTable(matches, strategyName, universeDesc) {
+            window._screenerTsFetched = new Set();
+            window._screenerTsFetching = false;
             window._lastScreenerMatches = matches;
             window._lastScreenerStrategy = strategyName;
             window._lastScreenerUniverse = universeDesc;
