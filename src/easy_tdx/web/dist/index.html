@@ -1212,6 +1212,7 @@
         html.light .stock-code-link,
         html.light a.stock-code-link,
         html.light #screener-results-table td:first-child a,
+        html.light #screener-results-table td:nth-child(3) a,
         html.light #screener-results-table td:nth-child(4) a,
         html.light #realtime-quotes-table td:first-child a,
         html.light #sector-stocks-table td:first-child a,
@@ -1222,6 +1223,7 @@
         html:not(.light) .stock-code-link,
         html:not(.light) a.stock-code-link,
         html:not(.light) #screener-results-table td:first-child a,
+        html:not(.light) #screener-results-table td:nth-child(3) a,
         html:not(.light) #screener-results-table td:nth-child(4) a,
         html:not(.light) #realtime-quotes-table td:first-child a,
         html:not(.light) #sector-stocks-table td:first-child a,
@@ -1232,6 +1234,7 @@
         .stock-code-link:hover,
         a.stock-code-link:hover,
         html.light #screener-results-table td:first-child a:hover,
+        html.light #screener-results-table td:nth-child(3) a:hover,
         html.light #screener-results-table td:nth-child(4) a:hover,
         html.light #realtime-quotes-table td:first-child a:hover,
         html.light #sector-stocks-table td:first-child a:hover,
@@ -1243,6 +1246,7 @@
         html:not(.light) .stock-code-link:hover,
         html:not(.light) a.stock-code-link:hover,
         html:not(.light) #screener-results-table td:first-child a:hover,
+        html:not(.light) #screener-results-table td:nth-child(3) a:hover,
         html:not(.light) #screener-results-table td:nth-child(4) a:hover,
         html:not(.light) #realtime-quotes-table td:first-child a:hover,
         html:not(.light) #sector-stocks-table td:first-child a:hover,
@@ -2888,7 +2892,6 @@
                     <table class="w-full text-left text-sm border-collapse min-w-[1750px]">
                         <thead class="text-xs text-slate-400 border-b border-slate-800 font-sans select-none bg-slate-950/95 sticky top-0 z-20">
                             <tr>
-                                <th class="py-2.5 px-2 text-center w-12 font-semibold">日线</th>
                                 <th class="py-2.5 px-2 text-center w-12 font-semibold">诊断</th>
                                 <th class="py-2.5 px-2 text-center w-10 font-semibold">自选</th>
                                 <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
@@ -2916,7 +2919,7 @@
                                     onclick="sortScreenerTable('chg')" title="点击按涨幅排序">涨幅%<span id="screener-sort-chg"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('net_1d')" title="点击按主力净流入1排序">主力净流入1<span id="screener-sort-net_1d"
+                                    onclick="sortScreenerTable('net_1d')" title="点击按主力净流入排序">主力净流入<span id="screener-sort-net_1d"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('consec_days')" title="点击按连续净流入排序">连续净流入<span id="screener-sort-consec_days"
@@ -2955,7 +2958,7 @@
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
                             <tr>
-                                <td colspan="23" class="py-8 text-center text-slate-500 text-xs">
+                                <td colspan="22" class="py-8 text-center text-slate-500 text-xs">
                                     请选择战法策略与选股范围后，点击上方「开始选股」</td>
                             </tr>
                         </tbody>
@@ -15995,7 +15998,7 @@
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="23" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="22" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 updateScreenerPaginationUI(0, 0, 1, 1, 0, 0);
                 return;
             }
@@ -16022,24 +16025,25 @@
                 // 若有全局交易系统或批次缓存，自动补齐对应财务与多因子指标
                 const tr = tsMap.get(code) || scrCache[code] || null;
                 if (tr) {
-                    if (m.buy_score === undefined || m.buy_score === null) m.buy_score = tr.buy_score;
-                    if (m.sell_score === undefined || m.sell_score === null) m.sell_score = tr.sell_score;
-                    if (m.consec_days === undefined || m.consec_days === null) m.consec_days = tr.consec_days;
-                    if (m.consec_amount === undefined || m.consec_amount === null) m.consec_amount = tr.consec_amount;
-                    if (m.t_rate === undefined || m.t_rate === null) m.t_rate = tr.t_rate;
-                    if (m.v_rate === undefined || m.v_rate === null) m.v_rate = tr.v_rate;
-                    if (m.days === undefined || m.days === null) m.days = tr.days;
-                    if (m.zig === undefined || m.zig === null) m.zig = tr.zig;
-                    if (m.ystz === undefined || m.ystz === null) m.ystz = tr.ystz;
-                    if (m.sjltz === undefined || m.sjltz === null) m.sjltz = tr.sjltz;
-                    if (m.pe_percentile === undefined || m.pe_percentile === null) m.pe_percentile = tr.pe_percentile;
-                    if (m.holder_ratio === undefined || m.holder_ratio === null) m.holder_ratio = tr.holder_ratio;
-                    if (m.holder_focus === undefined || m.holder_focus === null) m.holder_focus = tr.holder_focus;
-                    if (m.holders_num === undefined || m.holders_num === null) m.holders_num = tr.holders_num;
-                    if (m.holders_str === undefined || m.holders_str === null) m.holders_str = tr.holders_str;
-                    if (m.holders_changes === undefined || m.holders_changes === null) m.holders_changes = tr.holders_changes;
-                    if (m.pattern_score === undefined || m.pattern_score === null) m.pattern_score = tr.pattern_score;
+                    if (tr.buy_score !== undefined && tr.buy_score !== null && (!m.buy_score || m.buy_score === 0)) m.buy_score = tr.buy_score;
+                    if (tr.sell_score !== undefined && tr.sell_score !== null && (!m.sell_score || m.sell_score === 0)) m.sell_score = tr.sell_score;
+                    if (tr.consec_days !== undefined && tr.consec_days !== null && (!m.consec_days || m.consec_days === 0)) m.consec_days = tr.consec_days;
+                    if (tr.consec_amount !== undefined && tr.consec_amount !== null && (!m.consec_amount || m.consec_amount === 0)) m.consec_amount = tr.consec_amount;
+                    if (tr.t_rate !== undefined && tr.t_rate !== null && (!m.t_rate || m.t_rate === 0)) m.t_rate = tr.t_rate;
+                    if (tr.v_rate !== undefined && tr.v_rate !== null && (!m.v_rate || m.v_rate === 0)) m.v_rate = tr.v_rate;
+                    if (tr.days !== undefined && tr.days !== null && (!m.days || m.days === 0)) m.days = tr.days;
+                    if (tr.zig !== undefined && tr.zig !== null && (!m.zig || m.zig === 0)) m.zig = tr.zig;
+                    if (tr.ystz !== undefined && tr.ystz !== null && (!m.ystz || m.ystz === 0)) m.ystz = tr.ystz;
+                    if (tr.sjltz !== undefined && tr.sjltz !== null && (!m.sjltz || m.sjltz === 0)) m.sjltz = tr.sjltz;
+                    if (tr.pe_percentile !== undefined && tr.pe_percentile !== null && (!m.pe_percentile || m.pe_percentile === 0)) m.pe_percentile = tr.pe_percentile;
+                    if (tr.holder_ratio !== undefined && tr.holder_ratio !== null && (!m.holder_ratio || m.holder_ratio === 0)) m.holder_ratio = tr.holder_ratio;
+                    if (tr.holder_focus && tr.holder_focus !== '--') m.holder_focus = tr.holder_focus;
+                    if (tr.holders_num !== undefined && tr.holders_num !== null && (!m.holders_num || m.holders_num === 0)) m.holders_num = tr.holders_num;
+                    if (tr.holders_str && tr.holders_str !== '--') m.holders_str = tr.holders_str;
+                    if (tr.holders_changes && Array.isArray(tr.holders_changes) && tr.holders_changes.length > 0 && (!m.holders_changes || m.holders_changes.length === 0)) m.holders_changes = tr.holders_changes;
+                    if (tr.pattern_score !== undefined && tr.pattern_score !== null && (!m.pattern_score || m.pattern_score === 0)) m.pattern_score = tr.pattern_score;
                     if (tr.mkt_capt && !m.mkt_capt) m.mkt_capt = tr.mkt_capt;
+                    if (tr.price && !m.price) m.price = tr.price;
                     if (tr.board_code && !m.board_code) m.board_code = tr.board_code;
                     if (tr.industry && tr.industry !== '--' && (!m.industry || m.industry === '--')) {
                         m.industry = tr.industry;
@@ -16047,53 +16051,49 @@
                     }
                 }
 
-                // 1. 日线
-                const periodLabel = m.period_name || m.period || '日线';
-                const btnPeriod = `<button onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}')" class="px-2 py-0.5 rounded text-xs border border-cyan-800/60 text-cyan-400 bg-cyan-950/40 hover:bg-cyan-900/60 transition cursor-pointer font-medium" title="点击查看【${name} (${code})】${periodLabel}实时K线行情与多周期技术分析">${periodLabel}</button>`;
-
-                // 2. 诊断
+                // 1. 诊断
                 const btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-800/60 text-indigo-400 bg-indigo-950/40 hover:bg-indigo-900/60 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>`;
 
-                // 3. 自选
+                // 2. 自选
                 const isChecked = (window.tsWatchlist && window.tsWatchlist.has(code)) ? 'checked' : '';
                 const chkWatch = `<input type="checkbox" onchange="toggleTsWatchlist('${code}', '${name}', this)" ${isChecked} title="加选/取消自选" class="cursor-pointer rounded border-slate-700 text-amber-500 focus:ring-0">`;
 
-                // 4. 代码
+                // 3. 代码
                 const codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-100 hover:text-cyan-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
 
-                // 5. 名称
+                // 4. 名称
                 const nameLink = `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}')" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
-                // 6. 行业
+                // 5. 行业
                 const indName = m.industry || m.board_name || '--';
                 const indClick = (indName !== '--') ? `onclick="openKlineModal('${m.board_code || indName}', '${indName}')" title="点击弹出【${indName}】行业板块K线"` : '';
                 const indClass = (indName !== '--') ? 'stock-click-link cursor-pointer text-slate-300 hover:text-cyan-400 font-medium' : 'text-slate-500';
                 const indLink = `<span ${indClick} class="${indClass} font-sans text-xs">${indName}</span>`;
 
-                // 7. 买入分 & 8. 卖出分
+                // 6. 买入分 & 7. 卖出分
                 const buyScoreBadge = renderScoreBadgeTs(m.buy_score, 'buy');
                 const sellScoreBadge = renderScoreBadgeTs(m.sell_score, 'sell');
 
-                // 9. 总市值
+                // 8. 总市值
                 const mktCaptVal = Number(m.mkt_capt || (m.total_mv_yi ? m.total_mv_yi * 1e8 : (m.total_mv ? m.total_mv * 1e8 : 0)));
                 const mktCaptStr = mktCaptVal > 0 ? fmtMoneyTs(mktCaptVal) : (m.market_cap_str || '-');
 
-                // 10. 现价
+                // 9. 现价
                 const priceVal = Number(m.price ?? m.close ?? 0);
                 const priceStr = priceVal > 0 ? priceVal.toFixed(2) : '-';
 
-                // 11. 涨幅%
+                // 10. 涨幅%
                 const pctVal = Number(m.pct ?? m.signal_change_pct ?? m.change_pct ?? 0);
                 const pctClass = pctVal >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
                 const pctPrefix = pctVal >= 0 ? '+' : '';
                 const pctStr = `${pctPrefix}${pctVal.toFixed(2)}%`;
 
-                // 12. 主力净流入1
+                // 11. 主力净流入
                 const ddeVal = Number(m.dde_net ?? m.main_net_amount ?? 0);
                 const ddeClass = ddeVal > 0 ? 'text-rose-500 font-semibold' : (ddeVal < 0 ? 'text-emerald-400 font-semibold' : 'text-slate-400');
                 const ddeStr = (ddeVal !== 0) ? fmtMoneyTs(ddeVal) : (m.inflow_1d_str || '-');
 
-                // 13. 连续净流入
+                // 12. 连续净流入
                 let consecHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (m.consec_days !== undefined && m.consec_days !== null && m.consec_days !== 0) {
                     const cAmtStr = m.consec_amount ? fmtMoneyTs(m.consec_amount) : '';
@@ -16104,22 +16104,22 @@
                     }
                 }
 
-                // 14. 换手%
+                // 13. 换手%
                 const tRateVal = Number(m.t_rate ?? m.turnover_rate ?? 0);
                 const starSellHtml = m.star_sell ? `<span class="text-emerald-500 font-bold text-xs ml-1" title="符合全网最佳卖出预警模型">★</span>` : '';
                 const tRateClass = tRateVal >= 10.0 ? 'text-rose-400 font-bold' : 'text-slate-300';
                 const tRateStr = tRateVal > 0 ? tRateVal.toFixed(2) + '%' : '-';
 
-                // 15. 成交额
+                // 14. 成交额
                 const amtVal = Number(m.amount ? m.amount : (m.amount_wan ? m.amount_wan * 10000 : 0));
                 const amtStr = amtVal > 0 ? fmtMoneyTs(amtVal) : (m.amount_wan ? Number(m.amount_wan).toLocaleString() + '万' : '-');
 
-                // 16. 连涨
+                // 15. 连涨
                 const daysVal = (m.days !== undefined && m.days !== null) ? Number(m.days) : 0;
                 const daysClass = daysVal > 0 ? 'text-rose-400 font-bold' : (daysVal < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400');
                 const daysStr = daysVal > 0 ? `+${daysVal}` : (daysVal !== 0 ? `${daysVal}` : '0');
 
-                // 17. ZIG
+                // 16. ZIG
                 let zigHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (m.zig !== undefined && m.zig !== null && m.zig !== 0) {
                     if (m.zig > 0) {
@@ -16129,7 +16129,7 @@
                     }
                 }
 
-                // 18. 营业同比
+                // 17. 营业同比
                 const ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;
                 let ystzHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (m.ystz !== undefined && m.ystz !== null && m.ystz !== 0) {
@@ -16137,7 +16137,7 @@
                     ystzHtml = `<a href="${ystzLink}" target="_blank" rel="noopener noreferrer" class="font-mono hover:underline ${yColor}" title="点击在雪球查看【${name}】主要财务指标">${m.ystz > 0 ? '+' : ''}${Number(m.ystz).toFixed(2)}%</a>`;
                 }
 
-                // 19. 净利润同比
+                // 18. 净利润同比
                 const sjltzLink = `https://a.13145188.xyz/sina_html/sina_${code}.html`;
                 let sjltzHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (m.sjltz !== undefined && m.sjltz !== null && m.sjltz !== 0) {
@@ -16145,7 +16145,7 @@
                     sjltzHtml = `<a href="${sjltzLink}" target="_blank" rel="noopener noreferrer" class="font-mono hover:underline ${sColor}" title="点击在新浪查看【${name}】财务分析">${m.sjltz > 0 ? '+' : ''}${Number(m.sjltz).toFixed(2)}%</a>`;
                 }
 
-                // 20. PE(3年分位)
+                // 19. PE(3年分位)
                 let peHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (m.pe_percentile !== undefined && m.pe_percentile !== null && Number(m.pe_percentile) > 0) {
                     const pVal = Number(m.pe_percentile);
@@ -16153,7 +16153,7 @@
                     peHtml = `<span class="font-mono ${pColor}" title="当前股价处于近3年估值区间的 ${pVal.toFixed(1)}% 分位">${pVal.toFixed(1)}%</span>`;
                 }
 
-                // 21. 股东集中度
+                // 20. 股东集中度
                 const hRatioVal = (m.holder_ratio !== undefined && m.holder_ratio !== null) ? Number(m.holder_ratio) : 0;
                 let holderRatioHtml = '<span class="text-slate-400 font-mono">-</span>';
                 if (hRatioVal > 0) {
@@ -16162,7 +16162,7 @@
                 }
                 const hTitle = `股东户数: ${m.holders_str || '-'}, 十大股东集中度: ${hRatioVal > 0 ? hRatioVal.toFixed(1) + '%' : '-'}, 集中度评价: ${m.holder_focus || '-'}`;
 
-                // 22. 股东人数
+                // 21. 股东人数
                 const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
                 const holdersNumText = (m.holders_str && m.holders_str !== '--') ? m.holders_str : (m.holders_num ? (m.holders_num >= 10000 ? (m.holders_num / 10000).toFixed(2) + '万' : m.holders_num + '户') : '-');
                 let holdersChangesHtml = '';
@@ -16181,7 +16181,7 @@
                     <a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-200 hover:text-cyan-400 hover:underline cursor-pointer" title="点击在雪球查看【${name}】股东人数及筹码变动详情">${holdersNumText}</a>${holdersChangesHtml}
                 </div>`;
 
-                // 23. 形态特征
+                // 22. 形态特征
                 let patternHtml = '';
                 if (m.patterns && Array.isArray(m.patterns) && m.patterns.length > 0 && typeof m.patterns[0] === 'object') {
                     patternHtml = renderPatternFeaturesTs(m);
@@ -16191,7 +16191,6 @@
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/60">
-                    <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnPeriod}</td>
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${btnDiag}</td>
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${chkWatch}</td>
                     <td class="py-2.5 px-2.5 whitespace-nowrap">${codeLink}</td>
@@ -16223,7 +16222,7 @@
             // 异步补全当前页尚未拥有量化打分/估值数据的个股
             const missingCodes = pageMatches
                 .map(m => m.symbol || m.code)
-                .filter(c => c && (!window._screenerTsFetched || !window._screenerTsFetched.has(c)) && (!m.buy_score && !m.holder_ratio));
+                .filter(c => c && (!window._screenerTsFetched || !window._screenerTsFetched.has(c)) && (!m.holder_ratio && !m.consec_days && !m.t_rate && !m.ystz));
             if (missingCodes.length > 0 && !window._screenerTsFetching) {
                 window._screenerTsFetched = window._screenerTsFetched || new Set();
                 missingCodes.forEach(c => window._screenerTsFetched.add(c));
@@ -16231,7 +16230,7 @@
                 const activePeriod = (document.getElementById('screener-period-select')?.value || 'DAY').toLowerCase();
                 const pMap = { 'day': 'day', '30m': '30m', '60m': '60m', '120m': '120m', 'week': 'week', 'month': 'month' };
                 const reqPeriod = pMap[activePeriod] || 'day';
-                fetch(`/api/trading_system/dashboard?symbols=${missingCodes.slice(0, 30).join(',')}&period=${reqPeriod}`)
+                fetch(`/api/trading_system/dashboard?symbols=${missingCodes.slice(0, 50).join(',')}&period=${reqPeriod}`)
                     .then(res => res.json())
                     .then(data => {
                         window._screenerTsFetching = false;
@@ -16239,6 +16238,35 @@
                             window._screenerTsCache = window._screenerTsCache || {};
                             data.rows.forEach(r => {
                                 window._screenerTsCache[r.stock_code] = r;
+                                if (window._lastScreenerMatches) {
+                                    const item = window._lastScreenerMatches.find(x => (x.symbol || x.code) === r.stock_code);
+                                    if (item) {
+                                        if (r.buy_score !== undefined && (!item.buy_score || item.buy_score === 0)) item.buy_score = r.buy_score;
+                                        if (r.sell_score !== undefined && (!item.sell_score || item.sell_score === 0)) item.sell_score = r.sell_score;
+                                        if (r.consec_days !== undefined && (!item.consec_days || item.consec_days === 0)) item.consec_days = r.consec_days;
+                                        if (r.consec_amount !== undefined && (!item.consec_amount || item.consec_amount === 0)) item.consec_amount = r.consec_amount;
+                                        if (r.t_rate !== undefined && (!item.t_rate || item.t_rate === 0)) item.t_rate = r.t_rate;
+                                        if (r.v_rate !== undefined && (!item.v_rate || item.v_rate === 0)) item.v_rate = r.v_rate;
+                                        if (r.days !== undefined && (!item.days || item.days === 0)) item.days = r.days;
+                                        if (r.zig !== undefined && (!item.zig || item.zig === 0)) item.zig = r.zig;
+                                        if (r.ystz !== undefined && (!item.ystz || item.ystz === 0)) item.ystz = r.ystz;
+                                        if (r.sjltz !== undefined && (!item.sjltz || item.sjltz === 0)) item.sjltz = r.sjltz;
+                                        if (r.pe_percentile !== undefined && (!item.pe_percentile || item.pe_percentile === 0)) item.pe_percentile = r.pe_percentile;
+                                        if (r.holder_ratio !== undefined && (!item.holder_ratio || item.holder_ratio === 0)) item.holder_ratio = r.holder_ratio;
+                                        if (r.holder_focus && r.holder_focus !== '--') item.holder_focus = r.holder_focus;
+                                        if (r.holders_num !== undefined && (!item.holders_num || item.holders_num === 0)) item.holders_num = r.holders_num;
+                                        if (r.holders_str && r.holders_str !== '--') item.holders_str = r.holders_str;
+                                        if (r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0) item.holders_changes = r.holders_changes;
+                                        if (r.pattern_score !== undefined && (!item.pattern_score || item.pattern_score === 0)) item.pattern_score = r.pattern_score;
+                                        if (r.mkt_capt && !item.mkt_capt) item.mkt_capt = r.mkt_capt;
+                                        if (r.price && !item.price) item.price = r.price;
+                                        if (r.board_code && !item.board_code) item.board_code = r.board_code;
+                                        if (r.industry && r.industry !== '--' && (!item.industry || item.industry === '--')) {
+                                            item.industry = r.industry;
+                                            item.board_name = r.industry;
+                                        }
+                                    }
+                                }
                             });
                             renderScreenerTablePage();
                         }

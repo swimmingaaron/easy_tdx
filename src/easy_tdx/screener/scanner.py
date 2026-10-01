@@ -297,23 +297,21 @@ def enrich_stocks_with_inflows(stocks: list[dict[str, Any]]) -> None:
         logger.debug(f"Failed to enrich screener stocks with trading system data: {e}")
 
     for s in stocks:
-        s.setdefault("buy_score", 0)
-        s.setdefault("sell_score", 0)
-        s.setdefault("consec_days", 0)
-        s.setdefault("consec_amount", 0.0)
-        s.setdefault("t_rate", 0.0)
-        s.setdefault("v_rate", 0.0)
-        s.setdefault("days", 0)
-        s.setdefault("zig", 0)
-        s.setdefault("ystz", 0.0)
-        s.setdefault("sjltz", 0.0)
-        s.setdefault("pe_percentile", 0.0)
-        s.setdefault("holder_ratio", 0.0)
-        s.setdefault("holder_focus", "--")
-        s.setdefault("holders_num", 0)
-        s.setdefault("holders_str", "--")
-        s.setdefault("holders_changes", [])
-        s.setdefault("pattern_score", 0)
+        for k, def_val in [
+            ("buy_score", 0), ("sell_score", 0), ("consec_days", 0),
+            ("consec_amount", 0.0), ("t_rate", 0.0), ("v_rate", 0.0),
+            ("days", 0), ("zig", 0), ("ystz", 0.0), ("sjltz", 0.0),
+            ("pe_percentile", 0.0), ("holder_ratio", 0.0), ("holders_num", 0),
+            ("pattern_score", 0)
+        ]:
+            if s.get(k) is None:
+                s[k] = def_val
+        if not s.get("holder_focus"):
+            s["holder_focus"] = "--"
+        if not s.get("holders_str"):
+            s["holders_str"] = "--"
+        if s.get("holders_changes") is None:
+            s["holders_changes"] = []
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
