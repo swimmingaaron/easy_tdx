@@ -4265,23 +4265,6 @@
                     <span id="kp-full-symbol-inline" class="hidden">300142.SZ</span>
                     <span id="kp-stock-name-inline" class="hidden">沃森生物</span>
 
-                    <!-- Prev / Next Stock Navigation Group (上一个 / 下一个标的快速切换) -->
-                    <div id="kp-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm ml-1 shrink-0">
-                        <button id="kp-prev-btn" onclick="switchKlinePrevStock()"
-                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
-                            title="上一个标的 (快捷键: PageUp 或 Alt+←)">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                            <span>上一个</span>
-                        </button>
-                        <span id="kp-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在列表中的序号">--/--</span>
-                        <button id="kp-next-btn" onclick="switchKlineNextStock()"
-                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
-                            title="下一个标的 (快捷键: PageDown 或 Alt+→)">
-                            <span>下一个</span>
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
                     <div class="flex items-baseline space-x-1 font-mono ml-1">
                         <span id="kp-price" class="text-base sm:text-lg font-black text-rose-500">14.28</span>
                         <span id="kp-change" class="text-xs font-bold text-rose-500">+0.85</span>
@@ -4402,6 +4385,23 @@
                         <div id="kp-search-dropdown"
                             class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
                         </div>
+                    </div>
+
+                    <!-- Prev / Next Stock Navigation Group (上一个 / 下一个标的快速切换，放置在搜索框后) -->
+                    <div id="kp-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm ml-1 shrink-0">
+                        <button id="kp-prev-btn" onclick="switchKlinePrevStock()"
+                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                            title="上一个标的 (快捷键: PageUp 或 Alt+←)">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            <span>上一个</span>
+                        </button>
+                        <span id="kp-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在列表中的序号">--/--</span>
+                        <button id="kp-next-btn" onclick="switchKlineNextStock()"
+                            class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                            title="下一个标的 (快捷键: PageDown 或 Alt+→)">
+                            <span>下一个</span>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </button>
                     </div>
                 </div>
             </div>
