@@ -8377,8 +8377,13 @@
             // Update Dynamic Bar details
             updateKpBarDetails(currentBar, prevBar);
 
-            // Render chart with dynamically sliced bars
-            renderKpChart({ ...baseJson, data: slicedBars });
+            // Render chart with dynamically sliced bars (显式传递 isCutoff，回测推演时清除静态 patterns，实时量化当前切片日期形态)
+            renderKpChart({
+                ...baseJson,
+                data: slicedBars,
+                isCutoff: isCutoff,
+                patterns: isCutoff ? null : baseJson.patterns
+            });
 
             // 若历史 ZIG 列表弹窗处于打开状态，联动同步刷新显示该时点的最新 ZIG 明细
             const zigModal = document.getElementById('kp-zig-history-modal');
@@ -9092,18 +9097,52 @@
         }
 
         // =========================================================================
-        // K线蜡烛图左上角：形态特征量化识别引擎与分类器 (支持最新日期与历史回测推演)
+        // 全局形态特征字典与红绿多空分类器 (利好: 红色 up, 利空: 绿色 down, 中性: 灰色 neutral)
         // =========================================================================
+        const GLOBAL_PATTERN_MAP = {
+            // === 利好 (看涨 / 买入 / 突破 / 企稳反弹) -> 红色 ===
+            '放量突破': 'up', '蛟龙出海': 'up', '出水芙蓉': 'up', '均线多头': 'up', '金蜘蛛': 'up', '价托': 'up', '缩量回踩': 'up', '上升三法': 'up',
+            '红三兵': 'up', '启明星': 'up', '早晨之星': 'up', '曙光初现': 'up', '旭日东升': 'up', '阳包阴': 'up', '看涨吞没': 'up', '锤子线': 'up',
+            '倒锤子线': 'up', '多方炮': 'up', '长下影十字': 'up', '低位十字星': 'up', '双针探底': 'up', '底分型': 'up',
+            '向上跳空缺口': 'up', '布林突破': 'up',
+            'MACD金叉': 'up', '零上金叉': 'up', '零轴下金叉': 'up', 'MACD底背离': 'up', 'KDJ金叉': 'up', 'KDJ低位金叉': 'up', 'KDJ超卖': 'up',
+            'RSI底背离': 'up', 'RSI超卖': 'up', 'CCI突破': 'up', 'CCI超卖': 'up', 'OBV创新高': 'up', '布林下轨支撑': 'up',
+            '价涨量增': 'up', '放量反弹': 'up',
+            'TD9见底': 'up', 'TD9买点': 'up', 'TD13见底': 'up', 'TD13买点': 'up', 'TD买入结构': 'up', 'ZIG波谷启动': 'up', '波谷启动': 'up', '买点': 'up',
+
+            // === 利空 (看跌 / 卖出 / 阻力 / 见顶回落) -> 绿色 ===
+            '均线空头': 'down', '空头排列': 'down', '死蜘蛛': 'down', '价压': 'down', '放量下跌': 'down', '放量滞涨': 'down', '下降三法': 'down', '弱势整理': 'down',
+            '三只乌鸦': 'down', '乌云盖顶': 'down', '倾盆大雨': 'down', '阴包阳': 'down', '看跌吞没': 'down', '黄昏之星': 'down', '空方炮': 'down',
+            '射击之星': 'down', '流星线': 'down', '吊颈线': 'down', '长上影十字': 'down', '顶分型': 'down',
+            '向下跳空缺口': 'down', '布林跌破': 'down',
+            'MACD死叉': 'down', 'MACD顶背离': 'down', 'KDJ死叉': 'down', 'KDJ高位死叉': 'down', 'KDJ超买': 'down',
+            'RSI顶背离': 'down', 'RSI超买': 'down', 'OBV顶背离': 'down', '布林上轨压力': 'down', '布林上轨压制': 'down',
+            '量价背离': 'down', '放量跌破': 'down',
+            'TD9见顶': 'down', 'TD9卖点': 'down', 'TD13见顶': 'down', 'TD13卖点': 'down', 'TD买入结构': 'down', 'ZIG见顶回落': 'down', '见顶回落': 'down', '卖点': 'down',
+
+            // === 中性 (整理 / 观望 / 蓄势) -> 灰色 ===
+            '震荡整理': 'neutral', '震荡蓄势': 'neutral', '布林收口': 'neutral', '布林开口': 'neutral',
+            '十字星': 'neutral', '十字孕线': 'neutral', '孕线': 'neutral', '地量': 'neutral', '缩量整理': 'neutral'
+        };
+
+        function getPatternType(p) {
+            if (!p) return 'neutral';
+            const str = (typeof p === 'object' && p.name) ? p.name : String(p).trim();
+            if (!str) return 'neutral';
+            if (GLOBAL_PATTERN_MAP[str]) return GLOBAL_PATTERN_MAP[str];
+            const bullKws = ['金叉', '突破', '底背离', '买', '红', '多', '托', '出海', '芙蓉', '支撑', '阳', '升', '星', '初现', '量增', '企稳', '超卖', '回踩', '底'];
+            const bearKws = ['死叉', '跌破', '顶背离', '卖', '绿', '空', '压', '乌鸦', '大雨', '盖顶', '阴', '落', '超买', '滞涨', '弱势', '背离', '顶'];
+            if (bullKws.some(k => str.includes(k))) return 'up';
+            if (bearKws.some(k => str.includes(k))) return 'down';
+            return 'neutral';
+        }
+
         function isBullPattern(name) {
-            if (!name) return false;
-            const bullKeywords = ['突破', '红三兵', '海', '蓉', '多头', '多方', '启明', '早晨', '曙光', '东升', '阳包阴', '吞没', '锤子', '双针', '回踩', '金蜘蛛', '价托', '金叉', '支撑', '量增', '买点', '启动', '翻红', '买入', '底背离', '底离'];
-            return bullKeywords.some(k => name.includes(k));
+            return getPatternType(name) === 'up';
         }
 
         function isBearPattern(name) {
-            if (!name) return false;
-            const bearKeywords = ['乌鸦', '盖顶', '大雨', '阴包阳', '空头', '黄昏', '下降三法', '射击', '流星', '吊颈', '空方', '死蜘蛛', '价压', '死叉', '压制', '卖点', '见顶', '回落', '卖出', '顶背离', '顶离'];
-            return bearKeywords.some(k => name.includes(k));
+            return getPatternType(name) === 'down';
         }
 
         function detectClientPatterns(bars) {
@@ -9132,7 +9171,7 @@
 
             const patterns = [];
 
-            // 1. 放量突破
+            // 1. 放量突破 / 均线突破
             if (n >= 20) {
                 let maxH20 = -Infinity;
                 for (let i = Math.max(0, n - 21); i < n - 1; i++) {
@@ -9229,35 +9268,82 @@
             }
 
             // 5. 指标共振形态
+            // KDJ 金叉 / 死叉 / 超买 / 超卖
             if (cur.kdj_k != null && cur.kdj_d != null && prev.kdj_k != null && prev.kdj_d != null) {
                 if (cur.kdj_k > cur.kdj_d && prev.kdj_k <= prev.kdj_d) {
                     patterns.push(cur.kdj_k < 45 ? 'KDJ低位金叉' : 'KDJ金叉');
                 } else if (cur.kdj_k < cur.kdj_d && prev.kdj_k >= prev.kdj_d) {
                     patterns.push(cur.kdj_k > 70 ? 'KDJ高位死叉' : 'KDJ死叉');
+                } else if (cur.kdj_k >= 85) {
+                    patterns.push('KDJ超买');
+                } else if (cur.kdj_k <= 15) {
+                    patterns.push('KDJ超卖');
                 }
             }
+
+            // MACD 金叉 / 死叉 / 零轴穿越
             if (cur.macd_dif != null && cur.macd_dea != null && prev.macd_dif != null && prev.macd_dea != null) {
                 if (cur.macd_dif > cur.macd_dea && prev.macd_dif <= prev.macd_dea) {
-                    patterns.push(cur.macd_dif > 0 ? 'MACD零上金叉' : 'MACD金叉');
+                    if (cur.macd_dif < 0) {
+                        patterns.push('零轴下金叉');
+                    } else {
+                        patterns.push('零上金叉');
+                    }
                 } else if (cur.macd_dif < cur.macd_dea && prev.macd_dif >= prev.macd_dea) {
                     patterns.push('MACD死叉');
                 }
             }
+
+            // CCI (14) 计算
+            if (n >= 14) {
+                let tpSum = 0;
+                const tps = [];
+                for (let i = n - 14; i < n; i++) {
+                    const tp = (Number(bars[i].high) + Number(bars[i].low) + Number(bars[i].close)) / 3;
+                    tps.push(tp);
+                    tpSum += tp;
+                }
+                const maTp = tpSum / 14;
+                let mdSum = 0;
+                for (let i = 0; i < 14; i++) {
+                    mdSum += Math.abs(tps[i] - maTp);
+                }
+                const md = mdSum / 14;
+                const cci = md > 0 ? (tps[13] - maTp) / (0.015 * md) : 0;
+                if (cci > 100) patterns.push('CCI突破');
+                else if (cci < -100) patterns.push('CCI超卖');
+            }
+
+            // 布林带形态
             if (cur.boll_low != null && cur_l <= cur.boll_low * 1.015 && cur_c > cur.boll_low) {
                 patterns.push('布林下轨支撑');
             } else if (cur.boll_up != null && cur_h >= cur.boll_up * 0.985 && cur_c < cur_h) {
-                patterns.push('布林上轨压制');
+                patterns.push('布林上轨压力');
             }
+            if (cur.boll_up != null && cur.boll_low != null && prev.boll_up != null && prev.boll_low != null) {
+                const curWidth = cur.boll_up - cur.boll_low;
+                const prevWidth = prev.boll_up - prev.boll_low;
+                if (curWidth < prevWidth * 0.96) patterns.push('布林收口');
+                else if (curWidth > prevWidth * 1.05) patterns.push('布林开口');
+            }
+
+            // 量价形态
             if (cur_c > prev_c && cur_v > prev_v * 1.25) {
                 patterns.push('价涨量增');
             } else if (cur_c <= prev_c && cur_v < prev_v * 0.75 && ma20 > 0 && cur_c >= ma20 * 0.985) {
                 patterns.push('缩量回踩');
+            } else if (cur_c < prev_c && cur_v > prev_v * 1.4) {
+                patterns.push('放量下跌');
             }
+
+            // TD 见底/见顶
             if (cur.td9_low === 9 || cur.td13_low === 13) {
-                patterns.push(cur.td13_low === 13 ? 'TD13买点' : 'TD9买点');
+                patterns.push(cur.td13_low === 13 ? 'TD13见底' : 'TD9见底');
             } else if (cur.td9_high === 9 || cur.td13_high === 13) {
-                patterns.push(cur.td13_high === 13 ? 'TD13卖点' : 'TD9卖点');
+                patterns.push(cur.td13_high === 13 ? 'TD13见顶' : 'TD9见顶');
             }
+
+            // ZIG 转向
             if (cur.zig_buy) patterns.push('ZIG波谷启动');
             else if (cur.zig_sell) patterns.push('ZIG见顶回落');
 
@@ -9270,17 +9356,18 @@
             const rawDt = String(lastBar.datetime || '').trim();
             const dateStr = rawDt.split(' ')[0] || rawDt;
 
-            // 1. 若当前为最新全量数据（未被历史推演切片），优先读取后端专业分析结果
-            if (json && Array.isArray(json.patterns) && json.patterns.length > 0) {
-                const fullBars = json.data || [];
-                const fullLastBar = fullBars.length > 0 ? fullBars[fullBars.length - 1] : null;
-                const fullLastDt = fullLastBar ? String(fullLastBar.datetime || '').trim().split(' ')[0] : '';
-                if (!fullLastDt || fullLastDt === dateStr) {
-                    return { date: dateStr, patterns: json.patterns };
-                }
+            // 1. 判断是否处于回测推演或历史切片状态
+            const isCutoff = (json && json.isCutoff) ||
+                (typeof currentKpCutoffIndex !== 'undefined' && currentKpCutoffIndex >= 0 && currentKpFullBars && currentKpCutoffIndex < currentKpFullBars.length - 1) ||
+                (currentKpFullBars && bars.length < currentKpFullBars.length) ||
+                (currentKpCutoffDate != null);
+
+            // 若不是回测切片状态（即正常查看最右侧最新全量数据），优先读取后端返回的形态特征
+            if (!isCutoff && json && Array.isArray(json.patterns) && json.patterns.length > 0) {
+                return { date: dateStr, patterns: json.patterns };
             }
 
-            // 2. 否则进行动态前端量化推演检测
+            // 2. 回测推演或日期更改时，针对当前切片的最右侧截止日期动态进行全量指标与形态特征推演计算
             const clientPats = detectClientPatterns(bars);
             return { date: dateStr, patterns: (clientPats && clientPats.length > 0) ? clientPats : ['震荡整理'] };
         }
@@ -10433,7 +10520,7 @@
             };
 
             const patTokens = displayPats.map(p => {
-                const tag = isBullPattern(p) ? 'up' : (isBearPattern(p) ? 'down' : 'neutral');
+                const tag = getPatternType(p); // 利好: up (红色), 利空: down (绿色), 中性: neutral (灰色)
                 return `{${tag}|${p}}`;
             });
             patternRichText += patTokens.join('{sep| · }');
@@ -12693,7 +12780,7 @@
             const btDisplayPats = btPats.slice(0, 5);
             let btPatternRichText = `{date|${btLatestDate}} {lbl|形态特征: }`;
             const btPatTokens = btDisplayPats.map(p => {
-                const tag = isBullPattern(p) ? 'up' : (isBearPattern(p) ? 'down' : 'neutral');
+                const tag = getPatternType(p); // 利好: up (红色), 利空: down (绿色), 中性: neutral (灰色)
                 return `{${tag}|${p}}`;
             });
             btPatternRichText += btPatTokens.join('{sep| · }');
@@ -13711,44 +13798,15 @@
 
         function formatSinglePattern(p) {
             if (!p) return '';
-            const pStr = (typeof p === 'object' && p.name) ? p.name : String(p);
+            const pStr = (typeof p === 'object' && p.name) ? p.name : String(p).trim();
             if (!pStr) return '';
-            // 下跌信号: 绿色 (中国A股下跌绿)
-            const isBearish = (
-                pStr.includes('乌鸦') || pStr.includes('乌云盖顶') || pStr.includes('倾盆大雨') ||
-                pStr.includes('阴包阳') || pStr.includes('黄昏之星') || pStr.includes('下降三法') ||
-                pStr.includes('射击之星') || pStr.includes('流星') || pStr.includes('吊颈线') ||
-                pStr.includes('空方炮') || pStr.includes('死蜘蛛') || pStr.includes('价压') ||
-                pStr.includes('空头') || pStr.includes('顶分型') || pStr.includes('死叉') ||
-                pStr.includes('放量下跌') || pStr.includes('滞涨') || pStr.includes('顶背离') ||
-                pStr.includes('见顶') || pStr.includes('跌破') || pStr.includes('压力') ||
-                pStr.includes('弱势') || pStr.includes('量价背离') || pStr.includes('向下跳空') ||
-                pStr.includes('超买') || pStr.includes('长上影')
-            );
-
-            // 上涨信号: 红色 (中国A股上涨红)
-            const isBullish = (
-                pStr.includes('突破') || pStr.includes('出水芙蓉') || pStr.includes('蛟龙出海') ||
-                pStr.includes('金蜘蛛') || pStr.includes('起爆') || pStr.includes('旭日东升') ||
-                pStr.includes('多方炮') || pStr.includes('上升三法') || pStr.includes('价托') ||
-                pStr.includes('多头') || pStr.includes('红三兵') || pStr.includes('阳包阴') ||
-                pStr.includes('启明星') || pStr.includes('曙光初现') || pStr.includes('价涨量增') ||
-                pStr.includes('OBV创新高') || pStr.includes('回踩') || pStr.includes('底分型') ||
-                pStr.includes('锤子线') || pStr.includes('倒锤子') || pStr.includes('低位金叉') ||
-                pStr.includes('超卖') || pStr.includes('底背离') || pStr.includes('蓄势') ||
-                pStr.includes('支撑') || pStr.includes('见底') || pStr.includes('希望') ||
-                pStr.includes('金叉') || pStr.includes('共振') || pStr.includes('向上跳空') ||
-                pStr.includes('长下影') || pStr.includes('低位十字') ||
-                pStr.includes('高序列') || pStr.includes('九转高')
-            );
-
+            const type = getPatternType(pStr);
             let textColor = 'text-slate-400 font-medium';
-            if (isBearish) {
-                textColor = 'text-emerald-500 font-bold';
-            } else if (isBullish) {
-                textColor = 'text-rose-500 font-bold';
+            if (type === 'up') {
+                textColor = 'text-rose-500 dark:text-rose-400 font-bold'; // 利好: 红色
+            } else if (type === 'down') {
+                textColor = 'text-emerald-500 dark:text-emerald-400 font-bold'; // 利空: 绿色
             }
-
             return `<span class="text-xs whitespace-nowrap select-none ${textColor}" title="${pStr}">${pStr}</span>`;
         }
 
