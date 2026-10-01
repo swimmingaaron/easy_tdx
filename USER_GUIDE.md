@@ -178,7 +178,7 @@ python run.py --help
 | **volume_breakout_platform** | 放量平台突破 | daily_analysis | 长期横盘整理后，单日成交量超过 5日均量 2 倍以上并长阳突破平台阻力 |
 | **wave_theory_impulse** | 波浪理论主升浪 | daily_analysis | 识别第 2 浪调整结束点，在第 3 浪主升浪确认突破时重仓进场 |
 | **td_sequential** | 通达信上升九转 | technical | 狄马克 TD 序列严格 9 转递增模型，高 3 确认启动，高 9 预警见顶 |
-| **ma_quadrilateral** | 通达信均线四边形 (擒牛战法) | technical | MA5/MA10/MA20/MA60围成规则几何四边形，严禁K线实体与上下影线侵入四边形区域，支持平行四边形规则度打分、沿5日线强攻与回踩10/20/60日线抢筹低吸多买点 |
+| **ma_quadrilateral** | 通达信均线四边形 (擒牛战法) | technical | MA5/MA10/MA20/MA60围成规则几何四边形，支持生命线MA60趋势站稳过滤、KDJ/RSI/MACD动能多头共振、平行四边形规则度打分、沿5日线强攻与回踩10/20/60日线抢筹低吸多买点 |
 | *(其余 31 套基础策略)* | 双均线/MACD/KDJ/布林带/海龟/ERP等 | technical / short_term / factor / macro | 涵盖经典技术指标、动量短线、Alpha 因子分层与宏观择时策略 |
 
 ---
