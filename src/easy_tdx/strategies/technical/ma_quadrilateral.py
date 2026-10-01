@@ -31,9 +31,13 @@ P3:=CROSS(MA10,MA20);
 D3:=REF(DD,BARSLAST(P3));
 P4:=CROSS(MA10,MA60);
 D4:=REF(DD,BARSLAST(P4));
+{ P3、P4 交叉点收盘价不能低于 MA60 }
+C3_OK:=REF(C>=MA60*0.995,BARSLAST(P3));
+C4_OK:=REF(C>=MA60*0.995,BARSLAST(P4));
 XG: EXIST(P1,10) AND EXIST(P2,10) AND EXIST(P3,10) AND EXIST(P4,10) 
 AND D1!=D2 AND D1!=D3 AND D1!=D4
-AND D2!=D3 AND D2!=D4 AND D3!=D4;
+AND D2!=D3 AND D2!=D4 AND D3!=D4
+AND C3_OK AND C4_OK;
 
 四边形擒牛实战图解与深度量化优化精要:
 ----------------------------------------
@@ -41,6 +45,7 @@ AND D2!=D3 AND D2!=D4 AND D3!=D4;
    - 5、10、20、60日均线在低位围成规则的几何四边形。
    - 左边为 5日线(白线)，右边为 10日线(黄线)，下边为 20日线(紫线)，上边为 60日线(绿线)。
    - 突破进攻时，允许 MA5 同日上穿 MA20与MA60，或 MA10 同日上穿 MA20与MA60（大阳线强力起爆一穿二）。
+   - 【关键铁律】：P3(10日线上穿20日线) 与 P4(10日线上穿60日线) 交叉发生当日，收盘价绝对不能低于生命线 MA60，坚决排除右侧在生命线下方弱势缠绕的假突破。
 2. 生命线 MA60 与中线 MA20 趋势铁律：
    - 成功案例的收盘价必须突破并站在 MA60 之上，彻底摆脱 60日生命线压制；
    - MA60 必须止跌走平或向上拐头（坚决排除 MA60 呈陡峭下行压制走势的假突破诱多反弹）；
@@ -306,6 +311,12 @@ class MAQuadrilateralStrategy(BaseStrategy):
                                 no_candle_inside = False
                                 break
 
+                # 8. P3 与 P4 交叉点收盘价硬约束:
+                #    P3(10日线上穿20日线) 与 P4(10日线上穿60日线) 交叉发生当日，收盘价均不能低于生命线 MA60
+                p3_c_ok = (last_3 >= 0) and (c[last_3] >= ma60[last_3] * 0.995)
+                p4_c_ok = (last_4 >= 0) and (c[last_4] >= ma60[last_4] * 0.995)
+                p3_p4_above_ma60 = p3_c_ok and p4_c_ok
+
                 if (
                     geo_order_ok
                     and not_all_same
@@ -315,6 +326,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     and ma60_filter_ok
                     and resonance_ok
                     and no_candle_inside
+                    and p3_p4_above_ma60
                 ):
                     xg[i] = True
 
