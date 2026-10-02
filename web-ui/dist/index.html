@@ -5472,9 +5472,25 @@
 
         const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders'];
 
+        function getActiveTabName() {
+            if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
+            const hash = (window.location.hash || '').replace('#', '').trim().toLowerCase();
+            if (hash && VALID_TABS.includes(hash)) return hash;
+            for (const t of VALID_TABS) {
+                const v = document.getElementById(`view-${t}`);
+                if (v && !v.classList.contains('hidden')) return t;
+            }
+            return 'dashboard';
+        }
+        window.getActiveTabName = getActiveTabName;
+
         function switchTab(tId, updateHash = true) {
             if (!VALID_TABS.includes(tId)) {
                 tId = 'dashboard';
+            }
+            window.currentTab = tId;
+            if (tId === 'screener' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                window._currentKlineNavList = window._lastScreenerMatches;
             }
             VALID_TABS.forEach(t => {
                 const btn = document.getElementById(`tab-${t}`);
@@ -6087,7 +6103,7 @@
         }
 
         let _currentLoadedKpSymbol = '';
-        let _currentKlineNavList = null;
+        window._currentKlineNavList = window._currentKlineNavList || null;
         let _currentKlineNavIndex = -1;
 
         function normalizeStockCode(code) {
@@ -6115,23 +6131,31 @@
         function getActiveKlineStockList() {
             const sym = currentKpSymbol;
             const name = currentKpStockName || (document.getElementById('kp-stock-name')?.innerText || '');
+            const activeTab = (typeof getActiveTabName === 'function') ? getActiveTabName() : ((window.location.hash || '').replace('#', '').trim() || 'dashboard');
 
-            // 1. If explicitly set nav list contains current stock, prioritize it
-            if (Array.isArray(_currentKlineNavList) && _currentKlineNavList.length > 0) {
-                const idx = findStockIndexInList(_currentKlineNavList, sym, name);
-                if (idx !== -1) {
-                    return { list: _currentKlineNavList, index: idx };
+            // 1. If currently in screener view and we have screener matches containing this stock, always prioritize screener matches!
+            if (activeTab === 'screener' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                const sIdx = findStockIndexInList(window._lastScreenerMatches, sym, name);
+                if (sIdx !== -1) {
+                    window._currentKlineNavList = window._lastScreenerMatches;
+                    return { list: window._currentKlineNavList, index: sIdx };
                 }
             }
 
-            // Determine active tab to prioritize corresponding pool
-            const hash = (window.location.hash || '').replace('#', '').toLowerCase();
-            const activeTab = (typeof currentTab !== 'undefined' && currentTab) ? currentTab : hash;
+            // 2. If explicitly set nav list contains current stock, prioritize it
+            if (Array.isArray(window._currentKlineNavList) && window._currentKlineNavList.length > 0) {
+                const idx = findStockIndexInList(window._currentKlineNavList, sym, name);
+                if (idx !== -1) {
+                    return { list: window._currentKlineNavList, index: idx };
+                }
+            }
 
             const candidateLists = [];
 
             // Tab-specific priority lists:
-            if (activeTab === 'aireview') {
+            if (activeTab === 'screener') {
+                if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
+            } else if (activeTab === 'aireview') {
                 if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
                 if (typeof aiReviewRankingList !== 'undefined' && Array.isArray(aiReviewRankingList) && aiReviewRankingList.length > 0) candidateLists.push(aiReviewRankingList);
             } else if (activeTab === 'tradingsystem') {
@@ -6142,17 +6166,15 @@
                 if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
                 if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
                 if (typeof finaRows !== 'undefined' && Array.isArray(finaRows) && finaRows.length > 0) candidateLists.push(finaRows);
-            } else if (activeTab === 'screener') {
-                if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             }
 
             // Fallback candidate lists in comprehensive order:
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
             if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
             if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
             if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
             if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
-            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) candidateLists.push(_cachedWatchlistRows);
             if (typeof _cachedSectorLeaders !== 'undefined' && Array.isArray(_cachedSectorLeaders) && _cachedSectorLeaders.length > 0) {
                 const flatLeaders = [];
@@ -6169,8 +6191,8 @@
                 if (!cl || cl.length === 0) continue;
                 const idx = findStockIndexInList(cl, sym, name);
                 if (idx !== -1) {
-                    _currentKlineNavList = cl;
-                    return { list: _currentKlineNavList, index: idx };
+                    window._currentKlineNavList = cl;
+                    return { list: window._currentKlineNavList, index: idx };
                 }
             }
 
@@ -6251,8 +6273,23 @@
         window.updateKlineNavButtons = updateKlineNavButtons;
         window.openKlineModal = openKlineModal;
         function openKlineModal(sym, name, preferredPeriod = null, customNavList = null) {
-            if (customNavList && Array.isArray(customNavList)) {
-                _currentKlineNavList = customNavList;
+            if (customNavList && Array.isArray(customNavList) && customNavList.length > 0) {
+                window._currentKlineNavList = customNavList;
+            } else {
+                const curTab = (typeof getActiveTabName === 'function') ? getActiveTabName() : ((window.location.hash || '').replace('#', '').trim() || 'dashboard');
+                if (curTab === 'screener' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                    window._currentKlineNavList = window._lastScreenerMatches;
+                } else if (curTab === 'tradingsystem') {
+                    window._currentKlineNavList = (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0)
+                        ? tradingSystemFilteredRows
+                        : (Array.isArray(window._lastTradingSystemRows) ? window._lastTradingSystemRows : (Array.isArray(window.tsRowsData) ? window.tsRowsData : null));
+                } else if (curTab === 'finaanalysis') {
+                    window._currentKlineNavList = (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0)
+                        ? finaFilteredRows
+                        : (Array.isArray(window._lastFinaRows) ? window._lastFinaRows : null);
+                } else if (curTab === 'aireview') {
+                    window._currentKlineNavList = Array.isArray(window._lastAiReviewList) ? window._lastAiReviewList : null;
+                }
             }
             lockViewportForKlineModal();
             const kModal = document.getElementById('kline-preview-modal');
@@ -16478,7 +16515,7 @@
                 const codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-100 hover:text-cyan-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
 
                 // 4. 名称
-                const nameLink = `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}')" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
+                const nameLink = `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 5. 行业
                 const indName = m.industry || m.board_name || '--';
