@@ -2304,7 +2304,7 @@
 
                 <!-- 上证指数 (上交所) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
-                    onclick="openKlineModal('999999', '上证指数')" title="点击查看 上证指数 (000001.SH) 实时K线行情与多周期指标">
+                    onclick="openKlineModal('999999', '上证指数', null, MAJOR_INDICES_NAV)" title="点击查看 上证指数 (000001.SH) 实时K线行情与多周期指标">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-1.5">
                             <span
@@ -2333,7 +2333,7 @@
 
                 <!-- 深证成指 (深交所) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
-                    onclick="openKlineModal('399001', '深证成指')" title="点击查看 深证成指 (399001.SZ) 实时K线行情与多周期指标">
+                    onclick="openKlineModal('399001', '深证成指', null, MAJOR_INDICES_NAV)" title="点击查看 深证成指 (399001.SZ) 实时K线行情与多周期指标">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-1.5">
                             <span
@@ -2361,7 +2361,7 @@
 
                 <!-- 创业板指 (创业板) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
-                    onclick="openKlineModal('399006', '创业板指')" title="点击查看 创业板指 (399006.SZ) 实时K线行情与多周期指标">
+                    onclick="openKlineModal('399006', '创业板指', null, MAJOR_INDICES_NAV)" title="点击查看 创业板指 (399006.SZ) 实时K线行情与多周期指标">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-1.5">
                             <span
@@ -2389,7 +2389,7 @@
 
                 <!-- 科创50 (科创板) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
-                    onclick="openKlineModal('000688.SH', '科创50')" title="点击查看 科创50 (000688.SH) 实时K线行情与多周期指标">
+                    onclick="openKlineModal('000688.SH', '科创50', null, MAJOR_INDICES_NAV)" title="点击查看 科创50 (000688.SH) 实时K线行情与多周期指标">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-1.5">
                             <span
@@ -2417,7 +2417,7 @@
 
                 <!-- 沪深300 (核心宽基) -->
                 <div class="glass-card p-3.5 rounded-xl border border-slate-800/80 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/5 transition duration-150 cursor-pointer flex flex-col justify-between group"
-                    onclick="openKlineModal('000300.SH', '沪深300')" title="点击查看 沪深300 (000300.SH) 实时K线行情与多周期指标">
+                    onclick="openKlineModal('000300.SH', '沪深300', null, MAJOR_INDICES_NAV)" title="点击查看 沪深300 (000300.SH) 实时K线行情与多周期指标">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-1.5">
                             <span
@@ -6106,6 +6106,15 @@
         window._currentKlineNavList = window._currentKlineNavList || null;
         let _currentKlineNavIndex = -1;
 
+        const MAJOR_INDICES_NAV = [
+            { code: '999999', symbol: '999999', name: '上证指数' },
+            { code: '399001', symbol: '399001', name: '深证成指' },
+            { code: '399006', symbol: '399006', name: '创业板指' },
+            { code: '000688.SH', symbol: '000688.SH', name: '科创50' },
+            { code: '000300.SH', symbol: '000300.SH', name: '沪深300' }
+        ];
+        window.MAJOR_INDICES_NAV = MAJOR_INDICES_NAV;
+
         function normalizeStockCode(code) {
             if (!code) return '';
             const s = String(code).trim();
@@ -6166,16 +6175,34 @@
                 if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
                 if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
                 if (typeof finaRows !== 'undefined' && Array.isArray(finaRows) && finaRows.length > 0) candidateLists.push(finaRows);
+            } else if (activeTab === 'dashboard') {
+                if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && window.CURRENT_SECTOR_STOCKS_DATA.length > 0) candidateLists.push(window.CURRENT_SECTOR_STOCKS_DATA);
+                if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
+                if (Array.isArray(window._cachedLadderStocks) && window._cachedLadderStocks.length > 0) candidateLists.push(window._cachedLadderStocks);
+                if (Array.isArray(window._cachedAnomaliesStream) && window._cachedAnomaliesStream.length > 0) candidateLists.push(window._cachedAnomaliesStream);
+                if (Array.isArray(window._cachedAnomaliesAuction) && window._cachedAnomaliesAuction.length > 0) candidateLists.push(window._cachedAnomaliesAuction);
+                if (Array.isArray(window._cachedAnomaliesIntraday) && window._cachedAnomaliesIntraday.length > 0) candidateLists.push(window._cachedAnomaliesIntraday);
+                if (Array.isArray(window._cachedAnomaliesDeviation) && window._cachedAnomaliesDeviation.length > 0) candidateLists.push(window._cachedAnomaliesDeviation);
+                if (Array.isArray(window._cachedSectorLeadersAllStocks) && window._cachedSectorLeadersAllStocks.length > 0) candidateLists.push(window._cachedSectorLeadersAllStocks);
+                if (Array.isArray(window._cachedBoardModalCandidates) && window._cachedBoardModalCandidates.length > 0) candidateLists.push(window._cachedBoardModalCandidates);
+                if (Array.isArray(MAJOR_INDICES_NAV)) candidateLists.push(MAJOR_INDICES_NAV);
             }
 
             // Fallback candidate lists in comprehensive order:
+            if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && window.CURRENT_SECTOR_STOCKS_DATA.length > 0) candidateLists.push(window.CURRENT_SECTOR_STOCKS_DATA);
+            if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
+            if (Array.isArray(window._cachedLadderStocks) && window._cachedLadderStocks.length > 0) candidateLists.push(window._cachedLadderStocks);
+            if (Array.isArray(window._cachedAnomaliesStream) && window._cachedAnomaliesStream.length > 0) candidateLists.push(window._cachedAnomaliesStream);
+            if (Array.isArray(window._cachedAnomaliesAuction) && window._cachedAnomaliesAuction.length > 0) candidateLists.push(window._cachedAnomaliesAuction);
+            if (Array.isArray(window._cachedAnomaliesIntraday) && window._cachedAnomaliesIntraday.length > 0) candidateLists.push(window._cachedAnomaliesIntraday);
+            if (Array.isArray(window._cachedAnomaliesDeviation) && window._cachedAnomaliesDeviation.length > 0) candidateLists.push(window._cachedAnomaliesDeviation);
+            if (Array.isArray(window._cachedSectorLeadersAllStocks) && window._cachedSectorLeadersAllStocks.length > 0) candidateLists.push(window._cachedSectorLeadersAllStocks);
             if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
             if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
             if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
             if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
             if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
-            if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) candidateLists.push(_cachedWatchlistRows);
             if (typeof _cachedSectorLeaders !== 'undefined' && Array.isArray(_cachedSectorLeaders) && _cachedSectorLeaders.length > 0) {
                 const flatLeaders = [];
                 _cachedSectorLeaders.forEach(b => {
@@ -6183,9 +6210,11 @@
                     if (b.pioneer) flatLeaders.push(b.pioneer);
                     if (b.capacity) flatLeaders.push(b.capacity);
                     if (b.ladder) flatLeaders.push(b.ladder);
+                    if (Array.isArray(b.candidates)) flatLeaders.push(...b.candidates);
                 });
                 candidateLists.push(flatLeaders);
             }
+            if (Array.isArray(MAJOR_INDICES_NAV)) candidateLists.push(MAJOR_INDICES_NAV);
 
             for (const cl of candidateLists) {
                 if (!cl || cl.length === 0) continue;
@@ -6289,6 +6318,28 @@
                         : (Array.isArray(window._lastFinaRows) ? window._lastFinaRows : null);
                 } else if (curTab === 'aireview') {
                     window._currentKlineNavList = Array.isArray(window._lastAiReviewList) ? window._lastAiReviewList : null;
+                } else if (curTab === 'dashboard') {
+                    if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && findStockIndexInList(window.CURRENT_SECTOR_STOCKS_DATA, sym, name) !== -1) {
+                        window._currentKlineNavList = window.CURRENT_SECTOR_STOCKS_DATA;
+                    } else if (Array.isArray(window._cachedWatchlistRows) && findStockIndexInList(window._cachedWatchlistRows, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedWatchlistRows;
+                    } else if (Array.isArray(window._cachedLadderStocks) && findStockIndexInList(window._cachedLadderStocks, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedLadderStocks;
+                    } else if (Array.isArray(window._cachedAnomaliesStream) && findStockIndexInList(window._cachedAnomaliesStream, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedAnomaliesStream;
+                    } else if (Array.isArray(window._cachedAnomaliesAuction) && findStockIndexInList(window._cachedAnomaliesAuction, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedAnomaliesAuction;
+                    } else if (Array.isArray(window._cachedAnomaliesIntraday) && findStockIndexInList(window._cachedAnomaliesIntraday, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedAnomaliesIntraday;
+                    } else if (Array.isArray(window._cachedAnomaliesDeviation) && findStockIndexInList(window._cachedAnomaliesDeviation, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedAnomaliesDeviation;
+                    } else if (Array.isArray(window._cachedSectorLeadersAllStocks) && findStockIndexInList(window._cachedSectorLeadersAllStocks, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedSectorLeadersAllStocks;
+                    } else if (Array.isArray(window._cachedBoardModalCandidates) && findStockIndexInList(window._cachedBoardModalCandidates, sym, name) !== -1) {
+                        window._currentKlineNavList = window._cachedBoardModalCandidates;
+                    } else if (MAJOR_INDICES_NAV.some(m => normalizeStockCode(m.symbol || m.code) === normalizeStockCode(sym))) {
+                        window._currentKlineNavList = MAJOR_INDICES_NAV;
+                    }
                 }
             }
             lockViewportForKlineModal();
@@ -6299,6 +6350,20 @@
             const isDifferentStock = (newSym !== currentKpSymbol || newSym !== _currentLoadedKpSymbol);
             currentKpSymbol = newSym;
             currentKpStockName = name || '';
+
+            // Ensure active navigation sequence is resolved
+            const activeNav = getActiveKlineStockList();
+            if (!activeNav.list || activeNav.index === -1) {
+                if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) {
+                    window._currentKlineNavList = window._lastTradingSystemRows;
+                } else if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && window.CURRENT_SECTOR_STOCKS_DATA.length > 0) {
+                    window._currentKlineNavList = window.CURRENT_SECTOR_STOCKS_DATA;
+                } else if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) {
+                    window._currentKlineNavList = window._cachedWatchlistRows;
+                } else {
+                    window._currentKlineNavList = [{ symbol: newSym, name: currentKpStockName || newSym, code: newSym }];
+                }
+            }
             if (preferredPeriod && typeof preferredPeriod === 'string') {
                 const pUpper = preferredPeriod.trim().toUpperCase();
                 if (['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'].includes(pUpper)) {
@@ -6563,7 +6628,15 @@
                     } else if (items.length > 0) {
                         items[0].click();
                     } else if (input.value.trim()) {
-                        openKlineModal(input.value.trim());
+                        const val = input.value.trim();
+                        if (Array.isArray(window._currentKlineNavList) && window._currentKlineNavList.length > 0) {
+                            if (findStockIndexInList(window._currentKlineNavList, val, '') === -1) {
+                                window._currentKlineNavList.push({ symbol: val, name: val, code: val });
+                            }
+                        } else if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) {
+                            window._currentKlineNavList = window._lastTradingSystemRows;
+                        }
+                        openKlineModal(val);
                         dropdown.classList.add('hidden');
                     }
                 } else if (e.key === 'Escape') {
@@ -6597,6 +6670,13 @@
             if (dropdown) dropdown.classList.add('hidden');
             const clearBtn = document.getElementById('kp-search-clear');
             if (clearBtn) clearBtn.classList.remove('hidden');
+            if (Array.isArray(window._currentKlineNavList) && window._currentKlineNavList.length > 0) {
+                if (findStockIndexInList(window._currentKlineNavList, code, name) === -1) {
+                    window._currentKlineNavList.push({ symbol: code, name: name, code: code });
+                }
+            } else if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) {
+                window._currentKlineNavList = window._lastTradingSystemRows;
+            }
             openKlineModal(code, name);
         }
 
@@ -14015,7 +14095,7 @@
                     const codeTd = `<td class="py-2.5 px-2 font-semibold whitespace-nowrap text-left"><a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a></td>`;
 
                     // 2. 股票名称
-                    const nameTd = `<td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap text-left"><span onclick="openKlineModal('${code}', '${name}')" class="stock-click-link text-slate-900 dark:text-white cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 font-bold" title="点击查看【${name}】K线行情">${name}</span></td>`;
+                    const nameTd = `<td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap text-left"><span onclick="openKlineModal('${code}', '${name}', null, _cachedWatchlistRows)" class="stock-click-link text-slate-900 dark:text-white cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 font-bold" title="点击查看【${name}】K线行情">${name}</span></td>`;
 
                     // 3. 所属板块
                     let boardHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">--</span>';
@@ -14196,7 +14276,7 @@
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
                                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
-                                <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
+                                <button onclick="openKlineModal('${code}', '${name}', null, _cachedWatchlistRows)" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
                             </div>
                         </td>
@@ -14410,6 +14490,7 @@
                     renderedTiers.push({ ...t, stocks });
                 }
             }
+            window._cachedLadderStocks = renderedTiers.flatMap(t => t.stocks || []);
 
             if (renderedTiers.length === 0) {
                 container.innerHTML = `
@@ -14461,7 +14542,7 @@
                                 <!-- 顶部代码、名称与标签 -->
                                 <div>
                                     <div class="flex items-start justify-between">
-                                        <div onclick="openKlineModal('${code}', '${name}')" class="cursor-pointer group-hover:translate-x-0.5 transition-transform">
+                                        <div onclick="openKlineModal('${code}', '${name}', null, window._cachedLadderStocks)" class="cursor-pointer group-hover:translate-x-0.5 transition-transform">
                                             <div class="flex items-center space-x-2">
                                                 <span class="font-bold text-cyan-500 dark:text-cyan-400 font-mono text-base">${code}</span>
                                                 <span class="ladder-stock-name text-sm font-bold">${name}</span>
@@ -14522,7 +14603,7 @@
                                         <span class="truncate text-cyan-600 dark:text-cyan-300 font-medium">${s.concept || '主线题材'}</span>
                                     </div>
                                     <div class="flex items-center space-x-1.5">
-                                        <button onclick="openKlineModal('${code}', '${name}')" class="px-2.5 py-1 rounded-md bg-indigo-500/10 dark:bg-indigo-950/90 text-indigo-600 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 text-xs hover:bg-indigo-500/20 hover:text-indigo-700 transition flex items-center space-x-1 cursor-pointer">
+                                        <button onclick="openKlineModal('${code}', '${name}', null, window._cachedLadderStocks)" class="px-2.5 py-1 rounded-md bg-indigo-500/10 dark:bg-indigo-950/90 text-indigo-600 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 text-xs hover:bg-indigo-500/20 hover:text-indigo-700 transition flex items-center space-x-1 cursor-pointer">
                                             <i data-lucide="line-chart" class="w-3 h-3"></i>
                                             <span>K线</span>
                                         </button>
