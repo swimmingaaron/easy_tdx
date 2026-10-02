@@ -6123,25 +6123,36 @@
                 }
             }
 
-            // 2. Check screener matches (window._lastScreenerMatches)
-            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
-                const idx = findStockIndexInList(window._lastScreenerMatches, sym, name);
-                if (idx !== -1) {
-                    _currentKlineNavList = window._lastScreenerMatches;
-                    return { list: _currentKlineNavList, index: idx };
-                }
+            // Determine active tab to prioritize corresponding pool
+            const hash = (window.location.hash || '').replace('#', '').toLowerCase();
+            const activeTab = (typeof currentTab !== 'undefined' && currentTab) ? currentTab : hash;
+
+            const candidateLists = [];
+
+            // Tab-specific priority lists:
+            if (activeTab === 'aireview') {
+                if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
+                if (typeof aiReviewRankingList !== 'undefined' && Array.isArray(aiReviewRankingList) && aiReviewRankingList.length > 0) candidateLists.push(aiReviewRankingList);
+            } else if (activeTab === 'tradingsystem') {
+                if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
+                if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
+                if (typeof tradingSystemRows !== 'undefined' && Array.isArray(tradingSystemRows) && tradingSystemRows.length > 0) candidateLists.push(tradingSystemRows);
+            } else if (activeTab === 'finaanalysis') {
+                if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
+                if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
+                if (typeof finaRows !== 'undefined' && Array.isArray(finaRows) && finaRows.length > 0) candidateLists.push(finaRows);
+            } else if (activeTab === 'screener') {
+                if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             }
 
-            // 3. Check watchlist rows (_cachedWatchlistRows)
-            if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) {
-                const idx = findStockIndexInList(_cachedWatchlistRows, sym, name);
-                if (idx !== -1) {
-                    _currentKlineNavList = _cachedWatchlistRows;
-                    return { list: _currentKlineNavList, index: idx };
-                }
-            }
-
-            // 4. Check sector leaders if available
+            // Fallback candidate lists in comprehensive order:
+            if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
+            if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
+            if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
+            if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
+            if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
+            if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) candidateLists.push(_cachedWatchlistRows);
             if (typeof _cachedSectorLeaders !== 'undefined' && Array.isArray(_cachedSectorLeaders) && _cachedSectorLeaders.length > 0) {
                 const flatLeaders = [];
                 _cachedSectorLeaders.forEach(b => {
@@ -6150,9 +6161,14 @@
                     if (b.capacity) flatLeaders.push(b.capacity);
                     if (b.ladder) flatLeaders.push(b.ladder);
                 });
-                const idx = findStockIndexInList(flatLeaders, sym, name);
+                candidateLists.push(flatLeaders);
+            }
+
+            for (const cl of candidateLists) {
+                if (!cl || cl.length === 0) continue;
+                const idx = findStockIndexInList(cl, sym, name);
                 if (idx !== -1) {
-                    _currentKlineNavList = flatLeaders;
+                    _currentKlineNavList = cl;
                     return { list: _currentKlineNavList, index: idx };
                 }
             }
@@ -6216,7 +6232,7 @@
             const sym = target.symbol || target.code || target.stock_code;
             const name = target.name || target.stock_name || '';
             const period = target.period || currentKpPeriod || 'DAY';
-            openKlineModal(sym, name, period);
+            openKlineModal(sym, name, period, list);
         }
 
         function switchKlineNextStock() {
@@ -6226,7 +6242,7 @@
             const sym = target.symbol || target.code || target.stock_code;
             const name = target.name || target.stock_name || '';
             const period = target.period || currentKpPeriod || 'DAY';
-            openKlineModal(sym, name, period);
+            openKlineModal(sym, name, period, list);
         }
 
         window.switchKlinePrevStock = switchKlinePrevStock;
@@ -17122,6 +17138,7 @@
 
             function render4DRankingRows(list) {
                 if (!tbody) return;
+                window._lastAiReviewList = Array.isArray(list) ? list : [];
                 if (!list || list.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="15" class="py-8 text-center text-slate-500 font-sans">未获取到有效的诊断打分结果</td></tr>`;
                     return;
@@ -17223,7 +17240,7 @@
                                 </a>
                             </td>
                             <td class="py-2.5 px-3 font-semibold text-slate-200 cursor-pointer hover:text-cyan-300 hover:underline transition" 
-                                onclick="openKlineModal('${item.code}', '${item.name || ''}')"
+                                onclick="openKlineModal('${item.code}', '${item.name || ''}', null, window._lastAiReviewList || list)"
                                 title="点击查看【${item.code} ${item.name || ''}】实时K线与深度技术指标">
                                 ${item.name || '--'}
                             </td>
@@ -18433,11 +18450,13 @@
             }
 
             if (!rows || rows.length === 0) {
+                window._lastTradingSystemRows = [];
                 tbody.innerHTML = `<tr><td colspan="35" class="py-12 text-center text-slate-400 font-sans">当前筛选条件下暂无匹配股票</td></tr>`;
                 updateTsPaginationUI(0, 0, 1, 1, 0, 0);
                 return;
             }
 
+            window._lastTradingSystemRows = Array.isArray(rows) ? rows : [];
             let html = '';
             const startIdx = (tsCurrentPage - 1) * tsPageSize;
             const endIdx = Math.min(startIdx + tsPageSize, rows.length);
@@ -18479,7 +18498,7 @@
                 let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
 
                 // 2. 名称: 高对比度平滑微链接，点击弹出 K 线 (用户需求 2)
-                let nameLink = `<span onclick="openKlineModal('${code}', '${name}')" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
+                let nameLink = `<span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 3. 行业: 点击弹出对应板块/行业 K 线 (用户需求 3)
                 let indName = r.industry || '--';
@@ -18724,10 +18743,11 @@
                 kModal.style.zIndex = '70';
                 kModal.classList.remove('hidden');
             }
+            const navList = (window._tsCurrentPeersData && window._tsCurrentPeersData.length > 0) ? window._tsCurrentPeersData : (window._lastTradingSystemRows || (typeof tradingSystemFilteredRows !== 'undefined' ? tradingSystemFilteredRows : null));
             if (window.openKlineModal) {
-                window.openKlineModal(code, name);
+                window.openKlineModal(code, name, null, navList);
             } else if (typeof openKlineModal === 'function') {
-                openKlineModal(code, name);
+                openKlineModal(code, name, null, navList);
             }
         }
 
@@ -19292,6 +19312,7 @@
             const tbody = document.getElementById('fina-table-body');
             if (!tbody) return;
 
+            window._lastFinaRows = Array.isArray(finaFilteredRows) ? finaFilteredRows : [];
             const total = finaFilteredRows.length;
             finaTotalPages = Math.max(1, Math.ceil(total / finaPageSize));
             if (finaCurrentPage > finaTotalPages) finaCurrentPage = finaTotalPages;
@@ -19334,7 +19355,7 @@
 
                     // 4. 名称 (点击查看 K 线行情)
                     const nameTd = `<td class="py-2.5 px-2.5 text-left font-semibold font-sans truncate max-w-[90px] whitespace-nowrap">
-                <span onclick="openKlineModal('${code}', '${name}')" class="text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer" title="点击查看【${name}】K线行情">${name}</span>
+                <span onclick="openKlineModal('${code}', '${name}', null, window._lastFinaRows || finaFilteredRows)" class="text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer" title="点击查看【${name}】K线行情">${name}</span>
             </td>`;
 
                     // 5. 行业 (点击查看行业板块K线)

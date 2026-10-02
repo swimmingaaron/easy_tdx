@@ -197,7 +197,8 @@ class TdxConnection:
                 raw_body = self._recv_exact(header.zipsize)
             except (OSError, TdxError) as e:
                 try:
-                    self._sock.close()
+                    if self._sock is not None:
+                        self._sock.close()
                 except OSError:
                     pass
                 self._sock = None
