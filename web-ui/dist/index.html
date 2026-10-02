@@ -5053,7 +5053,8 @@
                 <div id="echarts-preview-modal-container" class="w-full h-full"></div>
                 <!-- 蜡烛图左上角：形态特征高对比度 HTML 悬浮胶囊标签 (利好鲜红，利空鲜绿，实时回测联动) -->
                 <div id="kp-pattern-badge-overlay"
-                    class="absolute left-[65px] top-[14px] z-30 pointer-events-none hidden items-center space-x-1 px-2.5 py-1 rounded bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/70 shadow-md text-[11px] select-none transition-all">
+                    style="top: 2px; transform: scale(0.6); transform-origin: left top; padding: 1px 5px;"
+                    class="absolute left-[56px] z-30 pointer-events-none hidden items-center space-x-1 rounded bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/70 shadow-sm text-[11px] select-none transition-all">
                 </div>
             </div>
         </div>
@@ -9399,9 +9400,12 @@
         function updateKpPatternBadgeOverlay(dateStr, patternList, gridLeft) {
             const el = document.getElementById('kp-pattern-badge-overlay');
             if (!el) return;
-            if (gridLeft !== undefined && gridLeft !== null) {
-                el.style.left = `${gridLeft + 10}px`;
-            }
+            const posX = (gridLeft !== undefined && gridLeft !== null) ? (gridLeft + 2) : 56;
+            el.style.left = `${posX}px`;
+            el.style.top = '2px';
+            el.style.transform = 'scale(0.6)';
+            el.style.transformOrigin = 'left top';
+            el.style.padding = '1px 5px';
             const isDark = document.documentElement.classList.contains('dark');
             const maxPats = (typeof isMobile !== 'undefined' && isMobile) ? 3 : 7;
             const pats = (patternList && patternList.length > 0) ? patternList.slice(0, maxPats) : ['震荡整理'];
@@ -12843,25 +12847,25 @@
                 title: [
                     {
                         text: btPatternRichText,
-                        left: 65,
-                        top: 32,
+                        left: 56,
+                        top: 2,
                         z: 25,
                         textStyle: {
                             rich: {
-                                date: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: '"JetBrains Mono", Consolas, monospace' },
-                                lbl: { fontWeight: 'bold', fontSize: 11, color: isDark ? '#cbd5e1' : '#334155' },
-                                up: { fontWeight: 'bold', fontSize: 11, color: '#ef4444', padding: [0, 1] },
-                                down: { fontWeight: 'bold', fontSize: 11, color: '#10b981', padding: [0, 1] },
-                                neutral: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', padding: [0, 1] },
-                                sep: { fontSize: 11, color: isDark ? '#475569' : '#cbd5e1', padding: [0, 1] }
+                                date: { fontWeight: 'bold', fontSize: 6, color: isDark ? '#38bdf8' : '#0284c7', fontFamily: '"JetBrains Mono", Consolas, monospace' },
+                                lbl: { fontWeight: 'bold', fontSize: 6, color: isDark ? '#cbd5e1' : '#334155' },
+                                up: { fontWeight: 'bold', fontSize: 6, color: '#ef4444', padding: [0, 1] },
+                                down: { fontWeight: 'bold', fontSize: 6, color: '#10b981', padding: [0, 1] },
+                                neutral: { fontSize: 6, color: isDark ? '#94a3b8' : '#64748b', padding: [0, 1] },
+                                sep: { fontSize: 6, color: isDark ? '#475569' : '#cbd5e1', padding: [0, 1] }
                             }
                         },
                         backgroundColor: isDark ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)',
                         borderColor: isDark ? 'rgba(51, 65, 85, 0.7)' : 'rgba(226, 232, 240, 0.9)',
                         borderWidth: 1,
-                        borderRadius: 4,
-                        padding: [3, 8],
-                        shadowBlur: 4,
+                        borderRadius: 2,
+                        padding: [1, 4],
+                        shadowBlur: 2,
                         shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.08)'
                     }
                 ],
