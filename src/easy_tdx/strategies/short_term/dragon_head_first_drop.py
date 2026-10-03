@@ -21,12 +21,24 @@ class DragonHeadFirstDropStrategy(BaseStrategy):
         c_series = pd.Series(c, index=res.index)
         ref_c1 = pd.Series(REF(c, 1), index=res.index)
         ref_c4 = pd.Series(REF(c, 4), index=res.index)
-        ret_3d = (ref_c1 / np.maximum(ref_c4, 1e-4) - 1) * 100
-        was_strong_leader = ret_3d >= 6.0
         
-        first_drop = (c_series <= ref_c1) & (res["low"] <= ma5 * 1.015) & (c_series >= ma10 * 0.985)
+        # 1. 龙头基因判定：前3~5日内必须具有涨停板基因 (单日涨幅>=9.5%)，或3日累计暴涨>=18%
+        pct_chg = (c_series - ref_c1) / np.maximum(ref_c1, 1e-4) * 100
+        ret_3d = (ref_c1 / np.maximum(ref_c4, 1e-4) - 1) * 100
+        has_limit_up = (pct_chg >= 9.5).rolling(5).max() == 1
+        was_strong_leader = (ret_3d >= 18.0) | ((ret_3d >= 12.0) & has_limit_up)
+        
+        # 2. 首阴回踩判定：收阴线分歧回落（非跌停封死），盘中回踩5日均线附近且受10日生命线支撑
+        first_drop = (
+            (c_series < ref_c1)
+            & (res["low"] <= ma5 * 1.015)
+            & (c_series >= ma10 * 0.985)
+            & (pct_chg > -9.5)
+        )
         buy_sig = was_strong_leader & first_drop
-        sell_sig = (c_series < ma10 * 0.97) | (c_series > ma5 * 1.08)
+        
+        # 3. 离场：跌破10日均线止损，或大幅脱离5日均线10%以上止盈
+        sell_sig = (c_series < ma10 * 0.97) | (c_series > ma5 * 1.10)
         
         res["buy_signal"] = buy_sig.fillna(False)
         res["sell_signal"] = sell_sig.fillna(False)
