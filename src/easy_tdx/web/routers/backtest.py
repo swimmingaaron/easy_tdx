@@ -11,10 +11,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends
+
+logger = logging.getLogger(__name__)
 
 from easy_tdx.web.backtest_schemas import (
     BacktestRequest,

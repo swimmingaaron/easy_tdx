@@ -12945,6 +12945,7 @@
             const tooltipBorder = isDark ? '#2a2e39' : '#e2e8f0';
             const tooltipTextColor = isDark ? '#d1d5db' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
+            const tooltipDivider = isDark ? '#334155' : '#e2e8f0';
             // K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
             const btPats = detectClientPatterns(bars);
             const btLatestDate = dates[dates.length - 1] || '';
@@ -13709,7 +13710,7 @@
                         }).join('');
                     }
 
-                    updateBtStepperUI(endDate);
+                    updateBtStepperUI();
                     if (window.lucide) lucide.createIcons();
 
                     showToast('回测完成', `${displaySymbol} 回测成功：总收益率 ${totalRet >= 0 ? '+' : ''}${totalRet.toFixed(2)}%`);

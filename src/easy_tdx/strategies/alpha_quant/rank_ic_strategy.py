@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from easy_tdx.strategies.base import BaseStrategy
 from easy_tdx.strategies.registry import register_strategy
