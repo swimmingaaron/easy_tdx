@@ -1878,7 +1878,7 @@
                         </div>
 
                         <!-- ECharts K-Line Container -->
-                        <div id="echarts-kline-container" class="w-full h-80"></div>
+                        <div id="echarts-kline-container" class="w-full h-[480px]"></div>
                     </div>
 
                     <!-- 2. 净值曲线与回撤 (Equity Chart & Drawdown) -->
@@ -1896,7 +1896,7 @@
                                         class="text-slate-300">回撤%</span></span>
                             </div>
                         </div>
-                        <div id="echarts-equity-container" class="w-full h-64"></div>
+                        <div id="echarts-equity-container" class="w-full h-32"></div>
                     </div>
 
                     <!-- 3. 评级卡片 (Grade Details) -->
@@ -12936,6 +12936,130 @@
                 }
             });
 
+            // Calculate Moving Averages (MA5, MA10, MA20, MA60)
+            function calcBtMA(dayCount, bList) {
+                const result = [];
+                for (let i = 0; i < bList.length; i++) {
+                    if (i < dayCount - 1) {
+                        result.push('-');
+                        continue;
+                    }
+                    let sum = 0;
+                    for (let j = 0; j < dayCount; j++) {
+                        sum += Number(bList[i - j].close);
+                    }
+                    result.push(Number((sum / dayCount).toFixed(2)));
+                }
+                return result;
+            }
+            const ma5 = calcBtMA(5, bars);
+            const ma10 = calcBtMA(10, bars);
+            const ma20 = calcBtMA(20, bars);
+            const ma60 = calcBtMA(60, bars);
+
+            // Calculate TD Sequential 9-turn (通达信九转序列)
+            const tdRes = (typeof calcTdSequential === 'function') ? calcTdSequential(bars, 9) : { tdHigh: [], tdLow: [] };
+            const tdHighArr = tdRes.tdHigh || [];
+            const tdLowArr = tdRes.tdLow || [];
+
+            bars.forEach((b, i) => {
+                const dateStr = dates[i];
+                const hVal = tdHighArr[i];
+                const lVal = tdLowArr[i];
+
+                if (hVal >= 1) {
+                    if (hVal === 9) {
+                        markData.push({
+                            name: '高9',
+                            coord: [dateStr, b.high],
+                            value: '9',
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, -12],
+                            itemStyle: {
+                                color: '#14532d',
+                                borderColor: '#22c55e',
+                                borderWidth: 2,
+                                shadowBlur: 8,
+                                shadowColor: 'rgba(34, 197, 94, 0.85)'
+                            },
+                            label: {
+                                show: true,
+                                formatter: '9',
+                                color: '#ffffff',
+                                fontWeight: 'bold',
+                                fontSize: 10
+                            },
+                            z: 90
+                        });
+                    } else if (hVal >= 3) {
+                        markData.push({
+                            name: `高${hVal}`,
+                            coord: [dateStr, b.high],
+                            value: String(hVal),
+                            symbol: 'circle',
+                            symbolSize: 1,
+                            symbolOffset: [0, -9],
+                            itemStyle: { color: 'transparent' },
+                            label: {
+                                show: true,
+                                formatter: String(hVal),
+                                color: '#ff00ff',
+                                fontWeight: 'bold',
+                                fontSize: 9.5
+                            },
+                            z: 80
+                        });
+                    }
+                }
+
+                if (lVal >= 1) {
+                    if (lVal === 9) {
+                        markData.push({
+                            name: '低9',
+                            coord: [dateStr, b.low],
+                            value: '9',
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, 12],
+                            itemStyle: {
+                                color: '#881337',
+                                borderColor: '#f43f5e',
+                                borderWidth: 2,
+                                shadowBlur: 8,
+                                shadowColor: 'rgba(244, 63, 94, 0.85)'
+                            },
+                            label: {
+                                show: true,
+                                formatter: '9',
+                                color: '#ffffff',
+                                fontWeight: 'bold',
+                                fontSize: 10
+                            },
+                            z: 90
+                        });
+                    } else if (lVal >= 3) {
+                        markData.push({
+                            name: `低${lVal}`,
+                            coord: [dateStr, b.low],
+                            value: String(lVal),
+                            symbol: 'circle',
+                            symbolSize: 1,
+                            symbolOffset: [0, 9],
+                            itemStyle: { color: 'transparent' },
+                            label: {
+                                show: true,
+                                formatter: String(lVal),
+                                color: '#00ff00',
+                                fontWeight: 'bold',
+                                fontSize: 9.5
+                            },
+                            z: 80
+                        });
+                    }
+                }
+            });
+
             const isDark = getTheme() === 'dark';
             const splitColor = isDark ? '#1e293b' : '#f1f5f9';
             const axisColor = isDark ? '#334155' : '#cbd5e1';
@@ -13037,12 +13161,23 @@
                         // Format Volume: 手 (1手 = 100股)
                         const volHands = Math.round(Number(bar.volume || 0) / 100);
 
+                        const curMA5 = ma5[idx] !== '-' && ma5[idx] !== undefined ? Number(ma5[idx]).toFixed(2) : '-';
+                        const curMA10 = ma10[idx] !== '-' && ma10[idx] !== undefined ? Number(ma10[idx]).toFixed(2) : '-';
+                        const curMA20 = ma20[idx] !== '-' && ma20[idx] !== undefined ? Number(ma20[idx]).toFixed(2) : '-';
+                        const curMA60 = ma60[idx] !== '-' && ma60[idx] !== undefined ? Number(ma60[idx]).toFixed(2) : '-';
+                        let tdTip = '';
+                        if (tdHighArr && tdHighArr[idx] > 0) {
+                            tdTip = `<span style="color:#ff00ff; font-weight:bold;">高${tdHighArr[idx]}</span>`;
+                        } else if (tdLowArr && tdLowArr[idx] > 0) {
+                            tdTip = `<span style="color:#00ff00; font-weight:bold;">低${tdLowArr[idx]}</span>`;
+                        }
+
                         const tooltipTextShadow = isDark
                             ? 'text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 4px rgba(15, 23, 42, 0.9);'
                             : 'text-shadow: 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.95);';
 
                         return `
-                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 190px; ${tooltipTextShadow}">
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; font-size: 12px; line-height: 1.5; color: ${tooltipTextColor}; min-width: 200px; ${tooltipTextShadow}">
                                 <div style="font-weight: 700; color: ${tooltipTitleColor}; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 1px solid ${tooltipDivider}; font-size: 13px;">
                                     ${sName} ${sCode ? '(' + sCode + ')' : ''} ${dates[idx]}
                                 </div>
@@ -13064,14 +13199,21 @@
                                 <div>
                                     <span style="color: ${textColor};">成交量: </span><span style="color: ${tooltipTitleColor}; font-weight: 500;">${volHands}手</span>
                                 </div>
+                                <div style="margin-top: 5px; padding-top: 4px; border-top: 1px dashed ${tooltipDivider}; font-size: 11px; font-family: monospace;">
+                                    <span style="color: #ffd800;">MA5: ${curMA5}</span>&nbsp;
+                                    <span style="color: #d15cee;">MA10: ${curMA10}</span>&nbsp;
+                                    <span style="color: #4cd964;">MA20: ${curMA20}</span>&nbsp;
+                                    <span style="color: #38bdf8;">MA60: ${curMA60}</span>
+                                    ${tdTip ? `&nbsp;[九转: ${tdTip}]` : ''}
+                                </div>
                             </div>
                         `;
                     }
                 },
-                legend: { data: [`${stockDisplay} K线`, '成交量'], textStyle: { color: textColor, fontSize: 11 }, top: 0 },
+                legend: { data: [`${stockDisplay} K线`, 'MA5', 'MA10', 'MA20', 'MA60', '成交量'], textStyle: { color: textColor, fontSize: 11 }, top: 0 },
                 grid: [
-                    { left: 55, right: 40, top: 28, height: '56%' },
-                    { left: 55, right: 40, top: '68%', height: '22%' }
+                    { left: 55, right: 40, top: 28, height: '64%' },
+                    { left: 55, right: 40, top: '75%', height: '17%' }
                 ],
                 xAxis: [
                     {
@@ -13133,6 +13275,38 @@
                             borderColor0: '#10b981'
                         },
                         markPoint: { data: markData }
+                    },
+                    {
+                        name: 'MA5',
+                        type: 'line',
+                        data: ma5,
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#ffd800' }
+                    },
+                    {
+                        name: 'MA10',
+                        type: 'line',
+                        data: ma10,
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#d15cee' }
+                    },
+                    {
+                        name: 'MA20',
+                        type: 'line',
+                        data: ma20,
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#4cd964' }
+                    },
+                    {
+                        name: 'MA60',
+                        type: 'line',
+                        data: ma60,
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#38bdf8' }
                     },
                     {
                         name: '成交量',
@@ -13349,7 +13523,7 @@
                     axisPointer: { type: 'cross', label: { backgroundColor: axisPointerBg } }
                 },
                 legend: { data: ['净值', '回撤%'], textStyle: { color: textColor, fontSize: 11 }, top: 0 },
-                grid: { left: 65, right: 50, top: 30, bottom: 35 },
+                grid: { left: 65, right: 50, top: 22, bottom: 24 },
                 xAxis: {
                     type: 'category',
                     data: dates,

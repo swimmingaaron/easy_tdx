@@ -56,7 +56,7 @@ function buildOption(): echarts.EChartsCoreOption {
       valueFormatter: (v: number | string) => fmt2(Number(v)),
     },
     legend: { data: ['净值', '回撤%'], top: 0 },
-    grid: { left: 80, right: 65, top: 30, bottom: 40 },
+    grid: { left: 80, right: 65, top: 20, bottom: 25 },
     xAxis: {
       type: 'category',
       data: dates,
@@ -132,6 +132,6 @@ watch(() => props.equity, render)
 <style scoped>
 .equity-chart {
   width: 100%;
-  height: 300px;
+  height: 150px;
 }
 </style>
