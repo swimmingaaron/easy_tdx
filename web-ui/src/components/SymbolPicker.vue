@@ -4,15 +4,39 @@
 // 后端 /bars 仅支持 count（上限 800，约 3.2 年），固定拉满后前端按日期过滤。
 // 默认：结束日=今天（最近交易日），开始日=2020-01-06。
 
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 
-import { fetchBars, formatError } from '../api'
+import { fetchBars, fetchHotSectors, formatError, type HotSectorItem } from '../api'
 import { detectMarket } from '../market'
 import StockSearchInput from './StockSearchInput.vue'
 import { useBacktestStore } from '../stores/backtest'
 import type { Category } from '../types'
 
 const store = useBacktestStore()
+
+const hotSectors = ref<HotSectorItem[]>([
+  { code: '881376', name: '数字媒体', change_pct: 0, chg: '--' },
+  { code: '881422', name: '房产服务', change_pct: 0, chg: '--' },
+  { code: '881373', name: '影视院线', change_pct: 0, chg: '--' },
+  { code: '881319', name: '半导体', change_pct: 0, chg: '--' },
+  { code: '881394', name: '证券', change_pct: 0, chg: '--' },
+  { code: '881386', name: '全国银行', change_pct: 0, chg: '--' },
+])
+
+async function loadHotSectors(force = false) {
+  const list = await fetchHotSectors(8)
+  if (list && list.length > 0) {
+    hotSectors.value = list
+  }
+}
+
+function selectHotSector(sectorCode: string) {
+  code.value = sectorCode
+}
+
+onMounted(() => {
+  loadHotSectors()
+})
 
 // 代码 / 周期 / 日期通过 defineModel 与父组件双向同步：
 // 既允许父组件读取（如寻优页「查看」按钮拼 URL 带上这些值），
@@ -95,6 +119,29 @@ defineExpose({ loadBars, loading })
       />
     </div>
 
+    <!-- 热门行业板块一键回测 (实时) -->
+    <div class="hot-sectors-section">
+      <div class="hot-sectors-header">
+        <label>热门行业板块一键回测：</label>
+        <span class="live-badge" title="基于全市场实时行情排序，点击立即刷新" @click="loadHotSectors(true)">
+          <span class="dot"></span>实时
+        </span>
+      </div>
+      <div class="hot-sectors-list">
+        <button
+          v-for="s in hotSectors"
+          :key="s.code"
+          type="button"
+          class="hot-sector-btn"
+          :title="`${s.name} (${s.code}) 实时涨跌: ${s.chg}，点击快速切换`"
+          @click="selectHotSector(s.code)"
+        >
+          <span class="name">{{ s.name }}</span>
+          <span v-if="s.chg !== '--'" :class="['chg', s.change_pct >= 0 ? 'chg-up' : 'chg-down']">{{ s.chg }}</span>
+        </button>
+      </div>
+    </div>
+
     <div class="field">
       <label>周期</label>
       <select v-model="category">
@@ -121,6 +168,79 @@ defineExpose({ loadBars, loading })
 </template>
 
 <style scoped>
+.hot-sectors-section {
+  margin-top: -4px;
+  margin-bottom: 8px;
+}
+.hot-sectors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.hot-sectors-header label {
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
+}
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(6, 78, 59, 0.4);
+  color: #34d399;
+  border: 1px solid rgba(5, 150, 105, 0.4);
+  cursor: pointer;
+  user-select: none;
+}
+.live-badge .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  margin-right: 4px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.hot-sectors-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hot-sector-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  background: rgba(30, 27, 75, 0.6);
+  color: #c7d2fe;
+  border: 1px solid rgba(67, 56, 202, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.hot-sector-btn:hover {
+  background: rgba(49, 46, 129, 0.8);
+  border-color: #6366f1;
+  color: #fff;
+}
+.chg {
+  font-family: monospace;
+  font-size: 9px;
+}
+.chg-up {
+  color: #fb7185;
+  font-weight: 600;
+}
+.chg-down {
+  color: #34d399;
+  font-weight: 600;
+}
 .err {
   color: var(--up);
   font-size: 12px;

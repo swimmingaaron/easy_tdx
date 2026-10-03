@@ -366,5 +366,42 @@ export async function fetchStockSuggestions(query: string): Promise<StockSuggest
   } catch {
     return []
   }
+// ── 热门行业板块 ─────────────────────────────────────────────────────────────
+
+export interface HotSectorItem {
+  code: string
+  name: string
+  change_pct: number
+  chg: string
 }
 
+/** 获取实时热门行业板块排行（按涨跌幅降序）。 */
+export async function fetchHotSectors(limit = 8): Promise<HotSectorItem[]> {
+  try {
+    const resp = await fetch('/api/quotes/dashboard')
+    if (!resp.ok) return []
+    const json = await resp.json()
+    const inds = (json.data?.industries || []) as Array<{
+      code: string
+      name: string
+      change_pct?: number
+      chg?: string
+    }>
+    return inds
+      .filter((x) => x && x.code && x.name)
+      .slice()
+      .sort((a, b) => (Number(b.change_pct) || 0) - (Number(a.change_pct) || 0))
+      .slice(0, limit)
+      .map((x) => {
+        const val = Number(x.change_pct) || 0
+        return {
+          code: String(x.code).trim(),
+          name: String(x.name).trim(),
+          change_pct: val,
+          chg: x.chg || `${val > 0 ? '+' : ''}${val.toFixed(2)}%`,
+        }
+      })
+  } catch {
+    return []
+  }
+}
