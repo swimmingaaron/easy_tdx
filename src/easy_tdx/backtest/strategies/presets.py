@@ -38,6 +38,10 @@ STRATEGY_PRESETS: dict[str, dict[str, list[Any]]] = {
         "fast": [5, 10, 15, 20, 30, 60],
         "slow": [10, 20, 30, 60, 120, 250],
     },  # 36
+    "ma_cross_pro": {
+        "fast": [5, 10, 15, 20, 30],
+        "slow": [10, 20, 30, 60, 120],
+    },
     "ema_cross": {
         "fast": [5, 10, 12, 20],
         "slow": [20, 26, 30, 60],

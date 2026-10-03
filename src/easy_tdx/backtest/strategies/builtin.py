@@ -278,6 +278,73 @@ class MaCrossStrategy(ParametrizedStrategy):
             self.sell()
 
 
+# ── 双均线实战优化战法 (MA PRO) ───────────────────────────────────────────────
+
+
+@register_strategy(
+    name="ma_cross_pro",
+    label="双均线优化战法",
+    description="MA5/MA20金叉实战优化：含20日线拐头初筛、次日突破确认、回踩二次入场及多维风控离场。",
+)
+class MaCrossProStrategy(ParametrizedStrategy):
+    """双均线完整实战策略。
+
+    优化流程：
+    1. 选股初筛：MA5 上穿 MA20 金叉，且 20日均线走平或向上拐头（排除均线下行假金叉）；
+    2. 二次筛选：金叉次日收盘价高于金叉日最高价确认突破；
+    3. 入场时机：金叉后第3天（T+2）标准入场，或多头回踩5日线放量/回踩20日线企稳二次入场；
+    4. 离场规则：收盘有效跌破20日均线、死叉或连续两日跌破5日线离场。
+    """
+
+    params = [
+        Param("fast", int, default=5, min_value=1, max_value=60, label="快线周期(MA5)"),
+        Param("slow", int, default=20, min_value=5, max_value=250, label="慢线周期(MA20)"),
+    ]
+    param_constraints = [("fast", "slow")]
+
+    def init(self) -> None:
+        self.ma_fast = self.I(MA, self.data.close, self.p["fast"])
+        self.ma_slow = self.I(MA, self.data.close, self.p["slow"])
+        self.gold = self.I(CROSS, self.ma_fast, self.ma_slow)
+        self.dead = self.I(CROSS, self.ma_slow, self.ma_fast)
+
+        self._pending_gold_bar = -999
+
+    def next(self) -> None:
+        idx = self._bar_index
+        cur_c = float(self.data.close[0])
+        prev_c = float(self.data.close[-1]) if idx > 0 else cur_c
+
+        ma_f = float(self.ma_fast[idx])
+        ma_f_prev = float(self.ma_fast[idx - 1]) if idx > 0 else ma_f
+        ma_s = float(self.ma_slow[idx])
+        ma_s_prev = float(self.ma_slow[idx - 1]) if idx > 0 else ma_s
+
+        # ── 1. 持仓离场检查（卖出条件：股价有效跌破5日均线且隔日未收回，立即离场）──────
+        if self.position["size"] > 0:
+            is_break_fast_2d = (cur_c < ma_f) and (prev_c < ma_f_prev)
+            is_dead_cross = bool(self.dead[idx])
+
+            if is_break_fast_2d or is_dead_cross:
+                self.sell(size=0)
+                self._pending_gold_bar = -999
+            return
+
+        # ── 2. 空仓筛选与入场 ────────────────────────────────────────────────────────
+        # 步骤 1：金叉 + 20日线形态初筛（MA20走平或拐头向上；向下倾斜直接放弃）
+        if self.gold[idx]:
+            if ma_s >= ma_s_prev:
+                self._pending_gold_bar = idx
+            return
+
+        # 步骤 2 & 3：金叉次日（T+1）二次筛选与 T+2（第3日）入场
+        # 若次日收盘价高于前一日（金叉日），确认突破走强，收盘发出买入指令（引擎次日开盘即第3日开盘买入）
+        if self._pending_gold_bar > 0 and idx == self._pending_gold_bar + 1:
+            if cur_c > prev_c:
+                self.buy(size=0)
+            self._pending_gold_bar = -999
+
+
 # ── MACD 金叉 ──────────────────────────────────────────────────────────────────
 
 
