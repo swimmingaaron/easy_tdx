@@ -263,6 +263,7 @@ async function onSave() {
       <div v-if="store.result" class="report-content">
         <div class="result-toolbar">
           <button class="ghost" @click="openSaveForm">💾 保存策略</button>
+          <router-link :to="{ path: '/optimize', query: { symbol: code } }" class="ghost">⚙ 参数寻优</router-link>
           <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
         </div>
 

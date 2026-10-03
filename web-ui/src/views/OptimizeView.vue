@@ -90,6 +90,10 @@ onMounted(() => {
   store.loadStrategies().catch((e) => {
     store.error = `加载策略列表失败：${e instanceof Error ? e.message : e}`
   })
+  const qSymbol = (route.query.symbol || route.query.code) as string | undefined
+  if (qSymbol) {
+    code.value = qSymbol
+  }
 })
 
 // 网格点数（前端预校验，提示用户）

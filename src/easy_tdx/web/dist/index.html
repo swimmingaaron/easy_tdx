@@ -1780,6 +1780,12 @@
                                 <i data-lucide="save" class="w-3.5 h-3.5"></i>
                                 <span>保存策略</span>
                             </button>
+                            <button onclick="jumpToOptimizeFromBacktest()"
+                                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/80 text-xs text-cyan-300 border border-cyan-800 hover:bg-cyan-900 hover:border-cyan-400 transition cursor-pointer"
+                                title="将当前标的代码带入「参数寻优」页面">
+                                <i data-lucide="sliders" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                <span>参数寻优</span>
+                            </button>
                             <span id="save-msg-toast" class="text-xs text-emerald-400 font-sans"></span>
                         </div>
                         <div class="text-xs text-slate-400 font-mono" id="bt-top-status-desc">
@@ -5563,17 +5569,37 @@
 
         function restoreInitialTab() {
             let targetTab = 'dashboard';
-            const hashTab = (window.location.hash || '').replace('#', '').trim();
+            const rawHash = (window.location.hash || '').replace('#', '').trim();
+            const [hashTab, queryStr] = rawHash.split('?');
             if (VALID_TABS.includes(hashTab)) {
                 targetTab = hashTab;
             }
             switchTab(targetTab, false);
+            if (targetTab === 'optimize') {
+                const params = new URLSearchParams(queryStr || window.location.search || '');
+                const sym = params.get('symbol') || params.get('code');
+                if (sym) {
+                    const optSym = document.getElementById('opt-symbol');
+                    if (optSym) optSym.value = sym;
+                    updateOptimizeKlineHint();
+                }
+            }
         }
 
         window.addEventListener('hashchange', () => {
-            const hashTab = (window.location.hash || '').replace('#', '').trim();
+            const rawHash = (window.location.hash || '').replace('#', '').trim();
+            const [hashTab, queryStr] = rawHash.split('?');
             if (VALID_TABS.includes(hashTab)) {
                 switchTab(hashTab, false);
+                if (hashTab === 'optimize') {
+                    const params = new URLSearchParams(queryStr || window.location.search || '');
+                    const sym = params.get('symbol') || params.get('code');
+                    if (sym) {
+                        const optSym = document.getElementById('opt-symbol');
+                        if (optSym) optSym.value = sym;
+                        updateOptimizeKlineHint();
+                    }
+                }
             }
         });
 
@@ -14452,6 +14478,7 @@
                             <div class="flex items-center justify-end space-x-1.5">
                                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
                                 <button onclick="openKlineModal('${code}', '${name}', null, _cachedWatchlistRows)" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
+                                <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-200 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
                             </div>
                         </td>
@@ -14909,7 +14936,10 @@
                                     </td>
                                     <td class="py-2.5 px-2 font-mono text-xs text-slate-300 whitespace-nowrap">${item.val || '--'}</td>
                                     <td class="py-2.5 pr-3 text-right whitespace-nowrap">
-                                        <button onclick="openKlineModal('${item.code}', '${item.name}')" class="px-2.5 py-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                        <div class="flex items-center justify-end space-x-1">
+                                            <button onclick="openKlineModal('${item.code}', '${item.name}')" class="px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-800 text-xs hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                            <button onclick="quickBacktest('${item.code}')" class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 text-xs hover:bg-slate-700 transition cursor-pointer" title="针对【${item.name}】进入参数寻优">回测</button>
+                                        </div>
                                     </td>
                                 </tr>
                                 `;
@@ -15841,10 +15871,7 @@
         }
 
         function quickOptimize(symCode) {
-            const symInput = document.getElementById('opt-symbol');
-            if (symInput) symInput.value = symCode;
-            updateOptimizeKlineHint();
-            runSingleStrategyOptimize();
+            quickBacktest(symCode);
         }
 
         function initOptimizeView() {
@@ -17300,10 +17327,37 @@
 
 
         function quickBacktest(sym) {
-            initBacktestDates();
-            document.getElementById('bt-symbol').value = sym;
-            switchTab('backtest');
-            runBacktest();
+            if (!sym) return;
+            let cleanSym = String(sym).trim();
+            const m = cleanSym.match(/(\d{6})/);
+            if (m) cleanSym = m[1];
+
+            // 1. 同步设置「参数寻优」页面标的代码输入框
+            const optSymInput = document.getElementById('opt-symbol');
+            if (optSymInput) optSymInput.value = cleanSym;
+
+            // 2. 同时保持「单标的回测」代码输入框同步，便于寻优后回测
+            const btSymInput = document.getElementById('bt-symbol');
+            if (btSymInput) btSymInput.value = cleanSym;
+
+            // 3. 初始化寻优日期与周期
+            initOptimizeDates();
+
+            // 4. 切换到「参数寻优」页面
+            switchTab('optimize');
+
+            // 5. 更新寻优K线提示并触发策略参数寻优
+            updateOptimizeKlineHint();
+            setTimeout(() => {
+                if (typeof runSingleStrategyOptimize === 'function') {
+                    runSingleStrategyOptimize();
+                }
+            }, 100);
+        }
+
+        function jumpToOptimizeFromBacktest() {
+            const sym = (document.getElementById('bt-symbol')?.value || '603986').trim();
+            quickBacktest(sym);
         }
 
         async function sendChatMessage() {
@@ -17758,12 +17812,7 @@
 
 
 
-        function quickBacktest(sym) {
-            initBacktestDates();
-            document.getElementById('bt-symbol').value = sym;
-            switchTab('backtest');
-            runBacktest();
-        }
+        // quickBacktest definition kept unified above
 
         async function sendChatMessage() {
             const input = document.getElementById('chat-input');
@@ -18789,7 +18838,10 @@
                 let mktCaptTd = `<td class="py-2.5 px-2.5 text-right font-mono text-slate-600 dark:text-slate-300 whitespace-nowrap">${mktCaptStr}</td>`;
 
                 // 诊断: 优雅微胶囊按钮 (indigo, 严格匹配参考图片)
-                let btnDiag = `<button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>`;
+                let btnDiag = `<div class="inline-flex items-center space-x-1">
+                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
+                    <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-300 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
+                </div>`;
 
                 // 1. 代码: 专业金融高对比度黑白加粗字体，直达雪球 (用户需求 1)
                 let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
@@ -19631,7 +19683,10 @@
 
                     // 1. 诊断按钮 (严格调用 openTsFinaModal，100%保证弹窗响应)
                     const diagTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
-                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+                <div class="inline-flex items-center space-x-1">
+                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+                    <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-300 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
+                </div>
             </td>`;
 
                     // 2. 自选 (保存到 watchlist.json, 删除同理)
@@ -20504,6 +20559,7 @@
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看深度8期财报">诊断</button>
                                     <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
+                                    <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800 text-xs hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                                     <button onclick="toggleWatchlistStockBtn('${code}', '${name}', this)" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 transition cursor-pointer" title="加入/移出自选">+自选</button>
                                 </div>
                             </td>
@@ -20634,6 +20690,7 @@
                                         <div class="flex items-center justify-end space-x-1">
                                             <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">诊断</button>
                                             <button onclick="openKlineModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">K线</button>
+                                            <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer" title="针对【${name}】进入参数寻优">回测</button>
                                         </div>
                                     </td>
                                 </tr>
