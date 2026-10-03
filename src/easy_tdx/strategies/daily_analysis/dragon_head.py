@@ -44,5 +44,5 @@ class DragonHeadStrategy(BaseStrategy):
 
         buy_sig = (had_surge & pullback_support) | relay_break
         out["buy_signal"] = buy_sig.fillna(False)
-        out["sell_signal"] = (c_series < ma5 * 0.97).fillna(False)
+        out["sell_signal"] = (c_series < ma5).fillna(False)
         return out

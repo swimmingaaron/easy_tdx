@@ -37,8 +37,8 @@ class DragonHeadFirstDropStrategy(BaseStrategy):
         )
         buy_sig = was_strong_leader & first_drop
         
-        # 3. 离场：跌破10日均线止损，或大幅脱离5日均线10%以上止盈
-        sell_sig = (c_series < ma10 * 0.97) | (c_series > ma5 * 1.10)
+        # 3. 离场：收盘跌破5日均线立即离场
+        sell_sig = c_series < ma5
         
         res["buy_signal"] = buy_sig.fillna(False)
         res["sell_signal"] = sell_sig.fillna(False)
