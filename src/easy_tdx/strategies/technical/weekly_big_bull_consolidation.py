@@ -1,4 +1,28 @@
-"""周线大阳横盘起爆策略 (Weekly Big Bull Consolidation Strategy).
+"""通信达大阳横盘调整策略 (Weekly Big Bull Consolidation Strategy).
+
+通达信选股公式代码 (周期选择：周线):
+------------------------------------------------------------------------
+{ 1. 寻找 N 周前的大阳线 (7个点以上实体阳线) }
+BIG_BULL := C > O AND (C - REF(C, 1)) / REF(C, 1) >= 0.07;
+
+{ 2. 前期跌幅超过 20%: 大阳线前20周最高价相对大阳线前低点跌幅 > 20% }
+PRIOR_HHV := REF(HHV(H, 20), 1);
+PRIOR_LLV := REF(LLV(L, 20), 1);
+PRIOR_DROP := (PRIOR_HHV - PRIOR_LLV) / PRIOR_HHV >= 0.20;
+
+{ 3. 横盘周数在 2 ~ 6 周之间，且大阳线满足前期超跌 }
+N := BARSLAST(BIG_BULL AND PRIOR_DROP);
+CONS_OK := N >= 2 AND N <= 6;
+
+{ 4. 横盘期间防守铁律: 不跌破大阳线低点，且收盘守在大阳线开盘价上方 }
+DEFENSE_OK := LLV(L, N) >= REF(L, N) * 0.985 AND LLV(C, N) >= REF(O, N) * 0.97;
+
+{ 5. 横盘收盘振幅紧凑 (小于16%) 且缩量调整 }
+RANGE_OK := HHV(C, N) / LLV(C, N) <= 1.16;
+VOL_OK := MA(V, N) <= REF(V, N) * 1.15;
+
+{ 最终选股条件 }
+XG: CONS_OK AND DEFENSE_OK AND RANGE_OK AND VOL_OK;
 
 形态逻辑（基于 300741 华宝新能、605058 澳弘电子 等经典大牛股周线复盘）：
 ------------------------------------------------------------------------
@@ -26,7 +50,7 @@ from easy_tdx.MyTT import MA, HHV, LLV
 @register_strategy
 class WeeklyBigBullConsolidationStrategy(BaseStrategy):
     name = "weekly_big_bull_consolidation"
-    display_name = "周线大阳横盘起爆策略"
+    display_name = "通信达大阳横盘调整策略"
     category = "technical"
     description = "前期周线跌幅超20%，单周收出7%以上大阳线，随后2周及以上横盘缩量蓄势不破大阳低点，捕捉主升浪起爆点。"
 

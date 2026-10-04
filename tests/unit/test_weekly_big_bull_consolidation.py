@@ -11,7 +11,7 @@ def test_strategy_registration():
     st = get_strategy("weekly_big_bull_consolidation")
     assert st is not None
     assert st.name == "weekly_big_bull_consolidation"
-    assert "周线大阳横盘" in st.display_name
+    assert "大阳横盘调整" in st.display_name
     assert st.category == "technical"
     assert "prior_drop_pct" in st.params_schema
 
