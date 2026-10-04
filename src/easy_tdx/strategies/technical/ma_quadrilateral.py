@@ -139,13 +139,23 @@ class MAQuadrilateralStrategy(BaseStrategy):
             description="四边形形成区域内严禁有蜡烛图穿越（实体、上影线、下影线均不得进入四边形内部）",
         ),
         Param(
+            "ma60_slope_threshold",
+            float,
+            default=-0.90,
+            min_value=-3.0,
+            max_value=3.0,
+            step=0.1,
+            label="MA60斜率阈值 (-0.9%)",
+            description="MA60 10周期变化率阈值，杜绝中长线仍处于单边下跌空头压制的诱多走势",
+        ),
+        Param(
             "max_hold_bars",
             int,
-            default=20,
+            default=30,
             min_value=3,
             max_value=60,
             step=1,
-            label="最大持仓周期 (20)",
+            label="最大持仓周期 (30)",
             description="买入后最多持仓K线根数，超时主动平仓释放资金",
         ),
     ]
@@ -153,11 +163,12 @@ class MAQuadrilateralStrategy(BaseStrategy):
         "window": 10,
         "pullback_window": 12,
         "require_ma60_support": True,
+        "ma60_slope_threshold": -0.90,
         "require_indicator_resonance": True,
         "no_candle_in_quad": True,
-        "stop_loss_pct": 5.0,
-        "take_profit_pct": 20.0,
-        "max_hold_bars": 20,
+        "stop_loss_pct": 8.0,
+        "take_profit_pct": 30.0,
+        "max_hold_bars": 30,
     }
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -175,21 +186,25 @@ class MAQuadrilateralStrategy(BaseStrategy):
         window = int(self.params.get("window", 10))
         pullback_window = int(self.params.get("pullback_window", 12))
         req_ma60 = bool(self.params.get("require_ma60_support", True))
+        ma60_slope_thresh = float(self.params.get("ma60_slope_threshold", -0.90))
         req_ind = bool(self.params.get("require_indicator_resonance", True))
         no_candle_req = bool(self.params.get("no_candle_in_quad", True))
-        sl_pct = float(self.params.get("stop_loss_pct", 5.0))
-        tp_pct = float(self.params.get("take_profit_pct", 20.0))
-        max_hold = int(self.params.get("max_hold_bars", 20))
+        sl_pct = float(self.params.get("stop_loss_pct", 8.0))
+        tp_pct = float(self.params.get("take_profit_pct", 30.0))
+        max_hold = int(self.params.get("max_hold_bars", 30))
 
         c = res["close"].values
         h = res["high"].values
         l = res["low"].values
         o = res["open"].values if "open" in res.columns else c
+        vol_col = "vol" if "vol" in res.columns else ("volume" if "volume" in res.columns else "")
+        v = res[vol_col].values if vol_col else np.ones(n, dtype=float)
 
         ma5 = MA(c, 5)
         ma10 = MA(c, 10)
         ma20 = MA(c, 20)
         ma60 = MA(c, 60)
+        ma5_vol = MA(v, 5)
 
         # 1. 通达信色带指标计算 (DRAWBAND)
         band_mm = np.minimum(ma5, ma60)
@@ -261,26 +276,21 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     (last_1 >= 5)
                     and (ma20[last_1 - 5] > ma60[last_1 - 5])
                     and (ma20[last_1] < ma60[last_1])
-                    and (ma20[last_1] < ma20[last_1 - 5] * 0.99)
+                    and (ma20[last_1] < ma20[last_1 - 5] * 0.95)
                 )
                 base_stable = not is_plunging_dead_cross
 
-                # 4. MA20 趋势过滤: MA20 跌势完全止住 (走平或微翘)
-                ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 3] * 0.992)
-                ma20_slope_p1 = (last_1 < 5) or (ma20[last_1] >= ma20[last_1 - 5] * 0.980)
+                # 4. MA20 趋势过滤: MA20 跌势企稳止住 (允许筑底时平缓拐头)
+                ma20_slope_ok = (i < 3) or (ma20[i] >= ma20[i - 1] * 0.996) or (ma20[i] >= ma20[i - 3] * 0.985)
+                ma20_slope_p1 = (last_1 < 5) or (ma20[last_1] >= ma20[last_1 - 5] * 0.920)
 
-                # 5. 生命线 MA60 与收盘价位置过滤 (关键分水岭)
+                # 5. 生命线 MA60 与收盘价位置过滤 (关键分水岭，严格杜绝下行压制诱多)
                 ma60_val = ma60[i]
                 cur_c = c[i]
                 if req_ma60:
                     ma60_ref10 = ma60[max(0, i - 10)]
                     ma60_slope_10d = (ma60_val - ma60_ref10) / ma60_ref10 * 100
-                    if ma60_slope_10d >= -1.0:
-                        # 正常企稳上翘形态: 要求收盘价站稳 MA60 附近或上方
-                        ma60_filter_ok = cur_c >= ma60_val * 0.99
-                    else:
-                        # MA60 仍在下倾: 要求收盘价强力大阳突破 MA60 (+3%以上) 且 J值极强
-                        ma60_filter_ok = (ma60_slope_10d >= -3.5) and (cur_c >= ma60_val * 1.03) and (j_val[i] >= 70.0)
+                    ma60_filter_ok = (ma60_slope_10d >= ma60_slope_thresh) and (cur_c >= ma60_val * 0.985)
                 else:
                     ma60_filter_ok = True
 
@@ -313,9 +323,21 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
                 # 8. P3 与 P4 交叉点收盘价硬约束:
                 #    P3(10日线上穿20日线) 与 P4(10日线上穿60日线) 交叉发生当日，收盘价均不能低于生命线 MA60
-                p3_c_ok = (last_3 >= 0) and (c[last_3] >= ma60[last_3])
-                p4_c_ok = (last_4 >= 0) and (c[last_4] >= ma60[last_4])
+                p3_c_ok = (last_3 >= 0) and (c[last_3] >= ma60[last_3] * 0.98)
+                p4_c_ok = (last_4 >= 0) and (c[last_4] >= ma60[last_4] * 0.98)
                 p3_p4_above_ma60 = p3_c_ok and p4_c_ok
+
+                # 9. 严控闭合后回踩破位: 若四边形闭合后已出现放量阴线出逃或跌破生命线 MA60，严禁滞后补发 XG
+                closure_bar = max(last_1, last_2, last_3, last_4)
+                dump_occurred = False
+                if i > closure_bar:
+                    for k in range(closure_bar + 1, i + 1):
+                        if (c[k] < o[k] * 0.96) and (v[k] > ma5_vol[k] * 1.25):
+                            dump_occurred = True
+                            break
+                        if l[k] < ma60[k] * 0.98:
+                            dump_occurred = True
+                            break
 
                 if (
                     geo_order_ok
@@ -327,6 +349,7 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     and resonance_ok
                     and no_candle_inside
                     and p3_p4_above_ma60
+                    and not dump_occurred
                 ):
                     xg[i] = True
 
@@ -365,6 +388,8 @@ class MAQuadrilateralStrategy(BaseStrategy):
             cur_ma10 = float(ma10[i])
             cur_ma20 = float(ma20[i])
             cur_ma60 = float(ma60[i])
+            cur_v = float(v[i])
+            cur_m5v = float(ma5_vol[i])
 
             if xg[i] and not xg[i - 1]:
                 last_formed_bar = i
@@ -372,21 +397,23 @@ class MAQuadrilateralStrategy(BaseStrategy):
 
             if in_pos:
                 # 卖出条件:
-                # 1. 均线死叉且破位
-                is_dead = (bool(dead_cross[i]) and cur_c < cur_ma20) or (cur_c < cur_ma20 * 0.96)
-                # 2. 硬止损保护
+                # 1. 跌破生命线 MA60 止损 (实盘防范假突破反杀核心生命线)
+                is_break_ma60 = cur_c < cur_ma60 * 0.975
+                # 2. 均线死叉且破位 MA20
+                is_dead = (bool(dead_cross[i]) and cur_c < cur_ma20) or (cur_c < cur_ma20 * 0.95)
+                # 3. 硬止损保护
                 is_sl = (sl_pct > 0) and (cur_c < buy_price * (1.0 - sl_pct / 100.0))
-                # 3. 目标止盈
+                # 4. 目标止盈
                 is_tp = (tp_pct > 0) and (cur_c >= buy_price * (1.0 + tp_pct / 100.0))
-                # 4. 最大持仓期超时
+                # 5. 最大持仓期超时
                 is_timeout = (max_hold > 0) and (i - buy_idx >= max_hold)
 
-                if is_dead or is_sl or is_tp or is_timeout:
+                if is_break_ma60 or is_dead or is_sl or is_tp or is_timeout:
                     sell_sig[i] = True
                     in_pos = False
                     tested_ma10 = False
-                    # 若因死叉或硬止损出局，说明四边形支撑已被有效打穿，熔断形态生命周期
-                    if is_dead or is_sl:
+                    # 若因死叉或破生命线/硬止损出局，说明四边形支撑已被有效打穿，熔断形态生命周期
+                    if is_break_ma60 or is_dead or is_sl:
                         last_formed_bar = -9999
             else:
                 is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
@@ -396,17 +423,27 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 # 是否处于 MA60 上方强势运行 (空中加油平台特征)
                 is_above_ma60 = (cur_c >= cur_ma60 * 0.985) and (cur_l >= cur_ma60 * 0.97)
 
-                # 辅助动能确认: 买入时 J>=50, RSI6>=50
+                # 辅助动能确认: 买入时 J>=48, RSI6>=48
                 momentum_ok = (j_val[i] >= 48.0) and (rsi6_val[i] >= 48.0)
 
+                # 回踩量能健康: 洗盘回踩成交量收缩，拒绝放量破位阴线 (cur_v <= cur_m5v * 1.35 或 阳线防守)
+                is_volume_healthy = (cur_v <= cur_m5v * 1.35) or (cur_c >= cur_o)
+
                 # 严格空中加油与健康回踩确认:
-                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.995)
+                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.99)
                 # 2. 四边形闭合以来，从未破位跌穿 MA20 防守线
                 c_since = c[last_formed_bar : i + 1] if last_formed_bar > 0 else []
                 ma20_since = ma20[last_formed_bar : i + 1] if last_formed_bar > 0 else []
-                never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.985))
-                ma5_above_ma10 = cur_ma5 >= cur_ma10 * 0.995
-                pullback_valid = is_within_watch and momentum_ok and ma5_above_ma10 and never_broke_ma20
+                never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.98))
+                ma5_above_ma10 = cur_ma5 >= cur_ma10 * 0.99
+                pullback_valid = (
+                    is_within_watch
+                    and momentum_ok
+                    and ma5_above_ma10
+                    and never_broke_ma20
+                    and is_volume_healthy
+                    and is_above_ma60
+                )
 
                 if xg[i] and not xg[i - 1]:
                     # 刚闭合当日突破: 必须保持主动进攻姿态
