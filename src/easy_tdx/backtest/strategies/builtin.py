@@ -887,6 +887,8 @@ class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
         Param("big_bull_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, label="大阳线涨幅阈值(%)"),
         Param("min_consolidation_weeks", int, default=2, min_value=2, max_value=10, label="最小横盘周数"),
         Param("max_consolidation_weeks", int, default=6, min_value=3, max_value=15, label="最大横盘周数"),
+        Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="横盘单周最大跌幅限制(%)"),
+        Param("max_pullback_pct", float, default=3.0, min_value=0.5, max_value=15.0, label="相对大阳收盘最大回撤(%)"),
     ]
 
     def init(self) -> None:
@@ -899,6 +901,8 @@ class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
         prior_drop = float(self.p["prior_drop_pct"]) / 100.0
         lookback = int(self.p["prior_lookback"])
         big_bull_pct = float(self.p["big_bull_min_pct"])
+        max_drop = float(self.p.get("max_drop_pct", 3.0))
+        max_pullback = float(self.p.get("max_pullback_pct", 3.0))
 
         if i < min_cons + 10:
             return
@@ -932,6 +936,20 @@ class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
             cons_lows = [lows[j] for j in range(big_idx + 1, i + 1)]
             cons_closes = [closes[j] for j in range(big_idx + 1, i + 1)]
             cons_vols = [vols[j] for j in range(big_idx + 1, i + 1)]
+
+            # Check single week drop
+            has_big_drop = False
+            for j in range(big_idx + 1, i + 1):
+                w_prev = closes[j - 1]
+                if w_prev > 0 and (closes[j] - w_prev) / w_prev * 100.0 < -max_drop:
+                    has_big_drop = True
+                    break
+            if has_big_drop:
+                continue
+
+            # Check pullback from big candle close
+            if min(cons_closes) < closes[big_idx] * (1.0 - max_pullback / 100.0):
+                continue
 
             if min(cons_lows) < lows[big_idx] * 0.985:
                 continue

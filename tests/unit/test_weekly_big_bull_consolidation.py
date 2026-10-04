@@ -73,3 +73,31 @@ def test_synthetic_weekly_pattern():
     # After at least 2 weeks of consolidation (idx 22 and idx 23), pattern should be recognized
     assert res.loc[22, "buy_signal"] == True
     assert res.loc[23, "buy_signal"] == True
+
+
+def test_exclude_drop_greater_than_3_pct():
+    """Verify that any consolidation week dropping more than 3% is strictly excluded."""
+    dates = pd.date_range("2025-01-01", periods=25, freq="W")
+    prices = list(np.linspace(20.0, 12.0, 20)) # 20 weeks drop > 20%
+    prices.append(13.5) # big bull candle (+12.5%)
+    prices.extend([13.4, 12.8, 13.0, 13.2]) # week 2 drops from 13.4 to 12.8 (-4.48% > 3%)
+    
+    df = pd.DataFrame({
+        "datetime": dates,
+        "open": prices,
+        "high": [p * 1.02 for p in prices],
+        "low": [p * 0.98 for p in prices],
+        "close": prices,
+        "volume": [10000] * 20 + [50000] + [20000, 18000, 22000, 21000],
+    })
+    df.loc[20, "open"] = 12.0
+    df.loc[20, "close"] = 13.5
+    
+    # In week 22, close drops from 13.4 to 12.8 (-4.48%)
+    st = WeeklyBigBullConsolidationStrategy()
+    res = st.generate_signals(df)
+    
+    # Must NOT have buy_signal on bar 22, 23, 24 due to the > 3% drop
+    assert res.loc[22, "buy_signal"] == False
+    assert res.loc[23, "buy_signal"] == False
+
