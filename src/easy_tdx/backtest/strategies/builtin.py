@@ -871,3 +871,87 @@ class FslStrategy(ParametrizedStrategy):
         elif self.dead[i] and self.position["size"] > 0:
             self.sell()
 
+
+# ── 通信达大阳横盘调整策略 ──────────────────────────────────────────────────
+
+
+@register_strategy(
+    name="weekly_big_bull_consolidation",
+    label="通信达大阳横盘调整策略",
+    description="前期跌幅超20%，单周收出7%以上大阳线，随后2周及以上横盘缩量蓄势不破大阳低点买入。",
+)
+class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
+    params = [
+        Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, label="前期跌幅阈值(%)"),
+        Param("prior_lookback", int, default=20, min_value=8, max_value=50, label="前期跌幅周数"),
+        Param("big_bull_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, label="大阳线涨幅阈值(%)"),
+        Param("min_consolidation_weeks", int, default=2, min_value=2, max_value=10, label="最小横盘周数"),
+        Param("max_consolidation_weeks", int, default=6, min_value=3, max_value=15, label="最大横盘周数"),
+    ]
+
+    def init(self) -> None:
+        pass
+
+    def next(self) -> None:
+        i = self._bar_index
+        min_cons = int(self.p["min_consolidation_weeks"])
+        max_cons = int(self.p["max_consolidation_weeks"])
+        prior_drop = float(self.p["prior_drop_pct"]) / 100.0
+        lookback = int(self.p["prior_lookback"])
+        big_bull_pct = float(self.p["big_bull_min_pct"])
+
+        if i < min_cons + 10:
+            return
+
+        closes = self.data.close
+        opens = self.data.open
+        highs = self.data.high
+        lows = self.data.low
+        vols = self.data.vol
+
+        for N in range(min_cons, max_cons + 1):
+            big_idx = i - N
+            if big_idx < 5:
+                continue
+
+            prev_c = closes[big_idx - 1]
+            if prev_c <= 0:
+                continue
+            pct = (closes[big_idx] - prev_c) / prev_c * 100.0
+            if pct < big_bull_pct or closes[big_idx] <= opens[big_idx]:
+                continue
+
+            # Prior drop
+            lk_start = max(0, big_idx - lookback)
+            p_high = max(highs[j] for j in range(lk_start, big_idx))
+            p_low = min(min(lows[j] for j in range(lk_start, big_idx)), lows[big_idx])
+            if p_high <= 0 or (p_high - p_low) / p_high < prior_drop:
+                continue
+
+            # Consolidation check
+            cons_lows = [lows[j] for j in range(big_idx + 1, i + 1)]
+            cons_closes = [closes[j] for j in range(big_idx + 1, i + 1)]
+            cons_vols = [vols[j] for j in range(big_idx + 1, i + 1)]
+
+            if min(cons_lows) < lows[big_idx] * 0.985:
+                continue
+            if min(cons_closes) < opens[big_idx] * 0.97:
+                continue
+            if max(cons_closes) / (min(cons_closes) + 1e-6) > 1.16:
+                continue
+            if sum(cons_vols) / len(cons_vols) > vols[big_idx] * 1.15:
+                continue
+
+            # Valid consolidation trigger
+            if self.position["size"] == 0:
+                self.buy()
+            return
+
+        if self.position["size"] > 0:
+            # Trailing stop or break of support
+            if i >= 5:
+                ma5 = sum(closes[j] for j in range(i - 4, i + 1)) / 5.0
+                if closes[i] < ma5 * 0.97:
+                    self.sell()
+
+
