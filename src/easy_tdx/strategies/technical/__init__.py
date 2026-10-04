@@ -18,6 +18,7 @@ from .zhuoyao_momentum import ZhuoyaoStrategy
 from .zig_breakout import ZigBreakoutStrategy
 from .td_sequential import TDSequentialStrategy
 from .ma_quadrilateral import MAQuadrilateralStrategy
+from .weekly_big_bull_consolidation import WeeklyBigBullConsolidationStrategy
 
 __all__ = [
     "BiasReversalStrategy",
@@ -39,4 +40,6 @@ __all__ = [
     "ZigBreakoutStrategy",
     "TDSequentialStrategy",
     "MAQuadrilateralStrategy",
+    "WeeklyBigBullConsolidationStrategy",
 ]
+
