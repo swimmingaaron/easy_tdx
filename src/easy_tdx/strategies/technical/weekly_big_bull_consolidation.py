@@ -1,48 +1,62 @@
-"""通信达大阳横盘调整策略 (Weekly Big Bull Consolidation Strategy).
+"""通信达上涨旗形策略 (Weekly Bull Flag Strategy).
+
+经典上涨旗形 (Bull Flag) 深度量化模型与形态拓扑:
+------------------------------------------------------------------------
+上涨旗形是技术分析中爆发力最强、胜率最高的主升浪中继形态之一。
+在周线级别，由「坚挺旗杆 (Flagpole)」与「紧凑旗面 (Flag Body)」组成：
+
+       │                     突破旗面上沿起爆点 (主升浪第二波爆发)
+       │                        ▲
+       │        旗面紧凑缩量    ╱
+       │        ┌──┐┌──┐┌──┐  ╱
+       │        │  ││  ││  │ ╱
+       │   ─────┴──┴──┴──┴──┘  ◄── 旗面承托防守线 (不破旗杆50%腰线)
+       │  ▲
+       │  │ 旗杆 (Flagpole): 前期超跌>20%后的突破大阳线 (+7%以上放量长阳)
+       │  ▼
+       └─────────────────────────
+
+核心量化特征:
+1. 旗杆拔起 (Flagpole): 前期波段下跌超 20%，单周收出 >= 7% 的放量突破大阳线，确立旗杆。
+2. 旗面高位承托 (Retracement Defense):
+   - 旗面整理期间各周收盘价与最低价必须承托在旗杆实体中轴 (50% 分位) 及开盘价之上，重心极度坚挺；
+3. 旗面基准稳定性 (Benchmark Stability):
+   - 以大阳后第一根交易周的收盘价为旗面价格中枢，横盘期间各周涨跌幅偏离严格控制在 ±3% 以内；
+   - 排除单周跌幅大于 3% 的长阴砸盘；
+4. 旗面阶梯缩量 (Volume Contraction):
+   - 旗杆放量，旗面持续显著缩量 (成交量缩减 30%~70%)，表明浮筹洗净、筹码高度惜售锁定；
+5. 旗形突破起爆 (Breakout Launch):
+   - 旗面蓄势 2 ~ 6 周，在旗面末期低吸潜伏，或放量突破旗面上沿时追击展开第二波等长主升浪！
 
 通达信选股公式代码 (周期选择：周线):
 ------------------------------------------------------------------------
-{ 1. 寻找 N 周前的大阳线 (7个点以上实体阳线) }
+{ 1. 旗杆确立：前期波段跌幅超20%，单周收出7%以上大阳线 }
 BIG_BULL := C > O AND (C - REF(C, 1)) / REF(C, 1) >= 0.07;
-
-{ 2. 前期跌幅超过 20%: 大阳线前20周最高价相对大阳线前低点跌幅 > 20% }
 PRIOR_HHV := REF(HHV(H, 20), 1);
 PRIOR_LLV := REF(LLV(L, 20), 1);
 PRIOR_DROP := (PRIOR_HHV - PRIOR_LLV) / PRIOR_HHV >= 0.20;
+FLAGPOLE := BIG_BULL AND PRIOR_DROP;
 
-{ 3. 横盘周数在 2 ~ 6 周之间，且大阳线满足前期超跌 }
-N := BARSLAST(BIG_BULL AND PRIOR_DROP);
-CONS_OK := N >= 2 AND N <= 6;
+{ 2. 旗面时间跨度：大阳线之后连续横盘 2 ~ 6 周 }
+N := BARSLAST(FLAGPOLE);
+FLAG_TIME := N >= 2 AND N <= 6;
 
-{ 4. 以大阳之后的第一根交易日(周)为基准 }
+{ 3. 旗面基准日：以大阳之后的第一根交易周收盘价为基准 }
 BASE_C := REF(C, N - 1);
 
-{ 5. 横盘期间所有周期的收盘价相对基准的涨跌幅不超过 3% (绝对偏离 <= 3%) }
-BASE_DEV_OK := HHV(C, N) <= BASE_C * 1.03 AND LLV(C, N) >= BASE_C * 0.97;
+{ 4. 旗面价格通道：各周期相对基准涨跌幅不超过 ±3% (绝对偏离 <= 3%) }
+FLAG_CHANNEL := HHV(C, N) <= BASE_C * 1.03 AND LLV(C, N) >= BASE_C * 0.97;
 
-{ 6. 横盘期间防守铁律: 最低价不跌破大阳线低点，且单周跌幅不超过 3% }
-DEFENSE_OK := LLV(L, N) >= REF(L, N) * 0.985 AND COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
+{ 5. 旗杆腰线承托：旗面最低价不破旗杆实体50%中轴与大阳低点，且单周跌幅不破3% }
+POLE_MID := (REF(O, N) + REF(C, N)) * 0.50;
+POLE_DEFENSE := LLV(L, N) >= MIN(POLE_MID, REF(L, N) * 0.985);
+NO_CRASH := COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
 
-{ 7. 缩量调整 (筹码锁定无抛压) }
-VOL_OK := MA(V, N) <= REF(V, N) * 1.15;
+{ 6. 旗面缩量洗盘：旗面平均成交量明显低于旗杆放量周 }
+FLAG_VOL_SHRINK := MA(V, N) <= REF(V, N) * 0.85;
 
-{ 最终选股条件 }
-XG: CONS_OK AND BASE_DEV_OK AND DEFENSE_OK AND VOL_OK;
-
-形态逻辑（基于 300741 华宝新能、605058 澳弘电子 等经典大牛股周线复盘）：
-------------------------------------------------------------------------
-1. 前期深幅回调 (Prior Drop)：
-   在出现标志性大阳线之前，周线级别经历充分调整，前期波段跌幅超过 20%（排除高位加速或出货形态）。
-2. 周线标志性突破大阳 (Big Bull Candle)：
-   单周涨幅超过 7%（通常伴随明显放量），长阳拔起宣告阶段探底结束或多头第一波强攻。
-3. 平台横盘强势洗盘 (Horizontal Consolidation)：
-   大阳线出现后，连续 2 根及以上周 K 线（2 ~ 6 周）维持横盘缩量蓄势：
-   - 防守铁律：横盘期间各周最低价不能跌破大阳线最低价（底线不破）；
-   - 收盘坚挺：收盘价基本保持在大阳线开盘价上方（甚至大阳线实体中轴上方）；
-   - 振幅收敛：横盘箱体收盘极差通常在 15% 以内，筹码高度锁定；
-   - 缩量洗盘：横盘周期均量明显低于起爆大阳线周量（无主力出货迹象）。
-4. 后续主升浪拉升 (Subsequent Markup)：
-   蓄势充沛后，在横盘末期或突破横盘箱体上沿时迎来第二波主升浪爆发！
+{ 最终选股输出 }
+XG: FLAG_TIME AND FLAG_CHANNEL AND POLE_DEFENSE AND NO_CRASH AND FLAG_VOL_SHRINK;
 """
 from __future__ import annotations
 import numpy as np
@@ -53,36 +67,34 @@ from easy_tdx.MyTT import MA, HHV, LLV
 
 
 @register_strategy
-class WeeklyBigBullConsolidationStrategy(BaseStrategy):
-    name = "weekly_big_bull_consolidation"
-    display_name = "通信达大阳横盘调整策略"
+class WeeklyBullFlagStrategy(BaseStrategy):
+    name = "weekly_bull_flag"
+    display_name = "通信达上涨旗形策略"
     category = "technical"
-    description = "前期周线跌幅超20%，单周收出7%以上大阳线，随后2周及以上横盘缩量蓄势不破大阳低点，捕捉主升浪起爆点。"
+    description = "前期周线超跌>20%，标志性大阳(+7%)立起旗杆，随后2~6周缩量水平或微斜整理不破旗杆中轴，各周相对首日基准波动<=±3%，捕捉主升浪二次起爆点。"
 
     params_list = [
-        Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, step=5.0, label="前期跌幅阈值(%)", description="大阳线前波段最大跌幅要求"),
-        Param("prior_lookback", int, default=20, min_value=8, max_value=50, step=2, label="前期跌幅统计周数", description="大阳线前寻找高低点的回溯周数"),
-        Param("big_bull_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, step=0.5, label="大阳线涨幅阈值(%)", description="标志性大阳线的单周涨幅下限"),
-        Param("min_consolidation_weeks", int, default=2, min_value=2, max_value=10, step=1, label="最小横盘周数", description="大阳线后连续横盘的最少周数"),
-        Param("max_consolidation_weeks", int, default=8, min_value=3, max_value=15, step=1, label="最大横盘周数", description="大阳线后横盘考察的最长周数"),
-        Param("max_consolidation_amplitude", float, default=1.16, min_value=1.05, max_value=1.35, step=0.01, label="横盘收盘振幅上限", description="横盘期间最高收盘与最低收盘比值"),
-        Param("volume_shrink_ratio", float, default=1.15, min_value=0.5, max_value=1.5, step=0.05, label="横盘均量容差上限", description="横盘期均量相对于大阳周成交量的倍数上限"),
-        Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="横盘单周最大跌幅限制(%)", description="横盘期间任意一周的最大下跌幅度限制，超过则排除"),
-        Param("max_pullback_pct", float, default=3.0, min_value=0.5, max_value=15.0, step=0.5, label="相对大阳收盘最大回撤(%)", description="横盘期间相对大阳线收盘价的最大回撤限制，超过则排除"),
-        Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="基准首日涨跌幅限制(%)", description="以大阳后第一根交易日为基准，横盘期间所有周期的涨跌幅绝对值不超过该阈值"),
+        Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, step=5.0, label="前期跌幅阈值(%)", description="大阳旗杆前波段最大跌幅要求"),
+        Param("prior_lookback", int, default=20, min_value=8, max_value=50, step=2, label="前期跌幅统计周数", description="大阳旗杆前寻找高低点的回溯周数"),
+        Param("pole_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, step=0.5, label="旗杆长阳涨幅阈值(%)", description="标志性旗杆大阳线的单周涨幅下限"),
+        Param("min_flag_weeks", int, default=2, min_value=2, max_value=10, step=1, label="旗面最小周数", description="旗杆后连续横盘旗面的最少周数"),
+        Param("max_flag_weeks", int, default=6, min_value=3, max_value=12, step=1, label="旗面最大周数", description="旗杆后旗面整理考察的最长周数"),
+        Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="基准首周偏离限制(%)", description="以旗面第一根交易周为基准，旗面所有周期的收盘价相对基准的绝对偏离百分比"),
+        Param("max_single_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="旗面单周最大跌幅(%)", description="旗面整理期间任意一周的最大下跌幅度限制"),
+        Param("pole_retrace_ratio", float, default=0.50, min_value=0.30, max_value=0.90, step=0.05, label="旗杆腰线承托位", description="旗面最低价相对旗杆实体的承托分位(默认0.50中轴)"),
+        Param("vol_shrink_ratio", float, default=0.85, min_value=0.3, max_value=1.2, step=0.05, label="旗面缩量容差比例", description="旗面均量相对于旗杆大阳周成交量的倍数上限(默认0.85倍缩量)"),
     ]
 
     params_schema = {
         "prior_drop_pct": 20.0,
         "prior_lookback": 20,
-        "big_bull_min_pct": 7.0,
-        "min_consolidation_weeks": 2,
-        "max_consolidation_weeks": 8,
-        "max_consolidation_amplitude": 1.16,
-        "volume_shrink_ratio": 1.15,
-        "max_drop_pct": 3.0,
-        "max_pullback_pct": 3.0,
+        "pole_min_pct": 7.0,
+        "min_flag_weeks": 2,
+        "max_flag_weeks": 6,
         "base_dev_pct": 3.0,
+        "max_single_drop_pct": 3.0,
+        "pole_retrace_ratio": 0.50,
+        "vol_shrink_ratio": 0.85,
     }
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -95,14 +107,13 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
 
         prior_drop_pct = float(self.params.get("prior_drop_pct", 20.0)) / 100.0
         prior_lookback = int(self.params.get("prior_lookback", 20))
-        big_bull_min_pct = float(self.params.get("big_bull_min_pct", 7.0))
-        min_cons = int(self.params.get("min_consolidation_weeks", 2))
-        max_cons = int(self.params.get("max_consolidation_weeks", 8))
-        max_amp = float(self.params.get("max_consolidation_amplitude", 1.16))
-        vol_tol = float(self.params.get("volume_shrink_ratio", 1.15))
-        max_drop_pct = float(self.params.get("max_drop_pct", 3.0))
-        max_pullback_pct = float(self.params.get("max_pullback_pct", 3.0))
+        pole_min_pct = float(self.params.get("pole_min_pct", 7.0))
+        min_flag = int(self.params.get("min_flag_weeks", 2))
+        max_flag = int(self.params.get("max_flag_weeks", 6))
         base_dev_pct = float(self.params.get("base_dev_pct", 3.0))
+        max_single_drop = float(self.params.get("max_single_drop_pct", 3.0))
+        pole_retrace = float(self.params.get("pole_retrace_ratio", 0.50))
+        vol_tol = float(self.params.get("vol_shrink_ratio", 0.85))
 
         opens = res["open"].values
         highs = res["high"].values
@@ -110,7 +121,7 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         closes = res["close"].values
         volumes = res["volume"].values if "volume" in res.columns else res["vol"].values
 
-        # Calculate percentage change if not already present
+        # Calculate percentage change
         pcts = np.zeros(n)
         for i in range(1, n):
             prev = closes[i - 1]
@@ -120,11 +131,8 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         sell_signal = np.zeros(n, dtype=bool)
         is_pattern = np.zeros(n, dtype=bool)
 
-        # Vectorized / loop evaluation for each bar
-        # For bar i: is bar i currently at a valid consolidation stage?
-        for i in range(min_cons + 10, n):
-            # Check if there is an anchor big bull candle at i - N
-            for N in range(min_cons, max_cons + 1):
+        for i in range(min_flag + 10, n):
+            for N in range(min_flag, max_flag + 1):
                 big_idx = i - N
                 if big_idx < 5:
                     continue
@@ -135,11 +143,11 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
                 b_low = lows[big_idx]
                 b_vol = volumes[big_idx]
 
-                # 1. Big bull candle criteria
-                if b_pct < big_bull_min_pct or b_close <= b_open:
+                # 1. 旗杆检验：单周涨幅 >= 7%，实体收阳
+                if b_pct < pole_min_pct or b_close <= b_open:
                     continue
 
-                # 2. Prior drop check
+                # 2. 前期跌幅检验：大阳线前波段跌幅 >= 20%
                 look_start = max(0, big_idx - prior_lookback)
                 prior_h = np.max(highs[look_start:big_idx])
                 prior_l = min(np.min(lows[look_start:big_idx]), b_low)
@@ -149,51 +157,43 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
                 if drop < prior_drop_pct:
                     continue
 
-                # 3. Consolidation bars: big_idx + 1 to i
+                # 3. 旗面 K 线切片：从 big_idx + 1 到 i
                 cons_l = lows[big_idx + 1 : i + 1]
                 cons_c = closes[big_idx + 1 : i + 1]
                 cons_v = volumes[big_idx + 1 : i + 1]
                 cons_pcts = pcts[big_idx + 1 : i + 1]
 
-                # (1) 以大阳之后的第一根交易日收盘价为基准 (base_close)
+                # (1) 旗面基准稳定性：以大阳后第一根交易周收盘价为中枢基准
                 base_close = cons_c[0]
                 devs = np.abs(cons_c - base_close) / (base_close + 1e-6) * 100.0
                 if np.max(devs) > base_dev_pct:
                     continue
 
-                # (2) 跌幅排除过滤：横盘期间任意单周跌幅不能大于 max_drop_pct (默认 3%)
-                if np.min(cons_pcts) < -max_drop_pct:
+                # (2) 旗面单周防下砸：任意单周跌幅不能超过 max_single_drop (默认 3%)
+                if np.min(cons_pcts) < -max_single_drop:
                     continue
 
-                # (3) 横盘期间收盘价相对大阳线收盘价的回撤不能大于 max_pullback_pct (默认 3%)
-                if np.min(cons_c) < b_close * (1.0 - max_pullback_pct / 100.0):
+                # (3) 旗杆实体承托 (黄金腰线保护)：
+                # 旗面最低价不跌破大阳线实体腰线 (50% 分位) 及起爆低点
+                pole_midpoint = b_open + (b_close - b_open) * (1.0 - pole_retrace)
+                retrace_support = min(pole_midpoint, b_open * 0.985)
+                if np.min(cons_l) < retrace_support:
                     continue
 
-                # Low defense: cannot break big candle low (with 1.5% margin)
-                if np.min(cons_l) < b_low * 0.985:
-                    continue
-
-                # Close defense: cannot sink below big candle open (with 3% margin)
+                # 收盘价必须稳稳托在大阳线开盘价及腰线附近
                 if np.min(cons_c) < b_open * 0.97:
                     continue
 
-                # Amplitude defense
-                c_max = np.max(cons_c)
-                c_min = np.min(cons_c)
-                if c_min > 0 and (c_max / c_min) > max_amp:
-                    continue
-
-                # Volume contraction
+                # (4) 旗面缩量洗盘特征：旗面均量明显萎缩
                 if np.mean(cons_v) > b_vol * vol_tol:
                     continue
 
-                # Qualified consolidation!
+                # 上涨旗形确立！
                 is_pattern[i] = True
-                # Trigger buy signal on the bars of consolidation (especially at N == min_cons or on all active cons bars)
                 buy_signal[i] = True
                 break
 
-            # Sell signal: if previously in pattern, but current close falls below MA5 or breaks anchor low
+            # 卖出防守：跌破旗杆腰线或 MA5 趋势破位
             if i >= 1 and is_pattern[i - 1] and not is_pattern[i]:
                 if closes[i] < closes[i - 1] * 0.95 or (i >= 5 and closes[i] < np.mean(closes[i - 5 : i])):
                     sell_signal[i] = True
@@ -202,3 +202,10 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         res["sell_signal"] = sell_signal
         res["is_pattern"] = is_pattern
         return res
+
+
+# 兼容原类名与别名注册
+@register_strategy
+class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
+    name = "weekly_big_bull_consolidation"
+    display_name = "通信达上涨旗形策略"

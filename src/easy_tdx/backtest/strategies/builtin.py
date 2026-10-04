@@ -872,24 +872,25 @@ class FslStrategy(ParametrizedStrategy):
             self.sell()
 
 
-# ── 通信达大阳横盘调整策略 ──────────────────────────────────────────────────
+# ── 通信达上涨旗形策略 ──────────────────────────────────────────────────────
 
 
 @register_strategy(
-    name="weekly_big_bull_consolidation",
-    label="通信达大阳横盘调整策略",
-    description="前期跌幅超20%，单周收出7%以上大阳线，随后2周及以上横盘缩量蓄势不破大阳低点买入。",
+    name="weekly_bull_flag",
+    label="通信达上涨旗形策略",
+    description="前期跌幅超20%，标志性大阳(+7%)立起旗杆，随后2~6周缩量整理不破旗杆中轴，各周相对首日基准波动<=±3%，捕捉主升浪二次起爆点。",
 )
-class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
+class WeeklyBullFlagStrategy(ParametrizedStrategy):
     params = [
         Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, label="前期跌幅阈值(%)"),
         Param("prior_lookback", int, default=20, min_value=8, max_value=50, label="前期跌幅周数"),
-        Param("big_bull_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, label="大阳线涨幅阈值(%)"),
-        Param("min_consolidation_weeks", int, default=2, min_value=2, max_value=10, label="最小横盘周数"),
-        Param("max_consolidation_weeks", int, default=6, min_value=3, max_value=15, label="最大横盘周数"),
-        Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="横盘单周最大跌幅限制(%)"),
-        Param("max_pullback_pct", float, default=3.0, min_value=0.5, max_value=15.0, label="相对大阳收盘最大回撤(%)"),
-        Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="基准首日涨跌幅限制(%)"),
+        Param("pole_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, label="旗杆长阳涨幅阈值(%)"),
+        Param("min_flag_weeks", int, default=2, min_value=2, max_value=10, label="旗面最小周数"),
+        Param("max_flag_weeks", int, default=6, min_value=3, max_value=15, label="旗面最大周数"),
+        Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="旗面单周最大跌幅(%)"),
+        Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="基准首日涨跌幅偏离(%)"),
+        Param("pole_retrace_ratio", float, default=0.50, min_value=0.30, max_value=0.90, label="旗杆腰线承托位"),
+        Param("vol_shrink_ratio", float, default=0.85, min_value=0.3, max_value=1.2, label="旗面缩量容差"),
     ]
 
     def init(self) -> None:
@@ -897,14 +898,15 @@ class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
 
     def next(self) -> None:
         i = self._bar_index
-        min_cons = int(self.p["min_consolidation_weeks"])
-        max_cons = int(self.p["max_consolidation_weeks"])
+        min_cons = int(self.p["min_flag_weeks"])
+        max_cons = int(self.p["max_flag_weeks"])
         prior_drop = float(self.p["prior_drop_pct"]) / 100.0
         lookback = int(self.p["prior_lookback"])
-        big_bull_pct = float(self.p["big_bull_min_pct"])
+        big_bull_pct = float(self.p["pole_min_pct"])
         max_drop = float(self.p.get("max_drop_pct", 3.0))
-        max_pullback = float(self.p.get("max_pullback_pct", 3.0))
         base_dev = float(self.p.get("base_dev_pct", 3.0))
+        pole_retrace = float(self.p.get("pole_retrace_ratio", 0.50))
+        vol_tol = float(self.p.get("vol_shrink_ratio", 0.85))
 
         if i < min_cons + 10:
             return
@@ -954,29 +956,36 @@ class WeeklyBigBullConsolidationStrategy(ParametrizedStrategy):
             if has_big_drop:
                 continue
 
-            # Check pullback from big candle close
-            if min(cons_closes) < closes[big_idx] * (1.0 - max_pullback / 100.0):
-                continue
-
-            if min(cons_lows) < lows[big_idx] * 0.985:
+            # Pole midpoint defense
+            pole_midpoint = opens[big_idx] + (closes[big_idx] - opens[big_idx]) * (1.0 - pole_retrace)
+            retrace_support = min(pole_midpoint, opens[big_idx] * 0.985)
+            if min(cons_lows) < retrace_support:
                 continue
             if min(cons_closes) < opens[big_idx] * 0.97:
                 continue
-            if max(cons_closes) / (min(cons_closes) + 1e-6) > 1.16:
-                continue
-            if sum(cons_vols) / len(cons_vols) > vols[big_idx] * 1.15:
+
+            # Volume contraction
+            if sum(cons_vols) / len(cons_vols) > vols[big_idx] * vol_tol:
                 continue
 
-            # Valid consolidation trigger
+            # Valid bull flag buy signal
             if self.position["size"] == 0:
                 self.buy()
             return
 
         if self.position["size"] > 0:
-            # Trailing stop or break of support
             if i >= 5:
                 ma5 = sum(closes[j] for j in range(i - 4, i + 1)) / 5.0
                 if closes[i] < ma5 * 0.97:
                     self.sell()
+
+
+@register_strategy(
+    name="weekly_big_bull_consolidation",
+    label="通信达上涨旗形策略",
+    description="通信达上涨旗形策略（兼容原名称引用）。",
+)
+class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
+    pass
 
 

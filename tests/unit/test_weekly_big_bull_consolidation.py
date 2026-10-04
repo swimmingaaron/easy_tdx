@@ -8,12 +8,17 @@ from easy_tdx.strategies.technical.weekly_big_bull_consolidation import WeeklyBi
 
 
 def test_strategy_registration():
-    st = get_strategy("weekly_big_bull_consolidation")
+    st = get_strategy("weekly_bull_flag")
     assert st is not None
-    assert st.name == "weekly_big_bull_consolidation"
-    assert "大阳横盘调整" in st.display_name
+    assert st.name == "weekly_bull_flag"
+    assert "上涨旗形" in st.display_name
     assert st.category == "technical"
     assert "prior_drop_pct" in st.params_schema
+
+    # Alias check
+    st_alias = get_strategy("weekly_big_bull_consolidation")
+    assert st_alias is not None
+    assert "上涨旗形" in st_alias.display_name
 
 
 def test_synthetic_weekly_pattern():
