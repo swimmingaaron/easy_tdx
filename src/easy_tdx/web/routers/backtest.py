@@ -835,26 +835,11 @@ async def api_run_backtest_unified(
         except Exception:
             pass
     
-    # 1. Fetch real market K-line bars from TDX
+    # 1. Fetch real market K-line bars from TDX (fetch with sufficient history for indicator warmup)
     n_bars = 600 if cat_val in ("DAY", "WEEK", "MONTH", "SEASON", "YEAR") else 320
     df = fetch_security_kline(clean_sym, count=n_bars, period=cat_val)
     
-    # Filter by date if supplied
-    if (s_date or e_date) and "datetime" in df.columns and len(df) > 0:
-        dt_col = df["datetime"].astype(str)
-        has_time = ":" in str(dt_col.iloc[-1])
-        e_filter = (e_date + " 23:59:59") if (e_date and len(e_date) == 10 and has_time) else e_date
-        s_filter = s_date
-        mask = pd.Series(True, index=df.index)
-        if s_filter:
-            mask = mask & (dt_col >= s_filter)
-        if e_filter:
-            mask = mask & (dt_col <= e_filter)
-        min_bars = 3 if cat_val in ("SEASON", "QUARTER", "YEAR") else (6 if cat_val == "MONTH" else 10)
-        if mask.sum() >= min_bars:
-            df = df[mask].reset_index(drop=True)
-        
-    # 2. Generate signals
+    # 2. Generate signals on full data to ensure technical indicators (MA60, MACD, etc.) have proper warmup history
     try:
         st = get_strategy(st_val, **custom_params)
         sig_df = st.generate_signals(df)
@@ -863,6 +848,22 @@ async def api_run_backtest_unified(
         sig_df = df.copy()
         sig_df["buy_signal"] = False
         sig_df["sell_signal"] = False
+
+    # Filter by date if supplied (preserving signal continuity within the selected window)
+    if (s_date or e_date) and "datetime" in sig_df.columns and len(sig_df) > 0:
+        dt_col = sig_df["datetime"].astype(str)
+        has_time = ":" in str(dt_col.iloc[-1])
+        e_filter = (e_date + " 23:59:59") if (e_date and len(e_date) == 10 and has_time) else e_date
+        s_filter = s_date
+        mask = pd.Series(True, index=sig_df.index)
+        if s_filter:
+            mask = mask & (dt_col >= s_filter)
+        if e_filter:
+            mask = mask & (dt_col <= e_filter)
+        min_bars = 3 if cat_val in ("SEASON", "QUARTER", "YEAR") else (6 if cat_val == "MONTH" else 10)
+        if mask.sum() >= min_bars:
+            sig_df = sig_df[mask].reset_index(drop=True)
+            df = df[mask].reset_index(drop=True)
         
     # 3. Simulate execution
     shares = 0

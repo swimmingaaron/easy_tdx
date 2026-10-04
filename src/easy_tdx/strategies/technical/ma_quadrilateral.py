@@ -395,10 +395,83 @@ class MAQuadrilateralStrategy(BaseStrategy):
                 last_formed_bar = i
                 tested_ma10 = False
 
-            if in_pos:
-                # 卖出条件:
-                # 1. 跌破生命线 MA60 止损 (实盘防范假突破反杀核心生命线)
-                is_break_ma60 = cur_c < cur_ma60 * 0.975
+            is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
+            trigger_buy = False
+            buy_type = ""
+
+            # 是否处于 MA60 上方强势运行 (空中加油平台特征)
+            is_above_ma60 = (cur_c >= cur_ma60 * 0.985) and (cur_l >= cur_ma60 * 0.97)
+
+            # 辅助动能确认: 买入时 J>=48, RSI6>=48
+            momentum_ok = (j_val[i] >= 48.0) and (rsi6_val[i] >= 48.0)
+
+            # 回踩量能健康: 洗盘回踩成交量收缩，拒绝放量破位阴线 (cur_v <= cur_m5v * 1.35 或 阳线防守)
+            is_volume_healthy = (cur_v <= cur_m5v * 1.35) or (cur_c >= cur_o)
+
+            # 严格空中加油与健康回踩确认:
+            # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.99)
+            # 2. 四边形闭合以来，从未破位跌穿 MA20 防守线
+            c_since = c[last_formed_bar : i + 1] if last_formed_bar > 0 else []
+            ma20_since = ma20[last_formed_bar : i + 1] if last_formed_bar > 0 else []
+            never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.98))
+            ma5_above_ma10 = cur_ma5 >= cur_ma10 * 0.99
+            pullback_valid = (
+                is_within_watch
+                and momentum_ok
+                and ma5_above_ma10
+                and never_broke_ma20
+                and is_volume_healthy
+                and is_above_ma60
+            )
+
+            if xg[i] and not xg[i - 1]:
+                # 刚闭合当日突破: 必须保持主动进攻姿态
+                if cur_c >= cur_ma5 * 0.99 and cur_ma5 >= cur_ma10:
+                    trigger_buy = True
+                    buy_type = "沿5日线强攻"
+                elif cur_c >= cur_ma10:
+                    trigger_buy = True
+                    buy_type = "闭合加速"
+            elif pullback_valid:
+                # 实战图解重点形态：
+                # 1. 【回踩10日线抢筹】(图中洗盘K线低点精准触碰黄色10日线，收盘守住10日线)
+                if cur_l <= cur_ma10 * 1.02 and cur_c >= cur_ma10 * 0.985 and is_above_ma60:
+                    trigger_buy = True
+                    tested_ma10 = True
+                    has_lower_shadow = (cur_c - cur_l) >= (cur_h - cur_l) * 0.35 or (cur_c >= cur_o)
+                    buy_type = "回踩10日线抢筹" if has_lower_shadow else "回踩10日线"
+
+                # 2. 【空中加油二次起爆】(在确认10日线支撑后，长阳突破平台高点展开第二波主升浪)
+                elif tested_ma10 and (cur_c > cur_ma5) and (cur_c > float(c[i - 1])) and is_above_ma60:
+                    trigger_buy = True
+                    buy_type = "空中加油二次起爆"
+
+                # 3. 【回踩20日线强支撑抢筹】
+                elif cur_l <= cur_ma20 * 1.02 and cur_c >= cur_ma20 * 0.985:
+                    trigger_buy = True
+                    buy_type = "回踩20日线"
+
+                # 4. 【回踩60日线季线支撑】
+                elif cur_l <= cur_ma60 * 1.02 and cur_c >= cur_ma60 * 0.985:
+                    trigger_buy = True
+                    buy_type = "回踩60日线"
+
+            if trigger_buy:
+                buy_sig[i] = True
+                quad_buy_types[i] = buy_type
+                if quad_regularity[i] == 0.0 and last_formed_bar >= 0:
+                    quad_regularity[i] = quad_regularity[last_formed_bar]
+                if quad_bottom_price[i] == 0.0 and last_formed_bar >= 0:
+                    quad_bottom_price[i] = quad_bottom_price[last_formed_bar]
+                if not in_pos:
+                    in_pos = True
+                    buy_price = cur_c
+                    buy_idx = i
+
+            if in_pos and not trigger_buy:
+                # 优化卖出条件:
+                # 1. 跌破生命线 MA60 止损 (允许洗盘合理下探 5%)
+                is_break_ma60 = cur_c < cur_ma60 * 0.95
                 # 2. 均线死叉且破位 MA20
                 is_dead = (bool(dead_cross[i]) and cur_c < cur_ma20) or (cur_c < cur_ma20 * 0.95)
                 # 3. 硬止损保护
@@ -415,84 +488,6 @@ class MAQuadrilateralStrategy(BaseStrategy):
                     # 若因死叉或破生命线/硬止损出局，说明四边形支撑已被有效打穿，熔断形态生命周期
                     if is_break_ma60 or is_dead or is_sl:
                         last_formed_bar = -9999
-            else:
-                is_within_watch = (i - last_formed_bar <= pullback_window) and (last_formed_bar > 0)
-                trigger_buy = False
-                buy_type = ""
-
-                # 是否处于 MA60 上方强势运行 (空中加油平台特征)
-                is_above_ma60 = (cur_c >= cur_ma60 * 0.985) and (cur_l >= cur_ma60 * 0.97)
-
-                # 辅助动能确认: 买入时 J>=48, RSI6>=48
-                momentum_ok = (j_val[i] >= 48.0) and (rsi6_val[i] >= 48.0)
-
-                # 回踩量能健康: 洗盘回踩成交量收缩，拒绝放量破位阴线 (cur_v <= cur_m5v * 1.35 或 阳线防守)
-                is_volume_healthy = (cur_v <= cur_m5v * 1.35) or (cur_c >= cur_o)
-
-                # 严格空中加油与健康回踩确认:
-                # 1. 短期均线不可死叉倒挂: MA5 必须在 MA10 上方 (cur_ma5 >= cur_ma10 * 0.99)
-                # 2. 四边形闭合以来，从未破位跌穿 MA20 防守线
-                c_since = c[last_formed_bar : i + 1] if last_formed_bar > 0 else []
-                ma20_since = ma20[last_formed_bar : i + 1] if last_formed_bar > 0 else []
-                never_broke_ma20 = len(c_since) > 0 and bool(np.all(c_since >= ma20_since * 0.98))
-                ma5_above_ma10 = cur_ma5 >= cur_ma10 * 0.99
-                pullback_valid = (
-                    is_within_watch
-                    and momentum_ok
-                    and ma5_above_ma10
-                    and never_broke_ma20
-                    and is_volume_healthy
-                    and is_above_ma60
-                )
-
-                if xg[i] and not xg[i - 1]:
-                    # 刚闭合当日突破: 必须保持主动进攻姿态
-                    if cur_c >= cur_ma5 * 0.99 and cur_ma5 >= cur_ma10:
-                        trigger_buy = True
-                        buy_type = "沿5日线强攻"
-                    elif cur_c >= cur_ma10:
-                        trigger_buy = True
-                        buy_type = "闭合加速"
-                elif pullback_valid:
-                    # 实战图解重点形态：
-                    # 1. 【回踩10日线抢筹】(图中洗盘K线低点精准触碰黄色10日线，收盘守住10日线)
-                    if cur_l <= cur_ma10 * 1.02 and cur_c >= cur_ma10 * 0.985 and is_above_ma60:
-                        trigger_buy = True
-                        tested_ma10 = True
-                        has_lower_shadow = (cur_c - cur_l) >= (cur_h - cur_l) * 0.35 or (cur_c >= cur_o)
-                        buy_type = "回踩10日线抢筹" if has_lower_shadow else "回踩10日线"
-
-                    # 2. 【空中加油二次起爆】(在确认10日线支撑后，长阳突破平台高点展开第二波主升浪)
-                    elif tested_ma10 and (cur_c > cur_ma5) and (cur_c > float(c[i - 1])) and is_above_ma60:
-                        trigger_buy = True
-                        buy_type = "空中加油二次起爆"
-
-                    # 3. 【沿5日线强势不回调】(极度强势连板攻坚)
-                    elif cur_l >= cur_ma5 * 0.99 and cur_c > cur_ma5 and cur_ma5 > cur_ma10:
-                        trigger_buy = True
-                        buy_type = "沿5日线强攻"
-
-                    # 4. 【回踩20日线强支撑抢筹】
-                    elif cur_l <= cur_ma20 * 1.02 and cur_c >= cur_ma20 * 0.985:
-                        trigger_buy = True
-                        buy_type = "回踩20日线"
-
-                    # 5. 【回踩60日线季线支撑】
-                    elif cur_l <= cur_ma60 * 1.02 and cur_c >= cur_ma60 * 0.985:
-                        trigger_buy = True
-                        buy_type = "回踩60日线"
-
-                if trigger_buy:
-                    buy_sig[i] = True
-                    in_pos = True
-                    buy_price = cur_c
-                    buy_idx = i
-                    quad_buy_types[i] = buy_type
-                    # 继承形成日的四边形规则度与起爆底价
-                    if quad_regularity[i] == 0.0 and last_formed_bar >= 0:
-                        quad_regularity[i] = quad_regularity[last_formed_bar]
-                    if quad_bottom_price[i] == 0.0 and last_formed_bar >= 0:
-                        quad_bottom_price[i] = quad_bottom_price[last_formed_bar]
 
         res["ma5"] = ma5
         res["ma10"] = ma10
