@@ -14,20 +14,20 @@ PRIOR_DROP := (PRIOR_HHV - PRIOR_LLV) / PRIOR_HHV >= 0.20;
 N := BARSLAST(BIG_BULL AND PRIOR_DROP);
 CONS_OK := N >= 2 AND N <= 6;
 
-{ 4. 横盘期间防守铁律: 不跌破大阳线低点，且收盘守在大阳线开盘价上方 }
-DEFENSE_OK := LLV(L, N) >= REF(L, N) * 0.985 AND LLV(C, N) >= REF(O, N) * 0.97;
+{ 4. 以大阳之后的第一根交易日(周)为基准 }
+BASE_C := REF(C, N - 1);
 
-{ 5. 横盘调整阶段严格排除跌幅大于3%的标的 }
-{ 单周最大跌幅不超过3%，且相对大阳收盘价回撤不超过3% }
-NO_BIG_DROP := COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
-PULLBACK_OK := LLV(C, N) >= REF(C, N) * 0.97;
+{ 5. 横盘期间所有周期的收盘价相对基准的涨跌幅不超过 3% (绝对偏离 <= 3%) }
+BASE_DEV_OK := HHV(C, N) <= BASE_C * 1.03 AND LLV(C, N) >= BASE_C * 0.97;
 
-{ 6. 横盘收盘振幅紧凑 (小于16%) 且缩量调整 }
-RANGE_OK := HHV(C, N) / LLV(C, N) <= 1.16;
+{ 6. 横盘期间防守铁律: 最低价不跌破大阳线低点，且单周跌幅不超过 3% }
+DEFENSE_OK := LLV(L, N) >= REF(L, N) * 0.985 AND COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
+
+{ 7. 缩量调整 (筹码锁定无抛压) }
 VOL_OK := MA(V, N) <= REF(V, N) * 1.15;
 
 { 最终选股条件 }
-XG: CONS_OK AND DEFENSE_OK AND NO_BIG_DROP AND PULLBACK_OK AND RANGE_OK AND VOL_OK;
+XG: CONS_OK AND BASE_DEV_OK AND DEFENSE_OK AND VOL_OK;
 
 形态逻辑（基于 300741 华宝新能、605058 澳弘电子 等经典大牛股周线复盘）：
 ------------------------------------------------------------------------
@@ -69,6 +69,7 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         Param("volume_shrink_ratio", float, default=1.15, min_value=0.5, max_value=1.5, step=0.05, label="横盘均量容差上限", description="横盘期均量相对于大阳周成交量的倍数上限"),
         Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="横盘单周最大跌幅限制(%)", description="横盘期间任意一周的最大下跌幅度限制，超过则排除"),
         Param("max_pullback_pct", float, default=3.0, min_value=0.5, max_value=15.0, step=0.5, label="相对大阳收盘最大回撤(%)", description="横盘期间相对大阳线收盘价的最大回撤限制，超过则排除"),
+        Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="基准首日涨跌幅限制(%)", description="以大阳后第一根交易日为基准，横盘期间所有周期的涨跌幅绝对值不超过该阈值"),
     ]
 
     params_schema = {
@@ -81,6 +82,7 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         "volume_shrink_ratio": 1.15,
         "max_drop_pct": 3.0,
         "max_pullback_pct": 3.0,
+        "base_dev_pct": 3.0,
     }
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -100,6 +102,7 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
         vol_tol = float(self.params.get("volume_shrink_ratio", 1.15))
         max_drop_pct = float(self.params.get("max_drop_pct", 3.0))
         max_pullback_pct = float(self.params.get("max_pullback_pct", 3.0))
+        base_dev_pct = float(self.params.get("base_dev_pct", 3.0))
 
         opens = res["open"].values
         highs = res["high"].values
@@ -152,12 +155,17 @@ class WeeklyBigBullConsolidationStrategy(BaseStrategy):
                 cons_v = volumes[big_idx + 1 : i + 1]
                 cons_pcts = pcts[big_idx + 1 : i + 1]
 
-                # 跌幅排除过滤：
-                # (1) 横盘期间任意单周跌幅不能大于 max_drop_pct (默认 3%)
+                # (1) 以大阳之后的第一根交易日收盘价为基准 (base_close)
+                base_close = cons_c[0]
+                devs = np.abs(cons_c - base_close) / (base_close + 1e-6) * 100.0
+                if np.max(devs) > base_dev_pct:
+                    continue
+
+                # (2) 跌幅排除过滤：横盘期间任意单周跌幅不能大于 max_drop_pct (默认 3%)
                 if np.min(cons_pcts) < -max_drop_pct:
                     continue
 
-                # (2) 横盘期间收盘价相对大阳线收盘价的回撤不能大于 max_pullback_pct (默认 3%)
+                # (3) 横盘期间收盘价相对大阳线收盘价的回撤不能大于 max_pullback_pct (默认 3%)
                 if np.min(cons_c) < b_close * (1.0 - max_pullback_pct / 100.0):
                     continue
 

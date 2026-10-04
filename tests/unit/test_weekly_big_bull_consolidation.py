@@ -101,3 +101,31 @@ def test_exclude_drop_greater_than_3_pct():
     assert res.loc[22, "buy_signal"] == False
     assert res.loc[23, "buy_signal"] == False
 
+
+def test_benchmark_first_bar_deviation_within_3_pct():
+    """Verify that consolidation bars must stay within 3% deviation from first bar."""
+    dates = pd.date_range("2025-01-01", periods=25, freq="W")
+    prices = list(np.linspace(20.0, 12.0, 20)) # 20 weeks drop > 20%
+    prices.append(13.5) # big bull candle (idx 20)
+    # First bar after big bull (idx 21): close = 13.5
+    # Next bar (idx 22): close = 13.95 (deviation = (13.95-13.5)/13.5 = +3.33% > 3%)
+    prices.extend([13.5, 13.95, 13.5, 13.5])
+    
+    df = pd.DataFrame({
+        "datetime": dates,
+        "open": prices,
+        "high": [p * 1.01 for p in prices],
+        "low": [p * 0.99 for p in prices],
+        "close": prices,
+        "volume": [10000] * 20 + [50000] + [20000, 19000, 21000, 20000],
+    })
+    df.loc[20, "open"] = 12.0
+    df.loc[20, "close"] = 13.5
+    
+    st = WeeklyBigBullConsolidationStrategy()
+    res = st.generate_signals(df)
+    
+    # idx 22 deviated by +3.33% > 3% from first bar, so should NOT be matched
+    assert res.loc[22, "buy_signal"] == False
+
+
