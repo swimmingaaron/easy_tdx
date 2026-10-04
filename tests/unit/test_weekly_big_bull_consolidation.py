@@ -71,13 +71,53 @@ def test_synthetic_weekly_pattern():
     df.loc[23, "low"] = 13.1
     df.loc[23, "high"] = 13.8
     
-    st = WeeklyBigBullConsolidationStrategy()
+    st = WeeklyBigBullConsolidationStrategy(enable_ma_filter=False, enable_macd_filter=False)
     res = st.generate_signals(df)
     
     assert "buy_signal" in res.columns
     # After at least 2 weeks of consolidation (idx 22 and idx 23), pattern should be recognized
     assert res.loc[22, "buy_signal"] == True
     assert res.loc[23, "buy_signal"] == True
+
+
+def test_ma_and_macd_resonance_filter():
+    """Verify that MA and MACD resonance properly filters out signals when MA/MACD conditions are not met."""
+    dates = pd.date_range("2025-01-01", periods=30, freq="W")
+    # Base pattern where MA5 >= MA10 and MACD DIF >= DEA
+    # 10 bars decline from 20 to 12, then 10 bars basing at 12, then big bull candle to 14.5
+    prices = list(np.linspace(20.0, 12.0, 10)) + [12.0] * 10
+    prices.append(14.0)  # big bull candle (+16.7%)
+    prices.extend([14.1, 14.0, 14.2])  # 3 weeks flag consolidation
+    prices.extend([15.0, 16.0, 17.0, 18.0, 19.0, 20.0])
+
+    df = pd.DataFrame({
+        "datetime": dates,
+        "open": prices,
+        "high": [p * 1.02 for p in prices],
+        "low": [p * 0.98 for p in prices],
+        "close": prices,
+        "volume": [10000] * 20 + [50000] + [20000, 18000, 22000] + [60000] * 6,
+    })
+    df.loc[20, "open"] = 12.0
+    df.loc[20, "close"] = 14.0
+    df.loc[20, "low"] = 11.9
+    df.loc[20, "high"] = 14.2
+
+    df.loc[21, "open"] = 14.0
+    df.loc[21, "close"] = 14.1
+    df.loc[21, "low"] = 13.5
+    df.loc[21, "high"] = 14.3
+
+    df.loc[22, "open"] = 14.1
+    df.loc[22, "close"] = 14.0
+    df.loc[22, "low"] = 13.5
+    df.loc[22, "high"] = 14.2
+
+    st_with_filter = WeeklyBigBullConsolidationStrategy(enable_ma_filter=True, enable_macd_filter=True)
+    res_filtered = st_with_filter.generate_signals(df)
+
+    # MA5 and MACD DIF should both be bullish here, so signals should trigger
+    assert res_filtered.loc[22, "buy_signal"] == True
 
 
 def test_exclude_drop_greater_than_3_pct():

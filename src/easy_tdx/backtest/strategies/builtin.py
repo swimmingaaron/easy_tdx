@@ -890,11 +890,15 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
         Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="旗面单周最大跌幅(%)"),
         Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="基准首日涨跌幅偏离(%)"),
         Param("pole_retrace_ratio", float, default=0.50, min_value=0.30, max_value=0.90, label="旗杆腰线承托位"),
-        Param("vol_shrink_ratio", float, default=0.85, min_value=0.3, max_value=1.2, label="旗面缩量容差"),
+        Param("vol_shrink_ratio", float, default=0.75, min_value=0.3, max_value=1.2, label="旗面缩量容差"),
+        Param("enable_ma_filter", bool, default=True, label="均线多头共振过滤"),
+        Param("enable_macd_filter", bool, default=True, label="MACD金叉共振过滤"),
     ]
 
     def init(self) -> None:
-        pass
+        self.ma5 = self.I(MA, self.data.close, 5)
+        self.ma10 = self.I(MA, self.data.close, 10)
+        self.dif, self.dea, self.macd = self.I(MACD, self.data.close)
 
     def next(self) -> None:
         i = self._bar_index
@@ -906,16 +910,18 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
         max_drop = float(self.p.get("max_drop_pct", 3.0))
         base_dev = float(self.p.get("base_dev_pct", 3.0))
         pole_retrace = float(self.p.get("pole_retrace_ratio", 0.50))
-        vol_tol = float(self.p.get("vol_shrink_ratio", 0.85))
+        vol_tol = float(self.p.get("vol_shrink_ratio", 0.75))
+        enable_ma = bool(self.p.get("enable_ma_filter", True))
+        enable_macd = bool(self.p.get("enable_macd_filter", True))
 
         if i < min_cons + 10:
             return
 
-        closes = self.data.close
-        opens = self.data.open
-        highs = self.data.high
-        lows = self.data.low
-        vols = self.data.vol
+        closes = self.data.close.raw
+        opens = self.data.open.raw
+        highs = self.data.high.raw
+        lows = self.data.low.raw
+        vols = self.data.vol.raw
 
         for N in range(min_cons, max_cons + 1):
             big_idx = i - N
@@ -967,6 +973,14 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
             # Volume contraction
             if sum(cons_vols) / len(cons_vols) > vols[big_idx] * vol_tol:
                 continue
+
+            # MA & MACD resonance filter
+            if enable_ma:
+                if self.ma5[i] < self.ma10[i] or closes[i] < self.ma10[i]:
+                    continue
+            if enable_macd:
+                if self.dif[i] < self.dea[i]:
+                    continue
 
             # Valid bull flag buy signal
             if self.position["size"] == 0:

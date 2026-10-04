@@ -52,18 +52,22 @@ POLE_MID := (REF(O, N) + REF(C, N)) * 0.50;
 POLE_DEFENSE := LLV(L, N) >= MIN(POLE_MID, REF(L, N) * 0.985);
 NO_CRASH := COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
 
-{ 6. 旗面缩量洗盘：旗面平均成交量明显低于旗杆放量周 }
-FLAG_VOL_SHRINK := MA(V, N) <= REF(V, N) * 0.85;
+{ 6. 旗面缩量洗盘：旗面平均成交量低于旗杆放量周的 75% }
+FLAG_VOL_SHRINK := MA(V, N) <= REF(V, N) * 0.75;
 
-{ 最终选股输出 }
-XG: FLAG_TIME AND FLAG_CHANNEL AND POLE_DEFENSE AND NO_CRASH AND FLAG_VOL_SHRINK;
+{ 7. 均线与动能指标共振过滤：周线MA5>=MA10且收盘踩上MA10 + 周MACD金叉红柱多头掌控 }
+MA_OK := MA(C, 5) >= MA(C, 10) AND C >= MA(C, 10);
+MACD_OK := MACD.DIF >= MACD.DEA;
+
+{ 最终选股输出：全市场控仓高胜率标的在100只以内 }
+XG: FLAG_TIME AND FLAG_CHANNEL AND POLE_DEFENSE AND NO_CRASH AND FLAG_VOL_SHRINK AND MA_OK AND MACD_OK;
 """
 from __future__ import annotations
 import numpy as np
 import pandas as pd
 from easy_tdx.strategies.base import BaseStrategy, Param
 from easy_tdx.strategies.registry import register_strategy
-from easy_tdx.MyTT import MA, HHV, LLV
+from easy_tdx.MyTT import MA, HHV, LLV, MACD
 
 
 @register_strategy
@@ -71,7 +75,7 @@ class WeeklyBullFlagStrategy(BaseStrategy):
     name = "weekly_bull_flag"
     display_name = "通信达上涨旗形策略"
     category = "technical"
-    description = "前期周线超跌>20%，标志性大阳(+7%)立起旗杆，随后2~6周缩量水平或微斜整理不破旗杆中轴，各周相对首日基准波动<=±3%，捕捉主升浪二次起爆点。"
+    description = "前期周线超跌>20%，标志性大阳(+7%)立起旗杆，随后2~6周缩量水平或微斜整理不破旗杆中轴，各周相对首日基准波动<=±3%，结合周线均线与MACD多头共振，控制优质标的在100只以内。"
 
     params_list = [
         Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, step=5.0, label="前期跌幅阈值(%)", description="大阳旗杆前波段最大跌幅要求"),
@@ -82,7 +86,9 @@ class WeeklyBullFlagStrategy(BaseStrategy):
         Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="基准首周偏离限制(%)", description="以旗面第一根交易周为基准，旗面所有周期的收盘价相对基准的绝对偏离百分比"),
         Param("max_single_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="旗面单周最大跌幅(%)", description="旗面整理期间任意一周的最大下跌幅度限制"),
         Param("pole_retrace_ratio", float, default=0.50, min_value=0.30, max_value=0.90, step=0.05, label="旗杆腰线承托位", description="旗面最低价相对旗杆实体的承托分位(默认0.50中轴)"),
-        Param("vol_shrink_ratio", float, default=0.85, min_value=0.3, max_value=1.2, step=0.05, label="旗面缩量容差比例", description="旗面均量相对于旗杆大阳周成交量的倍数上限(默认0.85倍缩量)"),
+        Param("vol_shrink_ratio", float, default=0.75, min_value=0.3, max_value=1.2, step=0.05, label="旗面缩量容差比例", description="旗面均量相对于旗杆大阳周成交量的倍数上限(默认0.75倍缩量)"),
+        Param("enable_ma_filter", bool, default=True, label="均线多头共振过滤", description="要求MA5>=MA10且收盘价站上MA10生命线"),
+        Param("enable_macd_filter", bool, default=True, label="MACD金叉共振过滤", description="要求周线MACD DIF>=DEA处于红柱多头掌控区"),
     ]
 
     params_schema = {
@@ -94,7 +100,9 @@ class WeeklyBullFlagStrategy(BaseStrategy):
         "base_dev_pct": 3.0,
         "max_single_drop_pct": 3.0,
         "pole_retrace_ratio": 0.50,
-        "vol_shrink_ratio": 0.85,
+        "vol_shrink_ratio": 0.75,
+        "enable_ma_filter": True,
+        "enable_macd_filter": True,
     }
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -113,13 +121,23 @@ class WeeklyBullFlagStrategy(BaseStrategy):
         base_dev_pct = float(self.params.get("base_dev_pct", 3.0))
         max_single_drop = float(self.params.get("max_single_drop_pct", 3.0))
         pole_retrace = float(self.params.get("pole_retrace_ratio", 0.50))
-        vol_tol = float(self.params.get("vol_shrink_ratio", 0.85))
+        vol_tol = float(self.params.get("vol_shrink_ratio", 0.75))
+        enable_ma = bool(self.params.get("enable_ma_filter", True))
+        enable_macd = bool(self.params.get("enable_macd_filter", True))
 
         opens = res["open"].values
         highs = res["high"].values
         lows = res["low"].values
         closes = res["close"].values
         volumes = res["volume"].values if "volume" in res.columns else res["vol"].values
+
+        # Precompute technical indicators
+        ma5 = MA(closes, 5) if enable_ma else None
+        ma10 = MA(closes, 10) if enable_ma else None
+        if enable_macd:
+            dif, dea, _ = MACD(closes)
+        else:
+            dif, dea = None, None
 
         # Calculate percentage change
         pcts = np.zeros(n)
@@ -187,6 +205,14 @@ class WeeklyBullFlagStrategy(BaseStrategy):
                 # (4) 旗面缩量洗盘特征：旗面均量明显萎缩
                 if np.mean(cons_v) > b_vol * vol_tol:
                     continue
+
+                # (5) 均线与动能指标共振过滤：周线MA5>=MA10且收盘踩上MA10 + 周MACD金叉红柱多头掌控
+                if enable_ma and ma5 is not None and ma10 is not None:
+                    if ma5[i] < ma10[i] or closes[i] < ma10[i]:
+                        continue
+                if enable_macd and dif is not None and dea is not None:
+                    if dif[i] < dea[i]:
+                        continue
 
                 # 上涨旗形确立！
                 is_pattern[i] = True
