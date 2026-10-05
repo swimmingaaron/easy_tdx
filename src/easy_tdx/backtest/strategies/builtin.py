@@ -885,6 +885,9 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
         Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, label="前期跌幅阈值(%)"),
         Param("prior_lookback", int, default=20, min_value=8, max_value=50, label="前期跌幅周数"),
         Param("pole_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, label="旗杆长阳涨幅阈值(%)"),
+        Param("first_bull_only", bool, default=True, label="仅选底部首根大阳"),
+        Param("first_bull_lookback", int, default=8, min_value=4, max_value=20, label="首阳排他周数"),
+        Param("bottom_rebound_max_pct", float, default=15.0, min_value=5.0, max_value=40.0, label="起涨点离底反弹上限(%)"),
         Param("min_flag_weeks", int, default=2, min_value=2, max_value=10, label="旗面最小周数"),
         Param("max_flag_weeks", int, default=6, min_value=3, max_value=15, label="旗面最大周数"),
         Param("max_drop_pct", float, default=3.0, min_value=0.5, max_value=10.0, label="旗面单周最大跌幅(%)"),
@@ -907,6 +910,9 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
         prior_drop = float(self.p["prior_drop_pct"]) / 100.0
         lookback = int(self.p["prior_lookback"])
         big_bull_pct = float(self.p["pole_min_pct"])
+        first_bull = bool(self.p.get("first_bull_only", True))
+        fb_lookback = int(self.p.get("first_bull_lookback", 8))
+        bottom_rebound_max = float(self.p.get("bottom_rebound_max_pct", 15.0))
         max_drop = float(self.p.get("max_drop_pct", 3.0))
         base_dev = float(self.p.get("base_dev_pct", 3.0))
         pole_retrace = float(self.p.get("pole_retrace_ratio", 0.50))
@@ -941,6 +947,20 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
             p_low = min(min(lows[j] for j in range(lk_start, big_idx)), lows[big_idx])
             if p_high <= 0 or (p_high - p_low) / p_high < prior_drop:
                 continue
+
+            # First big bull from bottom check
+            if first_bull:
+                has_prior_bull = False
+                for j in range(max(0, big_idx - fb_lookback), big_idx):
+                    p_prev = closes[j - 1]
+                    if p_prev > 0 and (closes[j] - p_prev) / p_prev * 100.0 >= big_bull_pct and closes[j] > opens[j]:
+                        has_prior_bull = True
+                        break
+                if has_prior_bull:
+                    continue
+
+                if (opens[big_idx] - p_low) / (p_low + 1e-6) * 100.0 > bottom_rebound_max:
+                    continue
 
             # Consolidation check
             cons_lows = [lows[j] for j in range(big_idx + 1, i + 1)]

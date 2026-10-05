@@ -174,3 +174,56 @@ def test_benchmark_first_bar_deviation_within_3_pct():
     assert res.loc[22, "buy_signal"] == False
 
 
+def test_first_big_bull_from_bottom_filter():
+    """Verify that only the FIRST big bull candle from bottom is accepted, not the 2nd/3rd chasing candle."""
+    dates = pd.date_range("2025-01-01", periods=35, freq="W")
+    # 15 weeks drop from 20 to 12
+    prices = list(np.linspace(20.0, 12.0, 15))
+    # 1st big bull at idx 15: 12.0 -> 13.5 (+12.5%)
+    prices.append(13.5)
+    # 2 weeks small rest: 13.5, 13.6
+    prices.extend([13.5, 13.6])
+    # 2nd big bull at idx 18: 13.6 -> 15.2 (+11.8%)
+    prices.append(15.2)
+    # 2 weeks rest: 15.2, 15.1
+    prices.extend([15.2, 15.1])
+    # remaining bars
+    prices.extend([16.0] * 14)
+
+    df = pd.DataFrame({
+        "datetime": dates,
+        "open": prices,
+        "high": [p * 1.02 for p in prices],
+        "low": [p * 0.98 for p in prices],
+        "close": prices,
+        "volume": [10000] * 35,
+    })
+    df.loc[15, "open"] = 12.0
+    df.loc[15, "close"] = 13.5
+    df.loc[15, "volume"] = 50000
+    df.loc[16, "volume"] = 20000
+    df.loc[17, "volume"] = 20000
+
+    df.loc[18, "open"] = 13.6
+    df.loc[18, "close"] = 15.2
+    df.loc[18, "volume"] = 60000
+    df.loc[19, "volume"] = 25000
+    df.loc[20, "volume"] = 25000
+
+    # With first_bull_only=True:
+    # 2nd big bull at idx 18 has a prior big bull at idx 15 (within 8 weeks), so at idx 20 it must NOT trigger
+    st = WeeklyBigBullConsolidationStrategy(
+        first_bull_only=True,
+        first_bull_lookback=8,
+        enable_ma_filter=False,
+        enable_macd_filter=False,
+    )
+    res = st.generate_signals(df)
+
+    # idx 17 is after 1st big bull (valid)
+    assert res.loc[17, "buy_signal"] == True
+    # idx 20 is after 2nd big bull (rejected because idx 15 was an earlier big bull within 8 weeks)
+    assert res.loc[20, "buy_signal"] == False
+
+
+

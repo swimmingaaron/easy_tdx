@@ -35,27 +35,34 @@ BIG_BULL := C > O AND (C - REF(C, 1)) / REF(C, 1) >= 0.07;
 PRIOR_HHV := REF(HHV(H, 20), 1);
 PRIOR_LLV := REF(LLV(L, 20), 1);
 PRIOR_DROP := (PRIOR_HHV - PRIOR_LLV) / PRIOR_HHV >= 0.20;
-FLAGPOLE := BIG_BULL AND PRIOR_DROP;
 
-{ 2. 旗面时间跨度：大阳线之后连续横盘 2 ~ 6 周 }
+{ 2. 核心约束：确保是大跌之后底部上来的「第一根大阳」！}
+{ 大阳线之前的 8 周内没有任何大阳线，绝对是底部以来的第一根大阳 }
+FIRST_BIG_BULL := COUNT(REF(BIG_BULL, 1), 8) = 0;
+{ 大阳起涨开盘价相对前期低点反弹幅度 <= 15%，紧贴底部地板起爆，拒绝高位接力 }
+BOTTOM_START := (O - PRIOR_LLV) / PRIOR_LLV <= 0.15;
+
+FLAGPOLE := BIG_BULL AND PRIOR_DROP AND FIRST_BIG_BULL AND BOTTOM_START;
+
+{ 3. 旗面时间跨度：大阳线之后连续横盘 2 ~ 6 周 }
 N := BARSLAST(FLAGPOLE);
 FLAG_TIME := N >= 2 AND N <= 6;
 
-{ 3. 旗面基准日：以大阳之后的第一根交易周收盘价为基准 }
+{ 4. 旗面基准日：以大阳之后的第一根交易周收盘价为基准 }
 BASE_C := REF(C, N - 1);
 
-{ 4. 旗面价格通道：各周期相对基准涨跌幅不超过 ±3% (绝对偏离 <= 3%) }
+{ 5. 旗面价格通道：各周期相对基准涨跌幅不超过 ±3% (绝对偏离 <= 3%) }
 FLAG_CHANNEL := HHV(C, N) <= BASE_C * 1.03 AND LLV(C, N) >= BASE_C * 0.97;
 
-{ 5. 旗杆腰线承托：旗面最低价不破旗杆实体50%中轴与大阳低点，且单周跌幅不破3% }
+{ 6. 旗杆腰线承托：旗面最低价不破旗杆实体50%中轴与大阳低点，且单周跌幅不破3% }
 POLE_MID := (REF(O, N) + REF(C, N)) * 0.50;
 POLE_DEFENSE := LLV(L, N) >= MIN(POLE_MID, REF(L, N) * 0.985);
 NO_CRASH := COUNT((C - REF(C, 1)) / REF(C, 1) < -0.03, N) = 0;
 
-{ 6. 旗面缩量洗盘：旗面平均成交量低于旗杆放量周的 75% }
+{ 7. 旗面缩量洗盘：旗面平均成交量低于旗杆放量周的 75% }
 FLAG_VOL_SHRINK := MA(V, N) <= REF(V, N) * 0.75;
 
-{ 7. 均线与动能指标共振过滤：周线MA5>=MA10且收盘踩上MA10 + 周MACD金叉红柱多头掌控 }
+{ 8. 均线与动能指标共振过滤：周线MA5>=MA10且收盘踩上MA10 + 周MACD金叉红柱多头掌控 }
 MA_OK := MA(C, 5) >= MA(C, 10) AND C >= MA(C, 10);
 MACD_OK := MACD.DIF >= MACD.DEA;
 
@@ -75,12 +82,15 @@ class WeeklyBullFlagStrategy(BaseStrategy):
     name = "weekly_bull_flag"
     display_name = "通信达上涨旗形策略"
     category = "technical"
-    description = "前期周线超跌>20%，标志性大阳(+7%)立起旗杆，随后2~6周缩量水平或微斜整理不破旗杆中轴，各周相对首日基准波动<=±3%，结合周线均线与MACD多头共振，控制优质标的在100只以内。"
+    description = "前期周线超跌>20%，确保是大跌底部上来的第一根大阳(+7%)立起旗杆，随后2~6周缩量整理不破旗杆中轴，各周相对首日基准波动<=±3%，结合周线均线与MACD多头共振。"
 
     params_list = [
         Param("prior_drop_pct", float, default=20.0, min_value=10.0, max_value=60.0, step=5.0, label="前期跌幅阈值(%)", description="大阳旗杆前波段最大跌幅要求"),
         Param("prior_lookback", int, default=20, min_value=8, max_value=50, step=2, label="前期跌幅统计周数", description="大阳旗杆前寻找高低点的回溯周数"),
         Param("pole_min_pct", float, default=7.0, min_value=5.0, max_value=20.0, step=0.5, label="旗杆长阳涨幅阈值(%)", description="标志性旗杆大阳线的单周涨幅下限"),
+        Param("first_bull_only", bool, default=True, label="仅选底部首根大阳", description="确保大阳旗杆是大跌探底后出现的第一根大阳线，排除高位接力阳线"),
+        Param("first_bull_lookback", int, default=8, min_value=4, max_value=20, step=1, label="首阳排他回溯周数", description="大阳旗杆前排查其他大阳线的周数（默认8周内无大阳）"),
+        Param("bottom_rebound_max_pct", float, default=15.0, min_value=5.0, max_value=40.0, step=1.0, label="起涨点离底反弹上限(%)", description="大阳开盘价相对前期最低点(LLV)的反弹幅度上限，确保紧贴底部拔起"),
         Param("min_flag_weeks", int, default=2, min_value=2, max_value=10, step=1, label="旗面最小周数", description="旗杆后连续横盘旗面的最少周数"),
         Param("max_flag_weeks", int, default=6, min_value=3, max_value=12, step=1, label="旗面最大周数", description="旗杆后旗面整理考察的最长周数"),
         Param("base_dev_pct", float, default=3.0, min_value=0.5, max_value=10.0, step=0.5, label="基准首周偏离限制(%)", description="以旗面第一根交易周为基准，旗面所有周期的收盘价相对基准的绝对偏离百分比"),
@@ -95,6 +105,9 @@ class WeeklyBullFlagStrategy(BaseStrategy):
         "prior_drop_pct": 20.0,
         "prior_lookback": 20,
         "pole_min_pct": 7.0,
+        "first_bull_only": True,
+        "first_bull_lookback": 8,
+        "bottom_rebound_max_pct": 15.0,
         "min_flag_weeks": 2,
         "max_flag_weeks": 6,
         "base_dev_pct": 3.0,
@@ -116,6 +129,9 @@ class WeeklyBullFlagStrategy(BaseStrategy):
         prior_drop_pct = float(self.params.get("prior_drop_pct", 20.0)) / 100.0
         prior_lookback = int(self.params.get("prior_lookback", 20))
         pole_min_pct = float(self.params.get("pole_min_pct", 7.0))
+        first_bull_only = bool(self.params.get("first_bull_only", True))
+        first_bull_lookback = int(self.params.get("first_bull_lookback", 8))
+        bottom_rebound_max = float(self.params.get("bottom_rebound_max_pct", 15.0))
         min_flag = int(self.params.get("min_flag_weeks", 2))
         max_flag = int(self.params.get("max_flag_weeks", 6))
         base_dev_pct = float(self.params.get("base_dev_pct", 3.0))
@@ -175,7 +191,23 @@ class WeeklyBullFlagStrategy(BaseStrategy):
                 if drop < prior_drop_pct:
                     continue
 
-                # 3. 旗面 K 线切片：从 big_idx + 1 到 i
+                # 3. 确保是大跌底部上来的第一根大阳 (First Big Bull from Bottom)
+                if first_bull_only:
+                    # (a) 大阳线之前的排他回溯周数内不能有其他大阳线
+                    fb_start = max(0, big_idx - first_bull_lookback)
+                    has_prior_bull = False
+                    for j in range(fb_start, big_idx):
+                        if pcts[j] >= pole_min_pct and closes[j] > opens[j]:
+                            has_prior_bull = True
+                            break
+                    if has_prior_bull:
+                        continue
+
+                    # (b) 紧邻波段底部起爆：起涨开盘价相对前期低点反弹幅度不超过阈值
+                    if (b_open - prior_l) / (prior_l + 1e-6) * 100.0 > bottom_rebound_max:
+                        continue
+
+                # 4. 旗面 K 线切片：从 big_idx + 1 到 i
                 cons_l = lows[big_idx + 1 : i + 1]
                 cons_c = closes[big_idx + 1 : i + 1]
                 cons_v = volumes[big_idx + 1 : i + 1]
