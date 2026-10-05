@@ -374,7 +374,8 @@ def get_kline(
     period: str = Query("DAY", description="K-line period (DAY, 1M, 5M, etc.)"),
     count: int = Query(120, description="Bars count"),
     months: int = Query(6, description="Months range"),
-    end_date: str | None = Query(None, description="Cutoff end date for backtest/replay (YYYY-MM-DD or YYYY-MM-DD HH:MM)")
+    end_date: str | None = Query(None, description="Cutoff end date for backtest/replay (YYYY-MM-DD or YYYY-MM-DD HH:MM)"),
+    adjust: str = Query("QFQ", description="Adjust type: QFQ (前复权, default), HFQ (后复权), NONE (不复权)"),
 ):
     """Get rich real-time K-line bars directly from TDX feed, moving averages, and technical indicators."""
     raw_sym = symbol.strip()
@@ -398,8 +399,10 @@ def get_kline(
     now = time.time()
     effective_ttl = 5.0 if is_trading_time() else 3600.0
     clean_end_date = end_date.strip().replace("/", "-") if end_date else None
-    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}_{clean_end_date}" if clean_end_date else f"{clean_sym}_{period.upper()}_{n_bars}"
-    base_k = f"{clean_sym}_{period.upper()}"
+    adj_raw = adjust.default if hasattr(adjust, "default") else adjust
+    adj_str = str(adj_raw).strip().upper() if adj_raw else "QFQ"
+    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}_{adj_str}_{clean_end_date}" if clean_end_date else f"{clean_sym}_{period.upper()}_{n_bars}_{adj_str}"
+    base_k = f"{clean_sym}_{period.upper()}_{adj_str}"
     with _KLINE_CACHE_LOCK:
         if cache_k in _KLINE_CACHE:
             ts, cached_res = _KLINE_CACHE[cache_k]
@@ -420,11 +423,11 @@ def get_kline(
     fetch_n = max(800, n_bars)
     if clean_end_date and str(period).upper() in ("1M", "5M", "15M", "30M", "60M"):
         fetch_n = max(2400, n_bars)
-    df = fetch_security_kline(raw_sym, count=fetch_n, period=period)
+    df = fetch_security_kline(raw_sym, count=fetch_n, period=period, adjust=adj_str)
     if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
         e_cmp = clean_end_date if len(clean_end_date) > 10 else f"{clean_end_date} 23:59:59"
         if str(df["datetime"].iloc[0]) > e_cmp:
-            df = fetch_security_kline(raw_sym, count=4800, period=period)
+            df = fetch_security_kline(raw_sym, count=4800, period=period, adjust=adj_str)
         if df is not None and not df.empty:
             df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
     mkt, full_sym = _get_market_suffix(raw_sym)
@@ -1050,6 +1053,7 @@ def get_kline(
         "zs_block": zs_block,
         "data1": data1,
         "period": period,
+        "adjust": adj_str,
         "patterns": patterns,
         "pattern_status": pattern_status,
         "count": len(bars_data),

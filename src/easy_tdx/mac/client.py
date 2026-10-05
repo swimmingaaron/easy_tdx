@@ -508,7 +508,7 @@ class MacClient:
         start: int = 0,
         count: int = 800,
         times: int = 1,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
         *,
         bar_time: str = "start",
     ) -> pd.DataFrame:
@@ -1508,7 +1508,7 @@ class AsyncMacClient(AsyncHeartbeatMixin):
         start: int = 0,
         count: int = 800,
         times: int = 1,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
         *,
         bar_time: str = "start",
     ) -> pd.DataFrame:

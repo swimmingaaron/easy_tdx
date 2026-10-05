@@ -15,7 +15,7 @@ import click
     "--period", default="DAILY", help="K线周期: DAILY/5MIN/15MIN/30MIN/60MIN/1MIN/WEEKLY/MONTHLY"
 )
 @click.option("--count", default=800, type=int, help="K线数量")
-@click.option("--adjust", default="NONE", help="复权: NONE/QFQ/HFQ")
+@click.option("--adjust", default="QFQ", help="复权: NONE/QFQ/HFQ（默认QFQ）")
 @click.option(
     "--multi-level",
     "low_level_period",

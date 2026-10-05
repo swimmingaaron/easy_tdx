@@ -121,7 +121,7 @@ class UnifiedTdxClient:
         start: int = 0,
         count: int = 800,
         times: int = 1,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         return self._ensure_mac().get_stock_kline(market, code, period, start, count, times, adjust)
 
@@ -421,7 +421,7 @@ class AsyncUnifiedTdxClient:
         start: int = 0,
         count: int = 800,
         times: int = 1,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         mac = await self._ensure_mac()
         return await mac.get_stock_kline(market, code, period, start, count, times, adjust)

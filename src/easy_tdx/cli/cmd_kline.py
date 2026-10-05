@@ -13,7 +13,7 @@ import click
 )
 @click.option("--count", default=800, type=int, help="K线数量")
 @click.option("--start", default=0, type=int, help="起始偏移（0=最新）")
-@click.option("--adjust", default="NONE", help="复权: NONE/QFQ/HFQ")
+@click.option("--adjust", default="QFQ", help="复权: NONE/QFQ/HFQ（默认QFQ）")
 @click.option(
     "--bar-time",
     "bar_time",

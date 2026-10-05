@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from easy_tdx.client import TdxClient
 from easy_tdx.models import Market, KlineCategory
+from easy_tdx.mac.enums import Adjust
 
 logger = logging.getLogger(__name__)
 
@@ -244,8 +245,9 @@ def fetch_security_kline(
     count: int = 240,
     period: str | None = None,
     force_refresh: bool = False,
+    adjust: Adjust | str = Adjust.QFQ,
 ) -> pd.DataFrame:
-    """Fetch historical K-line bars via TDX binary socket connection, with caching."""
+    """Fetch historical K-line bars via TDX binary socket connection, with caching (defaults to QFQ / 前复权)."""
     if period is not None:
         category = period
         
@@ -288,9 +290,21 @@ def fetch_security_kline(
             }
             category = cat_map.get(c_upper, KlineCategory.DAY)
 
+    if isinstance(adjust, str):
+        adj_map = {
+            "QFQ": Adjust.QFQ,
+            "HFQ": Adjust.HFQ,
+            "NONE": Adjust.NONE,
+        }
+        adj_val = adj_map.get(adjust.strip().upper(), Adjust.QFQ)
+    elif isinstance(adjust, Adjust):
+        adj_val = adjust
+    else:
+        adj_val = Adjust.QFQ
+
     market = _get_market(symbol)
     cache_suffix = "120M" if is_120m else (category.value if hasattr(category, 'value') else category)
-    cache_key = f"{market.value}_{clean_sym}_{cache_suffix}_{count}"
+    cache_key = f"{market.value}_{clean_sym}_{cache_suffix}_{count}_{adj_val.name}"
     now = time.time()
     
     # Check cache
@@ -320,9 +334,9 @@ def fetch_security_kline(
             mac = _get_or_create_mac_client()
             mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88") or clean_sym.startswith("9")) else 0
             if is_120m:
-                bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count)
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count, adjust=adj_val)
             else:
-                bdf = mac.get_stock_kline(mkt_id, clean_sym, mac_p, count=count)
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, mac_p, count=count, adjust=adj_val)
         if bdf is not None and not bdf.empty and len(bdf) > 0:
             res_df = pd.DataFrame()
             is_intraday = is_120m or category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30, KlineCategory.MIN_60)
@@ -362,6 +376,14 @@ def fetch_security_kline(
                 df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)
             else:
                 df = client.get_security_bars(market, clean_sym, category, 0, fetch_cnt)
+                if adj_val == Adjust.QFQ and df is not None and not df.empty:
+                    try:
+                        xdxr_df = client.get_xdxr_info(market, clean_sym)
+                        if xdxr_df is not None and not xdxr_df.empty:
+                            from easy_tdx.mac.adjust import apply_forward_adjust
+                            df = apply_forward_adjust(df, xdxr_df)
+                    except Exception as ex:
+                        logger.debug(f"Failed to apply fallback forward adjust for {clean_sym}: {ex}")
         
         if df is not None and not df.empty and len(df) > 0:
             res_df = pd.DataFrame()
@@ -419,9 +441,10 @@ def fetch_security_kline(
 def fetch_kline_with_pool(
     symbol: str, 
     category: KlineCategory | str = KlineCategory.DAY, 
-    count: int = 140
+    count: int = 140,
+    adjust: Adjust | str = Adjust.QFQ,
 ) -> pd.DataFrame | None:
-    """Fetch historical K-line bars using high-speed cached fetch_security_kline."""
+    """Fetch historical K-line bars using high-speed cached fetch_security_kline (defaults to QFQ / 前复权)."""
     clean_sym = (
         symbol.strip().upper()
         .replace("SH", "").replace("SZ", "").replace("BJ", "")
@@ -431,14 +454,15 @@ def fetch_kline_with_pool(
         return None
     market = _get_market(symbol)
     cat_str = category.value if hasattr(category, "value") else str(category)
-    cache_key = f"{market.value}_{clean_sym}_{cat_str}_{count}"
+    adj_name = adjust.name if hasattr(adjust, "name") else str(adjust).upper()
+    cache_key = f"{market.value}_{clean_sym}_{cat_str}_{count}_{adj_name}"
     now = time.time()
     if cache_key in _CACHE:
         ts, cached_df = _CACHE[cache_key]
         if now - ts < CACHE_TTL_SEC:
             return cached_df.copy()
 
-    df = fetch_security_kline(symbol, category=category, count=count)
+    df = fetch_security_kline(symbol, category=category, count=count, adjust=adjust)
     if df is not None and not df.empty:
         return df.copy()
     return None

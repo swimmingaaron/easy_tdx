@@ -172,13 +172,15 @@ def _error_target(rec: SavedStrategy, message: str) -> ScanTarget:
 async def fetch_scan_bars(
     client: Any,
     targets: list[ScanTarget],
+    mac_client: Any = None,
 ) -> dict[tuple[str, str], pd.DataFrame | None]:
-    """按 (symbol, category) 去重取最近 ``SCAN_BARS`` 根 K 线（async，event loop 内调用）。
+    """按 (symbol, category) 去重取最近 ``SCAN_BARS`` 根 K 线（async，event loop 内调用，默认前复权）。
 
     同一标的被多个策略引用时只取一次。单个标的取数失败/数据无效记 None
     （不中断整批），run_scan 会给相关行统一标 error。
     """
-    from easy_tdx.web.convert import category_from_str, market_from_str
+    from easy_tdx.mac.enums import Adjust
+    from easy_tdx.web.convert import category_from_str, market_from_str, period_times_from_category
 
     bars: dict[tuple[str, str], pd.DataFrame | None] = {}
     for t in targets:
@@ -187,13 +189,27 @@ async def fetch_scan_bars(
             continue
         try:
             market_str, code = t.symbol.split(":", 1)
-            df = await client.get_security_bars(
-                market_from_str(market_str),
-                code,
-                category_from_str(t.category),
-                0,
-                SCAN_BARS,
-            )
+            cat = category_from_str(t.category)
+            if mac_client is not None:
+                period, times = period_times_from_category(cat)
+                mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
+                df = await mac_client.get_stock_kline(
+                    mkt_val,
+                    code,
+                    period,
+                    0,
+                    SCAN_BARS,
+                    times,
+                    adjust=Adjust.QFQ,
+                )
+            else:
+                df = await client.get_security_bars(
+                    market_from_str(market_str),
+                    code,
+                    cat,
+                    0,
+                    SCAN_BARS,
+                )
         except Exception as exc:  # noqa: BLE001 — 单标的失败不中断整批
             logger.warning("信号扫描取数失败 %s: %s", t.symbol, exc)
             bars[key] = None

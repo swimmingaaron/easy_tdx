@@ -80,6 +80,7 @@ export async function fetchBars(
       category,
       count: '800',
       start: String(page * 800),
+      adjust: 'QFQ',
     })
     const resp = await fetch(`${BASE}/bars?${params}`)
     if (!resp.ok) await throwError(resp)

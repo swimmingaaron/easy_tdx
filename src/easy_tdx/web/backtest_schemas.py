@@ -73,6 +73,7 @@ class BacktestRequest(BaseModel):
         default="DAY", description="K 线周期"
     )
     count: int = Field(default=250, ge=20, le=2000, description="K 线根数")
+    adjust: str = Field(default="QFQ", description="复权方式: QFQ (默认), HFQ, NONE")
 
     @model_validator(mode="after")
     def _check_data_source(self) -> BacktestRequest:
@@ -105,6 +106,7 @@ class PortfolioBacktestRequest(BaseModel):
     category: Literal["DAY", "WEEK", "MONTH", "MIN_5", "MIN_15", "MIN_30", "MIN_60"] = Field(
         default="DAY"
     )
+    adjust: str = Field(default="QFQ", description="复权方式: QFQ (默认), HFQ, NONE")
     start_date: str | None = Field(default=None, description="开始日期 YYYY-MM-DD（可选过滤）")
     end_date: str | None = Field(default=None, description="结束日期 YYYY-MM-DD（可选过滤）")
 
@@ -145,6 +147,7 @@ class OptimizeBacktestRequest(BaseModel):
         default="DAY"
     )
     count: int = Field(default=250, ge=20, le=800)
+    adjust: str = Field(default="QFQ", description="复权方式: QFQ (默认), HFQ, NONE")
     start_date: str | None = Field(default=None)
     end_date: str | None = Field(default=None)
 
@@ -185,6 +188,7 @@ class OptimizeAllBacktestRequest(BaseModel):
         default="DAY"
     )
     count: int = Field(default=250, ge=20, le=800)
+    adjust: str = Field(default="QFQ", description="复权方式: QFQ (默认), HFQ, NONE")
     start_date: str | None = Field(default=None)
     end_date: str | None = Field(default=None)
 
@@ -354,6 +358,7 @@ class MultiStrategyItem(BaseModel):
     category: Literal["DAY", "WEEK", "MONTH", "MIN_5", "MIN_15", "MIN_30", "MIN_60"] = Field(
         default="DAY"
     )
+    adjust: str = Field(default="QFQ", description="复权方式: QFQ (默认), HFQ, NONE")
     start_date: str | None = Field(default=None, description="开始日期 YYYY-MM-DD（可选过滤）")
     end_date: str | None = Field(default=None, description="结束日期 YYYY-MM-DD（可选过滤）")
 

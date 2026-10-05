@@ -36,7 +36,7 @@ import click
     help="成交价规则",
 )
 @click.option("--period", default="DAILY", help="K线周期")
-@click.option("--adjust", default="NONE", help="复权: NONE/QFQ/HFQ")
+@click.option("--adjust", default="QFQ", help="复权: NONE/QFQ/HFQ（默认QFQ）")
 @click.option("--count", default=500, type=int, help="K线数量")
 @click.option("--indicators", default=None, help="预计算指标（逗号分隔）")
 @click.option(
@@ -306,7 +306,7 @@ def _print_table(result: Any) -> None:
     help="成交价规则",
 )
 @click.option("--period", default="DAILY", help="K线周期")
-@click.option("--adjust", default="NONE", help="复权: NONE/QFQ/HFQ")
+@click.option("--adjust", default="QFQ", help="复权: NONE/QFQ/HFQ（默认QFQ）")
 @click.option("--count", default=500, type=int, help="K线数量")
 @click.option(
     "--allocation",
