@@ -207,3 +207,15 @@ def test_has_bad_prices_detects_nan():
 def test_has_bad_prices_clean_returns_false():
     df = pd.DataFrame({"open": [1.0], "high": [2.0], "low": [0.5], "close": [1.5]})
     assert has_bad_prices(df) is False
+
+
+def test_apply_with_date_column():
+    """验证输入包含 date 列而非 datetime 列时同样正确前复权。"""
+    df = _kline([10.0, 10.0, 8.0, 9.0])
+    df["date"] = df["datetime"].dt.strftime("%Y-%m-%d")
+    df = df.drop(columns=["datetime"])
+    xd = _xdxr_one("2024-01-03", fenhong=2.0)
+    out = apply_forward_adjust(df, xd)
+    assert out["close"].tolist() == [8.0, 8.0, 8.0, 9.0]
+    assert "date" in out.columns
+

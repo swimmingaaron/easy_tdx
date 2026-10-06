@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 from easy_tdx._health import _FAILURE_DECAY, reset_health
@@ -581,6 +582,7 @@ class TestBarsEmptyFailover:
         with (
             patch.object(client, "_execute", side_effect=[[], [], [bar], [bar]]) as mock_exec,
             patch.object(client, "_reconnect"),
+            patch.object(client, "get_xdxr_info", return_value=pd.DataFrame()),
             patch(
                 "easy_tdx.client.ping_all",
                 return_value=[("hostA", 0.01), ("hostB", 0.02)],

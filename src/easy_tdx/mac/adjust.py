@@ -81,15 +81,16 @@ def apply_forward_adjust(
     """
     out = df.copy()
     ohlc_cols = [c for c in _OHLC_COLS if c in out.columns]
-    if not ohlc_cols or "datetime" not in out.columns or xdxr_df is None or xdxr_df.empty:
+    date_col = "datetime" if "datetime" in out.columns else ("date" if "date" in out.columns else None)
+    if not ohlc_cols or not date_col or xdxr_df is None or xdxr_df.empty:
         return out
 
     # 统一 datetime 为 pandas Timestamp（升序）
-    dt = pd.to_datetime(out["datetime"])
+    dt = pd.to_datetime(out[date_col])
     if not dt.is_monotonic_increasing:
         order = np.argsort(dt.to_numpy())
         out = out.iloc[order].reset_index(drop=True)
-        dt = pd.to_datetime(out["datetime"])
+        dt = pd.to_datetime(out[date_col])
     dt_arr = dt.to_numpy()
 
     # 筛选 category==1 且至少有一个非空除权字段的事件

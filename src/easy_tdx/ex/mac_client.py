@@ -381,7 +381,7 @@ class MacExClient:
         period: Period = Period.DAILY,
         start: int = 0,
         count: int = 800,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         """获取扩展市场 K 线数据（支持复权）。
 
@@ -816,7 +816,7 @@ class AsyncMacExClient(AsyncHeartbeatMixin):
         period: Period = Period.DAILY,
         start: int = 0,
         count: int = 800,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         cmd = SymbolBarCmd(
             market=market,

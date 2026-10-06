@@ -444,6 +444,7 @@ async def _fetch_bars(
             cat,
             0,
             count,
+            adjust=adjust_from_str(adjust),
         )
     if len(df) == 0:
         raise ValueError(f"标的 {symbol} 未取到任何 K 线数据")
@@ -521,6 +522,7 @@ async def _fetch_portfolio_bars(
                         cat,
                         page * 800,
                         800,
+                        adjust=adjust_from_str(adjust),
                     )
             except Exception:
                 break  # 单页失败则停止该标的的翻页
@@ -611,6 +613,7 @@ async def _fetch_multi_strategy_bars(
                         cat,
                         page * 800,
                         800,
+                        adjust=adjust_from_str(adj_str),
                     )
             except Exception:
                 break

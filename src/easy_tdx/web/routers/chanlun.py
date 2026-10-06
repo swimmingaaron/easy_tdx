@@ -47,6 +47,7 @@ async def chanlun_analyze(
             cat,
             req.start,
             req.count,
+            adjust=adjust_from_str(req.adjust),
         )
 
     # 2. Run chanlun analysis

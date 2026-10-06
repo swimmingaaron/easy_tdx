@@ -277,11 +277,13 @@ class TestSessionGating:
         bus = EventBus()
         client = AsyncMockClient([_sample_quotes_df()])
 
-        # 用一个不可能命中的时段（如 23:00-23:59）模拟盘外
+        # 选取与当前本地时间不同的时段模拟盘外
+        cur_min = time.localtime().tm_hour * 60 + time.localtime().tm_min
+        outside_session = ((cur_min + 120) % 1440, (cur_min + 180) % 1440)
         feed = RealtimeDataFeed(
             bus=bus,
             symbols=[(0, "000001")],
-            sessions=((23 * 60, 23 * 60 + 59),),
+            sessions=(outside_session,),
             interval=0.1,
         )
         await feed.run_async(client, max_iterations=1)

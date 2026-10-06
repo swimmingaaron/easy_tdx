@@ -112,13 +112,19 @@ async def security_bars(
         # daily_plus：日线及以上周期 datetime→date（枚举值无序，显式查表判定）
         df = _normalize_mac_df(df, daily_plus=_is_daily_plus(cat))
     else:
-        # MAC 不可用：回退标准 TdxClient（无复权），adjust 参数忽略
-        _logger.warning(
-            "/bars MAC 客户端未连接，回退标准 TdxClient（不支持复权，adjust=%s 被忽略）",
+        # MAC 不可用：回退标准 TdxClient（支持本地 XDXR 前复权）
+        _logger.info(
+            "/bars MAC 客户端未连接，回退标准 TdxClient（adjust=%s）",
             adjust,
         )
         df = await client.get_security_bars(
-            market_from_str(market), code, cat, start, count, bar_time=bar_time
+            market_from_str(market),
+            code,
+            cat,
+            start,
+            count,
+            bar_time=bar_time,
+            adjust=adjust_from_str(adjust),
         )
     return _df_resp(df)
 

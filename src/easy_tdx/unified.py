@@ -295,7 +295,7 @@ class UnifiedTdxClient:
         period: Period = Period.DAILY,
         start: int = 0,
         count: int = 800,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         return self._ensure_mac_ex().goods_kline(market, code, period, start, count, adjust)
 
@@ -618,7 +618,7 @@ class AsyncUnifiedTdxClient:
         period: Period = Period.DAILY,
         start: int = 0,
         count: int = 800,
-        adjust: Adjust = Adjust.NONE,
+        adjust: Adjust = Adjust.QFQ,
     ) -> pd.DataFrame:
         ex = await self._ensure_mac_ex()
         return await ex.goods_kline(market, code, period, start, count, adjust)

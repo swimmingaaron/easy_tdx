@@ -56,8 +56,11 @@ from .config import (
     save_best_host,
 )
 from .exceptions import TdxConnectionError
+from .mac.enums import Adjust
 from .models.bar import SecurityBar
 from .models.enums import KlineCategory, Market
+
+_logger = logging.getLogger(__name__)
 from .models.finance import (
     FinancialFileInfo,
     FinancialRecord,
@@ -534,6 +537,7 @@ class TdxClient:
         count: int = 800,
         *,
         bar_time: str = "start",
+        adjust: Adjust | str | None = Adjust.QFQ,
     ) -> pd.DataFrame:
         """获取 K 线数据（最多800条/次，按 start 分页）。
 
@@ -542,6 +546,7 @@ class TdxClient:
                 上午最后一根 5min 标 11:25、下午第一根标 13:00）；``"end"`` = bar 右端点
                 （= 开始 + 周期时长，与 Tushare/同花顺对齐，上午最后一根标 11:30）。
                 仅对分钟级周期生效；日线及以上不受影响。
+            adjust: 复权方式。默认 ``Adjust.QFQ``（前复权）；传 ``Adjust.NONE`` 或 ``"NONE"`` 为不复权。
         """
         cmd = GetSecurityBarsCmd(market, code, category, start, count)
         bars = self._execute(cmd)
@@ -561,7 +566,18 @@ class TdxClient:
             bar_time=bar_time,
             has_time_columns=True,
         )
-        return _merge_bar_datetime(df, not is_intraday)
+        df = _merge_bar_datetime(df, not is_intraday)
+        if adjust is not None and not df.empty:
+            adj_str = adjust.name if hasattr(adjust, "name") else str(adjust).upper()
+            if adj_str == "QFQ":
+                try:
+                    xdxr_df = self.get_xdxr_info(market, code)
+                    if xdxr_df is not None and not xdxr_df.empty:
+                        from .mac.adjust import apply_forward_adjust
+                        df = apply_forward_adjust(df, xdxr_df)
+                except Exception as ex:
+                    _logger.debug("get_security_bars 前复权处理失败: %s", ex)
+        return df
 
     def get_index_bars(
         self,
@@ -1286,6 +1302,7 @@ class AsyncTdxClient(AsyncHeartbeatMixin):
         count: int = 800,
         *,
         bar_time: str = "start",
+        adjust: Adjust | str | None = Adjust.QFQ,
     ) -> pd.DataFrame:
         """获取 K 线数据。``bar_time`` 见同步版 :meth:`get_security_bars`。"""
         cmd = GetSecurityBarsCmd(market, code, category, start, count)
@@ -1303,7 +1320,18 @@ class AsyncTdxClient(AsyncHeartbeatMixin):
             bar_time=bar_time,
             has_time_columns=True,
         )
-        return _merge_bar_datetime(df, not is_intraday)
+        df = _merge_bar_datetime(df, not is_intraday)
+        if adjust is not None and not df.empty:
+            adj_str = adjust.name if hasattr(adjust, "name") else str(adjust).upper()
+            if adj_str == "QFQ":
+                try:
+                    xdxr_df = await self.get_xdxr_info(market, code)
+                    if xdxr_df is not None and not xdxr_df.empty:
+                        from .mac.adjust import apply_forward_adjust
+                        df = apply_forward_adjust(df, xdxr_df)
+                except Exception as ex:
+                    _logger.debug("get_security_bars 前复权处理失败: %s", ex)
+        return df
 
     async def get_index_bars(
         self,
