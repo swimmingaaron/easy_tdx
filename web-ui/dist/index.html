@@ -4897,6 +4897,7 @@
                     <span style="color:#A1A1AA">MA5:15.06</span>
                     <span style="color:#EAB308">MA10:14.27</span>
                     <span style="color:#A855F7">MA20:13.52</span>
+                    <span style="color:#F97316">MA30:13.10</span>
                     <span style="color:#22C55E">MA60:12.85</span>
                 </div>
             </div>
@@ -9260,6 +9261,7 @@
                     <span style="color:#A1A1AA">MA5:${bar.ma5 ? Number(bar.ma5).toFixed(2) : '—'}</span>
                     <span style="color:#EAB308">MA10:${bar.ma10 ? Number(bar.ma10).toFixed(2) : '—'}</span>
                     <span style="color:#A855F7">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
+                    <span style="color:#F97316">MA30:${bar.ma30 ? Number(bar.ma30).toFixed(2) : '—'}</span>
                     <span style="color:#22C55E">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
                     ${subMaLine}
@@ -9605,6 +9607,14 @@
             const ma5 = bars.map(b => b.ma5);
             const ma10 = bars.map(b => b.ma10);
             const ma20 = bars.map(b => b.ma20);
+            const ma30 = bars.map((b, i) => {
+                if (b.ma30 !== undefined && b.ma30 !== null) return b.ma30;
+                if (i < 29) return null;
+                let s = 0; for (let j = i - 29; j <= i; j++) s += Number(bars[j].close || 0); return Number((s / 30).toFixed(2));
+            });
+            bars.forEach((b, i) => {
+                if (b.ma30 == null) b.ma30 = ma30[i];
+            });
             const ma60 = bars.map(b => b.ma60);
 
             // Check if Volume Ratio is toggled
@@ -10946,6 +10956,7 @@
                     { name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma5, showSymbol: false, lineStyle: { width: 1.1, color: '#A1A1AA' } },
                     { name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma10, showSymbol: false, lineStyle: { width: 1.1, color: '#EAB308' } },
                     { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#A855F7' } },
+                    { name: 'MA30', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma30, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
                     { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#22C55E' } },
                     ...middleSeries,
                     ...bottomInflowSeries,
@@ -11134,6 +11145,7 @@
                 if (b.ma5) { yMin = Math.min(yMin, b.ma5); yMax = Math.max(yMax, b.ma5); }
                 if (b.ma10) { yMin = Math.min(yMin, b.ma10); yMax = Math.max(yMax, b.ma10); }
                 if (b.ma20) { yMin = Math.min(yMin, b.ma20); yMax = Math.max(yMax, b.ma20); }
+                if (b.ma30) { yMin = Math.min(yMin, b.ma30); yMax = Math.max(yMax, b.ma30); }
                 if (b.ma60) { yMin = Math.min(yMin, b.ma60); yMax = Math.max(yMax, b.ma60); }
                 if (isBollActive && b.boll_up && b.boll_low) {
                     yMax = Math.max(yMax, Number(b.boll_up));
@@ -12993,6 +13005,7 @@
             const ma5 = calcBtMA(5, bars);
             const ma10 = calcBtMA(10, bars);
             const ma20 = calcBtMA(20, bars);
+            const ma30 = calcBtMA(30, bars);
             const ma60 = calcBtMA(60, bars);
 
             // Calculate TD Sequential 9-turn (通达信九转序列)
@@ -13202,6 +13215,7 @@
                         const curMA5 = ma5[idx] !== '-' && ma5[idx] !== undefined ? Number(ma5[idx]).toFixed(2) : '-';
                         const curMA10 = ma10[idx] !== '-' && ma10[idx] !== undefined ? Number(ma10[idx]).toFixed(2) : '-';
                         const curMA20 = ma20[idx] !== '-' && ma20[idx] !== undefined ? Number(ma20[idx]).toFixed(2) : '-';
+                        const curMA30 = ma30[idx] !== '-' && ma30[idx] !== undefined ? Number(ma30[idx]).toFixed(2) : '-';
                         const curMA60 = ma60[idx] !== '-' && ma60[idx] !== undefined ? Number(ma60[idx]).toFixed(2) : '-';
                         let tdTip = '';
                         if (tdHighArr && tdHighArr[idx] > 0) {
@@ -13241,6 +13255,7 @@
                                     <span style="color: #ffd800;">MA5: ${curMA5}</span>&nbsp;
                                     <span style="color: #d15cee;">MA10: ${curMA10}</span>&nbsp;
                                     <span style="color: #4cd964;">MA20: ${curMA20}</span>&nbsp;
+                                    <span style="color: #f97316;">MA30: ${curMA30}</span>&nbsp;
                                     <span style="color: #38bdf8;">MA60: ${curMA60}</span>
                                     ${tdTip ? `&nbsp;[九转: ${tdTip}]` : ''}
                                 </div>
@@ -13248,7 +13263,7 @@
                         `;
                     }
                 },
-                legend: { data: [`${stockDisplay} K线`, 'MA5', 'MA10', 'MA20', 'MA60', '成交量'], textStyle: { color: textColor, fontSize: 11 }, top: 0 },
+                legend: { data: [`${stockDisplay} K线`, 'MA5', 'MA10', 'MA20', 'MA30', 'MA60', '成交量'], textStyle: { color: textColor, fontSize: 11 }, top: 0 },
                 grid: [
                     { left: 55, right: 40, top: 28, height: '64%' },
                     { left: 55, right: 40, top: '75%', height: '17%' }
@@ -13337,6 +13352,14 @@
                         smooth: true,
                         showSymbol: false,
                         lineStyle: { width: 1.2, color: '#4cd964' }
+                    },
+                    {
+                        name: 'MA30',
+                        type: 'line',
+                        data: ma30,
+                        smooth: true,
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#f97316' }
                     },
                     {
                         name: 'MA60',

@@ -573,4 +573,6 @@ def test_kline_with_end_date_cutoff(monkeypatch):
     assert res["data"][-1]["datetime"] == "2026-07-20 10:00"
     assert res["data"][-1]["close"] == 9.38
     assert "zig_day" in res["data"][-1]
+    assert "ma30" in res["data"][-1]
+    assert "ma30" in res["quote"]
 

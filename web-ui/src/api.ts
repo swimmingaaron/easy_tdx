@@ -367,6 +367,8 @@ export async function fetchStockSuggestions(query: string): Promise<StockSuggest
   } catch {
     return []
   }
+}
+
 // ── 热门行业板块 ─────────────────────────────────────────────────────────────
 
 export interface HotSectorItem {
