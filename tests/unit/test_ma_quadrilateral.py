@@ -16,10 +16,10 @@ def make_quadrilateral_kline(n_bars: int = 95, trigger_quad: bool = True) -> pd.
         # Pure flat sequence without moving average cross
         closes = np.full(n_bars, 10.0)
     else:
-        # Construct a sequence where MA5, MA10 sequentially cross MA20, MA60 with stable MA60 > MA20 base:
-        # Phase 1 (0-70): Downtrend / consolidation around 8.5 where MA60 > MA20 is stably maintained
+        # Construct a sequence where MA5, MA10 sequentially cross MA20, MA30 with stable MA30 > MA20 base:
+        # Phase 1 (0-70): Downtrend / consolidation around 8.5 where MA30 > MA20 is stably maintained
         # Phase 2 (70-82): Violent rally from 8.5 to 14.5 triggering P1, P2, P3, P4
-        # Phase 3 (82+): Air refueling consolidation above MA60
+        # Phase 3 (82+): Air refueling consolidation above MA30
         closes = np.zeros(n_bars)
         closes[:70] = np.linspace(12.0, 8.5, 70)
         closes[70:82] = np.linspace(8.5, 14.5, 12)
@@ -65,6 +65,7 @@ def test_ma_quadrilateral_signals():
     assert "xg" in sig_df.columns
     assert "buy_signal" in sig_df.columns
     assert "ma5" in sig_df.columns
+    assert "ma30" in sig_df.columns
     assert "ma60" in sig_df.columns
     assert "band_mm" in sig_df.columns
     assert "band_kk" in sig_df.columns
@@ -118,7 +119,7 @@ def test_ma_quadrilateral_pullback_entry():
     buy_types = set(sig_df[sig_df["buy_signal"]]["quad_buy_type"].values)
     valid_types = {
         "闭合加速", "沿5日线强攻", "回踩10日线", "回踩10日线抢筹",
-        "空中加油二次起爆", "回踩20日线", "回踩60日线"
+        "空中加油二次起爆", "回踩20日线", "回踩30日线", "回踩60日线"
     }
     assert any(bt in valid_types for bt in buy_types)
 
@@ -136,7 +137,7 @@ def test_ma_quadrilateral_screener_evaluation():
 
 
 def test_ma_quadrilateral_rejects_unstable_base():
-    """Verify that when MA20 and MA60 dead-cross right before P1 (like 600233), it is rejected."""
+    """Verify that when MA20 and MA30 dead-cross right before P1 (like 600233), it is rejected."""
     st = get_strategy("ma_quadrilateral", window=10)
     
     # Construct a dataset like 600233 where MA20 was ABOVE MA60 right before the rally
@@ -170,11 +171,12 @@ def test_ma_quadrilateral_rejects_candle_inside_quad():
     # Start with a valid breakout dataset
     df = make_quadrilateral_kline(n_bars=95, trigger_quad=True)
     
-    # Artificially inject a candle lower shadow at bar 75 dipping straight into the quadrilateral
-    # At bar 75, MA10 is around 9.35 and MA60 is around 9.85. We drop low to 9.50 (inside [9.35, 9.85])
+    # Artificially inject a candle piercing into the quadrilateral at bar 74
+    # At bar 74, MA20 is ~9.10 and MA30 is ~9.19. We set low=9.00, open=9.15, close=9.15 to pierce the quad.
     df_penetrated = df.copy()
-    df_penetrated.loc[75, "low"] = 9.50
-    df_penetrated.loc[75, "open"] = 9.55
+    df_penetrated.loc[74, "low"] = 9.00
+    df_penetrated.loc[74, "open"] = 9.15
+    df_penetrated.loc[74, "close"] = 9.15
     
     res_strict = st_strict.generate_signals(df_penetrated)
     assert not res_strict["xg"].any(), "Candle penetrating inside quadrilateral must be rejected when no_candle_in_quad=True"
