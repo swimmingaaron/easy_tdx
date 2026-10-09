@@ -33640,5 +33640,28 @@
     ],
     "holders_num": 657732,
     "holders_str": "65.77万"
+  },
+  "300442": {
+    "holder_ratio": 65.42,
+    "holder_focus": "非常分散",
+    "holders_changes": [
+      {
+        "date": "2026-09-10",
+        "ratio": -2.17,
+        "num": 168175
+      },
+      {
+        "date": "2026-08-10",
+        "ratio": 5.08,
+        "num": 171898
+      },
+      {
+        "date": "2026-07-31",
+        "ratio": -10.12,
+        "num": 163583
+      }
+    ],
+    "holders_num": 168175,
+    "holders_str": "16.82万"
   }
 }
