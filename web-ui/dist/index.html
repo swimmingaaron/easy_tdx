@@ -4089,28 +4089,28 @@
                             <span class="text-xs text-slate-500 dark:text-slate-400 select-none">轮询:</span>
                             <select id="sl-poll-select" onchange="setSectorLeaderPollInterval(this.value)"
                                 class="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="0" selected
+                                <option value="0"
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">关闭</option>
                                 <option value="5" class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
                                     5秒刷新</option>
                                 <option value="10"
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">10秒刷新</option>
-                                <option value="30"
+                                <option value="30" selected
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">30秒刷新</option>
                             </select>
                         </div>
 
-                        <!-- 使用Cache 缓存控制器 (默认开启) -->
+                        <!-- 使用Cache 缓存控制器 (默认关闭) -->
                         <div id="sl-cache-control-wrap"
                             class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-lg shadow-xs select-none"
-                            title="当前模式：优先使用Cache缓存（毫秒级极速展现）">
+                            title="当前模式：强制从通达信服务器获取最新实时行情（跳过缓存）">
                             <label class="flex items-center space-x-1.5 cursor-pointer">
-                                <input type="checkbox" id="sl-use-cache" onchange="onSlCacheModeChange(this)" checked
+                                <input type="checkbox" id="sl-use-cache" onchange="onSlCacheModeChange(this)"
                                     class="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-0 cursor-pointer w-3.5 h-3.5">
                                 <span class="text-xs text-slate-700 dark:text-slate-300">使用Cache</span>
                             </label>
                             <button type="button" id="sl-cache-tag" onclick="toggleSlCacheMode()"
-                                class="text-[10px] px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-mono transition cursor-pointer font-medium">开启</button>
+                                class="text-[10px] px-1.5 py-0.2 rounded border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 font-mono transition cursor-pointer font-medium">关闭</button>
                         </div>
 
                         <!-- 刷新按钮 -->
@@ -20143,11 +20143,11 @@
         let _slType = 'hy';
         let _slSort = 'change_pct';
         let _slPollTimer = null;
-        let _slPollIntervalSec = 0;
+        let _slPollIntervalSec = 30;
         let _cachedSectorLeaders = [];
 
         function onSlCacheModeChange(el) {
-            const isChecked = el ? el.checked : true;
+            const isChecked = el ? el.checked : false;
             const tag = document.getElementById('sl-cache-tag');
             const wrap = document.getElementById('sl-cache-control-wrap');
             if (tag) {
@@ -20175,21 +20175,30 @@
         }
 
         function initSectorLeaderSettings() {
-            // 1. 初始化轮询配置 (默认关闭)
+            // 迁移/重置旧版本的默认配置（保证默认关闭Cache、30秒轮询）
+            if (!localStorage.getItem('easy_tdx_sl_v2_migrated')) {
+                localStorage.removeItem('easy_tdx_sl_use_cache');
+                localStorage.removeItem('easy_tdx_sl_poll_interval');
+                localStorage.setItem('easy_tdx_sl_v2_migrated', '1');
+            }
+
+            // 1. 初始化轮询配置 (默认30秒)
             try {
                 const saved = localStorage.getItem('easy_tdx_sl_poll_interval');
                 if (saved !== null && !isNaN(parseInt(saved, 10))) {
                     const val = parseInt(saved, 10);
                     _slPollIntervalSec = val;
-                    const select = document.getElementById('sl-poll-select');
-                    if (select) select.value = String(val);
+                } else {
+                    _slPollIntervalSec = 30; // 默认30秒
                 }
+                const select = document.getElementById('sl-poll-select');
+                if (select) select.value = String(_slPollIntervalSec);
             } catch (e) { }
             if (_slPollIntervalSec > 0) {
                 setSectorLeaderPollInterval(_slPollIntervalSec);
             }
 
-            // 2. 初始化 Cache 缓存配置 (默认开启)
+            // 2. 初始化 Cache 缓存配置 (默认关闭)
             try {
                 const savedCache = localStorage.getItem('easy_tdx_sl_use_cache');
                 const chk = document.getElementById('sl-use-cache');
@@ -20197,7 +20206,7 @@
                     if (savedCache !== null) {
                         chk.checked = (savedCache === 'true');
                     } else {
-                        chk.checked = true; // 默认开启
+                        chk.checked = false; // 默认关闭
                     }
                     onSlCacheModeChange(chk);
                 }
@@ -20264,7 +20273,7 @@
             }
 
             try {
-                const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : true;
+                const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : false;
                 const resp = await fetch(`/api/sector_leaders/search?query=${encodeURIComponent(cleanKw)}&top_stocks=10&use_cache=${useCache ? 'true' : 'false'}`);
                 if (resp.ok) {
                     const data = await resp.json();
@@ -20285,19 +20294,12 @@
                 }
             } catch (e) {
                 console.error("Sector leader search error:", e);
-            } finally {
-                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
-                const slChk = document.getElementById('sl-use-cache');
-                if (slChk && !slChk.checked) {
-                    slChk.checked = true;
-                    onSlCacheModeChange(slChk);
-                }
             }
         }
 
         async function loadSectorLeadersData(forceRefresh = false) {
             window._HAS_LOADED_SECTOR_LEADERS = true;
-            const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : true;
+            const useCache = document.getElementById('sl-use-cache') ? document.getElementById('sl-use-cache').checked : false;
             const cacheStorageKey = `easy_tdx_sl_cache_${_slType}_${_slSort}`;
 
             // 1. Instant Cache Hit: 若使用缓存且非强制刷新，立即 0ms 呈现本地缓存，绝无卡顿与白屏！
@@ -20347,13 +20349,6 @@
                 }
             } catch (e) {
                 console.error("Failed to load sector leaders data:", e);
-            } finally {
-                // 针对 cache 的所有操作：如果当前选择从服务器获取最新数据，完成此次操作之后，切换至 cache 模式
-                const slChk = document.getElementById('sl-use-cache');
-                if (slChk && !slChk.checked) {
-                    slChk.checked = true;
-                    onSlCacheModeChange(slChk);
-                }
             }
         }
 
