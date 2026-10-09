@@ -135,6 +135,7 @@ from easy_tdx.stock_lookup import get_stock_name
 from easy_tdx.strategies.registry import get_strategy
 from easy_tdx.watchlist_store import load_watchlist_items
 from easy_tdx.screener.universe import get_universe_symbols
+from easy_tdx.MyTT import TD_SEQUENTIAL
 
 logging.basicConfig(
     level=logging.INFO,
@@ -468,6 +469,13 @@ def check_single_stock_quadrilateral(
 
         signal_status = "BUY" if hit_buy else ("SELL" if hit_sell else "CLOSURE")
 
+        # 4. 计算通达信九转序列指标 (TD-9)
+        td9_h, td9_l = TD_SEQUENTIAL(sig_df["close"].values, 9)
+        sig_df["td9_h"] = td9_h
+        sig_df["td9_l"] = td9_l
+        cur_td9_h = int(td9_h[-1]) if len(td9_h) > 0 else 0
+        cur_td9_l = int(td9_l[-1]) if len(td9_l) > 0 else 0
+
         return {
             "code": code,
             "name": name,
@@ -483,6 +491,8 @@ def check_single_stock_quadrilateral(
             "ma10": float(last_bar.get("ma10", 0.0)),
             "ma20": float(last_bar.get("ma20", 0.0)),
             "ma30": float(last_bar.get("ma30", 0.0)),
+            "td9_high": cur_td9_h,
+            "td9_low": cur_td9_l,
             "sig_df": sig_df,
         }
     except Exception as e:
@@ -667,6 +677,13 @@ def generate_quadrilateral_snapshot(
         return b""
 
     try:
+        # 确保包含九转序列 (TD-9)
+        if "td9_h" not in sig_df.columns or "td9_l" not in sig_df.columns:
+            td9_h_arr, td9_l_arr = TD_SEQUENTIAL(sig_df["close"].values, 9)
+            sig_df = sig_df.copy()
+            sig_df["td9_h"] = td9_h_arr
+            sig_df["td9_l"] = td9_l_arr
+
         df_plot = sig_df.tail(n_bars).reset_index(drop=True)
         if len(df_plot) < 10:
             return b""
@@ -679,7 +696,7 @@ def generate_quadrilateral_snapshot(
 
         fig, (ax1, ax2) = plt.subplots(
             2, 1,
-            figsize=(10.2, 6.2),
+            figsize=(10.5, 6.2),
             gridspec_kw={"height_ratios": [3.8, 1.0]},
             facecolor="#18191d"
         )
@@ -729,62 +746,137 @@ def generate_quadrilateral_snapshot(
                 color="#ffab00", fontsize=8.2, va="bottom", alpha=0.85
             )
 
-        # 4. 标注买入信号点与卖出离场点
+        # 4. 标注买入信号点与卖出离场点（右侧留白防遮挡设计）
         price_span = df_plot["high"].max() - df_plot["low"].min()
         offset = max(price_span * 0.08, 0.25)
+        n = len(df_plot)
+
+        # 查找最新的买入与卖出信号位置
+        buy_indices = [idx for idx, r in df_plot.iterrows() if bool(r.get("buy_signal", False))]
+        sell_indices = [idx for idx, r in df_plot.iterrows() if bool(r.get("sell_signal", False))]
+        latest_buy_idx = buy_indices[-1] if buy_indices else -1
+        latest_sell_idx = sell_indices[-1] if sell_indices else -1
 
         for i, row in df_plot.iterrows():
             c_val = float(row["close"])
             l_val = float(row["low"])
             h_val = float(row["high"])
-            is_latest = (i == last_idx)
 
+            # ── 通达信九转序列 (TD-9) 标注 ──
+            h_seq = int(row.get("td9_h", 0))
+            l_seq = int(row.get("td9_l", 0))
+            if h_seq > 0:
+                if h_seq == 9:
+                    ax1.text(
+                        i, h_val + offset * 0.18, "9",
+                        color="#ffffff", fontsize=8.0, fontweight="bold", ha="center", va="bottom",
+                        bbox=dict(boxstyle="circle,pad=0.18", facecolor="#eb2f96", edgecolor="#ffffff", linewidth=0.8),
+                        zorder=6
+                    )
+                else:
+                    col = "#ff7875" if h_seq >= 7 else "#d9d9d9"
+                    ax1.text(i, h_val + offset * 0.10, str(h_seq), color=col, fontsize=7.2, fontweight="bold", ha="center", va="bottom", zorder=5)
+
+            if l_seq > 0:
+                if l_seq == 9:
+                    ax1.text(
+                        i, l_val - offset * 0.18, "9",
+                        color="#ffffff", fontsize=8.0, fontweight="bold", ha="center", va="top",
+                        bbox=dict(boxstyle="circle,pad=0.18", facecolor="#52c41a", edgecolor="#ffffff", linewidth=0.8),
+                        zorder=6
+                    )
+                else:
+                    col = "#73d13d" if l_seq >= 7 else "#d9d9d9"
+                    ax1.text(i, l_val - offset * 0.10, str(l_seq), color=col, fontsize=7.2, fontweight="bold", ha="center", va="top", zorder=5)
+
+            # ── 买点与卖点标注 ──
             if bool(row.get("buy_signal", False)):
                 b_type = str(row.get("quad_buy_type", buy_type))
                 score = float(row.get("quad_regularity", regularity))
                 score_str = f" ({score:.0f}分)" if score > 0 else ""
-                tag = f"▲ 【{b_type}】\n¥{c_val:.2f}{score_str}"
-                ax1.annotate(
-                    tag,
-                    xy=(i, l_val),
-                    xytext=(i, l_val - offset),
-                    arrowprops=dict(facecolor="#f23645", edgecolor="#ffffff", shrink=0.08, width=1.5, headwidth=5),
-                    ha="center", va="top", fontsize=8.8 if is_latest else 7.8, fontweight="bold", color="#ffffff",
-                    bbox=dict(
-                        boxstyle="round,pad=0.32",
-                        facecolor="#f23645",
-                        edgecolor="#ffffff" if is_latest else "none",
-                        alpha=0.95 if is_latest else 0.85
-                    ),
-                    zorder=7 if is_latest else 6
-                )
-            elif bool(row.get("sell_signal", False)):
-                tag = f"▼ 破位/止损\n¥{c_val:.2f}"
-                ax1.annotate(
-                    tag,
-                    xy=(i, h_val),
-                    xytext=(i, h_val + offset),
-                    arrowprops=dict(facecolor="#089981", edgecolor="#ffffff", shrink=0.08, width=1.5, headwidth=5),
-                    ha="center", va="bottom", fontsize=8.8 if is_latest else 7.8, fontweight="bold", color="#ffffff",
-                    bbox=dict(
-                        boxstyle="round,pad=0.32",
-                        facecolor="#089981",
-                        edgecolor="#ffffff" if is_latest else "none",
-                        alpha=0.95 if is_latest else 0.85
-                    ),
-                    zorder=7 if is_latest else 6
-                )
 
-        ax1.set_ylim(bottom=df_plot["low"].min() - offset * 1.8, top=df_plot["high"].max() + offset * 1.8)
+                if i == latest_buy_idx:
+                    # 最新触发买点：在蜡烛下方标明清晰三角箭头，并向右侧留白区域拉出主标识卡片（杜绝遮挡K线蜡烛图）
+                    ax1.plot(i, l_val - offset * 0.35, marker="^", markersize=8.5, color="#f23645", zorder=6)
+                    tag = f"▲ 【{b_type}】\n最新: ¥{c_val:.2f}{score_str}"
+                    ax1.annotate(
+                        tag,
+                        xy=(i, c_val),
+                        xytext=(n + 0.6, c_val),
+                        arrowprops=dict(
+                            arrowstyle="->",
+                            color="#f23645",
+                            lw=1.5,
+                            connectionstyle="arc3,rad=-0.1",
+                        ),
+                        ha="left", va="center", fontsize=9.2, fontweight="bold", color="#ffffff",
+                        bbox=dict(
+                            boxstyle="round,pad=0.45",
+                            facecolor="#f23645",
+                            edgecolor="#ffffff",
+                            linewidth=1.2,
+                            alpha=0.96
+                        ),
+                        zorder=7
+                    )
+                else:
+                    # 历史买点：绘制精致小红三角标记，不生成大文字遮挡框
+                    ax1.plot(i, l_val - offset * 0.35, marker="^", markersize=6.0, color="#f23645", alpha=0.85, zorder=6)
+
+            elif bool(row.get("sell_signal", False)):
+                if i == latest_sell_idx:
+                    # 最新破位卖出：向上绘制标记，并在右侧留白区拉出提示卡片
+                    ax1.plot(i, h_val + offset * 0.35, marker="v", markersize=8.5, color="#089981", zorder=6)
+                    tag = f"▼ 【均线破位离场】\n最新: ¥{c_val:.2f}"
+                    ax1.annotate(
+                        tag,
+                        xy=(i, c_val),
+                        xytext=(n + 0.6, c_val),
+                        arrowprops=dict(
+                            arrowstyle="->",
+                            color="#089981",
+                            lw=1.5,
+                            connectionstyle="arc3,rad=0.1",
+                        ),
+                        ha="left", va="center", fontsize=9.2, fontweight="bold", color="#ffffff",
+                        bbox=dict(
+                            boxstyle="round,pad=0.45",
+                            facecolor="#089981",
+                            edgecolor="#ffffff",
+                            linewidth=1.2,
+                            alpha=0.96
+                        ),
+                        zorder=7
+                    )
+                else:
+                    # 历史卖点：绘制精致绿色倒三角标记
+                    ax1.plot(i, h_val + offset * 0.35, marker="v", markersize=6.0, color="#089981", alpha=0.85, zorder=6)
+
+        ax1.set_xlim(-1, n + 8.5)
+        ax2.set_xlim(-1, n + 8.5)
+        ax1.set_ylim(bottom=df_plot["low"].min() - offset * 1.5, top=df_plot["high"].max() + offset * 1.6)
 
         # 5. 标题与状态栏
         period_name = "日线" if period.upper() in ("DAY", "D") else ("周线" if period.upper() in ("WEEK", "W") else f"{period}分时")
         chg_color = "#f23645" if change_pct >= 0 else "#089981"
         bar_dt = str(last_row.get("datetime", ""))
         title_str = f"{code} {name} · {period_name} K线 [ 均线四边形·擒牛战法 ]"
+
+        last_td9_h = int(last_row.get("td9_h", 0))
+        last_td9_l = int(last_row.get("td9_l", 0))
+        td9_status = ""
+        if last_td9_h == 9:
+            td9_status = "   九转: 【高9见顶预警】"
+        elif last_td9_l == 9:
+            td9_status = "   九转: 【低9抄底信号】"
+        elif last_td9_h >= 3:
+            td9_status = f"   九转: 上升{last_td9_h}转"
+        elif last_td9_l >= 3:
+            td9_status = f"   九转: 下跌{last_td9_l}转"
+
         status_str = (
             f"最新价: ¥{last_c:.2f} ({change_pct:+.2f}%)   买点形态: 【{buy_type}】   "
-            f"规则度: {regularity:.0f}分   底价防守: ¥{bottom_price:.2f}   时间: {bar_dt}"
+            f"规则度: {regularity:.0f}分{td9_status}   底价防守: ¥{bottom_price:.2f}   时间: {bar_dt}"
         )
 
         fig.suptitle(title_str, fontsize=13, fontweight="bold", color="#ffffff", x=0.10, y=0.97, ha="left")
@@ -799,7 +891,6 @@ def generate_quadrilateral_snapshot(
             ax2.bar(i, v, color=color, width=0.7, alpha=0.85)
 
         # 7. X轴与样式细节
-        n = len(df_plot)
         step = max(1, n // 6)
         xticks = list(range(0, n, step))
         if (n - 1) not in xticks:
@@ -1074,6 +1165,7 @@ def export_results_to_csv(
             "买点类型": b_info.get("buy_type", ""),
             "规则度评分": b_info.get("regularity", 0.0),
             "底价锚定": b_info.get("bottom_price", 0.0),
+            "九转状态": f"高{item.get('td9_high')}转" if item.get("td9_high", 0) > 0 else (f"低{item.get('td9_low')}转" if item.get("td9_low", 0) > 0 else ""),
             "距触发周期数": b_info.get("days_ago", 0),
             "最新价": item["close"],
             "涨跌幅(%)": item["chg_pct"],
@@ -1162,9 +1254,22 @@ def format_quadrilateral_message(
             chg_sign = "+" if item["chg_pct"] >= 0 else ""
             timing_desc = "今日最新触发" if days_ago == 0 else f"{days_ago}日前触发"
 
+            td9_h = item.get("td9_high", 0)
+            td9_l = item.get("td9_low", 0)
+            if td9_h == 9:
+                td9_tag = " | `🔥高9预警`"
+            elif td9_l == 9:
+                td9_tag = " | `💎低9转折`"
+            elif td9_h >= 3:
+                td9_tag = f" | `高{td9_h}转`"
+            elif td9_l >= 3:
+                td9_tag = f" | `低{td9_l}转`"
+            else:
+                td9_tag = ""
+
             line = (
                 f"- **{item['code']} {item['name']}** : 【`{b_type}`】最新价 `¥{item['close']:.2f}` ({chg_sign}{item['chg_pct']}%) | "
-                f"规则度 `{score:.0f}分` | 底价锚 `¥{bot_price:.2f}` | 成交 `{amt_yi}亿` | `{timing_desc}`"
+                f"规则度 `{score:.0f}分`{td9_tag} | 底价锚 `¥{bot_price:.2f}` | 成交 `{amt_yi}亿` | `{timing_desc}`"
             )
             # 字节预算守卫：单条消息不超过 3200 字节
             cur_bytes = len("\n".join(md_lines + [line]).encode("utf-8"))
