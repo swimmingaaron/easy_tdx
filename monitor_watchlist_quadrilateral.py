@@ -977,23 +977,23 @@ class WeChatNotifier:
     def _send_wecom_with_rate_limit(self, payload: dict) -> dict:
         """带频率限制保护 (20条/分) 的企业微信消息推送方法。
 
-        每成功发送 20 条消息，自动等待 30 秒后再继续发送。
-        若触发 45009 频控限制，自动等待 30 秒后重试。
+        每成功发送 20 条消息，自动等待 10 秒后再继续发送。
+        若触发 45009 频控限制，自动等待 10 秒后重试。
         """
         if self._wecom_sent_count > 0 and self._wecom_sent_count % 20 == 0:
             logger.info(
-                f"已累计向企业微信发送 {self._wecom_sent_count} 条消息，达到 20条/分 频率限制，等待 30 秒后继续发送..."
+                f"已累计向企业微信发送 {self._wecom_sent_count} 条消息，达到 20条/分 频率限制，等待 10 秒后继续发送..."
             )
-            time.sleep(30)
+            time.sleep(10)
 
         res_data = {}
         for attempt in range(2):
             res_data = self._post_json(self.wecom_webhook, payload)
             if res_data.get("errcode") == 45009:
                 logger.warning(
-                    f"触发企业微信机器人发送频率限制 (20条/分)，等待 30 秒后进行第 {attempt + 1} 次重试..."
+                    f"触发企业微信机器人发送频率限制 (20条/分)，等待 10 秒后进行第 {attempt + 1} 次重试..."
                 )
-                time.sleep(30)
+                time.sleep(10)
                 continue
             break
 
