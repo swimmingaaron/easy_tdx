@@ -34,7 +34,7 @@ easy_tdx 自选监控池 均线四边形策略 (擒牛战法) 后台监测与微
 
 4. 执行模式：
    - 单次即时扫描 (--now)：立即执行一次扫描并控制台打印结果。
-   - 后台守护进程 (--daemon)：在交易日关键决策时段（如 09:35, 10:00, 11:20, 13:30, 14:30, 14:55）自动巡检。
+   - 后台守护进程 (--daemon)：在交易日定时自动巡检（默认 14:40 执行）。
    - 全市场扫描 (--all / -a)：扫描全市场 5,200+ 只 A 股标的，并自动多线程并发提速与导出 CSV。
    - 指数标的池 (--universe core / hs300 / zz500 / zz1000)：快速扫描主流权重与中盘成长龙头。
 
@@ -150,14 +150,9 @@ logger = logging.getLogger("WatchlistQuadMonitor")
 # ==============================================================================
 
 # 日线级别常驻监控的关键时点 (时, 分)
-# 涵盖：早盘初筛 (09:35)、早盘量能确立 (10:00)、午盘收盘前 (11:20)、午后初段 (13:30)、尾盘抢筹 (14:30)、收盘定型 (14:55)
+# 交易日关键执行时点：14:40 (尾盘定型与买点捕捉)
 DAY_CHECK_SLOTS: list[tuple[int, int]] = [
-    (9, 35),
-    (10, 0),
-    (11, 20),
-    (13, 30),
-    (14, 30),
-    (14, 55),
+    (14, 40),
 ]
 
 # 分钟级别监控时点 (每半点前 5 分钟)
@@ -1442,10 +1437,14 @@ def run_daemon_loop(
     pool_name: str = "自选池",
     min_score: float = 0.0,
     output_path: str | None = None,
+    custom_slots: list[tuple[int, int]] | None = None,
 ) -> None:
     """后台常驻监控服务，在交易日设定的关键时段自动触发扫描。"""
     is_intraday = period.upper() in ("30M", "60M")
-    slots = INTRADAY_CHECK_SLOTS if is_intraday else DAY_CHECK_SLOTS
+    if custom_slots:
+        slots = custom_slots
+    else:
+        slots = INTRADAY_CHECK_SLOTS if is_intraday else DAY_CHECK_SLOTS
 
     logger.info("=" * 76)
     logger.info(f"easy_tdx {pool_name} 均线四边形策略 微信推送后台守护服务已启动！")
@@ -1589,6 +1588,12 @@ def main():
         default=50,
         help="最多生成/推送的走势图快照数量 (默认: 50)",
     )
+    parser.add_argument(
+        "--time",
+        type=str,
+        default="14:40",
+        help="指定交易日定时执行时点 (默认: 14:40，支持逗号分隔多个，例如: --time 14:40 或 --time 10:00,14:40)",
+    )
 
     default_webhook = os.environ.get("WECHAT_WEBHOOK_URL") or os.environ.get("WECHAT_WEBHOOK")
     default_pushplus = os.environ.get("PUSHPLUS_TOKEN")
@@ -1713,6 +1718,20 @@ def main():
         if not args.daemon:
             return
 
+    # 解析自定义执行时点
+    custom_slots = None
+    if args.time:
+        try:
+            custom_slots = []
+            for part in args.time.split(","):
+                part = part.strip()
+                if ":" in part:
+                    sh, sm = map(int, part.split(":"))
+                    custom_slots.append((sh, sm))
+        except Exception as e:
+            logger.warning(f"解析自定义触发时点 --time {args.time} 失败: {e}，将使用默认 14:40。")
+            custom_slots = [(14, 40)]
+
     # 常驻监控模式
     run_daemon_loop(
         notifier=notifier,
@@ -1726,6 +1745,7 @@ def main():
         pool_name=pool_desc,
         min_score=args.min_score,
         output_path=output_csv,
+        custom_slots=custom_slots,
     )
 
 
