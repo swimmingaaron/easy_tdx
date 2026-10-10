@@ -475,6 +475,14 @@ function renderChart() {
             ${matchedRes.pattern_name} [${matchedRes.grade}级] ¥${matchedRes.price.toFixed(2)}
           </div>`
         }
+        // 匹配 MACD 背离点
+        const matchedMacd = (uc.macd_marks || []).find((m: any) => m.date === dateStr)
+        if (matchedMacd) {
+          const isBottom = matchedMacd.type === 'bottom'
+          html += `<div style="padding:4px 6px; background:${isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}; border: 1px solid ${isBottom ? '#ef4444' : '#10b981'}; border-radius:4px; margin-top:4px; font-weight:bold; color:${isBottom ? '#fca5a5' : '#86efac'}; font-size:11px;">
+            ${matchedMacd.label}: ${matchedMacd.msg}
+          </div>`
+        }
         return html
       },
     },
@@ -612,6 +620,29 @@ function renderChart() {
         data: macdData.dif,
         lineStyle: { color: '#ffffff', width: 1.2 },
         symbol: 'none',
+        markPoint: {
+          symbolSize: 22,
+          data: (uc.macd_marks || []).map((m: any) => ({
+            name: m.label,
+            coord: [m.date, m.dif],
+            value: m.label,
+            symbol: 'triangle',
+            symbolRotate: m.type === 'bottom' ? 0 : 180,
+            itemStyle: {
+              color: m.type === 'bottom' ? '#ef4444' : '#10b981',
+              borderColor: '#ffffff',
+              borderWidth: 1.2,
+            },
+            label: {
+              show: true,
+              position: m.type === 'bottom' ? 'bottom' : 'top',
+              color: m.type === 'bottom' ? '#f87171' : '#34d399',
+              fontWeight: 'bold',
+              fontSize: 9.5,
+              formatter: m.label,
+            },
+          })),
+        },
       },
       {
         name: 'DEA',

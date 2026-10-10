@@ -22130,7 +22130,30 @@
                         yAxisIndex: 1,
                         data: macdData.dif || [],
                         lineStyle: { color: '#cbd5e1', width: 1.2 },
-                        symbol: 'none'
+                        symbol: 'none',
+                        markPoint: {
+                            symbolSize: 22,
+                            data: (uc.macd_marks || []).map(m => ({
+                                name: m.label,
+                                coord: [m.date, m.dif],
+                                value: m.label,
+                                symbol: 'triangle',
+                                symbolRotate: m.type === 'bottom' ? 0 : 180,
+                                itemStyle: {
+                                    color: m.type === 'bottom' ? '#ef4444' : '#10b981',
+                                    borderColor: '#ffffff',
+                                    borderWidth: 1.2
+                                },
+                                label: {
+                                    show: true,
+                                    position: m.type === 'bottom' ? 'bottom' : 'top',
+                                    color: m.type === 'bottom' ? '#f87171' : '#34d399',
+                                    fontWeight: 'bold',
+                                    fontSize: 9.5,
+                                    formatter: m.label
+                                }
+                            }))
+                        }
                     },
                     {
                         name: 'DEA',
@@ -22233,6 +22256,18 @@
                             `;
                         }
 
+                        // 查找 MACD 背离事件
+                        const matchedMacd = (uc.macd_marks || []).find(m => m.date === dateStr);
+                        let macdHtml = '';
+                        if (matchedMacd) {
+                            const isBottom = matchedMacd.type === 'bottom';
+                            macdHtml = `
+                                <div style="margin-top: 4px; padding: 3px 8px; background: ${isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}; border: 1px solid ${isBottom ? '#ef4444' : '#10b981'}; border-radius: 4px; color: ${isBottom ? '#fca5a5' : '#86efac'}; font-weight: bold; font-size: 11px;">
+                                    ${matchedMacd.label}: ${matchedMacd.msg}
+                                </div>
+                            `;
+                        }
+
                         return `
                             <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 4px; margin-bottom: 6px;">
@@ -22248,6 +22283,7 @@
                                     <span style="color: #64748b; font-weight: 600;">振幅:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                 </div>
                                 ${resHtml}
+                                ${macdHtml}
                             </div>
                         `;
                     }

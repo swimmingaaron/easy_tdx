@@ -1060,6 +1060,54 @@ class ChanlunUnifiedResonancePlotter:
             ax_macd.plot(range(n_bars), dif, color="#ffffff", linewidth=1.1, label="DIF")
             ax_macd.plot(range(n_bars), dea, color="#f0b90b", linewidth=1.1, label="DEA")
             ax_macd.axhline(0, color="#555555", linewidth=0.6, linestyle="--")
+
+            # 标注 MACD 底背离 / 顶背离 (结合缠论背驰与一类买卖点)
+            seen_beichi_bars = set()
+            macd_beichi_list = []
+
+            for bc in getattr(base_res, "bcs", []):
+                if not bc.curr or not getattr(bc, "bc", False):
+                    continue
+                k_i = getattr(bc.curr.end.k, "k_index", -1)
+                if 0 <= k_i < n_bars and k_i not in seen_beichi_bars:
+                    seen_beichi_bars.add(k_i)
+                    is_bottom = getattr(bc.curr.direction, "value", "") == "down"
+                    macd_beichi_list.append((k_i, is_bottom))
+
+            for mmd in base_res.mmds:
+                if not mmd.bi:
+                    continue
+                k_i = getattr(mmd.bi.end.k, "k_index", -1)
+                if 0 <= k_i < n_bars and k_i not in seen_beichi_bars:
+                    m_type = mmd.mmd_type.value.lower()
+                    if "1buy" in m_type:
+                        seen_beichi_bars.add(k_i)
+                        macd_beichi_list.append((k_i, True))
+                    elif "1sell" in m_type:
+                        seen_beichi_bars.add(k_i)
+                        macd_beichi_list.append((k_i, False))
+
+            dif_span = float(np.ptp(dif)) if len(dif) else 1.0
+            macd_offset = max(dif_span * 0.16, 0.08)
+
+            for (k_i, is_bottom) in macd_beichi_list:
+                y_val = dif[k_i]
+                c_lbl = "#f23645" if is_bottom else "#089981"
+                lbl = "▲底背离" if is_bottom else "▼顶背离"
+                ax_macd.annotate(
+                    lbl,
+                    xy=(k_i, y_val),
+                    xytext=(k_i, y_val - macd_offset if is_bottom else y_val + macd_offset),
+                    ha="center",
+                    va="top" if is_bottom else "bottom",
+                    fontsize=7.5,
+                    fontweight="bold",
+                    color="#ffffff",
+                    bbox=dict(boxstyle="round,pad=0.18", facecolor=c_lbl, edgecolor="#ffffff", linewidth=0.8, alpha=0.9),
+                    arrowprops=dict(facecolor=c_lbl, edgecolor="#ffffff", shrink=0.1, width=0.6, headwidth=2.5),
+                    zorder=10,
+                )
+
             ax_macd.legend(loc="upper left", facecolor="#181b27", edgecolor="#2d313f", fontsize=8.5, labelcolor="#e0e0e0")
 
         # ----------------------------------------------------------------------
@@ -1436,6 +1484,46 @@ def export_interactive_html(
     dif = (base_res.macd.get("dif") or []) if base_res.macd else []
     dea = (base_res.macd.get("dea") or []) if base_res.macd else []
 
+    # MACD 背离
+    macd_marks = []
+    seen_mac_idx = set()
+    for bc in getattr(base_res, "bcs", []):
+        if not bc.curr or not getattr(bc, "bc", False):
+            continue
+        k_i = getattr(bc.curr.end.k, "k_index", -1)
+        if 0 <= k_i < len(dates) and k_i not in seen_mac_idx:
+            seen_mac_idx.add(k_i)
+            is_bottom = getattr(bc.curr.direction, "value", "") == "down"
+            m_dif = dif[k_i] if k_i < len(dif) else 0.0
+            macd_marks.append({
+                "coord": [dates[k_i], m_dif],
+                "value": "▲底背离" if is_bottom else "▼顶背离",
+                "itemStyle": {"color": "#ef4444" if is_bottom else "#10b981"},
+            })
+
+    for mmd in base_res.mmds:
+        if not mmd.bi:
+            continue
+        k_i = getattr(mmd.bi.end.k, "k_index", -1)
+        if 0 <= k_i < len(dates) and k_i not in seen_mac_idx:
+            m_type = mmd.mmd_type.value.lower()
+            if "1buy" in m_type:
+                seen_mac_idx.add(k_i)
+                m_dif = dif[k_i] if k_i < len(dif) else 0.0
+                macd_marks.append({
+                    "coord": [dates[k_i], m_dif],
+                    "value": "▲底背离",
+                    "itemStyle": {"color": "#ef4444"},
+                })
+            elif "1sell" in m_type:
+                seen_mac_idx.add(k_i)
+                m_dif = dif[k_i] if k_i < len(dif) else 0.0
+                macd_marks.append({
+                    "coord": [dates[k_i], m_dif],
+                    "value": "▼顶背离",
+                    "itemStyle": {"color": "#10b981"},
+                })
+
     payload_json = json.dumps({
         "code": code,
         "name": name,
@@ -1451,6 +1539,7 @@ def export_interactive_html(
         "macd_hist": [h * 2 for h in macd_hist],
         "dif": dif,
         "dea": dea,
+        "macd_marks": macd_marks,
         "resonances": [
             {
                 "timestamp": r.timestamp,
@@ -1584,6 +1673,43 @@ def export_interactive_html(
                     xAxisIndex: 1,
                     yAxisIndex: 1,
                     data: D.macd_hist.map(v => ({{ value: v, itemStyle: {{ color: v >= 0 ? '#f23645' : '#089981' }} }}))
+                }},
+                {{
+                    name: 'DIF',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.dif,
+                    lineStyle: {{ color: '#ffffff', width: 1.2 }},
+                    symbol: 'none',
+                    markPoint: {{
+                        symbolSize: 22,
+                        data: D.macd_marks.map(m => ({{
+                            name: m.value,
+                            coord: m.coord,
+                            value: m.value,
+                            symbol: 'triangle',
+                            symbolRotate: m.value.includes('底') ? 0 : 180,
+                            itemStyle: m.itemStyle,
+                            label: {{
+                                show: true,
+                                position: m.value.includes('底') ? 'bottom' : 'top',
+                                color: m.value.includes('底') ? '#f87171' : '#34d399',
+                                fontWeight: 'bold',
+                                fontSize: 9.5,
+                                formatter: m.value
+                            }}
+                        }}))
+                    }}
+                }},
+                {{
+                    name: 'DEA',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.dea,
+                    lineStyle: {{ color: '#facc15', width: 1.2 }},
+                    symbol: 'none'
                 }}
             ]
         }};

@@ -734,8 +734,9 @@ def analyze_multi_period_resonance(
     )
 
     # 1. 映射大级别笔与中枢
+    high_res = results[high_p]
     high_bis = []
-    for bi in results[high_p].bis:
+    for bi in high_res.bis:
         s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p, base_df, base_dts)
         e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p, base_df, base_dts)
         if s_i < 0 and e_i < 0:
@@ -772,8 +773,9 @@ def analyze_multi_period_resonance(
         })
 
     # 2. 映射中级别笔与中枢
+    mid_res = results[mid_p]
     mid_bis = []
-    for bi in results[mid_p].bis:
+    for bi in mid_res.bis:
         s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p, base_df, base_dts)
         e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p, base_df, base_dts)
         if s_i < 0 and e_i < 0:
@@ -958,11 +960,120 @@ def analyze_multi_period_resonance(
                 "desc": r.description,
             })
 
-    # 6. MACD 数据
+    # 6. MACD 数据及背离（底背离 / 顶背离）识别
     macd_data = low_res.macd or {}
     macd_hist = [round(h * 2, 3) for h in (macd_data.get("hist") or [])]
     macd_dif = [round(d, 3) for d in (macd_data.get("dif") or [])]
     macd_dea = [round(d, 3) for d in (macd_data.get("dea") or [])]
+
+    macd_marks = []
+    seen_macd_bars = set()
+
+    # 6.1 结合缠论背驰点 (笔背驰 / 盘整背驰 / 趋势背驰)
+    for bc in getattr(low_res, "bcs", []):
+        if not bc.curr or not getattr(bc, "bc", False):
+            continue
+        bar_idx = getattr(bc.curr.end.k, "k_index", -1)
+        if 0 <= bar_idx < n_base and bar_idx not in seen_macd_bars:
+            seen_macd_bars.add(bar_idx)
+            is_bottom = getattr(bc.curr.direction, "value", "") == "down"
+            m_dif = macd_dif[bar_idx] if bar_idx < len(macd_dif) else 0.0
+            m_hist = macd_hist[bar_idx] if bar_idx < len(macd_hist) else 0.0
+            macd_marks.append({
+                "date": dates[bar_idx],
+                "bar_idx": bar_idx,
+                "type": "bottom" if is_bottom else "top",
+                "label": "▲底背离" if is_bottom else "▼顶背离",
+                "dif": m_dif,
+                "hist": m_hist,
+                "price": round(float(base_df["close"].iloc[bar_idx]), 2),
+                "msg": bc.msg or ("缠论底背驰(MACD绿柱动能衰竭)" if is_bottom else "缠论顶背驰(MACD红柱动能衰竭)"),
+            })
+
+    # 6.2 结合缠论一类买卖点 (天然对应标准走势终结底背离/顶背离)
+    for mmd in low_res.mmds:
+        if not mmd.bi:
+            continue
+        bar_idx = getattr(mmd.bi.end.k, "k_index", -1)
+        if 0 <= bar_idx < n_base and bar_idx not in seen_macd_bars:
+            m_type = mmd.mmd_type.value.lower()
+            if "1buy" in m_type:
+                seen_macd_bars.add(bar_idx)
+                m_dif = macd_dif[bar_idx] if bar_idx < len(macd_dif) else 0.0
+                m_hist = macd_hist[bar_idx] if bar_idx < len(macd_hist) else 0.0
+                macd_marks.append({
+                    "date": dates[bar_idx],
+                    "bar_idx": bar_idx,
+                    "type": "bottom",
+                    "label": "▲底背离",
+                    "dif": m_dif,
+                    "hist": m_hist,
+                    "price": round(float(base_df["close"].iloc[bar_idx]), 2),
+                    "msg": "一买底背驰: 价格见底且MACD动能底背离",
+                })
+            elif "1sell" in m_type:
+                seen_macd_bars.add(bar_idx)
+                m_dif = macd_dif[bar_idx] if bar_idx < len(macd_dif) else 0.0
+                m_hist = macd_hist[bar_idx] if bar_idx < len(macd_hist) else 0.0
+                macd_marks.append({
+                    "date": dates[bar_idx],
+                    "bar_idx": bar_idx,
+                    "type": "top",
+                    "label": "▼顶背离",
+                    "dif": m_dif,
+                    "hist": m_hist,
+                    "price": round(float(base_df["close"].iloc[bar_idx]), 2),
+                    "msg": "一卖顶背驰: 价格冲顶且MACD动能顶背离",
+                })
+
+    # 6.3 经典技术指标 MACD 峰谷背离检测 (价格创极值但 DIF 未创新极值)
+    if len(macd_dif) >= 20 and not base_df.empty:
+        closes = base_df["close"].values
+        for i in range(10, len(macd_dif) - 5):
+            if i in seen_macd_bars:
+                continue
+            # 谷底底背离候选 (DIF < 0 且局部低谷)
+            if macd_dif[i] < macd_dif[i - 1] and macd_dif[i] < macd_dif[i + 1] and macd_dif[i] < 0:
+                prev_valley = None
+                for j in range(i - 8, max(0, i - 80), -1):
+                    if macd_dif[j] < macd_dif[j - 1] and macd_dif[j] < macd_dif[j + 1] and macd_dif[j] < 0:
+                        prev_valley = j
+                        break
+                if prev_valley is not None:
+                    if closes[i] <= closes[prev_valley] * 0.998 and macd_dif[i] > macd_dif[prev_valley]:
+                        seen_macd_bars.add(i)
+                        macd_marks.append({
+                            "date": dates[i],
+                            "bar_idx": i,
+                            "type": "bottom",
+                            "label": "▲底背离",
+                            "dif": macd_dif[i],
+                            "hist": macd_hist[i],
+                            "price": round(float(closes[i]), 2),
+                            "msg": f"MACD底背离: 现价 ¥{closes[i]:.2f} 低于前低 ¥{closes[prev_valley]:.2f}，但DIF明显抬高",
+                        })
+            # 峰顶顶背离候选 (DIF > 0 且局部高峰)
+            elif macd_dif[i] > macd_dif[i - 1] and macd_dif[i] > macd_dif[i + 1] and macd_dif[i] > 0:
+                prev_peak = None
+                for j in range(i - 8, max(0, i - 80), -1):
+                    if macd_dif[j] > macd_dif[j - 1] and macd_dif[j] > macd_dif[j + 1] and macd_dif[j] > 0:
+                        prev_peak = j
+                        break
+                if prev_peak is not None:
+                    if closes[i] >= closes[prev_peak] * 1.002 and macd_dif[i] < macd_dif[prev_peak]:
+                        seen_macd_bars.add(i)
+                        macd_marks.append({
+                            "date": dates[i],
+                            "bar_idx": i,
+                            "type": "top",
+                            "label": "▼顶背离",
+                            "dif": macd_dif[i],
+                            "hist": macd_hist[i],
+                            "price": round(float(closes[i]), 2),
+                            "msg": f"MACD顶背离: 现价 ¥{closes[i]:.2f} 高于前高 ¥{closes[prev_peak]:.2f}，但DIF明显衰退",
+                        })
+
+    macd_marks.sort(key=lambda x: x["bar_idx"])
 
     # 7. 各周期独立分屏数据（用于切换分屏联动视图或单独看某个周期）
     levels_data = {}
@@ -1046,7 +1157,9 @@ def analyze_multi_period_resonance(
                 "hist": macd_hist,
                 "dif": macd_dif,
                 "dea": macd_dea,
+                "marks": macd_marks,
             },
+            "macd_marks": macd_marks,
         },
         "levels_data": levels_data,
         "backtrack_timeline": {
