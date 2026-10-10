@@ -4583,18 +4583,6 @@
                 <div id="cl-pattern-overlay" class="absolute top-4 left-14 z-10 flex items-center space-x-1.5 text-[11px] font-sans font-medium pointer-events-none select-none">
                 </div>
 
-                <!-- 花姐同款 TIMEFRAME 右上角看板徽章 -->
-                <div id="cl-timeframe-watermark" class="absolute top-4 right-14 z-10 hidden flex-col items-end px-3 py-1.5 rounded-lg bg-slate-950/85 backdrop-blur border border-cyan-500/40 text-[11px] font-mono shadow-lg pointer-events-none select-none">
-                    <div id="cl-tf-stock" class="font-bold text-white text-xs"></div>
-                    <div id="cl-tf-period" class="font-bold text-cyan-400">5m TIMEFRAME</div>
-                    <div id="cl-tf-price" class="font-semibold text-xs"></div>
-                    <div class="flex items-center space-x-2 text-[10px] mt-0.5">
-                        <span class="text-purple-400">● 大级别(紫)</span>
-                        <span class="text-amber-400">● 次级别(黄)</span>
-                        <span class="text-cyan-400">● 基准(蓝)</span>
-                    </div>
-                </div>
-
                 <!-- ECharts 画布容器 -->
                 <div id="chanlun-echart-main" style="width: 100%; height: 620px;"></div>
             </div>
@@ -21965,24 +21953,6 @@
                         ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
                     </span>
                 `;
-            }
-
-            // 更新花姐同款 TIMEFRAME 看板徽章
-            const tfWatermark = document.getElementById('cl-timeframe-watermark');
-            if (tfWatermark && d.summary) {
-                tfWatermark.classList.remove('hidden');
-                tfWatermark.classList.add('flex');
-                const tfStock = document.getElementById('cl-tf-stock');
-                const tfPeriod = document.getElementById('cl-tf-period');
-                const tfPrice = document.getElementById('cl-tf-price');
-                if (tfStock) tfStock.textContent = `${d.code} ${d.name}`;
-                if (tfPeriod) tfPeriod.textContent = `${d.periods.low.name} TIMEFRAME`;
-                if (tfPrice) {
-                    const chgPct = d.summary.change_pct;
-                    const chgSign = chgPct >= 0 ? '+' : '';
-                    tfPrice.className = `font-semibold text-xs ${chgPct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
-                    tfPrice.textContent = `¥${Number(d.summary.latest_price).toFixed(2)} (${chgSign}${chgPct}%)`;
-                }
             }
 
             // 1. 笔线段 MarkLines (花姐标准：大紫·次黄·微蓝)

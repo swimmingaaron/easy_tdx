@@ -934,23 +934,6 @@ onBeforeUnmount(() => {
         ⚠️ {{ errorMsg }}
       </div>
 
-      <!-- 花姐同款 TIMEFRAME 水印看板 -->
-      <div v-if="chanData" class="huajie-timeframe-watermark">
-        <div class="tf-badge-code">{{ chanData.code }} {{ chanData.name }}</div>
-        <div class="tf-badge-period">{{ chanData.periods.low.name }} TIMEFRAME</div>
-        <div
-          class="tf-badge-price"
-          :class="{ up: chanData.summary.change_pct >= 0, down: chanData.summary.change_pct < 0 }"
-        >
-          ¥{{ chanData.summary.latest_price.toFixed(2) }} ({{ chanData.summary.change_pct >= 0 ? '+' : '' }}{{ chanData.summary.change_pct }}%)
-        </div>
-        <div class="tf-badge-legend">
-          <span class="tf-dot-purple">● 大级别(紫)</span>
-          <span class="tf-dot-yellow">● 次级别(黄)</span>
-          <span class="tf-dot-blue">● 基准(蓝)</span>
-        </div>
-      </div>
-
       <div ref="chartContainer" class="main-echart"></div>
     </div>
 
@@ -1351,51 +1334,6 @@ onBeforeUnmount(() => {
 .high-dot { background: #c084fc; }
 .mid-dot { background: #facc15; }
 .low-dot { background: #00e5ff; }
-
-/* 花姐 TIMEFRAME 看板水印 */
-.huajie-timeframe-watermark {
-  position: absolute;
-  top: 14px;
-  right: 18px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(0, 229, 255, 0.4);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
-  padding: 8px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  z-index: 8;
-  pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  text-align: right;
-}
-.tf-badge-code {
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffffff;
-}
-.tf-badge-period {
-  font-size: 11px;
-  font-weight: 700;
-  color: #00e5ff;
-  letter-spacing: 0.5px;
-}
-.tf-badge-price {
-  font-size: 12px;
-  font-weight: 700;
-}
-.tf-badge-price.up { color: #ef4146; }
-.tf-badge-price.down { color: #089981; }
-.tf-badge-legend {
-  display: flex;
-  gap: 8px;
-  font-size: 10px;
-  margin-top: 2px;
-}
-.tf-dot-purple { color: #c084fc; }
-.tf-dot-yellow { color: #facc15; }
-.tf-dot-blue { color: #00e5ff; }
 
 /* 回溯控制面板 */
 .backtrack-panel {

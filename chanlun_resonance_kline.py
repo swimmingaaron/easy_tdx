@@ -1074,37 +1074,6 @@ class ChanlunUnifiedResonancePlotter:
             framealpha=0.88,
         )
 
-        # 花姐同款右上角 TIMEFRAME 看板卡片
-        last_c_temp = float(base_df["close"].iloc[-1])
-        first_c_temp = float(base_df["open"].iloc[0])
-        chg_temp = (last_c_temp - first_c_temp) / first_c_temp * 100 if first_c_temp else 0
-        tf_label = "5m TIMEFRAME" if "5" in self.p_low else f"{low_name} TIMEFRAME"
-        chg_sign = "+" if chg_temp >= 0 else ""
-        watermark_text = (
-            f"{self.code} {self.name}\n"
-            f"[{tf_label}]\n"
-            f"¥{last_c_temp:.2f} ({chg_sign}{chg_temp:.2f}%)\n"
-            f"●大级别(紫) ●次级别(黄) ●基准(蓝)"
-        )
-        ax_main.text(
-            0.985, 0.965, watermark_text,
-            transform=ax_main.transAxes,
-            fontsize=9.0,
-            fontweight="bold",
-            color="#ffffff",
-            ha="right",
-            va="top",
-            linespacing=1.35,
-            bbox=dict(
-                boxstyle="round,pad=0.45",
-                facecolor="#0f172a",
-                edgecolor="#00e5ff",
-                linewidth=1.2,
-                alpha=0.88,
-            ),
-            zorder=15,
-        )
-
         ax_main.set_ylim(
             bottom=base_df["low"].min() - offset * 3.2,
             top=base_df["high"].max() + offset * 3.2,
