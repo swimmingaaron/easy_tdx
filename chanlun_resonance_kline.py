@@ -955,8 +955,8 @@ class ChanlunUnifiedResonancePlotter:
                     va="top" if is_buy else "bottom",
                     fontsize=8.0,
                     fontweight="bold",
-                    color="#000000" if is_buy else "#ffffff",
-                    bbox=dict(boxstyle="round,pad=0.25", facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", linewidth=1.0, alpha=0.9),
+                    color="#1e1b18" if is_buy else "#ffffff",
+                    bbox=dict(boxstyle="round,pad=0.25", facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", linewidth=1.2, alpha=0.92),
                     arrowprops=dict(facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
                     zorder=10,
                 )
@@ -995,7 +995,7 @@ class ChanlunUnifiedResonancePlotter:
                     fontsize=8.0,
                     fontweight="bold",
                     color="#ffffff",
-                    bbox=dict(boxstyle="round,pad=0.22", facecolor=c_tag, edgecolor="#ffffff", alpha=0.92),
+                    bbox=dict(boxstyle="round,pad=0.22", facecolor=c_tag, edgecolor="#ffffff", linewidth=1.2, alpha=0.95),
                     arrowprops=dict(facecolor=c_tag, edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
                     zorder=10,
                 )
@@ -1393,7 +1393,18 @@ def export_interactive_html(
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
                 "value": lbl,
+                "symbol": "pin" if is_buy else "arrow",
+                "symbolRotate": 0 if is_buy else 180,
+                "symbolSize": 26,
                 "itemStyle": {"color": "#facc15" if is_buy else "#d97706"},
+                "label": {
+                    "show": True,
+                    "color": "#fef08a" if is_buy else "#ffffff",
+                    "textBorderColor": "rgba(0, 0, 0, 0.9)",
+                    "textBorderWidth": 2.5,
+                    "fontWeight": "bold",
+                    "fontSize": 9.5,
+                },
             })
 
     # 小级别买卖点
@@ -1419,17 +1430,40 @@ def export_interactive_html(
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
                 "value": lbl,
+                "symbol": "pin" if is_buy else "arrow",
+                "symbolRotate": 0 if is_buy else 180,
+                "symbolSize": 24,
                 "itemStyle": {"color": "#f23645" if is_buy else "#089981"},
+                "label": {
+                    "show": True,
+                    "color": "#ffffff",
+                    "textBorderColor": "rgba(0, 0, 0, 0.9)",
+                    "textBorderWidth": 2.5,
+                    "fontWeight": "bold",
+                    "fontSize": 9.5,
+                },
             })
 
     # 共振买卖点
     res_marks = []
     for r in resonances:
         if 0 <= r.low_bar_idx < len(dates):
+            is_buy = r.direction == "BUY"
             res_marks.append({
                 "coord": [dates[r.low_bar_idx], r.price],
-                "value": f"★共振买({r.grade})" if r.direction == "BUY" else f"▼共振卖({r.grade})",
-                "itemStyle": {"color": "#ffd600" if r.direction == "BUY" else "#00e5ff"},
+                "value": f"★共振买({r.grade})" if is_buy else f"▼共振卖({r.grade})",
+                "symbol": "diamond",
+                "symbolSize": 30,
+                "itemStyle": {"color": "#ffd600" if is_buy else "#00e5ff"},
+                "label": {
+                    "show": True,
+                    "position": "bottom" if is_buy else "top",
+                    "color": "#ffffff",
+                    "textBorderColor": "#000000",
+                    "textBorderWidth": 2.5,
+                    "fontWeight": "bold",
+                    "fontSize": 10.5,
+                },
             })
 
     # MACD

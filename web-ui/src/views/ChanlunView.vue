@@ -395,28 +395,46 @@ function renderChart() {
       ])
     : []
 
+  const isDark = document.documentElement.classList.contains('dark')
+
   // 多级别买卖点同图呈现 markPoints
   const mmdMarkPoints = showMmdMarks.value
     ? uc.mmd_marks.map((m) => {
         const isBig = m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')
         const isMid = m.label.includes('次')
-        let color = m.is_buy ? '#ef4146' : '#089981'
+        let color = m.is_buy ? '#ef4444' : '#10b981'
         if (isBig) {
           color = '#9333ea'
         } else if (isMid) {
-          color = m.is_buy ? '#facc15' : '#d97706'
+          color = m.is_buy ? '#f59e0b' : '#d97706'
         }
+
+        let textColor, textBorderColor
+        if (isDark) {
+          textColor = isMid && m.is_buy ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5')
+          textBorderColor = 'rgba(0, 0, 0, 0.9)'
+        } else {
+          textColor = isMid ? (m.is_buy ? '#78350f' : '#9a3412') : (m.is_buy ? '#991b1b' : '#064e3b')
+          textBorderColor = '#ffffff'
+        }
+
         return {
           name: m.type,
           coord: m.coord,
           value: m.label,
           symbol: m.is_buy ? 'pin' : 'arrow',
           symbolRotate: m.is_buy ? 0 : 180,
-          symbolSize: isBig ? 34 : (isMid ? 30 : 28),
-          itemStyle: { color },
+          symbolSize: isBig ? 32 : (isMid ? 28 : 26),
+          itemStyle: { 
+            color,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.2)',
+            borderWidth: 1,
+          },
           label: {
             show: true,
-            color: isMid && m.is_buy ? '#000000' : '#ffffff',
+            color: textColor,
+            textBorderColor: textBorderColor,
+            textBorderWidth: 2.5,
             fontWeight: 'bold',
             fontSize: 9.5,
           },
@@ -426,46 +444,63 @@ function renderChart() {
 
   // 三周期立体共振买卖点 markPoints & 垂直穿透引导线
   const resonanceMarkPoints = showResonanceMarks.value
-    ? uc.res_marks.map((r) => ({
-        name: r.pattern_name,
-        coord: r.coord,
-        value: r.label,
-        symbol: 'diamond',
-        symbolSize: 34,
-        itemStyle: {
-          color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-          borderColor: '#ffffff',
-          borderWidth: 1.5,
-          shadowBlur: 10,
-          shadowColor: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-        },
-        label: {
-          show: true,
-          position: r.direction === 'BUY' ? 'bottom' : 'top',
-          color: '#ffffff',
-          fontWeight: 'bold',
-          fontSize: 11,
-          formatter: r.label,
-        },
-      }))
+    ? uc.res_marks.map((r) => {
+        const isBuy = r.direction === 'BUY'
+        const labelColor = isDark ? '#ffffff' : (isBuy ? '#92400e' : '#0e7490')
+        const labelBorderColor = isDark ? '#000000' : '#ffffff'
+
+        return {
+          name: r.pattern_name,
+          coord: r.coord,
+          value: r.label,
+          symbol: 'diamond',
+          symbolSize: 32,
+          itemStyle: {
+            color: isBuy ? '#ffd600' : '#00e5ff',
+            borderColor: isDark ? '#ffffff' : '#0f172a',
+            borderWidth: 1.5,
+            shadowBlur: 8,
+            shadowColor: isBuy ? '#ffd600' : '#00e5ff',
+          },
+          label: {
+            show: true,
+            position: isBuy ? 'bottom' : 'top',
+            color: labelColor,
+            textBorderColor: labelBorderColor,
+            textBorderWidth: 2.5,
+            fontWeight: 'bold',
+            fontSize: 10.5,
+            formatter: r.label,
+          },
+        }
+      })
     : []
 
   const resonanceVerticalLines = showResonanceMarks.value
-    ? uc.res_marks.map((r) => ({
-        xAxis: r.date,
-        lineStyle: {
-          color: r.direction === 'BUY' ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
-          width: 1.6,
-          type: 'dashed',
-        },
-        label: {
-          show: true,
-          position: 'end',
-          formatter: `★ ${r.grade}共振`,
-          color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-          fontSize: 10,
-        },
-      }))
+    ? uc.res_marks.map((r) => {
+        const isBuy = r.direction === 'BUY'
+        const tagColor = isDark
+          ? (isBuy ? '#ffd600' : '#00e5ff')
+          : (isBuy ? '#b45309' : '#0284c7')
+        return {
+          xAxis: r.date,
+          lineStyle: {
+            color: isBuy ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
+            width: 1.5,
+            type: 'dashed',
+          },
+          label: {
+            show: true,
+            position: 'end',
+            formatter: `★ ${r.grade}共振`,
+            color: tagColor,
+            textBorderColor: isDark ? '#000000' : '#ffffff',
+            textBorderWidth: 2.5,
+            fontSize: 10,
+            fontWeight: 'bold',
+          },
+        }
+      })
     : []
 
   // 副图 MACD
@@ -498,7 +533,10 @@ function renderChart() {
         const matchedRes = uc.res_marks.find((r) => r.date === dateStr)
         if (matchedRes) {
           const isBuy = matchedRes.direction === 'BUY'
-          html += `<div style="padding:4px 6px; background:${isBuy ? '#d32f2f' : '#00796b'}; border-radius:4px; margin-top:4px; font-weight:bold; color:#ffffff;">
+          const resBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
+          const resBorder = isBuy ? '#ef4444' : '#10b981'
+          const resColor = isDark ? (isBuy ? '#fca5a5' : '#86efac') : (isBuy ? '#991b1b' : '#064e3b')
+          html += `<div style="padding:4px 6px; background:${resBg}; border:1px solid ${resBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${resColor}; font-size:11px;">
             ${matchedRes.pattern_name} [${matchedRes.grade}级] ¥${matchedRes.price.toFixed(2)}
           </div>`
         }
@@ -506,7 +544,10 @@ function renderChart() {
         const matchedMacd = (uc.macd_marks || []).find((m: any) => m.date === dateStr)
         if (matchedMacd) {
           const isBottom = matchedMacd.type === 'bottom'
-          html += `<div style="padding:4px 6px; background:${isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}; border: 1px solid ${isBottom ? '#ef4444' : '#10b981'}; border-radius:4px; margin-top:4px; font-weight:bold; color:${isBottom ? '#fca5a5' : '#86efac'}; font-size:11px;">
+          const macdBg = isDark ? (isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : (isBottom ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
+          const macdBorder = isBottom ? '#ef4444' : '#10b981'
+          const macdColor = isDark ? (isBottom ? '#fca5a5' : '#86efac') : (isBottom ? '#991b1b' : '#064e3b')
+          html += `<div style="padding:4px 6px; background:${macdBg}; border: 1px solid ${macdBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${macdColor}; font-size:11px;">
             ${matchedMacd.label}: ${matchedMacd.msg}
           </div>`
         }

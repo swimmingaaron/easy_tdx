@@ -22030,65 +22030,101 @@
                 if (isBig) {
                     color = '#9333ea';
                 } else if (isMid) {
-                    color = m.is_buy ? '#facc15' : '#d97706';
+                    color = m.is_buy ? '#f59e0b' : '#d97706';
                 }
+
+                // 暗色与亮色模式下的文字颜色与描边优化：
+                // 暗色模式：高对比亮白/浅金黄/浅翡翠字体 + 纯黑描边(Halo)，无论在任何K线/背景上都清晰立体
+                // 亮色模式：高饱和深红/深绿/深琥珀字体 + 纯白描边(Halo)，彻底解决浅色三角形或水滴里白字隐形融化的问题
+                let textColor, textBorderColor;
+                if (isDark) {
+                    textColor = isMid && m.is_buy ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5');
+                    textBorderColor = 'rgba(0, 0, 0, 0.9)';
+                } else {
+                    textColor = isMid ? (m.is_buy ? '#78350f' : '#9a3412') : (m.is_buy ? '#991b1b' : '#064e3b');
+                    textBorderColor = '#ffffff';
+                }
+
                 return {
                     name: m.type,
                     coord: m.coord,
                     value: m.label,
                     symbol: m.is_buy ? 'pin' : 'arrow',
                     symbolRotate: m.is_buy ? 0 : 180,
-                    symbolSize: isBig ? 28 : (isMid ? 25 : 22),
-                    itemStyle: { color: color },
+                    symbolSize: isBig ? 30 : (isMid ? 26 : 24),
+                    itemStyle: { 
+                        color: color,
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.2)',
+                        borderWidth: 1
+                    },
                     label: {
                         show: true,
-                        color: isMid && m.is_buy ? '#000000' : '#ffffff',
+                        color: textColor,
+                        textBorderColor: textBorderColor,
+                        textBorderWidth: 2.5,
                         fontWeight: 'bold',
-                        fontSize: 9,
+                        fontSize: 9.5,
                         formatter: m.label
                     }
                 };
             }) : [];
 
             // 5. 共振买卖点 MarkPoints & 贯穿线
-            const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => ({
-                name: r.pattern_name,
-                coord: r.coord,
-                value: r.label,
-                symbol: 'diamond',
-                symbolSize: 28,
-                itemStyle: {
-                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-                    borderColor: '#ffffff',
-                    borderWidth: 1.5,
-                    shadowBlur: 10,
-                    shadowColor: r.direction === 'BUY' ? '#ffd600' : '#00e5ff'
-                },
-                label: {
-                    show: true,
-                    position: r.direction === 'BUY' ? 'bottom' : 'top',
-                    color: '#ffffff',
-                    fontWeight: 'bold',
-                    fontSize: 10,
-                    formatter: r.label
-                }
-            })) : [];
+            const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => {
+                const isBuy = r.direction === 'BUY';
+                const labelColor = isDark ? '#ffffff' : (isBuy ? '#92400e' : '#0e7490');
+                const labelBorderColor = isDark ? '#000000' : '#ffffff';
 
-            const resVerticalLines = _clLayers.res ? (uc.res_marks || []).map(r => ({
-                xAxis: r.date,
-                lineStyle: {
-                    color: r.direction === 'BUY' ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
-                    width: 1.5,
-                    type: 'dashed'
-                },
-                label: {
-                    show: true,
-                    position: 'end',
-                    formatter: `★ ${r.grade}共振`,
-                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-                    fontSize: 10
-                }
-            })) : [];
+                return {
+                    name: r.pattern_name,
+                    coord: r.coord,
+                    value: r.label,
+                    symbol: 'diamond',
+                    symbolSize: 30,
+                    itemStyle: {
+                        color: isBuy ? '#ffd600' : '#00e5ff',
+                        borderColor: isDark ? '#ffffff' : '#0f172a',
+                        borderWidth: 1.5,
+                        shadowBlur: 8,
+                        shadowColor: isBuy ? '#ffd600' : '#00e5ff'
+                    },
+                    label: {
+                        show: true,
+                        position: isBuy ? 'bottom' : 'top',
+                        color: labelColor,
+                        textBorderColor: labelBorderColor,
+                        textBorderWidth: 2.5,
+                        fontWeight: 'bold',
+                        fontSize: 10.5,
+                        formatter: r.label
+                    }
+                };
+            }) : [];
+
+            const resVerticalLines = _clLayers.res ? (uc.res_marks || []).map(r => {
+                const isBuy = r.direction === 'BUY';
+                const tagColor = isDark 
+                    ? (isBuy ? '#ffd600' : '#00e5ff') 
+                    : (isBuy ? '#b45309' : '#0284c7');
+                return {
+                    xAxis: r.date,
+                    lineStyle: {
+                        color: isBuy ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
+                        width: 1.5,
+                        type: 'dashed'
+                    },
+                    label: {
+                        show: true,
+                        position: 'end',
+                        formatter: `★ ${r.grade}共振`,
+                        color: tagColor,
+                        textBorderColor: isDark ? '#000000' : '#ffffff',
+                        textBorderWidth: 2.5,
+                        fontSize: 10,
+                        fontWeight: 'bold'
+                    }
+                };
+            }) : [];
 
 
             // 7. 副图指标系列 (MACD vs 成交量)
@@ -22482,8 +22518,15 @@
                         let resHtml = '';
                         if (matchedRes) {
                             const isBuy = matchedRes.direction === 'BUY';
+                            const resBg = isDark 
+                                ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') 
+                                : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
+                            const resBorder = isBuy ? '#ef4444' : '#10b981';
+                            const resColor = isDark 
+                                ? (isBuy ? '#fca5a5' : '#86efac') 
+                                : (isBuy ? '#991b1b' : '#064e3b');
                             resHtml = `
-                                <div style="margin-top: 6px; padding: 4px 8px; background: ${isBuy ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; border: 1px solid ${isBuy ? '#ef4444' : '#10b981'}; border-radius: 4px; color: ${isBuy ? '#fca5a5' : '#86efac'}; font-weight: bold; font-size: 11px;">
+                                <div style="margin-top: 6px; padding: 4px 8px; background: ${resBg}; border: 1px solid ${resBorder}; border-radius: 4px; color: ${resColor}; font-weight: bold; font-size: 11px;">
                                     ★ ${matchedRes.grade}级${isBuy ? '买点' : '卖点'}: ${matchedRes.pattern_name} (¥${Number(matchedRes.price).toFixed(2)})
                                 </div>
                             `;
@@ -22494,12 +22537,22 @@
                         let macdHtml = '';
                         if (matchedMacd) {
                             const isBottom = matchedMacd.type === 'bottom';
+                            const macdBg = isDark 
+                                ? (isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') 
+                                : (isBottom ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
+                            const macdBorder = isBottom ? '#ef4444' : '#10b981';
+                            const macdColor = isDark 
+                                ? (isBottom ? '#fca5a5' : '#86efac') 
+                                : (isBottom ? '#991b1b' : '#064e3b');
                             macdHtml = `
-                                <div style="margin-top: 4px; padding: 3px 8px; background: ${isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}; border: 1px solid ${isBottom ? '#ef4444' : '#10b981'}; border-radius: 4px; color: ${isBottom ? '#fca5a5' : '#86efac'}; font-weight: bold; font-size: 11px;">
+                                <div style="margin-top: 4px; padding: 3px 8px; background: ${macdBg}; border: 1px solid ${macdBorder}; border-radius: 4px; color: ${macdColor}; font-weight: bold; font-size: 11px;">
                                     ${matchedMacd.label}: ${matchedMacd.msg}
                                 </div>
                             `;
                         }
+
+                        const fieldLabelColor = isDark ? '#94a3b8' : '#475569';
+                        const ampColor = isDark ? '#e2e8f0' : '#1e293b';
 
                         return `
                             <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
@@ -22508,12 +22561,12 @@
                                     <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <span style="color: #64748b; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">开盘:</span><span style="color: ${open >= close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">振幅:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${open >= close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                 </div>
                                 ${resHtml}
                                 ${macdHtml}
