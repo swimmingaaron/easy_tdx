@@ -22256,20 +22256,19 @@
                             macdMarks.push({
                                 coord: [dt, +(macdV * 1.2).toFixed(2)],
                                 value: 'MACD底离',
-                                symbol: 'triangle',
-                                symbolSize: 8,
+                                symbol: 'none',
                                 itemStyle: { color: '#ef4444' },
                                 label: {
                                     show: true,
                                     position: 'bottom',
                                     formatter: 'MACD底离',
                                     color: '#fca5a5',
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: 'bold',
                                     backgroundColor: 'rgba(127, 29, 29, 0.9)',
                                     borderColor: '#ef4444',
                                     borderWidth: 1,
-                                    padding: [2, 4],
+                                    padding: [1.5, 3.5],
                                     borderRadius: 3
                                 }
                             });
@@ -22279,21 +22278,19 @@
                             macdMarks.push({
                                 coord: [dt, +(macdV * 1.2).toFixed(2)],
                                 value: 'MACD顶离',
-                                symbol: 'triangle',
-                                symbolRotate: 180,
-                                symbolSize: 8,
+                                symbol: 'none',
                                 itemStyle: { color: '#10b981' },
                                 label: {
                                     show: true,
                                     position: 'top',
                                     formatter: 'MACD顶离',
                                     color: '#86efac',
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: 'bold',
                                     backgroundColor: 'rgba(6, 78, 59, 0.9)',
                                     borderColor: '#10b981',
                                     borderWidth: 1,
-                                    padding: [2, 4],
+                                    padding: [1.5, 3.5],
                                     borderRadius: 3
                                 }
                             });
@@ -22340,30 +22337,6 @@
                         }
                     }
                 }
-
-                // 3. 缠论专属背驰点 (笔背驰 / 走势背驰) 标识
-                (uc.macd_marks || []).forEach(m => {
-                    macdMarks.push({
-                        name: m.label,
-                        coord: [m.date, m.dif],
-                        value: m.label,
-                        symbol: 'triangle',
-                        symbolRotate: m.type === 'bottom' ? 0 : 180,
-                        itemStyle: {
-                            color: m.type === 'bottom' ? '#ef4444' : '#10b981',
-                            borderColor: '#ffffff',
-                            borderWidth: 1.2
-                        },
-                        label: {
-                            show: true,
-                            position: m.type === 'bottom' ? 'bottom' : 'top',
-                            color: m.type === 'bottom' ? '#f87171' : '#34d399',
-                            fontWeight: 'bold',
-                            fontSize: 9.5,
-                            formatter: m.label
-                        }
-                    });
-                });
 
                 subSeries = [
                     {
