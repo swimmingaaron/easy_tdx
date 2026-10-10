@@ -503,18 +503,24 @@ class ThreePeriodResonanceEngine:
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
             if "1buy" in h_type and "1buy" in m_type and "1buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 全一买区间套极限抄底"
+                return "AAA", f"★ [{p_names}] 全一买三套极限抄底"
             if "2buy" in h_type and "2buy" in m_type and "2buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全二买主升浪确立共振"
             if "3buy" in h_type and "3buy" in m_type and "3buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全三买中枢爆发共振"
+
+            # 花姐核心区间套模型：大级别1买确立后，次级别/小级别2买二次确认 (蓝2进1蓝2)
+            if "1buy" in h_type and "2buy" in low_mmd:
+                return "AAA", f"★ [{p_names}] 区间套·蓝2进1双重确认买点"
+            if "1buy" in m_type and "2buy" in low_mmd:
+                return "AAA", f"★ [{p_names}] 区间套·次一买小二买共振点"
 
             if "3buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 三类买点中枢突破共振"
             if "2buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 二类买点起跑共振"
             if "1buy" in low_mmd:
-                return "AA", f"★ [{p_names}] 一类买点底背驰共振"
+                return "AA", f"★ [{p_names}] 底背驰 T1 拐点共振"
 
             return "A", f"★ [{p_names}] 多周期多头趋势共振买点"
         else:
@@ -527,8 +533,14 @@ class ThreePeriodResonanceEngine:
             if "3sell" in h_type and "3sell" in m_type and "3sell" in low_mmd:
                 return "AAA", f"▼ [{p_names}] 全三卖中枢破位下杀共振"
 
+            # 花姐核心区间套卖点：大级别1卖出顶，次级别/小级别2卖破位确认
+            if "1sell" in h_type and "2sell" in low_mmd:
+                return "AAA", f"▼ [{p_names}] 区间套·大一卖小二卖破位确认"
+            if "1sell" in m_type and "2sell" in low_mmd:
+                return "AAA", f"▼ [{p_names}] 区间套·次一卖小二卖破位点"
+
             if "1sell" in low_mmd:
-                return "AA", f"▼ [{p_names}] 一类卖点顶背驰共振"
+                return "AA", f"▼ [{p_names}] 顶背驰 T1 拐点共振"
             if "2sell" in low_mmd:
                 return "AA", f"▼ [{p_names}] 二类卖点反弹不过共振"
             if "3sell" in low_mmd:
@@ -830,21 +842,106 @@ def analyze_multi_period_resonance(
             "dd": round(zs.dd, 2),
         })
 
-    # 4. 买卖点标记点
+    # 4. 买卖点标记点 (多级别同图融合与区间套专业标识)
     mmd_marks = []
+
+    # 小级别自身买卖点 (底背驰 T1 / 顶背驰 T1 / 2买 / 3买)
     for mmd in low_res.mmds:
         if mmd.bi:
             k_idx = max(0, min(n_base - 1, mmd.bi.end.k.k_index))
             is_buy = "buy" in mmd.mmd_type.value
+            m_type = mmd.mmd_type.value.lower()
+            if "1buy" in m_type:
+                label_txt = "底背驰 T1"
+            elif "2buy" in m_type:
+                label_txt = "2买"
+            elif "3buy" in m_type:
+                label_txt = "3买"
+            elif "1sell" in m_type:
+                label_txt = "顶背驰 T1"
+            elif "2sell" in m_type:
+                label_txt = "2卖"
+            elif "3sell" in m_type:
+                label_txt = "3卖"
+            else:
+                label_txt = mmd.mmd_type.value.upper()
+
             mmd_marks.append({
                 "coord": [dates[k_idx], mmd.bi.end.val],
                 "date": dates[k_idx],
                 "price": round(mmd.bi.end.val, 2),
                 "type": mmd.mmd_type.value.upper(),
-                "label": mmd.mmd_type.value.upper().replace("BUY", "B").replace("SELL", "S"),
+                "level": "low",
+                "label": label_txt,
                 "is_buy": is_buy,
                 "msg": mmd.msg,
             })
+
+    # 中级别买卖点向底图映射 (次二买 / 次二卖 / 可能的三卖)
+    for mmd in mid_res.mmds:
+        if mmd.bi:
+            end_val = mmd.bi.end.val
+            is_high = mmd.bi.direction.value == "up"
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts)
+            if 0 <= b_idx < n_base:
+                is_buy = "buy" in mmd.mmd_type.value
+                m_type = mmd.mmd_type.value.lower()
+                if "1buy" in m_type:
+                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]1买"
+                elif "2buy" in m_type:
+                    label_txt = "次二买"
+                elif "3buy" in m_type:
+                    label_txt = "次三买"
+                elif "1sell" in m_type:
+                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]1卖"
+                elif "2sell" in m_type:
+                    label_txt = "次二卖"
+                elif "3sell" in m_type:
+                    label_txt = "可能的三卖"
+                else:
+                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]{mmd.mmd_type.value.upper()}"
+
+                mmd_marks.append({
+                    "coord": [dates[b_idx], end_val],
+                    "date": dates[b_idx],
+                    "price": round(end_val, 2),
+                    "type": mmd.mmd_type.value.upper(),
+                    "level": "mid",
+                    "label": label_txt,
+                    "is_buy": is_buy,
+                    "msg": f"{PERIOD_SPECS[mid_p]['label']}: {mmd.msg}",
+                })
+
+    # 大级别买卖点向底图映射 (大级别1买 / 大级别1卖 / 大级别2买)
+    for mmd in high_res.mmds:
+        if mmd.bi:
+            end_val = mmd.bi.end.val
+            is_high = mmd.bi.direction.value == "up"
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts)
+            if 0 <= b_idx < n_base:
+                is_buy = "buy" in mmd.mmd_type.value
+                m_type = mmd.mmd_type.value.lower()
+                if "1buy" in m_type:
+                    label_txt = "大级别走势1买"
+                elif "2buy" in m_type:
+                    label_txt = "大级别2买"
+                elif "1sell" in m_type:
+                    label_txt = "大级别1卖"
+                elif "2sell" in m_type:
+                    label_txt = "大级别2卖"
+                else:
+                    label_txt = f"大级别{mmd.mmd_type.value.upper()}"
+
+                mmd_marks.append({
+                    "coord": [dates[b_idx], end_val],
+                    "date": dates[b_idx],
+                    "price": round(end_val, 2),
+                    "type": mmd.mmd_type.value.upper(),
+                    "level": "high",
+                    "label": label_txt,
+                    "is_buy": is_buy,
+                    "msg": f"{PERIOD_SPECS[high_p]['label']}: {mmd.msg}",
+                })
 
     # 5. 共振买卖点标记
     res_marks = []

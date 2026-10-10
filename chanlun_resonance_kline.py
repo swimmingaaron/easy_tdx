@@ -519,6 +519,14 @@ class ThreePeriodResonanceEngine:
         if direction == "BUY":
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
+
+            # 花姐核心：蓝2进1 (大级别1买确立后，次级别/小级别回踩2买二次确认)
+            if "1buy" in h_type and "2buy" in low_mmd:
+                return "AAA", f"★ [{p_names}] 区间套·蓝2进1双重确认买点 (AAA级)"
+            if "1buy" in m_type and "2buy" in low_mmd:
+                return "AAA", f"★ [{p_names}] 区间套·次一买小二买共振点 (AAA级)"
+
+            # 同构全级别买点
             if "1buy" in h_type and "1buy" in m_type and "1buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全一买区间套极限抄底"
             if "2buy" in h_type and "2buy" in m_type and "2buy" in low_mmd:
@@ -526,17 +534,26 @@ class ThreePeriodResonanceEngine:
             if "3buy" in h_type and "3buy" in m_type and "3buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全三买中枢爆发共振"
 
+            # 经典买点
             if "3buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 三类买点中枢突破共振"
             if "2buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 二类买点起跑共振"
             if "1buy" in low_mmd:
-                return "AA", f"★ [{p_names}] 一类买点底背驰共振"
+                return "AA", f"★ [{p_names}] 底背驰 T1 拐点共振"
 
             return "A", f"★ [{p_names}] 多周期多头趋势共振买点"
         else:
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
+
+            # 花姐核心：大一卖小二卖破位确认
+            if "1sell" in h_type and "2sell" in low_mmd:
+                return "AAA", f"▼ [{p_names}] 区间套·大一卖小二卖破位确认 (AAA级)"
+            if "1sell" in m_type and "2sell" in low_mmd:
+                return "AAA", f"▼ [{p_names}] 区间套·次一卖小二卖破位确认 (AAA级)"
+
+            # 同构全级别卖点
             if "1sell" in h_type and "1sell" in m_type and "1sell" in low_mmd:
                 return "AAA", f"▼ [{p_names}] 全一卖顶背驰高抛共振"
             if "2sell" in h_type and "2sell" in m_type and "2sell" in low_mmd:
@@ -545,7 +562,7 @@ class ThreePeriodResonanceEngine:
                 return "AAA", f"▼ [{p_names}] 全三卖中枢破位下杀共振"
 
             if "1sell" in low_mmd:
-                return "AA", f"▼ [{p_names}] 一类卖点顶背驰共振"
+                return "AA", f"▼ [{p_names}] 顶背驰 T1 拐点共振"
             if "2sell" in low_mmd:
                 return "AA", f"▼ [{p_names}] 二类卖点反弹不过共振"
             if "3sell" in low_mmd:
@@ -703,11 +720,11 @@ class ChanlunUnifiedResonancePlotter:
             ax_main.add_patch(rect)
 
         # ----------------------------------------------------------------------
-        # 2. 绘制大级别 (Level 1, 如周线) 笔与中枢 (洋红/紫罗兰色，最粗)
+        # 2. 绘制大级别 (Level 1, 如日线) 笔与中枢 (花姐标准：紫色，最粗)
         # ----------------------------------------------------------------------
         high_name = PERIOD_SPECS[self.p_high]["short_name"]
-        c_high = "#e040fb"  # 亮紫色
-        bg_high = "#9c27b0"
+        c_high = "#c084fc"  # 紫色走势笔
+        bg_high = "#7e22ce"
 
         # 大级别中枢
         for zs in res_high.zss:
@@ -728,7 +745,7 @@ class ChanlunUnifiedResonancePlotter:
                 zs_h,
                 facecolor=bg_high,
                 edgecolor=c_high,
-                alpha=0.15,
+                alpha=0.18,
                 linestyle="-.",
                 linewidth=1.6,
                 zorder=2,
@@ -736,7 +753,7 @@ class ChanlunUnifiedResonancePlotter:
             ax_main.add_patch(rect)
             ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_high, linestyles="-.", linewidths=1.2, alpha=0.8, zorder=2)
             mid_x = (x_s + x_e) / 2
-            ax_main.text(mid_x, zs.zg, f"[{high_name}中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+            ax_main.text(mid_x, zs.zg, f"[{high_name}紫色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
 
         # 大级别笔
         high_bi_pts = []
@@ -750,7 +767,7 @@ class ChanlunUnifiedResonancePlotter:
             high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
 
         for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
-            lbl = f"大级别 ({high_name}) 笔" if seg_i == 0 else ""
+            lbl = f"大级别 ({high_name}) 紫线笔" if seg_i == 0 else ""
             ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_high,
@@ -766,11 +783,11 @@ class ChanlunUnifiedResonancePlotter:
             )
 
         # ----------------------------------------------------------------------
-        # 3. 绘制中级别 (Level 2, 如日线) 笔与中枢 (青蓝色，中粗)
+        # 3. 绘制中级别 (Level 2, 次级别如30F) 笔与中枢 (花姐标准：黄色，中粗)
         # ----------------------------------------------------------------------
         mid_name = PERIOD_SPECS[self.p_mid]["short_name"]
-        c_mid = "#00e5ff"  # 亮青色
-        bg_mid = "#00bcd4"
+        c_mid = "#facc15"  # 金黄色
+        bg_mid = "#ca8a04"
 
         # 中级别中枢
         for zs in res_mid.zss:
@@ -799,7 +816,7 @@ class ChanlunUnifiedResonancePlotter:
             ax_main.add_patch(rect)
             ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_mid, linestyles="--", linewidths=1.0, alpha=0.8, zorder=2)
             mid_x = (x_s + x_e) / 2
-            ax_main.text(mid_x, zs.zd, f"[{mid_name}中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_mid, fontsize=8.0, ha="center", va="top", alpha=0.9, zorder=5)
+            ax_main.text(mid_x, zs.zd, f"[{mid_name}黄色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_mid, fontsize=8.0, ha="center", va="top", alpha=0.9, zorder=5)
 
         # 中级别笔
         mid_bi_pts = []
@@ -813,7 +830,7 @@ class ChanlunUnifiedResonancePlotter:
             mid_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
 
         for seg_i, (sx, sy, ex, ey) in enumerate(mid_bi_pts):
-            lbl = f"中级别 ({mid_name}) 笔" if seg_i == 0 else ""
+            lbl = f"次级别 ({mid_name}) 黄线笔" if seg_i == 0 else ""
             ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_mid,
@@ -829,11 +846,11 @@ class ChanlunUnifiedResonancePlotter:
             )
 
         # ----------------------------------------------------------------------
-        # 4. 绘制小级别 (Level 3, 基准 30F) 笔与中枢 (金黄色细线)
+        # 4. 绘制小级别 (Level 3, 基准 5F) 笔与中枢 (花姐标准：蓝色细线)
         # ----------------------------------------------------------------------
         low_name = PERIOD_SPECS[self.p_low]["short_name"]
-        c_low = "#ffd600"  # 金黄色
-        bg_low = "#ff9800"
+        c_low = "#00e5ff"  # 青蓝色
+        bg_low = "#0284c7"
 
         # 小级别中枢
         for zs in base_res.zss:
@@ -850,16 +867,16 @@ class ChanlunUnifiedResonancePlotter:
                 zs_w,
                 zs_h,
                 facecolor=bg_low,
-                edgecolor="#ffa726",
+                edgecolor="#38bdf8",
                 alpha=0.20,
                 linestyle=":",
                 linewidth=1.2,
                 zorder=2,
             )
             ax_main.add_patch(rect)
-            ax_main.hlines([zs.zg, zs.zd], xmin=s_idx, xmax=e_idx, colors="#ffa726", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
+            ax_main.hlines([zs.zg, zs.zd], xmin=s_idx, xmax=e_idx, colors="#38bdf8", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
             mid_x = (s_idx + e_idx) / 2
-            ax_main.text(mid_x, zs.zg, f"[{low_name}中枢]", color="#ffa726", fontsize=7.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+            ax_main.text(mid_x, zs.zg, f"[{low_name}微观中枢]", color="#38bdf8", fontsize=7.5, ha="center", va="bottom", alpha=0.9, zorder=5)
 
         # 小级别笔
         if base_res.bis:
@@ -876,21 +893,75 @@ class ChanlunUnifiedResonancePlotter:
                 low_bi_x,
                 low_bi_y,
                 color=c_low,
-                linewidth=1.4,
+                linewidth=1.5,
                 linestyle="-",
                 marker="o",
                 markersize=3.0,
                 markerfacecolor="#ffffff",
                 markeredgecolor=c_low,
-                alpha=0.88,
-                label=f"小级别 ({low_name}) 笔",
+                alpha=0.90,
+                label=f"小级别 ({low_name}) 蓝线笔",
                 zorder=9,
             )
 
         # ----------------------------------------------------------------------
-        # 5. 绘制买卖点标签 (基准小级别 MMDs)
+        # 5. 绘制多级别买卖点标签 (小级别、次级别、大级别立体同图标注)
         # ----------------------------------------------------------------------
         offset = max(price_span * 0.04, 0.15)
+
+        # 5.1 大级别买卖点同图标注 (紫色胶囊)
+        for mmd in (res_high.mmds or []):
+            if not mmd.bi:
+                continue
+            idx = self._map_pivot_to_base(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, self.p_high, base_df, base_dts)
+            if 0 <= idx < n_bars:
+                val = mmd.bi.end.val
+                mtype = mmd.mmd_type.value
+                is_buy = "buy" in mtype
+                tag_name = "大级别走势1买" if mtype == "1buy" else ("大级别2买" if mtype == "2buy" else f"大级别{mtype}")
+                if not is_buy:
+                    tag_name = "大级别1卖" if mtype == "1sell" else ("大级别2卖" if mtype == "2sell" else f"大级别{mtype}")
+                ax_main.annotate(
+                    f"▲ {tag_name}" if is_buy else f"▼ {tag_name}",
+                    xy=(idx, val),
+                    xytext=(idx, val - offset * 2.0 if is_buy else val + offset * 2.0),
+                    ha="center",
+                    va="top" if is_buy else "bottom",
+                    fontsize=8.5,
+                    fontweight="bold",
+                    color="#ffffff",
+                    bbox=dict(boxstyle="round,pad=0.28", facecolor="#9333ea", edgecolor="#c084fc", linewidth=1.2, alpha=0.92),
+                    arrowprops=dict(facecolor="#c084fc", edgecolor="#ffffff", shrink=0.1, width=0.9, headwidth=4.0),
+                    zorder=11,
+                )
+
+        # 5.2 次级别买卖点同图标注 (金黄胶囊)
+        for mmd in (res_mid.mmds or []):
+            if not mmd.bi:
+                continue
+            idx = self._map_pivot_to_base(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, self.p_mid, base_df, base_dts)
+            if 0 <= idx < n_bars:
+                val = mmd.bi.end.val
+                mtype = mmd.mmd_type.value
+                is_buy = "buy" in mtype
+                tag_name = "次二买" if mtype == "2buy" else ("次一买" if mtype == "1buy" else f"次{mtype}")
+                if not is_buy:
+                    tag_name = "可能的三卖" if mtype == "3sell" else ("次二卖" if mtype == "2sell" else f"次{mtype}")
+                ax_main.annotate(
+                    f"▲ {tag_name}" if is_buy else f"▼ {tag_name}",
+                    xy=(idx, val),
+                    xytext=(idx, val - offset * 1.5 if is_buy else val + offset * 1.5),
+                    ha="center",
+                    va="top" if is_buy else "bottom",
+                    fontsize=8.0,
+                    fontweight="bold",
+                    color="#000000" if is_buy else "#ffffff",
+                    bbox=dict(boxstyle="round,pad=0.25", facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", linewidth=1.0, alpha=0.9),
+                    arrowprops=dict(facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
+                    zorder=10,
+                )
+
+        # 5.3 基准小级别买卖点标注 (花姐区间套精细命名：底背驰 T1 / 顶背驰 T1 / 2买 / 3买)
         for mmd in base_res.mmds:
             if not mmd.bi:
                 continue
@@ -899,18 +970,32 @@ class ChanlunUnifiedResonancePlotter:
                 val = mmd.bi.end.val
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
-                short_tag = mtype.upper().replace("BUY", "B").replace("SELL", "S")
+                if mtype == "1buy":
+                    short_tag = "底背驰 T1"
+                elif mtype == "2buy":
+                    short_tag = "2买"
+                elif mtype == "3buy":
+                    short_tag = "3买"
+                elif mtype == "1sell":
+                    short_tag = "顶背驰 T1"
+                elif mtype == "2sell":
+                    short_tag = "2卖"
+                elif mtype == "3sell":
+                    short_tag = "3卖"
+                else:
+                    short_tag = mtype.upper()
+
                 c_tag = "#f23645" if is_buy else "#089981"
                 ax_main.annotate(
                     f"▲{short_tag}" if is_buy else f"▼{short_tag}",
                     xy=(k_idx, val),
-                    xytext=(k_idx, val - offset * 1.1 if is_buy else val + offset * 1.1),
+                    xytext=(k_idx, val - offset * 1.0 if is_buy else val + offset * 1.0),
                     ha="center",
                     va="top" if is_buy else "bottom",
                     fontsize=8.0,
                     fontweight="bold",
                     color="#ffffff",
-                    bbox=dict(boxstyle="round,pad=0.2", facecolor=c_tag, edgecolor="#ffffff", alpha=0.9),
+                    bbox=dict(boxstyle="round,pad=0.22", facecolor=c_tag, edgecolor="#ffffff", alpha=0.92),
                     arrowprops=dict(facecolor=c_tag, edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
                     zorder=10,
                 )
@@ -987,6 +1072,37 @@ class ChanlunUnifiedResonancePlotter:
             fontsize=9.5,
             labelcolor="#ffffff",
             framealpha=0.88,
+        )
+
+        # 花姐同款右上角 TIMEFRAME 看板卡片
+        last_c_temp = float(base_df["close"].iloc[-1])
+        first_c_temp = float(base_df["open"].iloc[0])
+        chg_temp = (last_c_temp - first_c_temp) / first_c_temp * 100 if first_c_temp else 0
+        tf_label = "5m TIMEFRAME" if "5" in self.p_low else f"{low_name} TIMEFRAME"
+        chg_sign = "+" if chg_temp >= 0 else ""
+        watermark_text = (
+            f"{self.code} {self.name}\n"
+            f"[{tf_label}]\n"
+            f"¥{last_c_temp:.2f} ({chg_sign}{chg_temp:.2f}%)\n"
+            f"●大级别(紫) ●次级别(黄) ●基准(蓝)"
+        )
+        ax_main.text(
+            0.985, 0.965, watermark_text,
+            transform=ax_main.transAxes,
+            fontsize=9.0,
+            fontweight="bold",
+            color="#ffffff",
+            ha="right",
+            va="top",
+            linespacing=1.35,
+            bbox=dict(
+                boxstyle="round,pad=0.45",
+                facecolor="#0f172a",
+                edgecolor="#00e5ff",
+                linewidth=1.2,
+                alpha=0.88,
+            ),
+            zorder=15,
         )
 
         ax_main.set_ylim(
@@ -1278,15 +1394,61 @@ def export_interactive_html(
         e_i = min(len(dates) - 1, max(0, bi.end.k.k_index))
         low_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
 
-    # 买卖点 markPoints
+    # 买卖点 markPoints (多级别同图融合)
     mmd_marks = []
+    # 大级别买卖点
+    for mmd in (results[high_p].mmds or []):
+        if mmd.bi:
+            idx = _map_to_base_idx(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, high_p)
+            idx = min(len(dates) - 1, max(0, idx))
+            is_buy = "buy" in mmd.mmd_type.value
+            lbl = "大级别走势1买" if mmd.mmd_type.value == "1buy" else ("大级别2买" if mmd.mmd_type.value == "2buy" else f"大{mmd.mmd_type.value}")
+            if not is_buy:
+                lbl = "大级别1卖" if mmd.mmd_type.value == "1sell" else ("大级别2卖" if mmd.mmd_type.value == "2sell" else f"大{mmd.mmd_type.value}")
+            mmd_marks.append({
+                "coord": [dates[idx], mmd.bi.end.val],
+                "value": lbl,
+                "itemStyle": {"color": "#9333ea"},
+            })
+
+    # 中级别买卖点
+    for mmd in (results[mid_p].mmds or []):
+        if mmd.bi:
+            idx = _map_to_base_idx(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, mid_p)
+            idx = min(len(dates) - 1, max(0, idx))
+            is_buy = "buy" in mmd.mmd_type.value
+            lbl = "次二买" if mmd.mmd_type.value == "2buy" else ("次一买" if mmd.mmd_type.value == "1buy" else f"次{mmd.mmd_type.value}")
+            if not is_buy:
+                lbl = "可能的三卖" if mmd.mmd_type.value == "3sell" else ("次二卖" if mmd.mmd_type.value == "2sell" else f"次{mmd.mmd_type.value}")
+            mmd_marks.append({
+                "coord": [dates[idx], mmd.bi.end.val],
+                "value": lbl,
+                "itemStyle": {"color": "#facc15" if is_buy else "#d97706"},
+            })
+
+    # 小级别买卖点
     for mmd in base_res.mmds:
         if mmd.bi:
             idx = min(len(dates) - 1, max(0, mmd.bi.end.k.k_index))
-            is_buy = "buy" in mmd.mmd_type.value
+            mtype = mmd.mmd_type.value
+            is_buy = "buy" in mtype
+            if mtype == "1buy":
+                lbl = "底背驰 T1"
+            elif mtype == "2buy":
+                lbl = "2买"
+            elif mtype == "3buy":
+                lbl = "3买"
+            elif mtype == "1sell":
+                lbl = "顶背驰 T1"
+            elif mtype == "2sell":
+                lbl = "2卖"
+            elif mtype == "3sell":
+                lbl = "3卖"
+            else:
+                lbl = mtype.upper()
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
-                "value": mmd.mmd_type.value.upper().replace("BUY", "B").replace("SELL", "S"),
+                "value": lbl,
                 "itemStyle": {"color": "#f23645" if is_buy else "#089981"},
             })
 
@@ -1396,8 +1558,8 @@ def export_interactive_html(
             backgroundColor: '#181b27',
             animation: false,
             legend: {{
-                data: ['基准K线', '大级别笔(周线)', '中级别笔(日线)', '小级别笔(30F)', 'MACD'],
-                selected: {{ '基准K线': true, '大级别笔(周线)': true, '中级别笔(日线)': true, '小级别笔(30F)': true, 'MACD': true }},
+                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', 'MACD'],
+                selected: {{ '基准K线': true, '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true, '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})': true, '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true, 'MACD': true }},
                 top: 10,
                 textStyle: {{ color: '#ffffff' }}
             }},
@@ -1427,25 +1589,25 @@ def export_interactive_html(
                     markPoint: {{ data: [...D.mmd_marks, ...D.res_marks] }}
                 }},
                 {{
-                    name: '大级别笔(周线)',
+                    name: '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})',
                     type: 'line',
                     data: [],
-                    lineStyle: {{ color: '#e040fb', width: 3.5 }},
-                    markLine: {{ data: D.high_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#e040fb', width: 3.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    lineStyle: {{ color: '#c084fc', width: 3.5 }},
+                    markLine: {{ data: D.high_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#c084fc', width: 3.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
                 }},
                 {{
-                    name: '中级别笔(日线)',
+                    name: '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})',
                     type: 'line',
                     data: [],
-                    lineStyle: {{ color: '#00e5ff', width: 2.5 }},
-                    markLine: {{ data: D.mid_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#00e5ff', width: 2.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    lineStyle: {{ color: '#facc15', width: 2.5 }},
+                    markLine: {{ data: D.mid_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#facc15', width: 2.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
                 }},
                 {{
-                    name: '小级别笔(30F)',
+                    name: '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})',
                     type: 'line',
                     data: [],
-                    lineStyle: {{ color: '#ffd600', width: 1.5 }},
-                    markLine: {{ data: D.low_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#ffd600', width: 1.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    lineStyle: {{ color: '#00e5ff', width: 1.5 }},
+                    markLine: {{ data: D.low_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#00e5ff', width: 1.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
                 }},
                 {{
                     name: 'MACD',

@@ -4583,6 +4583,18 @@
                 <div id="cl-pattern-overlay" class="absolute top-4 left-14 z-10 flex items-center space-x-1.5 text-[11px] font-sans font-medium pointer-events-none select-none">
                 </div>
 
+                <!-- 花姐同款 TIMEFRAME 右上角看板徽章 -->
+                <div id="cl-timeframe-watermark" class="absolute top-4 right-14 z-10 hidden flex-col items-end px-3 py-1.5 rounded-lg bg-slate-950/85 backdrop-blur border border-cyan-500/40 text-[11px] font-mono shadow-lg pointer-events-none select-none">
+                    <div id="cl-tf-stock" class="font-bold text-white text-xs"></div>
+                    <div id="cl-tf-period" class="font-bold text-cyan-400">5m TIMEFRAME</div>
+                    <div id="cl-tf-price" class="font-semibold text-xs"></div>
+                    <div class="flex items-center space-x-2 text-[10px] mt-0.5">
+                        <span class="text-purple-400">● 大级别(紫)</span>
+                        <span class="text-amber-400">● 次级别(黄)</span>
+                        <span class="text-cyan-400">● 基准(蓝)</span>
+                    </div>
+                </div>
+
                 <!-- ECharts 画布容器 -->
                 <div id="chanlun-echart-main" style="width: 100%; height: 620px;"></div>
             </div>
@@ -21946,38 +21958,56 @@
                     <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-cyan-950/80 text-cyan-300 border-cyan-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-amber-950/80 text-amber-300 border-amber-800'} border shadow-sm font-bold">
+                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-cyan-950/80 text-cyan-300 border-cyan-800'} border shadow-sm font-bold">
                         ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
                     </span>
                 `;
             }
 
-            // 1. 笔线段 MarkLines (大/中/基准小)
+            // 更新花姐同款 TIMEFRAME 看板徽章
+            const tfWatermark = document.getElementById('cl-timeframe-watermark');
+            if (tfWatermark && d.summary) {
+                tfWatermark.classList.remove('hidden');
+                tfWatermark.classList.add('flex');
+                const tfStock = document.getElementById('cl-tf-stock');
+                const tfPeriod = document.getElementById('cl-tf-period');
+                const tfPrice = document.getElementById('cl-tf-price');
+                if (tfStock) tfStock.textContent = `${d.code} ${d.name}`;
+                if (tfPeriod) tfPeriod.textContent = `${d.periods.low.name} TIMEFRAME`;
+                if (tfPrice) {
+                    const chgPct = d.summary.change_pct;
+                    const chgSign = chgPct >= 0 ? '+' : '';
+                    tfPrice.className = `font-semibold text-xs ${chgPct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+                    tfPrice.textContent = `¥${Number(d.summary.latest_price).toFixed(2)} (${chgSign}${chgPct}%)`;
+                }
+            }
+
+            // 1. 笔线段 MarkLines (花姐标准：大紫·次黄·微蓝)
             const highBiLines = _clLayers.highBi ? (uc.high_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#e040fb', width: 2.8, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#c084fc', width: 2.8, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
             const midBiLines = _clLayers.midBi ? (uc.mid_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#00e5ff', width: 2.0, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#facc15', width: 2.0, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
             const lowBiLines = _clLayers.lowBi ? (uc.low_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#ffd600', width: 1.2, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#00e5ff', width: 1.4, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
-            // 2. 中枢 MarkAreas (大/中/基准小)
+            // 2. 中枢 MarkAreas (大紫·次黄·微蓝)
             const highZsAreas = _clLayers.highZs ? (uc.high_zss || []).map(zs => [
                 {
                     name: `[${d.periods.high.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(156, 39, 176, 0.16)', borderColor: '#e040fb', borderWidth: 1.2, borderType: 'dashed' },
-                    label: { show: true, position: 'top', color: '#e040fb', fontSize: 10, formatter: `[${d.periods.high.name}中枢]` }
+                    itemStyle: { color: 'rgba(147, 51, 234, 0.18)', borderColor: '#c084fc', borderWidth: 1.2, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#c084fc', fontSize: 10, formatter: `[${d.periods.high.name}紫色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -21986,8 +22016,8 @@
                 {
                     name: `[${d.periods.mid.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(0, 188, 212, 0.16)', borderColor: '#00e5ff', borderWidth: 1.0, borderType: 'dashed' },
-                    label: { show: true, position: 'top', color: '#00e5ff', fontSize: 10, formatter: `[${d.periods.mid.name}中枢]` }
+                    itemStyle: { color: 'rgba(202, 138, 4, 0.18)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -21996,24 +22026,40 @@
                 {
                     name: `[${d.periods.low.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(255, 152, 0, 0.14)', borderColor: '#ffa726', borderWidth: 0.8, borderType: 'dotted' },
-                    label: { show: true, position: 'insideTopLeft', color: '#ffa726', fontSize: 9, formatter: `[${d.periods.low.name}中枢]` }
+                    itemStyle: { color: 'rgba(2, 132, 199, 0.16)', borderColor: '#00e5ff', borderWidth: 0.8, borderType: 'dotted' },
+                    label: { show: true, position: 'insideTopLeft', color: '#00e5ff', fontSize: 9, formatter: `[${d.periods.low.name}微观中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
 
 
-            // 4. 买卖点 MarkPoints
-            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => ({
-                name: m.type,
-                coord: m.coord,
-                value: m.label,
-                symbol: m.is_buy ? 'pin' : 'arrow',
-                symbolRotate: m.is_buy ? 0 : 180,
-                symbolSize: 22,
-                itemStyle: { color: m.is_buy ? '#ef4444' : '#10b981' },
-                label: { show: true, color: '#ffffff', fontWeight: 'bold', fontSize: 9, formatter: m.label }
-            })) : [];
+            // 4. 买卖点 MarkPoints (多级别同图融合)
+            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => {
+                const isBig = m.label && (m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2'));
+                const isMid = m.label && m.label.includes('次');
+                let color = m.is_buy ? '#ef4444' : '#10b981';
+                if (isBig) {
+                    color = '#9333ea';
+                } else if (isMid) {
+                    color = m.is_buy ? '#facc15' : '#d97706';
+                }
+                return {
+                    name: m.type,
+                    coord: m.coord,
+                    value: m.label,
+                    symbol: m.is_buy ? 'pin' : 'arrow',
+                    symbolRotate: m.is_buy ? 0 : 180,
+                    symbolSize: isBig ? 28 : (isMid ? 25 : 22),
+                    itemStyle: { color: color },
+                    label: {
+                        show: true,
+                        color: isMid && m.is_buy ? '#000000' : '#ffffff',
+                        fontWeight: 'bold',
+                        fontSize: 9,
+                        formatter: m.label
+                    }
+                };
+            }) : [];
 
             // 5. 共振买卖点 MarkPoints & 贯穿线
             const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => ({
