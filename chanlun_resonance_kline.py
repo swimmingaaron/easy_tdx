@@ -1484,8 +1484,9 @@ def export_interactive_html(
     dif = (base_res.macd.get("dif") or []) if base_res.macd else []
     dea = (base_res.macd.get("dea") or []) if base_res.macd else []
 
-    # MACD 背离
+    # MACD 背离与连线
     macd_marks = []
+    div_mark_lines = []
     seen_mac_idx = set()
     for bc in getattr(base_res, "bcs", []):
         if not bc.curr or not getattr(bc, "bc", False):
@@ -1500,6 +1501,13 @@ def export_interactive_html(
                 "value": "▲底背离" if is_bottom else "▼顶背离",
                 "itemStyle": {"color": "#ef4444" if is_bottom else "#10b981"},
             })
+            if hasattr(bc, "prev") and bc.prev and hasattr(bc.prev.end, "k"):
+                p_idx = getattr(bc.prev.end.k, "k_index", -1)
+                if 0 <= p_idx < k_i:
+                    div_mark_lines.append([
+                        {"coord": [dates[p_idx], dif[p_idx]], "lineStyle": {"color": "#ef4444" if is_bottom else "#10b981", "width": 2}},
+                        {"coord": [dates[k_i], m_dif]}
+                    ])
 
     for mmd in base_res.mmds:
         if not mmd.bi:
@@ -1540,6 +1548,7 @@ def export_interactive_html(
         "dif": dif,
         "dea": dea,
         "macd_marks": macd_marks,
+        "div_mark_lines": div_mark_lines,
         "resonances": [
             {
                 "timestamp": r.timestamp,
@@ -1672,7 +1681,14 @@ def export_interactive_html(
                     type: 'bar',
                     xAxisIndex: 1,
                     yAxisIndex: 1,
-                    data: D.macd_hist.map(v => ({{ value: v, itemStyle: {{ color: v >= 0 ? '#f23645' : '#089981' }} }}))
+                    data: D.macd_hist.map(v => ({{ value: v, itemStyle: {{ color: v >= 0 ? '#f23645' : '#089981' }} }})),
+                    markLine: {{
+                        silent: true,
+                        animation: false,
+                        symbol: ['circle', 'arrow'],
+                        symbolSize: [4, 8],
+                        data: D.div_mark_lines || []
+                    }}
                 }},
                 {{
                     name: 'DIF',

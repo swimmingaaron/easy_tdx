@@ -967,6 +967,7 @@ def analyze_multi_period_resonance(
     macd_dea = [round(d, 3) for d in (macd_data.get("dea") or [])]
 
     macd_marks = []
+    macd_div_lines = []
     seen_macd_bars = set()
 
     # 6.1 结合缠论背驰点 (笔背驰 / 盘整背驰 / 趋势背驰)
@@ -989,6 +990,16 @@ def analyze_multi_period_resonance(
                 "price": round(float(base_df["close"].iloc[bar_idx]), 2),
                 "msg": bc.msg or ("缠论底背驰(MACD绿柱动能衰竭)" if is_bottom else "缠论顶背驰(MACD红柱动能衰竭)"),
             })
+            if hasattr(bc, "prev") and bc.prev and hasattr(bc.prev.end, "k"):
+                p_idx = getattr(bc.prev.end.k, "k_index", -1)
+                if 0 <= p_idx < bar_idx:
+                    macd_div_lines.append({
+                        "start": [dates[p_idx], macd_dif[p_idx]],
+                        "end": [dates[bar_idx], m_dif],
+                        "type": "bottom" if is_bottom else "top",
+                        "color": "#ef4444" if is_bottom else "#10b981",
+                        "label": "缠论底背驰连线" if is_bottom else "缠论顶背驰连线",
+                    })
 
     # 6.2 结合缠论一类买卖点 (天然对应标准走势终结底背离/顶背离)
     for mmd in low_res.mmds:
@@ -1052,6 +1063,13 @@ def analyze_multi_period_resonance(
                             "price": round(float(closes[i]), 2),
                             "msg": f"MACD底背离: 现价 ¥{closes[i]:.2f} 低于前低 ¥{closes[prev_valley]:.2f}，但DIF明显抬高",
                         })
+                        macd_div_lines.append({
+                            "start": [dates[prev_valley], macd_dif[prev_valley]],
+                            "end": [dates[i], macd_dif[i]],
+                            "type": "bottom",
+                            "color": "#ef4444",
+                            "label": "MACD底背离连线",
+                        })
             # 峰顶顶背离候选 (DIF > 0 且局部高峰)
             elif macd_dif[i] > macd_dif[i - 1] and macd_dif[i] > macd_dif[i + 1] and macd_dif[i] > 0:
                 prev_peak = None
@@ -1071,6 +1089,13 @@ def analyze_multi_period_resonance(
                             "hist": macd_hist[i],
                             "price": round(float(closes[i]), 2),
                             "msg": f"MACD顶背离: 现价 ¥{closes[i]:.2f} 高于前高 ¥{closes[prev_peak]:.2f}，但DIF明显衰退",
+                        })
+                        macd_div_lines.append({
+                            "start": [dates[prev_peak], macd_dif[prev_peak]],
+                            "end": [dates[i], macd_dif[i]],
+                            "type": "top",
+                            "color": "#10b981",
+                            "label": "MACD顶背离连线",
                         })
 
     macd_marks.sort(key=lambda x: x["bar_idx"])
@@ -1160,6 +1185,7 @@ def analyze_multi_period_resonance(
                 "marks": macd_marks,
             },
             "macd_marks": macd_marks,
+            "macd_div_lines": macd_div_lines,
         },
         "levels_data": levels_data,
         "backtrack_timeline": {
