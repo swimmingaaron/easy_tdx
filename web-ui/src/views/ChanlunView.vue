@@ -38,15 +38,16 @@ const popularStocks = [
 
 // ── 多周期设置 ───────────────────────────────────────────────────────────────
 const periodPresets = [
-  { label: '默认波段 (周·日·30F)', value: 'WEEK,DAY,30F' },
-  { label: '宏观长线 (月·周·日)', value: 'MONTH,WEEK,DAY' },
-  { label: '超短日内 (日·60F·15F)', value: 'DAY,60F,15F' },
-  { label: '微观游资 (60F·30F·5F)', value: '60F,30F,5F' },
+  { label: '标准 (日·30F·5F)', value: 'DAY,30F,5F' },
+  { label: '波段 (周·日·30F)', value: 'WEEK,DAY,30F' },
+  { label: '长线 (月·周·日)', value: 'MONTH,WEEK,DAY' },
+  { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
+  { label: '超短 (60F·30F·5F)', value: '60F,30F,5F' },
 ]
-const activePreset = ref('WEEK,DAY,30F')
-const periodHigh = ref('WEEK')
-const periodMid = ref('DAY')
-const periodLow = ref('30F')
+const activePreset = ref('DAY,30F,5F')
+const periodHigh = ref('DAY')
+const periodMid = ref('30F')
+const periodLow = ref('5F')
 
 const allPeriodOptions = [
   { key: 'MONTH', label: '月线 (MONTH)' },

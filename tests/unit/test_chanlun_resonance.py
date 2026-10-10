@@ -30,6 +30,10 @@ def test_period_normalization():
 
 
 def test_parse_three_periods():
+    # 默认空入参返回默认 ["DAY", "30F", "5F"]
+    assert parse_three_periods(None) == ["DAY", "30F", "5F"]
+    assert parse_three_periods("") == ["DAY", "30F", "5F"]
+
     # 默认排序自动按大级别到小级别排序
     p = parse_three_periods("30F,周线,日线")
     assert p == ["WEEK", "DAY", "30F"]

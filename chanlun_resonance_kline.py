@@ -8,17 +8,17 @@
     60F (60分钟) | 30F (30分钟) | 15F (15分钟) | 5F (5分钟)
 
 默认周期组合：
-    周线 (WEEK) + 日线 (DAY) + 30F (30分钟)
+    日线 (DAY) + 30F (30分钟) + 5F (5分钟)
     （用户可通过 --periods 参数自由指定任意 3 个周期的立体共振分析）
 
 核心设计（全新升级）：
 1. 【以最小周期K线为基准，将 3 个周期画在同一图片中 (同图立体呈现)】：
-   - 底图：以选定的最小周期（默认 30F 分钟线）的每一根真实 K 线作为主水平坐标轴基准；
-   - 大级别 (如周线)：鲜亮洋红粗折线 (实线厚笔) + 紫色半透明宏观中枢箱体 + [周]买卖点；
-   - 中级别 (如日线)：亮青色中粗折线 (波段笔) + 青蓝半透明中枢箱体 + [日]买卖点；
-   - 小级别 (如30F)：金黄色细折线 (微观笔) + 琥珀橙半透明微观中枢 + 1B/2B/3B买卖点；
+   - 底图：以选定的最小周期（默认 5F 分钟线，保证1500周期）的每一根真实 K 线作为主水平坐标轴基准；
+   - 大级别 (如日线)：鲜亮洋红粗折线 (实线厚笔) + 紫色半透明宏观中枢箱体 + [日]买卖点；
+   - 中级别 (如30F)：亮青色中粗折线 (波段笔) + 青蓝半透明中枢箱体 + [30F]买卖点；
+   - 小级别 (如5F)：金黄色细折线 (微观笔) + 琥珀橙半透明微观中枢 + 1B/2B/3B买卖点；
    - 三周期共振：贯穿主副图的荧光垂直穿透光柱 + 极具辨识度的黄金/霓虹星形大徽章：
-     「★ [周·日·30F] 三周期共振买点 (AAA级) ¥XX.XX」
+     「★ [日·30F·5F] 三周期共振买点 (AAA级) ¥XX.XX」
    - 副图：基准小周期的 MACD 动能图 (DIF/DEA/红绿柱)，与各周期笔背驰直接印证。
 
 2. 三周期立体共振买卖点引擎 (Three-Period Resonance Engine)：
@@ -182,9 +182,12 @@ def normalize_period(user_input: str) -> str:
     )
 
 
-def parse_three_periods(periods_str: str) -> list[str]:
+def parse_three_periods(periods_str: str | None = None) -> list[str]:
     """解析并校验 3 个周期，按大级别到小级别自动排序返回。"""
-    parts = [p.strip() for p in periods_str.replace("，", ",").split(",") if p.strip()]
+    if not periods_str:
+        return ["DAY", "30F", "5F"]
+
+    parts = [p.strip() for p in str(periods_str).replace("，", ",").split(",") if p.strip()]
     if len(parts) != 3:
         raise ValueError(f"必须恰好指定 3 个周期，当前输入了 {len(parts)} 个: {periods_str}")
 
@@ -1494,7 +1497,7 @@ def analyze_and_plot_resonance(
     )
 
     if periods is None:
-        p_list = ["WEEK", "DAY", "30F"]
+        p_list = ["DAY", "30F", "5F"]
     elif isinstance(periods, str):
         p_list = parse_three_periods(periods)
     else:
@@ -1609,9 +1612,9 @@ def main():
     parser.add_argument(
         "--periods", "-p",
         type=str,
-        default="WEEK,DAY,30F",
+        default="DAY,30F,5F",
         help=(
-            "自选 3 个周期，逗号分隔 (默认: WEEK,DAY,30F)。\n"
+            "自选 3 个周期，逗号分隔 (默认: DAY,30F,5F)。\n"
             "可选范围: MONTH, WEEK, DAY, 120F, 60F, 30F, 15F, 5F (亦支持中文如 周线,日线,30分钟)"
         ),
     )

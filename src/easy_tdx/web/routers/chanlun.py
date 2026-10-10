@@ -73,7 +73,7 @@ async def chanlun_analyze(
 @router.get("/chanlun/resonance")
 async def chanlun_resonance_get(
     code: str = "000001",
-    periods: str = "WEEK,DAY,30F",
+    periods: str = "DAY,30F,5F",
     count: int = 300,
     cutoff_date: str | None = None,
     force_refresh: bool = False,
@@ -100,7 +100,7 @@ from pydantic import BaseModel, Field
 
 class ChanlunResonanceRequest(BaseModel):
     code: str = Field(default="000001", description="股票代码")
-    periods: list[str] | str = Field(default="WEEK,DAY,30F", description="3个周期组合")
+    periods: list[str] | str = Field(default="DAY,30F,5F", description="3个周期组合")
     count: int = Field(default=300, ge=50, le=5000, description="基准K线数量")
     cutoff_date: str | None = Field(default=None, description="回溯截止时间")
     force_refresh: bool = Field(default=False, description="是否强制刷新最新数据")

@@ -133,7 +133,7 @@ def normalize_period(user_input: str) -> str:
 def parse_three_periods(periods_input: list[str] | str | None) -> list[str]:
     """解析并校验 3 个周期，按大级别到小级别自动排序返回。"""
     if periods_input is None:
-        return ["WEEK", "DAY", "30F"]
+        return ["DAY", "30F", "5F"]
 
     if isinstance(periods_input, str):
         parts = [p.strip() for p in periods_input.replace("，", ",").split(",") if p.strip()]
@@ -601,7 +601,7 @@ def analyze_multi_period_resonance(
 
     Args:
         code: 证券代码（如 000001, 600519）
-        periods: 3 个周期组合（如 ["WEEK", "DAY", "30F"] 或 "WEEK,DAY,30F"）
+        periods: 3 个周期组合（如 ["DAY", "30F", "5F"] 或 "DAY,30F,5F"，默认 "DAY,30F,5F"）
         count: 基准最小周期 K 线根数（默认 300）
         cutoff_date: 回溯截止日期时间（若提供则只计算 <= 该时间的数据，模拟历史当下）
         force_refresh: 是否强制穿透缓存获取最新实时行情

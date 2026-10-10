@@ -4393,8 +4393,10 @@
                     <!-- 周期组合滚动区 -->
                     <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
                         <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
+                            <button onclick="applyChanlunPreset('DAY,30F,5F')" id="cl-preset-DAY-30F-5F"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">标准 (日·30F·5F)</button>
                             <button onclick="applyChanlunPreset('WEEK,DAY,30F')" id="cl-preset-WEEK-DAY-30F"
-                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">波段 (周·日·30F)</button>
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">波段 (周·日·30F)</button>
                             <button onclick="applyChanlunPreset('MONTH,WEEK,DAY')" id="cl-preset-MONTH-WEEK-DAY"
                                 class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">长线 (月·周·日)</button>
                             <button onclick="applyChanlunPreset('DAY,60F,15F')" id="cl-preset-DAY-60F-15F"
@@ -4408,24 +4410,24 @@
                             <span class="text-slate-500 font-sans px-1">大:</span>
                             <select id="cl-select-high" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-purple-400 font-mono outline-none">
                                 <option value="MONTH">月线</option>
-                                <option value="WEEK" selected>周线</option>
-                                <option value="DAY">日线</option>
+                                <option value="WEEK">周线</option>
+                                <option value="DAY" selected>日线</option>
                             </select>
                             <span class="text-slate-500 font-sans px-1">中:</span>
                             <select id="cl-select-mid" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-cyan-400 font-mono outline-none">
                                 <option value="WEEK">周线</option>
-                                <option value="DAY" selected>日线</option>
+                                <option value="DAY">日线</option>
                                 <option value="120F">120F</option>
                                 <option value="60F">60F</option>
-                                <option value="30F">30F</option>
+                                <option value="30F" selected>30F</option>
                             </select>
                             <span class="text-slate-500 font-sans px-1">基准底图:</span>
                             <select id="cl-select-low" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-amber-400 font-mono outline-none">
                                 <option value="DAY">日线</option>
                                 <option value="60F">60F</option>
-                                <option value="30F" selected>30F</option>
+                                <option value="30F">30F</option>
                                 <option value="15F">15F</option>
-                                <option value="5F">5F</option>
+                                <option value="5F" selected>5F</option>
                                 <option value="1F">1F</option>
                             </select>
                     </div>
@@ -21302,7 +21304,7 @@
         // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
         // ==============================================================================
         let _clCurrentCode = '000001';
-        let _clPeriods = 'WEEK,DAY,30F';
+        let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
         let _clIsBacktracking = false;
         let _clBacktrackDate = null;
@@ -22418,9 +22420,9 @@
         }
 
         function onChanlunCustomPeriodChange() {
-            const h = document.getElementById('cl-select-high')?.value || 'WEEK';
-            const m = document.getElementById('cl-select-mid')?.value || 'DAY';
-            const l = document.getElementById('cl-select-low')?.value || '30F';
+            const h = document.getElementById('cl-select-high')?.value || 'DAY';
+            const m = document.getElementById('cl-select-mid')?.value || '30F';
+            const l = document.getElementById('cl-select-low')?.value || '5F';
             _clPeriods = `${h},${m},${l}`;
 
             document.querySelectorAll('.cl-preset-btn').forEach(btn => {
