@@ -101,7 +101,7 @@ from pydantic import BaseModel, Field
 class ChanlunResonanceRequest(BaseModel):
     code: str = Field(default="000001", description="股票代码")
     periods: list[str] | str = Field(default="WEEK,DAY,30F", description="3个周期组合")
-    count: int = Field(default=300, ge=50, le=1200, description="基准K线数量")
+    count: int = Field(default=300, ge=50, le=5000, description="基准K线数量")
     cutoff_date: str | None = Field(default=None, description="回溯截止时间")
     force_refresh: bool = Field(default=False, description="是否强制刷新最新数据")
 

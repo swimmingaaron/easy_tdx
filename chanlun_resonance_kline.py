@@ -49,6 +49,7 @@
 from __future__ import annotations
 
 import argparse
+import bisect
 import io
 import json
 import logging
@@ -276,43 +277,87 @@ class ThreePeriodResonanceEngine:
         self.res_mid = results[mid_period]
         self.res_low = results[low_period]
 
+        # 预先构建各周期时间戳索引与买卖点时间轴，加速状态检索到 O(log N)
+        self._period_cache: dict[str, dict[str, Any]] = {}
+        for p in (high_period, mid_period, low_period):
+            res = results.get(p)
+            if not res or not res.klines:
+                self._period_cache[p] = {
+                    "klines": [],
+                    "k_dts": [],
+                    "bis": [],
+                    "bi_starts": [],
+                    "mmd_entries": [],
+                    "mmd_dts": [],
+                    "is_intra": "min" in p.lower() or "f" in p.lower() or "m" in p.lower(),
+                }
+                continue
+
+            k_dts = [_to_dt(k.date) for k in res.klines]
+            bis = res.bis or []
+            bi_starts = [bi.start.k.k_index for bi in bis]
+
+            mmd_entries = []
+            for mmd in (res.mmds or []):
+                if mmd.bi:
+                    mmd_entries.append((_to_dt(mmd.bi.end.k.date), mmd))
+            mmd_entries.sort(key=lambda x: x[0])
+            mmd_dts = [x[0] for x in mmd_entries]
+
+            self._period_cache[p] = {
+                "klines": res.klines,
+                "k_dts": k_dts,
+                "bis": bis,
+                "bi_starts": bi_starts,
+                "mmd_entries": mmd_entries,
+                "mmd_dts": mmd_dts,
+                "is_intra": "min" in p.lower() or "f" in p.lower() or "m" in p.lower(),
+            }
+
     def _get_period_state_at(self, period: str, target_dt: Any) -> PeriodState:
         """评估指定周期在某一时间戳 target_dt 的多空状态。"""
         target_obj = _to_dt(target_dt)
-        res = (
-            self.res_high
-            if period == self.p_high
-            else (self.res_mid if period == self.p_mid else self.res_low)
-        )
-        klines = res.klines
-        if not klines:
+        cache = self._period_cache.get(period)
+        if not cache or not cache["klines"]:
             return PeriodState(period, -1, "", 0.0, "none")
 
-        valid_bars = [i for i, k in enumerate(klines) if _to_dt(k.date) <= target_obj]
-        bar_idx = valid_bars[-1] if valid_bars else 0
+        klines = cache["klines"]
+        k_dts = cache["k_dts"]
+
+        # 二分查找 target_obj 对应的最大 bar_idx (k_dts[i] <= target_obj)
+        pos = bisect.bisect_right(k_dts, target_obj) - 1
+        if pos < 0:
+            bar_idx = 0
+        else:
+            bar_idx = min(pos, len(klines) - 1)
 
         cur_k = klines[bar_idx]
-        cur_date_str = _fmt_dt(cur_k.date, is_intraday=("min" in period.lower() or "f" in period.lower()))
+        is_intra = cache["is_intra"]
+        cur_date_str = _fmt_dt(cur_k.date, is_intraday=is_intra)
 
+        # 二分查找当前活跃笔 (bi.start.k.k_index <= bar_idx)
         active_bi = None
-        for bi in res.bis:
-            if bi.start.k.k_index <= bar_idx:
-                active_bi = bi
+        bi_starts = cache["bi_starts"]
+        if bi_starts:
+            bi_pos = bisect.bisect_right(bi_starts, bar_idx) - 1
+            if bi_pos >= 0:
+                active_bi = cache["bis"][bi_pos]
 
         bi_dir = active_bi.direction.value if active_bi else "none"
         bi_s_val = active_bi.start.val if active_bi else 0.0
         bi_e_val = active_bi.end.val if active_bi else 0.0
 
-        prior_mmds = [
-            mmd
-            for mmd in res.mmds
-            if mmd.bi and _to_dt(mmd.bi.end.k.date) <= target_obj
-        ]
+        # 二分查找 target_obj 之前的最近买卖点
+        mmd_dts = cache["mmd_dts"]
+        last_mmd = None
+        if mmd_dts:
+            mmd_pos = bisect.bisect_right(mmd_dts, target_obj) - 1
+            if mmd_pos >= 0:
+                last_mmd = cache["mmd_entries"][mmd_pos][1]
 
-        last_mmd = prior_mmds[-1] if prior_mmds else None
         mmd_type = last_mmd.mmd_type.value if last_mmd else ""
         mmd_dt = (
-            _fmt_dt(last_mmd.bi.end.k.date, is_intraday=("min" in period.lower() or "f" in period.lower()))
+            _fmt_dt(last_mmd.bi.end.k.date, is_intraday=is_intra)
             if last_mmd and last_mmd.bi
             else ""
         )
@@ -1479,6 +1524,11 @@ def analyze_and_plot_resonance(
             p_list[1]: max(100, int(bars_count * 0.8)),
             base_period: bars_count,
         }
+
+    # 5F / 1F 级别保证至少拉取 1500 根 K 线
+    for p in p_list:
+        if p in ("5F", "5M", "1F", "1M"):
+            req_counts[p] = max(req_counts.get(p, 0), 1500)
 
     dfs: dict[str, pd.DataFrame] = {}
     for p in p_list:
