@@ -8,6 +8,7 @@
       <h1>easy-tdx 回测</h1>
       <nav class="app-nav">
         <RouterLink to="/" active-class="active">单标的回测</RouterLink>
+        <RouterLink to="/chanlun" active-class="active">缠论</RouterLink>
         <RouterLink to="/portfolio" active-class="active">组合回测</RouterLink>
         <RouterLink to="/optimize" active-class="active">参数寻优</RouterLink>
         <RouterLink to="/compare" active-class="active">结果对比</RouterLink>

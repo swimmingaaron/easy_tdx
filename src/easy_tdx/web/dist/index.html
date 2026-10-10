@@ -459,6 +459,58 @@
             color: #0284c7 !important;
         }
 
+        /* ==================== 缠论 K 线工作台：亮色模式适配 (对齐 K 线弹窗全套高级护眼风格) ==================== */
+        html.light #view-chanlun .glass-card {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border-color: rgba(226, 232, 240, 0.9) !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02) !important;
+        }
+        html.light #view-chanlun #cl-full-symbol {
+            color: #0f172a !important;
+        }
+        html.light #view-chanlun #cl-stock-name {
+            color: #334155 !important;
+        }
+        html.light #view-chanlun .bg-slate-900\/80,
+        html.light #view-chanlun .bg-slate-900\/90,
+        html.light #view-chanlun .bg-slate-900 {
+            background: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #334155 !important;
+        }
+        html.light #view-chanlun #cl-stock-input {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html.light #view-chanlun strong {
+            color: #0f172a !important;
+        }
+        html.light #view-chanlun #cl-visible-extrema {
+            background: #ecfeff !important;
+            border-color: #a5f3fc !important;
+        }
+        html.light #view-chanlun #cl-visible-extrema strong#cl-vis-high {
+            color: #e11d48 !important;
+        }
+        html.light #view-chanlun #cl-visible-extrema strong#cl-vis-low {
+            color: #059669 !important;
+        }
+        html.light #view-chanlun #cl-visible-extrema strong#cl-vis-amp {
+            color: #d97706 !important;
+        }
+        html.light #view-chanlun #cl-cutoff-date {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0369a1 !important;
+        }
+        html.light #view-chanlun select {
+            color: #475569 !important;
+        }
+        html.light #view-chanlun #chanlun-echart-main {
+            background: #ffffff !important;
+        }
+
         /* ==================== K线窗口专属：彻底杜绝手机双击放大与手势缩放导致的图像变形截断 ==================== */
         #kline-preview-modal {
             touch-action: manipulation;
@@ -1374,6 +1426,7 @@
         /* Universal Autocomplete Dropdown High Contrast Fix */
         .dropdown-menu,
         #kp-search-dropdown,
+        #cl-search-dropdown,
         #bt-kline-search-dropdown,
         #bt-symbol-dropdown,
         #opt-symbol-dropdown,
@@ -1405,12 +1458,17 @@
             color: #f8fafc !important;
         }
 
-        /* Stock Code - Bright Cyan */
+        /* Stock Code - Bright Cyan / Purple */
         .dropdown-menu .text-cyan-400,
         #kp-search-dropdown .text-cyan-400,
         #bt-kline-search-dropdown .text-cyan-400,
         html.light .dropdown-menu .text-cyan-400 {
             color: #38bdf8 !important;
+            font-weight: 700 !important;
+        }
+        #cl-search-dropdown .text-purple-400,
+        html.light #cl-search-dropdown .text-purple-400 {
+            color: #c084fc !important;
             font-weight: 700 !important;
         }
 
@@ -1594,6 +1652,9 @@
             <button onclick="switchTab('sectorleaders')" id="tab-sectorleaders"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="crown"
                     class="w-3.5 h-3.5 inline mr-1 text-amber-400"></i>板块龙头</button>
+            <button onclick="switchTab('chanlun')" id="tab-chanlun"
+                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="trending-up"
+                    class="w-3.5 h-3.5 inline mr-1 text-purple-400"></i>缠论</button>
         </nav>
 
         <div class="flex items-center space-x-2.5">
@@ -4224,6 +4285,347 @@
             </div>
         </section>
 
+        <!-- ==================== 12. 缠论多周期立体同图共振 (Chanlun Resonance) ==================== -->
+        <section id="view-chanlun" class="space-y-3 hidden">
+            <!-- 缠论主控面板卡片 (参考K线弹窗风格: 标的属性/现价/极值/估值指标/操作工具) -->
+            <div class="glass-card bg-[#0b0f19]/85 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4 space-y-2.5 shadow-xl backdrop-blur-xl">
+                <!-- Row 1: Stock Symbol, Name, Live Price, Strategy/Resonance Status, Visible Extrema, Valuation & Tools -->
+                <div class="border-b border-slate-200 dark:border-slate-800/80 pb-2 space-y-2">
+                    <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap gap-y-1.5">
+                        <span id="cl-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">主</span>
+                        <span id="cl-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">000001.SZ</span>
+                        <span id="cl-stock-name" class="text-sm sm:text-base font-semibold text-slate-200 whitespace-nowrap">平安银行</span>
+
+                        <div class="flex items-baseline space-x-1 font-mono ml-1">
+                            <span id="cl-price" class="text-base sm:text-lg font-black text-rose-500">--</span>
+                            <span id="cl-change" class="text-xs font-bold text-rose-500">--</span>
+                            <span id="cl-change-pct" class="text-xs font-bold text-rose-500">--%</span>
+                        </div>
+
+                        <!-- 策略与共振状态徽章 -->
+                        <div class="flex items-center space-x-1 ml-1 shrink-0">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800 whitespace-nowrap">缠论立体</span>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950/80 text-rose-400 border border-rose-800 transition whitespace-nowrap shadow-sm" id="cl-status-tag">多周期共振</span>
+                        </div>
+
+                        <!-- 动态可视区间极值 (随滚动缩放平移实时联动，完全参考K线弹窗风格) -->
+                        <div id="cl-visible-extrema" class="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-cyan-950/50 border border-cyan-800/70 text-[10px] sm:text-[11px] font-mono shrink-0 shadow-sm" title="当前K线窗口可视区域内的股价最高价、最低价与区间振幅 (随滚动缩放平移实时联动)">
+                            <span class="text-cyan-400 font-sans font-medium text-[10px]">可视</span>
+                            <span class="text-slate-400">高</span>
+                            <strong id="cl-vis-high" class="text-rose-400 font-bold font-mono">--</strong>
+                            <span class="text-slate-600">|</span>
+                            <span class="text-slate-400">低</span>
+                            <strong id="cl-vis-low" class="text-emerald-400 font-bold font-mono">--</strong>
+                            <span class="text-slate-600 hidden sm:inline">|</span>
+                            <span class="text-slate-400 font-sans hidden sm:inline text-[10px]">振幅</span>
+                            <strong id="cl-vis-amp" class="text-amber-300 font-semibold hidden sm:inline font-mono">--%</strong>
+                        </div>
+
+                        <!-- 估值与盘口核心指标条 (参考K线弹窗) -->
+                        <div class="flex items-center space-x-1.5 sm:space-x-2 text-[10px] sm:text-[11px] text-slate-400 font-sans ml-0 sm:ml-auto bg-slate-900/80 px-2 sm:px-2.5 py-0.5 rounded-lg border border-slate-800/80 overflow-x-auto no-scrollbar whitespace-nowrap max-w-full shrink-0">
+                            <span>总市值 <strong class="text-slate-200 font-mono font-semibold" id="cl-total-val">--</strong></span>
+                            <span class="text-slate-700">|</span>
+                            <span>流通市值 <strong class="text-slate-200 font-mono font-semibold" id="cl-float-val">--</strong></span>
+                            <span class="text-slate-700">|</span>
+                            <span>PE(动) <strong class="text-slate-200 font-mono font-semibold" id="cl-pe">--</strong></span>
+                            <span class="text-slate-700">|</span>
+                            <span>换手率 <strong class="text-slate-200 font-mono font-semibold" id="cl-turnover">--</strong></span>
+                            <span class="text-slate-700">|</span>
+                            <span>量比 <strong class="text-slate-200 font-mono font-semibold" id="cl-vol-ratio">--</strong></span>
+                            <span class="text-slate-700">|</span>
+                            <span>主力净流 <strong class="font-mono font-semibold" id="cl-main-net">--</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮与快速搜索栏 -->
+                    <div class="flex items-center space-x-1.5 text-xs flex-wrap gap-y-1">
+                        <!-- 实时自动刷新指示器 (参考K线弹窗 kp-live-indicator) -->
+                        <div id="cl-live-indicator" onclick="toggleChanlunAutoRefresh()"
+                            class="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer"
+                            title="点击开启/关闭每5秒自动实时刷新">
+                            <span class="relative flex h-2 w-2">
+                                <span id="cl-pulse-dot" style="display: none;" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span id="cl-static-dot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                            </span>
+                            <span id="cl-live-text">实时: 关</span>
+                        </div>
+
+                        <button onclick="loadChanlunData(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新数据">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+
+                        <span class="text-slate-700 mx-0.5 select-none">|</span>
+
+                        <!-- 标的快速搜索输入框 (参考K线弹窗 kp-search-input 带自动补全下拉框) -->
+                        <div class="relative shrink-0">
+                            <div class="relative flex items-center">
+                                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-purple-400 pointer-events-none"></i>
+                                <input type="text" id="cl-stock-input" value="000001" placeholder="🔍 股票代码/拼音/名称..." autocomplete="off"
+                                    oninput="window.triggerChanlunSearchInput(this.value)"
+                                    onfocus="window.triggerChanlunSearchInput(this.value)"
+                                    onkeydown="window.handleChanlunSearchKeydown(event)"
+                                    class="w-40 sm:w-52 bg-slate-900/90 border border-slate-700/80 hover:border-purple-500 focus:border-purple-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
+                                    title="搜索股票代码、拼音首字母或中文名称快速切股 (支持键盘上下键与回车切换)">
+                                <button id="cl-search-clear" onclick="window.clearChanlunSearch()" class="absolute right-1.5 p-0.5 text-slate-400 hover:text-white rounded-full cursor-pointer" title="清空搜索">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            </div>
+                            <div id="cl-search-dropdown"
+                                style="display: none;"
+                                class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto z-[999] rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
+                            </div>
+                        </div>
+
+                        <!-- 热门标的快速标签 -->
+                        <div class="flex items-center space-x-1 text-[11px] overflow-x-auto no-scrollbar pl-1">
+                            <span class="text-slate-400 mr-0.5">热门:</span>
+                            <button onclick="selectChanlunStock('000001')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">平安银行</button>
+                            <button onclick="selectChanlunStock('600519')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">贵州茅台</button>
+                            <button onclick="selectChanlunStock('300750')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">宁德时代</button>
+                            <button onclick="selectChanlunStock('002594')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">比亚迪</button>
+                            <button onclick="selectChanlunStock('300308')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">中际旭创</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 2A: 周期组合、自定义大中小周期与历史回溯推演控制器 (参考K线弹窗 Row 2A) -->
+                <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 flex-wrap sm:flex-nowrap">
+                    <!-- 周期组合滚动区 -->
+                    <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
+                        <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
+                            <button onclick="applyChanlunPreset('WEEK,DAY,30F')" id="cl-preset-WEEK-DAY-30F"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">波段 (周·日·30F)</button>
+                            <button onclick="applyChanlunPreset('MONTH,WEEK,DAY')" id="cl-preset-MONTH-WEEK-DAY"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">长线 (月·周·日)</button>
+                            <button onclick="applyChanlunPreset('DAY,60F,15F')" id="cl-preset-DAY-60F-15F"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">日内 (日·60F·15F)</button>
+                            <button onclick="applyChanlunPreset('60F,30F,5F')" id="cl-preset-60F-30F-5F"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">超短 (60F·30F·5F)</button>
+                        </div>
+
+                        <!-- 自定义3周期下拉 -->
+                        <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0 text-[11px]">
+                            <span class="text-slate-500 font-sans px-1">大:</span>
+                            <select id="cl-select-high" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-purple-400 font-mono outline-none">
+                                <option value="MONTH">月线</option>
+                                <option value="WEEK" selected>周线</option>
+                                <option value="DAY">日线</option>
+                            </select>
+                            <span class="text-slate-500 font-sans px-1">中:</span>
+                            <select id="cl-select-mid" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-cyan-400 font-mono outline-none">
+                                <option value="WEEK">周线</option>
+                                <option value="DAY" selected>日线</option>
+                                <option value="120F">120F</option>
+                                <option value="60F">60F</option>
+                                <option value="30F">30F</option>
+                            </select>
+                            <span class="text-slate-500 font-sans px-1">基准底图:</span>
+                            <select id="cl-select-low" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-amber-400 font-mono outline-none">
+                                <option value="DAY">日线</option>
+                                <option value="60F">60F</option>
+                                <option value="30F" selected>30F</option>
+                                <option value="15F">15F</option>
+                                <option value="5F">5F</option>
+                                <option value="1F">1F</option>
+                            </select>
+                    </div>
+
+                    <!-- 1点钟方向: 前日/结束日期/后日 历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
+                    <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
+                        <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
+                            class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                            title="前移 1 根K线 (快捷键: ← 方向键)">
+                            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                        </button>
+
+                        <div class="relative flex items-center shrink-0">
+                            <input type="date" id="cl-cutoff-date" onchange="onChanlunCutoffDateChange(this.value)"
+                                class="h-6 bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition cursor-pointer text-center"
+                                title="选择回溯截止日期模拟历史当时当下">
+                        </div>
+
+                        <button type="button" onclick="stepChanlunBacktrack(1)" id="cl-btn-next-bar"
+                            class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                            title="后移 1 根K线 (快捷键: → 方向键)">
+                            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                        </button>
+
+                        <button type="button" onclick="exitChanlunBacktrack()" id="cl-btn-latest-bar"
+                            class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer shrink-0"
+                            title="恢复至最新交易日 (快捷键: End)">
+                            <span>今</span>
+                        </button>
+
+                        <button type="button" onclick="toggleChanlunReplay()" id="cl-btn-play-replay"
+                            class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0"
+                            title="逐根自动推演播放 / 暂停 (快捷键: 空格键)">
+                            <i id="cl-replay-play-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Row 2B: 缠论图层与指标控制栏 (参考K线弹窗 Row 2B) -->
+                <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 shrink-0 flex-wrap sm:flex-nowrap">
+                    <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
+                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
+                            <button onclick="toggleChanlunLayer('highBi')" id="cl-btn-layer-high-bi"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔</button>
+                            <button onclick="toggleChanlunLayer('highZs')" id="cl-btn-layer-high-zs"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大中枢</button>
+                            <button onclick="toggleChanlunLayer('midBi')" id="cl-btn-layer-mid-bi"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">中笔</button>
+                            <button onclick="toggleChanlunLayer('midZs')" id="cl-btn-layer-mid-zs"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">空中枢</button>
+                            <button onclick="toggleChanlunLayer('lowBi')" id="cl-btn-layer-low-bi"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">基准笔</button>
+                            <button onclick="toggleChanlunLayer('lowZs')" id="cl-btn-layer-low-zs"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">基准中枢</button>
+
+                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
+
+                            <button onclick="toggleChanlunLayer('mmd')" id="cl-btn-layer-mmd"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-rose-950 text-rose-300 border border-rose-800 transition cursor-pointer shrink-0">买卖点</button>
+                            <button onclick="toggleChanlunLayer('res')" id="cl-btn-layer-res"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-yellow-950 text-yellow-300 border border-yellow-800 transition cursor-pointer shrink-0">★共振信号</button>
+
+                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
+
+                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
+                            <button onclick="setChanlunSubIndicator('macd')" id="cl-btn-sub-macd"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-indigo-950 text-indigo-300 border border-indigo-800 transition cursor-pointer shrink-0">MACD</button>
+                            <button onclick="setChanlunSubIndicator('vol')" id="cl-btn-sub-vol"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">成交量</button>
+                        </div>
+                    </div>
+
+                    <!-- 键盘快捷键提示 (参考K线弹窗) -->
+                    <div class="hidden md:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
+                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">↑</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">↓</kbd> 缩放</span>
+                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">→</kbd> 逐日推演</span>
+                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">空格</kbd> 播放</span>
+                    </div>
+                </div>
+
+                <!-- 时间轴滑块 (回溯模式下显示或始终优雅呈现) -->
+                <div class="flex items-center space-x-2 pt-0.5 text-[10px] text-slate-500 font-mono">
+                    <span id="cl-slider-min" class="text-slate-400 whitespace-nowrap">--</span>
+                    <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderChange(this.value)"
+                        class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-cyan-400 transition">
+                    <span id="cl-slider-max" class="text-slate-400 whitespace-nowrap">--</span>
+                    <span id="cl-backtrack-cutoff-text" class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap hidden sm:inline">截断: 最新</span>
+                </div>
+            </div>
+
+            <!-- 三周期宏观/波段/微观状态胶囊卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <!-- 卡片 1: 实时行情 -->
+                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 space-y-1 shadow-sm">
+                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span class="flex items-center"><i data-lucide="activity" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>标的实时行情</span>
+                        <span id="cl-card-code" class="px-1.5 py-0.2 rounded text-[10px] bg-purple-500/10 text-purple-400 font-mono font-bold">000001</span>
+                    </div>
+                    <div class="flex items-baseline justify-between">
+                        <div id="cl-card-name" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
+                        <div class="flex items-baseline space-x-1 font-mono">
+                            <span id="cl-card-price" class="text-base font-extrabold text-rose-500">¥--</span>
+                            <span id="cl-card-pct" class="text-xs font-bold text-rose-500">+0.00%</span>
+                        </div>
+                    </div>
+                    <div id="cl-card-time" class="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">时刻: --</div>
+                </div>
+
+                <!-- 卡片 2: 大级别趋势 (定方向) -->
+                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-purple-500 space-y-1 shadow-sm">
+                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span class="flex items-center"><i data-lucide="compass" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>大级别趋势 (定方向)</span>
+                        <span id="cl-card-high-period" class="px-1.5 py-0.2 rounded text-[10px] bg-purple-500/10 text-purple-400 font-mono font-bold">周线</span>
+                    </div>
+                    <div id="cl-card-high-status" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
+                    <div id="cl-card-high-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">处于宏观结构研判</div>
+                </div>
+
+                <!-- 卡片 3: 中级别形态 (定波段) -->
+                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-cyan-400 space-y-1 shadow-sm">
+                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span class="flex items-center"><i data-lucide="git-branch" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>中级别形态 (定波段)</span>
+                        <span id="cl-card-mid-period" class="px-1.5 py-0.2 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono font-bold">日线</span>
+                    </div>
+                    <div id="cl-card-mid-status" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
+                    <div id="cl-card-mid-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">处于波段中枢与笔震荡</div>
+                </div>
+
+                <!-- 卡片 4: 小级别微观买卖点 (定入场) -->
+                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-amber-400 space-y-1 shadow-sm">
+                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span class="flex items-center"><i data-lucide="target" class="w-3.5 h-3.5 mr-1 text-amber-400"></i>基准小周期 (定买卖点)</span>
+                        <span id="cl-card-low-period" class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-400 font-mono font-bold">30F</span>
+                    </div>
+                    <div class="flex items-baseline justify-between">
+                        <div id="cl-card-low-status" class="text-sm font-bold text-amber-400 truncate">--</div>
+                        <div id="cl-card-res-count" class="text-xs font-mono font-bold text-rose-500">0处共振</div>
+                    </div>
+                    <div id="cl-card-low-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">区间套精确锚定入场</div>
+                </div>
+            </div>
+
+            <!-- ECharts 主图呈现卡片 (参考K线弹窗) -->
+            <div class="glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
+                <!-- 加载中遮罩 -->
+                <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex-col items-center justify-center space-y-2 text-purple-400">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                    <span class="text-xs font-mono font-medium">正在拉取三周期数据并执行缠论立体共振计算...</span>
+                </div>
+
+                <!-- 蜡烛图左上角形态特征 HTML 悬浮高对比度胶囊 (参考K线弹窗 updateKpPatternBadgeOverlay) -->
+                <div id="cl-pattern-overlay" class="absolute top-4 left-14 z-10 flex items-center space-x-1.5 text-[11px] font-sans font-medium pointer-events-none select-none">
+                </div>
+
+                <!-- ECharts 画布容器 -->
+                <div id="chanlun-echart-main" style="width: 100%; height: 620px;"></div>
+            </div>
+
+            <!-- 三周期共振买卖点事件明细卡片 -->
+            <div class="glass-card bg-[#0b0f19]/85 border border-slate-200 dark:border-slate-700/60 p-4 sm:p-5 rounded-2xl space-y-3 shadow-xl backdrop-blur-xl">
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                    <div class="flex items-center space-x-2">
+                        <div class="p-1 rounded bg-amber-500/10 text-amber-500">
+                            <i data-lucide="star" class="w-4 h-4"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">三周期立体共振买卖点明细 (Resonance Signals)</h4>
+                        <span id="cl-table-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                            共 0 处共振
+                        </span>
+                    </div>
+                    <span class="text-xs text-slate-400 hidden sm:inline">💡 提示：点击任意行，上方K线图自动平滑缩放聚焦定位</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-400">
+                                <th class="py-2 px-3">触发时间</th>
+                                <th class="py-2 px-3">方向</th>
+                                <th class="py-2 px-3">评级</th>
+                                <th class="py-2 px-3">共振形态名称</th>
+                                <th class="py-2 px-3">触发价格</th>
+                                <th class="py-2 px-3" id="cl-th-high">大级别态势</th>
+                                <th class="py-2 px-3" id="cl-th-mid">中级别态势</th>
+                                <th class="py-2 px-3" id="cl-th-low">微观买卖点</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cl-signals-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
+                            <tr>
+                                <td colspan="8" class="py-8 text-center text-slate-400 font-sans">
+                                    暂无共振信号记录。
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
         <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
         <div id="sl-board-modal"
             class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
@@ -5487,7 +5889,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun'];
 
         function getActiveTabName() {
             if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
@@ -5557,6 +5959,11 @@
                                     window._HAS_LOADED_SECTOR_LEADERS = true;
                                     if (typeof loadSectorLeadersData === 'function') loadSectorLeadersData();
                                 }
+                            }, 50);
+                        } else if (t === 'chanlun') {
+                            setTimeout(() => {
+                                if (typeof initChanlun === 'function') initChanlun();
+                                if (window.chanlunChart) window.chanlunChart.resize();
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -5727,6 +6134,10 @@
                         window.breadthChart.options.scales.y.grid.color = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
                     }
                     window.breadthChart.update();
+                }
+                // Re-render Chanlun chart
+                if (window.chanlunChart && typeof _clCachedData !== 'undefined' && _clCachedData) {
+                    renderChanlunChart(_clCachedData);
                 }
             }
         }
@@ -20886,6 +21297,1317 @@
         }
 
         initSectorLeaderSettings();
+
+        // ==============================================================================
+        // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
+        // ==============================================================================
+        let _clCurrentCode = '000001';
+        let _clPeriods = 'WEEK,DAY,30F';
+        let _clCachedData = null;
+        let _clIsBacktracking = false;
+        let _clBacktrackDate = null;
+        let _clBacktrackIndex = 0;
+        let _clAutoRefresh = false;
+        let _clRefreshInterval = 5;
+        let _clRefreshTimer = null;
+        let _clIsPlayingReplay = false;
+        let _clReplayTimer = null;
+        let _clHasInitialized = false;
+
+        function initChanlun() {
+            initChanlunStockSearch();
+            if (!_clHasInitialized) {
+                _clHasInitialized = true;
+                window.addEventListener('resize', () => {
+                    if (window.chanlunChart) window.chanlunChart.resize();
+                });
+            }
+            loadChanlunData(false);
+        }
+
+        async function loadChanlunData(forceRefresh = false) {
+            const chartDom = document.getElementById('chanlun-echart-main');
+            const loadingOverlay = document.getElementById('cl-loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'flex';
+
+            try {
+                const query = new URLSearchParams();
+                query.set('code', _clCurrentCode);
+                query.set('periods', _clPeriods);
+                query.set('count', '300');
+                if (_clIsBacktracking && _clBacktrackDate) {
+                    query.set('cutoff_date', _clBacktrackDate);
+                }
+                if (forceRefresh) {
+                    query.set('force_refresh', 'true');
+                }
+
+                const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`);
+                if (!resp.ok) {
+                    throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+                }
+                const data = await resp.json();
+                _clCachedData = data;
+
+                // 更新概览卡片、时间轴与表格
+                updateChanlunOverview(data);
+                updateChanlunTimeline(data);
+                renderChanlunSignalsTable(data);
+                renderChanlunChart(data);
+
+            } catch (err) {
+                console.error("Chanlun data fetch failed:", err);
+                if (window.showToast) {
+                    showToast('缠论数据错误', err.message || '获取多周期共振数据失败');
+                }
+            } finally {
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+            }
+        }
+
+        let _clLayers = {
+            highBi: true,
+            highZs: true,
+            midBi: true,
+            midZs: true,
+            lowBi: true,
+            lowZs: true,
+            mmd: true,
+            res: true
+        };
+        let _clSubIndicator = 'macd'; // 'macd' | 'vol'
+
+        function updateChanlunLayerButtons() {
+            const layerDefs = [
+                { key: 'highBi', id: 'cl-btn-layer-high-bi', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
+                { key: 'highZs', id: 'cl-btn-layer-high-zs', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
+                { key: 'midBi', id: 'cl-btn-layer-mid-bi', activeClass: 'bg-cyan-950 text-cyan-300 border-cyan-800' },
+                { key: 'midZs', id: 'cl-btn-layer-mid-zs', activeClass: 'bg-cyan-950 text-cyan-300 border-cyan-800' },
+                { key: 'lowBi', id: 'cl-btn-layer-low-bi', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
+                { key: 'lowZs', id: 'cl-btn-layer-low-zs', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
+                { key: 'mmd', id: 'cl-btn-layer-mmd', activeClass: 'bg-rose-950 text-rose-300 border-rose-800' },
+                { key: 'res', id: 'cl-btn-layer-res', activeClass: 'bg-yellow-950 text-yellow-300 border-yellow-800' },
+            ];
+
+            const inactiveClass = 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/60';
+
+            layerDefs.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) {
+                    const isActive = !!_clLayers[item.key];
+                    el.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${isActive ? item.activeClass : inactiveClass}`;
+                }
+            });
+
+            const macdEl = document.getElementById('cl-btn-sub-macd');
+            const volEl = document.getElementById('cl-btn-sub-vol');
+            if (macdEl) {
+                macdEl.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${_clSubIndicator === 'macd' ? 'bg-indigo-950 text-indigo-300 border-indigo-800' : inactiveClass}`;
+            }
+            if (volEl) {
+                volEl.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${_clSubIndicator === 'vol' ? 'bg-cyan-950 text-cyan-300 border-cyan-800' : inactiveClass}`;
+            }
+        }
+
+        function toggleChanlunLayer(key) {
+            if (_clLayers[key] !== undefined) {
+                _clLayers[key] = !_clLayers[key];
+                updateChanlunLayerButtons();
+                if (_clCachedData) renderChanlunChart(_clCachedData);
+            }
+        }
+
+        function setChanlunSubIndicator(sub) {
+            _clSubIndicator = sub;
+            updateChanlunLayerButtons();
+            if (_clCachedData) renderChanlunChart(_clCachedData);
+        }
+
+        // ==================== 缠论标的快速搜索与自动补全 ==================== //
+        let clSearchTimer = null;
+        let clSelectedIndex = -1;
+
+        window.triggerChanlunSearchInput = function(rawVal) {
+            const input = document.getElementById('cl-stock-input');
+            const dropdown = document.getElementById('cl-search-dropdown');
+            const clearBtn = document.getElementById('cl-search-clear');
+            const query = (rawVal !== undefined ? rawVal : (input ? input.value : '')).trim();
+
+            if (clearBtn) {
+                if (query) clearBtn.classList.remove('hidden');
+                else clearBtn.classList.add('hidden');
+            }
+
+            if (!dropdown) return;
+
+            if (!query) {
+                dropdown.innerHTML = '';
+                dropdown.style.display = 'none';
+                clSelectedIndex = -1;
+                return;
+            }
+
+            if (clSearchTimer) clearTimeout(clSearchTimer);
+            clSearchTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                    if (!resp.ok) return;
+                    const json = await resp.json();
+                    const list = json.data || [];
+                    clSelectedIndex = -1;
+
+                    if (list.length === 0) {
+                        dropdown.innerHTML = `<div class="px-3.5 py-2.5 text-xs text-slate-400 text-center">未找到「${query}」匹配标的 (支持代码/拼音/名称)</div>`;
+                        dropdown.style.display = 'block';
+                        return;
+                    }
+
+                    dropdown.innerHTML = list.slice(0, 10).map((item, idx) => `
+                        <div id="cl-search-item-${idx}" onclick="window.selectChanlunSearchResult('${item.code}', '${(item.name || '').replace(/'/g, "\\'")}')"
+                             class="cl-search-item px-3.5 py-2 text-xs cursor-pointer flex items-center justify-between transition hover:bg-purple-950/80 border-b border-slate-800/40 last:border-b-0">
+                            <div class="flex items-center space-x-2.5 truncate">
+                                <span class="font-mono font-bold text-purple-400 shrink-0">${item.code}</span>
+                                <span class="stock-search-name text-white font-sans font-bold truncate">${item.name}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 shrink-0 font-mono text-[10px] text-slate-400">
+                                <span class="text-amber-400 font-semibold">${item.pinyin || ''}</span>
+                                ${item.market ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-sans border border-slate-700/80">${item.market}</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                    dropdown.style.display = 'block';
+                } catch (e) {
+                    console.error('Chanlun stock search error:', e);
+                }
+            }, 50);
+        };
+
+        window.handleChanlunSearchKeydown = function(e) {
+            const dropdown = document.getElementById('cl-search-dropdown');
+            const input = document.getElementById('cl-stock-input');
+            if (!dropdown) return;
+            const items = dropdown.querySelectorAll('.cl-search-item');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                clSelectedIndex = (clSelectedIndex + 1) % items.length;
+                highlightChanlunSearchItem(items, clSelectedIndex);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length === 0) return;
+                clSelectedIndex = (clSelectedIndex - 1 + items.length) % items.length;
+                highlightChanlunSearchItem(items, clSelectedIndex);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (clSelectedIndex >= 0 && items[clSelectedIndex]) {
+                    items[clSelectedIndex].click();
+                } else if (items.length > 0 && dropdown.style.display !== 'none') {
+                    items[0].click();
+                } else if (input && input.value.trim()) {
+                    executeChanlunSearch(input.value.trim());
+                    dropdown.style.display = 'none';
+                }
+            } else if (e.key === 'Escape') {
+                dropdown.style.display = 'none';
+                if (input) input.blur();
+            }
+        };
+
+        function highlightChanlunSearchItem(items, selectedIdx) {
+            items.forEach((el, idx) => {
+                if (idx === selectedIdx) {
+                    el.classList.add('bg-purple-950', 'border-l-2', 'border-purple-400');
+                    el.scrollIntoView({ block: 'nearest' });
+                } else {
+                    el.classList.remove('bg-purple-950', 'border-l-2', 'border-purple-400');
+                }
+            });
+        }
+
+        window.selectChanlunSearchResult = function(code, name) {
+            const input = document.getElementById('cl-stock-input');
+            if (input) input.value = code;
+            const dropdown = document.getElementById('cl-search-dropdown');
+            if (dropdown) dropdown.style.display = 'none';
+            const clearBtn = document.getElementById('cl-search-clear');
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            selectChanlunStock(code);
+        };
+
+        window.clearChanlunSearch = function() {
+            const inp = document.getElementById('cl-stock-input');
+            if (inp) {
+                inp.value = '';
+                inp.focus();
+            }
+            const dropdown = document.getElementById('cl-search-dropdown');
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                dropdown.style.display = 'none';
+            }
+            const clearBtn = document.getElementById('cl-search-clear');
+            if (clearBtn) clearBtn.classList.add('hidden');
+        };
+
+        function initChanlunStockSearch() {
+            // 事件已通过 HTML 内联 oninput/onkeydown 全面绑定，此函数保持幂等无害
+        }
+
+        // 全局点击外部自动关闭下拉框
+        document.addEventListener('click', (e) => {
+            const input = document.getElementById('cl-stock-input');
+            const dropdown = document.getElementById('cl-search-dropdown');
+            if (input && dropdown && !input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        function updateChanlunOverview(d) {
+            if (!d || !d.summary) return;
+            const sum = d.summary;
+
+            // 1. 板块徽标 (主/创/科/北)
+            const badgeEl = document.getElementById('cl-board-badge');
+            if (badgeEl) {
+                const c = d.code;
+                if (c.startsWith('300') || c.startsWith('301')) {
+                    badgeEl.innerText = '创';
+                    badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30';
+                } else if (c.startsWith('688')) {
+                    badgeEl.innerText = '科';
+                    badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-cyan-400 bg-cyan-400/10 border border-cyan-400/30';
+                } else if (c.startsWith('8') || c.startsWith('4')) {
+                    badgeEl.innerText = '北';
+                    badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30';
+                } else {
+                    badgeEl.innerText = '主';
+                    badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-rose-400 bg-rose-400/10 border border-rose-400/30';
+                }
+            }
+
+            // 2. 标的代码与名称
+            const fullSym = `${d.code}.${d.code.startsWith('6') ? 'SH' : 'SZ'}`;
+            const sName = d.name || d.code;
+            const fullSymEl = document.getElementById('cl-full-symbol');
+            const nameEl = document.getElementById('cl-stock-name');
+            if (fullSymEl) fullSymEl.innerText = fullSym;
+            if (nameEl) nameEl.innerText = sName;
+
+            // 3. 价格与涨跌
+            const pVal = Number(sum.latest_price || 0);
+            const pctVal = Number(sum.change_pct || 0);
+            const chgVal = Number((pVal * pctVal) / (100 + pctVal));
+            const isUp = pctVal >= 0;
+            const sign = isUp ? '+' : '';
+            const chgColor = isUp ? 'text-rose-500' : 'text-emerald-500';
+
+            const priceEl = document.getElementById('cl-price');
+            const changeEl = document.getElementById('cl-change');
+            const pctEl = document.getElementById('cl-change-pct');
+            if (priceEl) {
+                priceEl.innerText = pVal.toFixed(2);
+                priceEl.className = `text-base sm:text-lg font-black font-mono ${chgColor}`;
+            }
+            if (changeEl) {
+                changeEl.innerText = `${sign}${chgVal.toFixed(2)}`;
+                changeEl.className = `text-xs font-bold font-mono ${chgColor}`;
+            }
+            if (pctEl) {
+                pctEl.innerText = `${sign}${pctVal.toFixed(2)}%`;
+                pctEl.className = `text-xs font-bold font-mono ${chgColor}`;
+            }
+
+            // 4. 策略/共振状态胶囊
+            const statusTag = document.getElementById('cl-status-tag');
+            if (statusTag) {
+                const resCount = d.resonances ? d.resonances.length : 0;
+                if (resCount > 0) {
+                    const lastRes = d.resonances[d.resonances.length - 1];
+                    const isBuy = lastRes.direction === 'BUY';
+                    statusTag.className = `px-2 py-0.5 rounded text-[11px] font-bold ${isBuy ? 'bg-rose-950/80 text-rose-400 border border-rose-800' : 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'} transition whitespace-nowrap shadow-sm`;
+                    statusTag.innerText = `★ ${lastRes.grade}级 ${lastRes.pattern_name}`;
+                } else if (sum.high_state?.bi_direction === 'up' && sum.mid_state?.bi_direction === 'up') {
+                    statusTag.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950/80 text-purple-300 border border-purple-800 transition whitespace-nowrap shadow-sm';
+                    statusTag.innerText = '多级别多头共振';
+                } else {
+                    statusTag.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition whitespace-nowrap shadow-sm';
+                    statusTag.innerText = '中枢盘整定态';
+                }
+            }
+
+            // 5. 概览卡片更新
+            const cardCode = document.getElementById('cl-card-code');
+            const cardName = document.getElementById('cl-card-name');
+            const cardPrice = document.getElementById('cl-card-price');
+            const cardPct = document.getElementById('cl-card-pct');
+            const cardTime = document.getElementById('cl-card-time');
+            if (cardCode) cardCode.innerText = d.code;
+            if (cardName) cardName.innerText = sName;
+            if (cardPrice) {
+                cardPrice.innerText = `¥${pVal.toFixed(2)}`;
+                cardPrice.className = `text-base font-extrabold font-mono ${chgColor}`;
+            }
+            if (cardPct) {
+                cardPct.innerText = `${sign}${pctVal.toFixed(2)}%`;
+                cardPct.className = `text-xs font-bold font-mono ${chgColor}`;
+            }
+            if (cardTime) cardTime.innerText = `时刻: ${sum.latest_date || '--'}`;
+
+            // 大级别状态
+            const hPeriodEl = document.getElementById('cl-card-high-period');
+            const hStatusEl = document.getElementById('cl-card-high-status');
+            const hDescEl = document.getElementById('cl-card-high-desc');
+            if (hPeriodEl && d.periods) hPeriodEl.innerText = d.periods.high.name;
+            if (hStatusEl) {
+                hStatusEl.innerText = sum.high_state.recent_mmd ? `${sum.high_state.recent_mmd}确立` : (sum.high_state.bi_direction === 'up' ? '向上笔运行' : (sum.high_state.bi_direction === 'down' ? '向下笔下行' : '中枢盘整'));
+            }
+            if (hDescEl) hDescEl.innerText = sum.high_state.detail || '大级别趋势研判';
+
+            // 中级别状态
+            const mPeriodEl = document.getElementById('cl-card-mid-period');
+            const mStatusEl = document.getElementById('cl-card-mid-status');
+            const mDescEl = document.getElementById('cl-card-mid-desc');
+            if (mPeriodEl && d.periods) mPeriodEl.innerText = d.periods.mid.name;
+            if (mStatusEl) {
+                mStatusEl.innerText = sum.mid_state.recent_mmd ? `${sum.mid_state.recent_mmd}确立` : (sum.mid_state.bi_direction === 'up' ? '向上笔波段' : (sum.mid_state.bi_direction === 'down' ? '向下笔回调' : '走势中枢震荡'));
+            }
+            if (mDescEl) mDescEl.innerText = sum.mid_state.detail || '波段中枢与笔';
+
+            // 小级别状态
+            const lPeriodEl = document.getElementById('cl-card-low-period');
+            const lStatusEl = document.getElementById('cl-card-low-status');
+            const lResCountEl = document.getElementById('cl-card-res-count');
+            const lDescEl = document.getElementById('cl-card-low-desc');
+            if (lPeriodEl && d.periods) lPeriodEl.innerText = d.periods.low.name;
+            if (lStatusEl) {
+                lStatusEl.innerText = sum.low_state.recent_mmd ? `触发 ${sum.low_state.recent_mmd}` : (sum.low_state.bi_direction === 'up' ? '微观向上' : '微观下行');
+            }
+            if (lResCountEl) {
+                lResCountEl.innerText = `${d.resonances ? d.resonances.length : 0}处共振`;
+            }
+            if (lDescEl) lDescEl.innerText = sum.low_state.detail || '区间套精准买卖点';
+
+            // 表头周期更新
+            if (d.periods) {
+                const thH = document.getElementById('cl-th-high');
+                const thM = document.getElementById('cl-th-mid');
+                const thL = document.getElementById('cl-th-low');
+                if (thH) thH.innerText = `大级别态势 (${d.periods.high.name})`;
+                if (thM) thM.innerText = `中级别态势 (${d.periods.mid.name})`;
+                if (thL) thL.innerText = `微观买卖点 (${d.periods.low.name})`;
+            }
+
+            // 更新输入框默认值
+            const stockInput = document.getElementById('cl-stock-input');
+            if (stockInput && document.activeElement !== stockInput) {
+                stockInput.value = d.code;
+            }
+
+            // 6. 异步拉取盘口估值指标 (参考K线弹窗: 总市值/流通市值/PE/换手/量比/主力净流)
+            fetchKlineQuoteMetrics(d.code);
+        }
+
+        async function fetchKlineQuoteMetrics(code) {
+            try {
+                const resp = await fetch(`/api/quotes/kline?symbol=${code}&period=DAY&count=2`);
+                if (!resp.ok) return;
+                const json = await resp.json();
+                const q = json.quote || {};
+
+                const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
+                const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
+                const turnoverStr = q.turnover_rate !== undefined && q.turnover_rate !== null ? `${Number(q.turnover_rate).toFixed(2)}%` : '--';
+                const volRatioVal = q.vol_ratio !== undefined && q.vol_ratio !== null ? Number(q.vol_ratio) : null;
+                const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
+
+                let peStr = '--';
+                if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
+                    peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
+                } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
+                    peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
+                }
+
+                const elTot = document.getElementById('cl-total-val');
+                const elFlt = document.getElementById('cl-float-val');
+                const elPe = document.getElementById('cl-pe');
+                const elTo = document.getElementById('cl-turnover');
+                const elVr = document.getElementById('cl-vol-ratio');
+                const elMn = document.getElementById('cl-main-net');
+
+                if (elTot) elTot.innerText = totValStr;
+                if (elFlt) elFlt.innerText = fltValStr;
+                if (elPe) {
+                    elPe.innerText = peStr;
+                    elPe.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM: ${q.pe_ttm ?? '--'}`;
+                }
+                if (elTo) elTo.innerText = turnoverStr;
+                if (elVr) {
+                    elVr.innerText = volRatioStr;
+                    if (volRatioVal !== null) {
+                        elVr.className = volRatioVal >= 2.0 ? 'font-mono font-bold text-amber-400' : (volRatioVal >= 1.0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-slate-200');
+                    }
+                }
+                if (elMn) {
+                    const mnVal = Number(q.main_net_amount || 0);
+                    const mnSign = mnVal >= 0 ? '+' : '';
+                    let mnStr = '--';
+                    if (Math.abs(mnVal) >= 1e8) mnStr = `${mnSign}${(mnVal / 1e8).toFixed(2)}亿`;
+                    else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
+                    else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
+                    elMn.innerText = mnStr;
+                    elMn.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
+                }
+            } catch (e) {
+                console.debug("Quote metrics fetch ignored:", e);
+            }
+        }
+
+        function updateChanlunTimeline(d) {
+            if (!d || !d.backtrack_timeline) return;
+            const tl = d.backtrack_timeline;
+            const total = tl.total_bars || 0;
+            const dates = tl.available_dates || [];
+
+            const slider = document.getElementById('cl-backtrack-slider');
+            const minEl = document.getElementById('cl-slider-min');
+            const maxEl = document.getElementById('cl-slider-max');
+            const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+            const cutoffInput = document.getElementById('cl-cutoff-date');
+            const latestBtn = document.getElementById('cl-btn-latest-bar');
+
+            if (minEl) minEl.innerText = tl.min_date ? tl.min_date.slice(0, 10) : '--';
+            if (maxEl) maxEl.innerText = tl.max_date ? tl.max_date.slice(0, 10) : '--';
+
+            if (slider && total > 0) {
+                slider.max = String(total - 1);
+                if (!_clIsBacktracking) {
+                    _clBacktrackIndex = total - 1;
+                    _clBacktrackDate = tl.max_date;
+                    slider.value = String(_clBacktrackIndex);
+                } else {
+                    const foundIdx = dates.indexOf(_clBacktrackDate);
+                    if (foundIdx >= 0) {
+                        _clBacktrackIndex = foundIdx;
+                        slider.value = String(foundIdx);
+                    }
+                }
+            }
+
+            if (cutoffText) {
+                const curDate = _clBacktrackDate || tl.max_date || '--';
+                cutoffText.innerText = `截断: ${curDate.slice(0, 10)} (${_clBacktrackIndex + 1}/${total})`;
+            }
+
+            if (cutoffInput && tl.current_date) {
+                cutoffInput.value = tl.current_date.slice(0, 10);
+            }
+
+            if (latestBtn) {
+                if (_clIsBacktracking) {
+                    latestBtn.classList.remove('hidden');
+                } else {
+                    latestBtn.classList.add('hidden');
+                }
+            }
+        }
+
+        function renderChanlunSignalsTable(d) {
+            const tbody = document.getElementById('cl-signals-tbody');
+            const badge = document.getElementById('cl-table-count-badge');
+            if (!tbody) return;
+
+            const resonances = (d && Array.isArray(d.resonances)) ? d.resonances : [];
+            if (badge) badge.innerText = `共 ${resonances.length} 处共振`;
+
+            if (resonances.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-slate-400 font-sans">
+                            选定周期组合内未出现强共振事件，维持中枢走势震荡观察。
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const rowsHtml = resonances.map((r, idx) => {
+                const isBuy = r.direction === 'BUY';
+                const dirColor = isBuy ? 'text-rose-400 bg-rose-500/10 border-rose-500/30' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+                const dirLabel = isBuy ? '▲ 共振买点' : '▼ 共振卖点';
+                const gradeColor = r.grade === 'AAA' ? 'bg-rose-600 text-white' : (r.grade === 'AA' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-blue-600 text-white');
+
+                return `
+                    <tr class="hover:bg-purple-500/10 transition cursor-pointer" onclick="focusChanlunSignal(${idx})">
+                        <td class="py-2.5 px-3 text-slate-400 font-mono">${r.timestamp}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded border text-[11px] font-bold ${dirColor}">${dirLabel}</span>
+                        </td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] ${gradeColor}">${r.grade}级</span>
+                        </td>
+                        <td class="py-2.5 px-3 font-sans font-bold text-slate-900 dark:text-white">${r.pattern_name}</td>
+                        <td class="py-2.5 px-3 font-bold text-amber-400 font-mono">¥${Number(r.price).toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px]">${r.high_state?.detail || '--'}</td>
+                        <td class="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px]">${r.mid_state?.detail || '--'}</td>
+                        <td class="py-2.5 px-3 text-amber-400 font-bold text-[11px] font-mono">${r.low_state?.recent_mmd || '--'} (¥${Number(r.price).toFixed(2)})</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+            if (window.lucide) lucide.createIcons();
+        }
+
+
+        function updateChanlunVisibleExtrema() {
+            if (!window.chanlunChart || !_clCachedData) return;
+            try {
+                const opt = window.chanlunChart.getOption();
+                if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
+                const dz = opt.dataZoom[0];
+                const candles = _clCachedData.unified_chart?.candles || [];
+                if (candles.length === 0) return;
+
+                const startPct = dz.start !== undefined ? dz.start : 0;
+                const endPct = dz.end !== undefined ? dz.end : 100;
+                const startIdx = Math.max(0, Math.floor((startPct / 100) * candles.length));
+                const endIdx = Math.min(candles.length - 1, Math.ceil((endPct / 100) * candles.length));
+
+                let maxH = -Infinity;
+                let minL = Infinity;
+                for (let i = startIdx; i <= endIdx; i++) {
+                    const c = candles[i];
+                    if (c) {
+                        const h = c[3]; // high
+                        const l = c[2]; // low
+                        if (h > maxH) maxH = h;
+                        if (l < minL) minL = l;
+                    }
+                }
+
+                if (maxH !== -Infinity && minL !== Infinity) {
+                    const amp = minL > 0 ? ((maxH - minL) / minL * 100) : 0;
+                    const hEl = document.getElementById('cl-vis-high');
+                    const lEl = document.getElementById('cl-vis-low');
+                    const aEl = document.getElementById('cl-vis-amp');
+                    if (hEl) hEl.innerText = maxH.toFixed(2);
+                    if (lEl) lEl.innerText = minL.toFixed(2);
+                    if (aEl) aEl.innerText = `${amp.toFixed(2)}%`;
+                }
+            } catch (e) {
+                console.debug("Visible extrema error:", e);
+            }
+        }
+
+        function renderChanlunChart(d) {
+            const chartDom = document.getElementById('chanlun-echart-main');
+            if (!chartDom || !d || !d.unified_chart) return;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            if (window.chanlunChart) {
+                // If theme switched, recreate
+                const currentTheme = window.chanlunChart._clThemeMode;
+                if ((isDark && currentTheme !== 'dark') || (!isDark && currentTheme === 'dark')) {
+                    window.chanlunChart.dispose();
+                    window.chanlunChart = null;
+                }
+            }
+            if (!window.chanlunChart) {
+                window.chanlunChart = echarts.init(chartDom, isDark ? 'dark' : null);
+                window.chanlunChart._clThemeMode = isDark ? 'dark' : 'light';
+                window.chanlunChart.on('dataZoom', () => {
+                    updateChanlunVisibleExtrema();
+                });
+            }
+
+            const uc = d.unified_chart;
+            const dates = uc.dates || [];
+            const candles = uc.candles || []; // [open, close, low, high]
+            const volumes = uc.volumes || [];
+            const n_bars = dates.length;
+
+            if (n_bars === 0) {
+                window.chanlunChart.clear();
+                return;
+            }
+
+            // 更新左上角 HTML 形态胶囊覆盖层 (参考K线弹窗 updateKpPatternBadgeOverlay)
+            const patternOverlay = document.getElementById('cl-pattern-overlay');
+            if (patternOverlay && d.summary) {
+                const s = d.summary;
+                const hDir = s.high_state?.bi_direction === 'up';
+                const mDir = s.mid_state?.bi_direction === 'up';
+                const lMmd = s.low_state?.recent_mmd;
+                patternOverlay.innerHTML = `
+                    <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                        ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
+                    </span>
+                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-cyan-950/80 text-cyan-300 border-cyan-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                        ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
+                    </span>
+                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-amber-950/80 text-amber-300 border-amber-800'} border shadow-sm font-bold">
+                        ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
+                    </span>
+                `;
+            }
+
+            // 1. 笔线段 MarkLines (大/中/基准小)
+            const highBiLines = _clLayers.highBi ? (uc.high_bis || []).map(b => [
+                { coord: b.start, lineStyle: { color: '#e040fb', width: 2.8, type: 'solid' } },
+                { coord: b.end }
+            ]) : [];
+
+            const midBiLines = _clLayers.midBi ? (uc.mid_bis || []).map(b => [
+                { coord: b.start, lineStyle: { color: '#00e5ff', width: 2.0, type: 'solid' } },
+                { coord: b.end }
+            ]) : [];
+
+            const lowBiLines = _clLayers.lowBi ? (uc.low_bis || []).map(b => [
+                { coord: b.start, lineStyle: { color: '#ffd600', width: 1.2, type: 'solid' } },
+                { coord: b.end }
+            ]) : [];
+
+            // 2. 中枢 MarkAreas (大/中/基准小)
+            const highZsAreas = _clLayers.highZs ? (uc.high_zss || []).map(zs => [
+                {
+                    name: `[${d.periods.high.name}中枢]`,
+                    coord: [zs.start_date, zs.zg],
+                    itemStyle: { color: 'rgba(156, 39, 176, 0.16)', borderColor: '#e040fb', borderWidth: 1.2, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#e040fb', fontSize: 10, formatter: `[${d.periods.high.name}中枢]` }
+                },
+                { coord: [zs.end_date, zs.zd] }
+            ]) : [];
+
+            const midZsAreas = _clLayers.midZs ? (uc.mid_zss || []).map(zs => [
+                {
+                    name: `[${d.periods.mid.name}中枢]`,
+                    coord: [zs.start_date, zs.zg],
+                    itemStyle: { color: 'rgba(0, 188, 212, 0.16)', borderColor: '#00e5ff', borderWidth: 1.0, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#00e5ff', fontSize: 10, formatter: `[${d.periods.mid.name}中枢]` }
+                },
+                { coord: [zs.end_date, zs.zd] }
+            ]) : [];
+
+            const lowZsAreas = _clLayers.lowZs ? (uc.low_zss || []).map(zs => [
+                {
+                    name: `[${d.periods.low.name}中枢]`,
+                    coord: [zs.start_date, zs.zg],
+                    itemStyle: { color: 'rgba(255, 152, 0, 0.14)', borderColor: '#ffa726', borderWidth: 0.8, borderType: 'dotted' },
+                    label: { show: true, position: 'insideTopLeft', color: '#ffa726', fontSize: 9, formatter: `[${d.periods.low.name}中枢]` }
+                },
+                { coord: [zs.end_date, zs.zd] }
+            ]) : [];
+
+
+            // 4. 买卖点 MarkPoints
+            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => ({
+                name: m.type,
+                coord: m.coord,
+                value: m.label,
+                symbol: m.is_buy ? 'pin' : 'arrow',
+                symbolRotate: m.is_buy ? 0 : 180,
+                symbolSize: 22,
+                itemStyle: { color: m.is_buy ? '#ef4444' : '#10b981' },
+                label: { show: true, color: '#ffffff', fontWeight: 'bold', fontSize: 9, formatter: m.label }
+            })) : [];
+
+            // 5. 共振买卖点 MarkPoints & 贯穿线
+            const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => ({
+                name: r.pattern_name,
+                coord: r.coord,
+                value: r.label,
+                symbol: 'diamond',
+                symbolSize: 28,
+                itemStyle: {
+                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
+                    borderColor: '#ffffff',
+                    borderWidth: 1.5,
+                    shadowBlur: 10,
+                    shadowColor: r.direction === 'BUY' ? '#ffd600' : '#00e5ff'
+                },
+                label: {
+                    show: true,
+                    position: r.direction === 'BUY' ? 'bottom' : 'top',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    fontSize: 10,
+                    formatter: r.label
+                }
+            })) : [];
+
+            const resVerticalLines = _clLayers.res ? (uc.res_marks || []).map(r => ({
+                xAxis: r.date,
+                lineStyle: {
+                    color: r.direction === 'BUY' ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
+                    width: 1.5,
+                    type: 'dashed'
+                },
+                label: {
+                    show: true,
+                    position: 'end',
+                    formatter: `★ ${r.grade}共振`,
+                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
+                    fontSize: 10
+                }
+            })) : [];
+
+
+            // 7. 副图指标系列 (MACD vs 成交量)
+            const macdData = uc.macd || { hist: [], dif: [], dea: [] };
+            let subSeries = [];
+            let subYAxis = {};
+
+            if (_clSubIndicator === 'vol') {
+                const volVals = volumes.map(v => v[1] || 0);
+                subSeries = [
+                    {
+                        name: '成交量',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: volumes.map(v => ({
+                            value: v[1],
+                            itemStyle: {
+                                color: v[2] >= 0 ? 'rgba(199, 64, 64, 0.75)' : 'rgba(45, 155, 101, 0.75)'
+                            }
+                        })),
+                        barWidth: '60%'
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: {
+                        color: '#64748b',
+                        fontSize: 9,
+                        formatter: (val) => {
+                            if (val >= 1e8) return `${(val / 1e8).toFixed(1)}亿`;
+                            if (val >= 1e4) return `${(val / 1e4).toFixed(0)}万`;
+                            return String(val);
+                        }
+                    }
+                };
+            } else {
+                // MACD
+                subSeries = [
+                    {
+                        name: 'MACD柱',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: (macdData.hist || []).map(v => ({
+                            value: v,
+                            itemStyle: { color: v >= 0 ? '#ef4444' : '#10b981' }
+                        })),
+                        barWidth: '55%'
+                    },
+                    {
+                        name: 'DIF',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: macdData.dif || [],
+                        lineStyle: { color: '#cbd5e1', width: 1.2 },
+                        symbol: 'none'
+                    },
+                    {
+                        name: 'DEA',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: macdData.dea || [],
+                        lineStyle: { color: '#facc15', width: 1.2 },
+                        symbol: 'none'
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: { color: '#64748b', fontSize: 9 }
+                };
+            }
+
+            // 统一坐标轴风格配置 (完全参考K线弹窗)
+            const splitColor = isDark ? '#1e293b' : '#f1f5f9';
+            const axisColor = isDark ? '#334155' : '#cbd5e1';
+            const textColor = '#64748b';
+            const axisPointerBg = isDark ? '#1e293b' : '#475569';
+            const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)';
+            const tooltipBorder = isDark ? 'rgba(71, 85, 105, 0.6)' : 'rgba(203, 213, 225, 0.8)';
+            const tooltipTextColor = isDark ? '#cbd5e1' : '#334155';
+            const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
+
+            // 左上角水印
+            const watermarkGraphic = [
+                {
+                    type: 'text',
+                    left: 54,
+                    top: 14,
+                    z: 5,
+                    style: {
+                        text: `${d.code} | ${d.name} · 缠论多周期立体共振系统`,
+                        font: 'bold 11px "JetBrains Mono", Consolas, monospace',
+                        fill: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.85)'
+                    }
+                }
+            ];
+
+            // 保持当前 dataZoom
+            let prevDataZoom = null;
+            try {
+                const curOpt = window.chanlunChart.getOption();
+                if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
+                    prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+                }
+            } catch (e) { }
+
+            const option = {
+                backgroundColor: 'transparent',
+                animation: false,
+                graphic: watermarkGraphic,
+                axisPointer: {
+                    link: [{ xAxisIndex: 'all' }]
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    alwaysShowContent: false,
+                    axisPointer: {
+                        type: 'cross',
+                        lineStyle: { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)', type: 'dashed' },
+                        label: { backgroundColor: axisPointerBg }
+                    },
+                    backgroundColor: tooltipBg,
+                    borderColor: tooltipBorder,
+                    borderWidth: 1,
+                    padding: [8, 12],
+                    extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); border-radius: 8px; z-index: 99999; backdrop-blur: 8px;',
+                    formatter: function (params) {
+                        if (!Array.isArray(params) || params.length === 0) return '';
+                        const dateStr = params[0].name;
+                        const idx = params[0].dataIndex;
+                        const kParam = params.find(p => p.seriesType === 'candlestick');
+                        if (!kParam || !kParam.value) return '';
+
+                        const [open, close, low, high] = kParam.value;
+                        const prevC = idx > 0 ? candles[idx - 1][1] : open;
+                        const chg = close - prevC;
+                        const chgPct = prevC > 0 ? (chg / prevC * 100) : 0;
+                        const isUp = chg >= 0;
+                        const chgColor = isUp ? '#ef4444' : '#10b981';
+                        const chgSign = isUp ? '+' : '';
+                        const ampVal = prevC > 0 ? ((high - low) / prevC * 100) : 0;
+
+                        // 查找共振事件
+                        const matchedRes = (uc.res_marks || []).find(r => r.date === dateStr);
+                        let resHtml = '';
+                        if (matchedRes) {
+                            const isBuy = matchedRes.direction === 'BUY';
+                            resHtml = `
+                                <div style="margin-top: 6px; padding: 4px 8px; background: ${isBuy ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; border: 1px solid ${isBuy ? '#ef4444' : '#10b981'}; border-radius: 4px; color: ${isBuy ? '#fca5a5' : '#86efac'}; font-weight: bold; font-size: 11px;">
+                                    ★ ${matchedRes.grade}级${isBuy ? '买点' : '卖点'}: ${matchedRes.pattern_name} (¥${Number(matchedRes.price).toFixed(2)})
+                                </div>
+                            `;
+                        }
+
+                        return `
+                            <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 4px; margin-bottom: 6px;">
+                                    <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${dateStr}</span>
+                                    <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <span style="color: #64748b; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
+                                    <span style="color: #64748b; font-weight: 600;">开盘:</span><span style="color: ${open >= close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
+                                    <span style="color: #64748b; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
+                                    <span style="color: #64748b; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
+                                    <span style="color: #64748b; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                    <span style="color: #64748b; font-weight: 600;">振幅:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                </div>
+                                ${resHtml}
+                            </div>
+                        `;
+                    }
+                },
+                grid: [
+                    { left: 52, right: 32, top: 44, height: '60%' },
+                    { left: 52, right: 32, top: '75%', height: '18%' }
+                ],
+                xAxis: [
+                    {
+                        type: 'category',
+                        data: dates,
+                        gridIndex: 0,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { show: false },
+                        axisPointer: { label: { show: false } },
+                        splitLine: { show: true, lineStyle: { color: splitColor, type: 'dashed' } }
+                    },
+                    {
+                        type: 'category',
+                        data: dates,
+                        gridIndex: 1,
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { color: textColor, fontSize: 10 },
+                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
+                        splitLine: { show: true, lineStyle: { color: splitColor, type: 'dashed' } }
+                    }
+                ],
+                yAxis: [
+                    {
+                        type: 'value',
+                        scale: true,
+                        gridIndex: 0,
+                        position: 'right',
+                        splitLine: { lineStyle: { color: splitColor } },
+                        axisLine: { lineStyle: { color: axisColor } },
+                        axisLabel: { color: textColor, fontSize: 10, formatter: v => `¥${v.toFixed(2)}` }
+                    },
+                    subYAxis
+                ],
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        xAxisIndex: [0, 1],
+                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 120),
+                        end: prevDataZoom ? prevDataZoom.end : 100
+                    },
+                    {
+                        type: 'slider',
+                        xAxisIndex: [0, 1],
+                        bottom: 4,
+                        height: 14,
+                        borderColor: axisColor,
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)',
+                        fillerColor: 'rgba(147, 51, 234, 0.25)',
+                        textStyle: { color: textColor, fontSize: 9 },
+                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 120),
+                        end: prevDataZoom ? prevDataZoom.end : 100
+                    }
+                ],
+                series: [
+                    // 基准蜡烛图 (参考K线弹窗配色)
+                    {
+                        name: '基准K线',
+                        type: 'candlestick',
+                        xAxisIndex: 0,
+                        yAxisIndex: 0,
+                        data: candles,
+                        itemStyle: {
+                            color: '#C74040',
+                            color0: '#2D9B65',
+                            borderColor: '#C74040',
+                            borderColor0: '#2D9B65'
+                        },
+                        markPoint: {
+                            data: [
+                                ...mmdMarkPoints,
+                                ...resMarkPoints
+                            ]
+                        },
+                        markLine: {
+                            data: [
+                                ...resVerticalLines,
+                                ...highBiLines,
+                                ...midBiLines,
+                                ...lowBiLines
+                            ],
+                            symbol: ['circle', 'circle'],
+                            symbolSize: 4
+                        },
+                        markArea: {
+                            data: [
+                                ...highZsAreas,
+                                ...midZsAreas,
+                                ...lowZsAreas
+                            ]
+                        }
+                    },
+                    // 副图指标系列
+                    ...subSeries
+                ]
+            };
+
+            window.chanlunChart.setOption(option, true);
+            setTimeout(updateChanlunVisibleExtrema, 100);
+        }
+
+        function focusChanlunSignal(idx) {
+            if (!window.chanlunChart || !_clCachedData) return;
+            const resonances = _clCachedData.resonances || [];
+            const r = resonances[idx];
+            if (!r) return;
+
+            const dates = _clCachedData.unified_chart?.dates || [];
+            const barIdx = r.low_bar_idx;
+            if (barIdx < 0 || barIdx >= dates.length) return;
+
+            const total = dates.length;
+            const span = 40;
+            const startIdx = Math.max(0, barIdx - Math.floor(span / 2));
+            const endIdx = Math.min(total - 1, barIdx + Math.floor(span / 2));
+
+            const startPercent = (startIdx / total) * 100;
+            const endPercent = (endIdx / total) * 100;
+
+            window.chanlunChart.dispatchAction({
+                type: 'dataZoom',
+                start: startPercent,
+                end: endPercent
+            });
+            setTimeout(updateChanlunVisibleExtrema, 150);
+        }
+
+        async function executeChanlunSearch(codeVal) {
+            if (!codeVal) return;
+            const clean = codeVal.trim().replace(/[^0-9]/g, '');
+            if (clean.length === 6) {
+                selectChanlunStock(clean);
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(codeVal.trim())}`);
+                if (resp.ok) {
+                    const json = await resp.json();
+                    const list = json.data || [];
+                    if (list.length > 0) {
+                        selectChanlunStock(list[0].code);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Execute Chanlun search fallback error:', e);
+            }
+            selectChanlunStock(codeVal.trim());
+        }
+
+        function selectChanlunStock(codeVal) {
+            _clCurrentCode = codeVal;
+            const inp = document.getElementById('cl-stock-input');
+            if (inp) inp.value = codeVal;
+            exitChanlunBacktrack();
+            loadChanlunData(true);
+        }
+
+        function applyChanlunPreset(presetStr) {
+            _clPeriods = presetStr;
+            const parts = presetStr.split(',');
+            if (parts.length === 3) {
+                const sH = document.getElementById('cl-select-high');
+                const sM = document.getElementById('cl-select-mid');
+                const sL = document.getElementById('cl-select-low');
+                if (sH) sH.value = parts[0];
+                if (sM) sM.value = parts[1];
+                if (sL) sL.value = parts[2];
+            }
+
+            document.querySelectorAll('.cl-preset-btn').forEach(btn => {
+                btn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+            });
+            const activeBtn = document.getElementById(`cl-preset-${presetStr.replace(/,/g, '-')}`);
+            if (activeBtn) {
+                activeBtn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0';
+            }
+
+            loadChanlunData(false);
+        }
+
+        function onChanlunCustomPeriodChange() {
+            const h = document.getElementById('cl-select-high')?.value || 'WEEK';
+            const m = document.getElementById('cl-select-mid')?.value || 'DAY';
+            const l = document.getElementById('cl-select-low')?.value || '30F';
+            _clPeriods = `${h},${m},${l}`;
+
+            document.querySelectorAll('.cl-preset-btn').forEach(btn => {
+                btn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+            });
+
+            loadChanlunData(false);
+        }
+
+        function toggleChanlunAutoRefresh() {
+            _clAutoRefresh = !_clAutoRefresh;
+            const pulseDot = document.getElementById('cl-pulse-dot');
+            const staticDot = document.getElementById('cl-static-dot');
+            const liveText = document.getElementById('cl-live-text');
+            const indicator = document.getElementById('cl-live-indicator');
+
+            if (_clAutoRefresh) {
+                if (_clIsBacktracking) exitChanlunBacktrack();
+                if (pulseDot) pulseDot.style.display = 'inline-flex';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                if (liveText) liveText.innerText = '实时: 5s';
+                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                startChanlunAutoRefresh();
+            } else {
+                if (pulseDot) pulseDot.style.display = 'none';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
+                if (liveText) liveText.innerText = '实时: 关';
+                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                stopChanlunAutoRefresh();
+            }
+        }
+
+        function startChanlunAutoRefresh() {
+            stopChanlunAutoRefresh();
+            _clRefreshTimer = setInterval(() => {
+                if (!_clIsBacktracking && window.currentTab === 'chanlun') {
+                    loadChanlunData(true);
+                }
+            }, _clRefreshInterval * 1000);
+        }
+
+        function stopChanlunAutoRefresh() {
+            if (_clRefreshTimer) {
+                clearInterval(_clRefreshTimer);
+                _clRefreshTimer = null;
+            }
+        }
+
+        function onChanlunCutoffDateChange(dateVal) {
+            if (!dateVal) {
+                exitChanlunBacktrack();
+                return;
+            }
+            _clIsBacktracking = true;
+            stopChanlunAutoRefresh();
+            _clAutoRefresh = false;
+            toggleChanlunAutoRefreshState(false);
+            _clBacktrackDate = dateVal;
+            loadChanlunData(false);
+        }
+
+        function toggleChanlunAutoRefreshState(on) {
+            const pulseDot = document.getElementById('cl-pulse-dot');
+            const staticDot = document.getElementById('cl-static-dot');
+            const liveText = document.getElementById('cl-live-text');
+            const indicator = document.getElementById('cl-live-indicator');
+            if (on) {
+                if (pulseDot) pulseDot.style.display = 'inline-flex';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                if (liveText) liveText.innerText = '实时: 5s';
+                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+            } else {
+                if (pulseDot) pulseDot.style.display = 'none';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
+                if (liveText) liveText.innerText = '实时: 关';
+                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+            }
+        }
+
+        function exitChanlunBacktrack() {
+            _clIsBacktracking = false;
+            stopChanlunReplay();
+            _clBacktrackDate = null;
+            const cutoffInput = document.getElementById('cl-cutoff-date');
+            if (cutoffInput && _clCachedData?.backtrack_timeline?.max_date) {
+                cutoffInput.value = _clCachedData.backtrack_timeline.max_date.slice(0, 10);
+            }
+            const latestBtn = document.getElementById('cl-btn-latest-bar');
+            if (latestBtn) latestBtn.classList.add('hidden');
+            loadChanlunData(false);
+        }
+
+        function onChanlunSliderChange(val) {
+            _clIsBacktracking = true;
+            stopChanlunAutoRefresh();
+            _clAutoRefresh = false;
+            toggleChanlunAutoRefreshState(false);
+
+            _clBacktrackIndex = Number(val);
+            if (_clCachedData && _clCachedData.backtrack_timeline) {
+                const dates = _clCachedData.backtrack_timeline.available_dates || [];
+                if (dates[_clBacktrackIndex]) {
+                    _clBacktrackDate = dates[_clBacktrackIndex];
+                    loadChanlunData(false);
+                }
+            }
+        }
+
+        function stepChanlunBacktrack(step) {
+            _clIsBacktracking = true;
+            stopChanlunAutoRefresh();
+            _clAutoRefresh = false;
+            toggleChanlunAutoRefreshState(false);
+
+            if (!_clCachedData || !_clCachedData.backtrack_timeline) return;
+            const dates = _clCachedData.backtrack_timeline.available_dates || [];
+            const nextIdx = _clBacktrackIndex + step;
+            if (nextIdx >= 0 && nextIdx < dates.length) {
+                _clBacktrackIndex = nextIdx;
+                _clBacktrackDate = dates[nextIdx];
+                loadChanlunData(false);
+            }
+        }
+
+        function toggleChanlunReplay() {
+            if (_clIsPlayingReplay) {
+                stopChanlunReplay();
+            } else {
+                startChanlunReplay();
+            }
+        }
+
+        function startChanlunReplay() {
+            _clIsPlayingReplay = true;
+            const icon = document.getElementById('cl-replay-play-icon');
+            const btn = document.getElementById('cl-btn-play-replay');
+            if (icon) icon.setAttribute('data-lucide', 'pause');
+            if (btn) btn.className = 'h-6 w-6 rounded text-rose-400 bg-rose-950/80 border border-rose-800 transition cursor-pointer flex items-center justify-center shrink-0';
+            if (window.lucide) lucide.createIcons();
+
+            _clReplayTimer = setInterval(() => {
+                if (!_clCachedData || !_clCachedData.backtrack_timeline) return;
+                const dates = _clCachedData.backtrack_timeline.available_dates || [];
+                if (_clBacktrackIndex >= dates.length - 1) {
+                    stopChanlunReplay();
+                    return;
+                }
+                stepChanlunBacktrack(1);
+            }, 1000);
+        }
+
+        function stopChanlunReplay() {
+            _clIsPlayingReplay = false;
+            const icon = document.getElementById('cl-replay-play-icon');
+            const btn = document.getElementById('cl-btn-play-replay');
+            if (icon) icon.setAttribute('data-lucide', 'play');
+            if (btn) btn.className = 'h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0';
+            if (window.lucide) lucide.createIcons();
+
+            if (_clReplayTimer) {
+                clearInterval(_clReplayTimer);
+                _clReplayTimer = null;
+            }
+        }
+
+        // 全局键盘快捷键监听 (完全参考K线弹窗快捷键体验: 方向键推演，空格播放/暂停)
+        window.addEventListener('keydown', (e) => {
+            if (window.currentTab !== 'chanlun') return;
+            if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                stepChanlunBacktrack(-1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                stepChanlunBacktrack(1);
+            } else if (e.code === 'Space') {
+                e.preventDefault();
+                toggleChanlunReplay();
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                exitChanlunBacktrack();
+            }
+        });
+
+        // 立即自初始化标的搜索补全监听
+        if (typeof initChanlunStockSearch === 'function') {
+            initChanlunStockSearch();
+        }
 
     </script>
 

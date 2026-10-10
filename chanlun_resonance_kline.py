@@ -11,40 +11,38 @@
     周线 (WEEK) + 日线 (DAY) + 30F (30分钟)
     （用户可通过 --periods 参数自由指定任意 3 个周期的立体共振分析）
 
-核心理论与功能：
-1. 缠论核心计算管道：
-   - K线包含关系合并 (CKline)
-   - 分型识别 (顶分型 / 底分型)
-   - 笔划分 (向上笔 / 向下笔)
-   - 中枢构建 (ZG / ZD / GG / DD 区间)
-   - 买卖点识别 (1买 / 2买 / 3买 与 1卖 / 2卖 / 3卖)
-   - 背驰判断 (笔背驰 / 盘整背驰 / 趋势背驰)
-   - MACD 辅助动力学验证 (DIF / DEA / 柱状图)
+核心设计（全新升级）：
+1. 【以最小周期K线为基准，将 3 个周期画在同一图片中 (同图立体呈现)】：
+   - 底图：以选定的最小周期（默认 30F 分钟线）的每一根真实 K 线作为主水平坐标轴基准；
+   - 大级别 (如周线)：鲜亮洋红粗折线 (实线厚笔) + 紫色半透明宏观中枢箱体 + [周]买卖点；
+   - 中级别 (如日线)：亮青色中粗折线 (波段笔) + 青蓝半透明中枢箱体 + [日]买卖点；
+   - 小级别 (如30F)：金黄色细折线 (微观笔) + 琥珀橙半透明微观中枢 + 1B/2B/3B买卖点；
+   - 三周期共振：贯穿主副图的荧光垂直穿透光柱 + 极具辨识度的黄金/霓虹星形大徽章：
+     「★ [周·日·30F] 三周期共振买点 (AAA级) ¥XX.XX」
+   - 副图：基准小周期的 MACD 动能图 (DIF/DEA/红绿柱)，与各周期笔背驰直接印证。
 
 2. 三周期立体共振买卖点引擎 (Three-Period Resonance Engine)：
    - 大级别 (宏观趋势定方向)：周线/月线确定大方向，处于向上笔、底背驰或大级别买点区间；
    - 中级别 (波段形态定走势)：日线/60F 确定波段结构，形成中枢震荡、突破或回踩确立；
    - 小级别 (微观入场定买点 - 区间套)：30F/15F/5F 精准捕捉底背驰、二买启动或三买爆发点。
-   - 共振判定：
-     * 【三周期共振买点】：小级别触发买点 (1B/2B/3B/底背驰) 时，中级别与大级别同时处于买点确认期或多头笔中！
-     * 【三周期共振卖点】：小级别触发卖点 (1S/2S/3S/顶背驰) 时，中级别与大级别同时处于卖点确认期或空头笔中！
-     * 评级分类：AAA级 (三级别全同构买卖点，如全一买/全二买/全三买)、AA级 (复合强共振)、A级 (立体趋势共振)。
+   - 评级分类：AAA级 (全同构顶级共振，如全一买/全二买/全三买)、AA级 (复合强共振)、A级 (立体趋势共振)。
 
 3. 双模图表可视化：
-   - 高清暗黑专业金融 K 线图 (PNG)：三联面板堆叠，K线、笔折线、中枢区域、买卖点、共振星标、MACD清晰呈现。
-   - 交互式 HTML 报告 (--html)：内置 ECharts 联动缩放与十字光标悬浮，支持在浏览器中全屏查看与交互。
+   - 默认模式：以最小周期为基准，将 3 个级别画在同一张高清暗黑专业金融 K 线图中 (PNG)；
+   - 分屏模式 (--split)：亦可选择分 3 个独立子面板并列排布；
+   - 交互式 HTML 报告 (--html)：内置 ECharts 联动缩放与十字光标，图例可一键切换开启/隐藏周线笔、日线笔、30F笔与中枢。
 
 使用示例：
-    # 1. 默认参数 (周线 + 日线 + 30分钟) 分析平安银行 (000001)
+    # 1. 默认参数 (以 30F 为基准，同图画周线/日线/30F 三级笔与中枢)
     python chanlun_resonance_kline.py --code 000001
 
-    # 2. 自选三个周期：日线 + 60分钟 + 15分钟
+    # 2. 自选三个周期：日线 + 60分钟 + 15分钟 (以 15F 为基准画同图)
     python chanlun_resonance_kline.py --code 600519 --periods DAY,60F,15F
 
-    # 3. 宏观长线周期：月线 + 周线 + 日线
+    # 3. 宏观长线周期：月线 + 周线 + 日线 (以 日线 为基准画同图)
     python chanlun_resonance_kline.py --code 300750 --periods MONTH,WEEK,DAY
 
-    # 4. 生成交互式 HTML 报告并在桌面查看
+    # 4. 生成交互式 HTML 网页并在浏览器中查看
     python chanlun_resonance_kline.py --code 000001 --html --show
 """
 
@@ -190,13 +188,30 @@ def parse_three_periods(periods_str: str) -> list[str]:
         raise ValueError(f"必须恰好指定 3 个周期，当前输入了 {len(parts)} 个: {periods_str}")
 
     normalized = [normalize_period(p) for p in parts]
-    # 去重检查
     if len(set(normalized)) != 3:
         raise ValueError(f"选择的 3 个周期不能重复: {normalized}")
 
-    # 按照权重从大到小排序（大级别在上，小级别在下）
+    # 按照权重从大到小排序（大级别在上，小级别为底图基准）
     sorted_periods = sorted(normalized, key=lambda k: PERIOD_SPECS[k]["weight"], reverse=True)
     return sorted_periods
+
+
+def _to_dt(val: Any) -> datetime:
+    """安全将任意时间格式 (str, pd.Timestamp, datetime) 转为 Python datetime。"""
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, pd.Timestamp):
+        return val.to_pydatetime()
+    try:
+        return pd.to_datetime(str(val)).to_pydatetime()
+    except Exception:
+        return datetime.now()
+
+
+def _fmt_dt(val: Any, is_intraday: bool = False) -> str:
+    """安全格式化日期。"""
+    dt = _to_dt(val)
+    return dt.strftime("%Y-%m-%d %H:%M") if is_intraday else dt.strftime("%Y-%m-%d")
 
 
 # ==============================================================================
@@ -244,24 +259,6 @@ class ResonanceSignal:
     description: str
 
 
-def _to_dt(val: Any) -> datetime:
-    """安全将任意时间格式 (str, pd.Timestamp, datetime) 转为 Python datetime。"""
-    if isinstance(val, datetime):
-        return val
-    if isinstance(val, pd.Timestamp):
-        return val.to_pydatetime()
-    try:
-        return pd.to_datetime(str(val)).to_pydatetime()
-    except Exception:
-        return datetime.now()
-
-
-def _fmt_dt(val: Any, is_intraday: bool = False) -> str:
-    """安全格式化日期。"""
-    dt = _to_dt(val)
-    return dt.strftime("%Y-%m-%d %H:%M") if is_intraday else dt.strftime("%Y-%m-%d")
-
-
 class ThreePeriodResonanceEngine:
     """三周期缠论共振买卖点识别引擎。"""
 
@@ -291,17 +288,12 @@ class ThreePeriodResonanceEngine:
         if not klines:
             return PeriodState(period, -1, "", 0.0, "none")
 
-        # 找到最接近且 <= target_dt 的 K 线
         valid_bars = [i for i, k in enumerate(klines) if _to_dt(k.date) <= target_obj]
-        if not valid_bars:
-            bar_idx = 0
-        else:
-            bar_idx = valid_bars[-1]
+        bar_idx = valid_bars[-1] if valid_bars else 0
 
         cur_k = klines[bar_idx]
         cur_date_str = _fmt_dt(cur_k.date, is_intraday=("min" in period.lower() or "f" in period.lower()))
 
-        # 检查笔状态
         active_bi = None
         for bi in res.bis:
             if bi.start.k.k_index <= bar_idx:
@@ -311,11 +303,11 @@ class ThreePeriodResonanceEngine:
         bi_s_val = active_bi.start.val if active_bi else 0.0
         bi_e_val = active_bi.end.val if active_bi else 0.0
 
-        # 检查在 target_dt 之前最近触发的 MMD
-        prior_mmds = []
-        for mmd in res.mmds:
-            if mmd.bi and _to_dt(mmd.bi.end.k.date) <= target_obj:
-                prior_mmds.append(mmd)
+        prior_mmds = [
+            mmd
+            for mmd in res.mmds
+            if mmd.bi and _to_dt(mmd.bi.end.k.date) <= target_obj
+        ]
 
         last_mmd = prior_mmds[-1] if prior_mmds else None
         mmd_type = last_mmd.mmd_type.value if last_mmd else ""
@@ -330,7 +322,6 @@ class ThreePeriodResonanceEngine:
             else 999
         )
 
-        # 多空综合倾向判定
         is_bullish = False
         is_bearish = False
         detail_msg = []
@@ -350,7 +341,6 @@ class ThreePeriodResonanceEngine:
             detail_msg.append("处于向下笔运行中")
 
         if is_bullish and is_bearish:
-            # 依据最新的一笔方向仲裁
             if bi_dir == "up":
                 is_bearish = False
             else:
@@ -377,7 +367,6 @@ class ThreePeriodResonanceEngine:
         resonances: list[ResonanceSignal] = []
         low_res = self.res_low
 
-        # 收集小级别所有的买卖点和转折点
         trigger_events = []
         for mmd in low_res.mmds:
             if not mmd.bi:
@@ -391,22 +380,24 @@ class ThreePeriodResonanceEngine:
                 "msg": mmd.msg,
             })
 
-        # 去重排序
         trigger_events = sorted(trigger_events, key=lambda x: _to_dt(x["dt"]))
 
         for ev in trigger_events:
             target_dt = ev["dt"]
             is_buy = ev["is_buy"]
 
-            # 获取此时刻中级别与大级别状态
             low_state = self._get_period_state_at(self.p_low, target_dt)
             mid_state = self._get_period_state_at(self.p_mid, target_dt)
             high_state = self._get_period_state_at(self.p_high, target_dt)
 
+            is_intra = (
+                "min" in self.p_low.lower()
+                or "f" in self.p_low.lower()
+                or "m" in self.p_low.lower()
+            )
+
             if is_buy:
-                # 检查中级别与大级别是否支持做多
                 if mid_state.is_bullish and high_state.is_bullish:
-                    # 形成三周期共振买点！
                     grade, name = self._classify_resonance(
                         "BUY", high_state, mid_state, ev["type"]
                     )
@@ -416,7 +407,6 @@ class ThreePeriodResonanceEngine:
                         f"- {self.p_mid}(中): {mid_state.detail}\n"
                         f"- {self.p_low}(小): 触发 {ev['type'].upper()} ({ev['price']:.2f})"
                     )
-                    is_intra = ("min" in self.p_low.lower() or "f" in self.p_low.lower() or "m" in self.p_low.lower())
                     resonances.append(
                         ResonanceSignal(
                             timestamp=_fmt_dt(target_dt, is_intraday=is_intra),
@@ -437,9 +427,7 @@ class ThreePeriodResonanceEngine:
                         )
                     )
             else:
-                # 检查中级别与大级别是否支持做空
                 if mid_state.is_bearish and high_state.is_bearish:
-                    # 形成三周期共振卖点！
                     grade, name = self._classify_resonance(
                         "SELL", high_state, mid_state, ev["type"]
                     )
@@ -449,7 +437,6 @@ class ThreePeriodResonanceEngine:
                         f"- {self.p_mid}(中): {mid_state.detail}\n"
                         f"- {self.p_low}(小): 触发 {ev['type'].upper()} ({ev['price']:.2f})"
                     )
-                    is_intra = ("min" in self.p_low.lower() or "f" in self.p_low.lower() or "m" in self.p_low.lower())
                     resonances.append(
                         ResonanceSignal(
                             timestamp=_fmt_dt(target_dt, is_intraday=is_intra),
@@ -479,13 +466,11 @@ class ThreePeriodResonanceEngine:
         mid: PeriodState,
         low_mmd: str,
     ) -> tuple[str, str]:
-        """对共振信号进行评级与命名。"""
         p_names = f"{PERIOD_SPECS[self.p_high]['short_name']}·{PERIOD_SPECS[self.p_mid]['short_name']}·{PERIOD_SPECS[self.p_low]['short_name']}"
 
         if direction == "BUY":
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
-            # 1. AAA 级：三级别同构买点
             if "1buy" in h_type and "1buy" in m_type and "1buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全一买区间套极限抄底"
             if "2buy" in h_type and "2buy" in m_type and "2buy" in low_mmd:
@@ -493,7 +478,6 @@ class ThreePeriodResonanceEngine:
             if "3buy" in h_type and "3buy" in m_type and "3buy" in low_mmd:
                 return "AAA", f"★ [{p_names}] 全三买中枢爆发共振"
 
-            # 2. AA 级：复合强共振
             if "3buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 三类买点中枢突破共振"
             if "2buy" in low_mmd:
@@ -501,7 +485,6 @@ class ThreePeriodResonanceEngine:
             if "1buy" in low_mmd:
                 return "AA", f"★ [{p_names}] 一类买点底背驰共振"
 
-            # 3. A 级：立体趋势多头共振
             return "A", f"★ [{p_names}] 多周期多头趋势共振买点"
         else:
             h_type = high.recent_mmd_type
@@ -524,12 +507,538 @@ class ThreePeriodResonanceEngine:
 
 
 # ==============================================================================
-# 3. 高清专业金融暗黑 K 线图绘制 (Matplotlib)
+# 3. 高清同图立体嵌套 K 线图绘制器 (以最小周期为基准，将 3 个周期画在同一图片中)
 # ==============================================================================
 
 
-class ChanlunResonancePlotter:
-    """高清专业金融暗黑风格 K 线图绘制器。"""
+class ChanlunUnifiedResonancePlotter:
+    """以最小周期 K 线为基准，将 3 个周期的 K 线、笔、中枢及共振买卖点画在同一张图片中。"""
+
+    def __init__(
+        self,
+        code: str,
+        name: str,
+        periods: list[str],  # [High, Mid, Low]
+        dfs: dict[str, pd.DataFrame],
+        results: dict[str, ChanlunResult],
+        resonances: list[ResonanceSignal],
+    ):
+        self.code = code
+        self.name = name
+        self.periods = periods
+        self.p_high = periods[0]
+        self.p_mid = periods[1]
+        self.p_low = periods[2]  # 基准最小周期
+        self.dfs = dfs
+        self.results = results
+        self.resonances = resonances
+
+    def _map_pivot_to_base(
+        self,
+        dt_val: Any,
+        val: float,
+        is_high: bool,
+        period_key: str,
+        base_df: pd.DataFrame,
+        base_dts: pd.Series,
+    ) -> int:
+        """将较高级别的笔分型端点精确对齐映射到基准小周期的某根 K 线索引。"""
+        p_dt = _to_dt(dt_val)
+        n_bars = len(base_df)
+        if n_bars == 0:
+            return 0
+        if p_dt < base_dts.iloc[0]:
+            return -1
+        if p_dt > base_dts.iloc[-1]:
+            return n_bars - 1
+
+        if period_key == "WEEK":
+            w_start = (p_dt - pd.Timedelta(days=6)).date()
+            w_end = (p_dt + pd.Timedelta(days=1)).date()
+            mask = (base_dts.dt.date >= w_start) & (base_dts.dt.date <= w_end)
+        elif period_key == "DAY":
+            mask = base_dts.dt.date == p_dt.date()
+        elif period_key == "MONTH":
+            mask = (base_dts.dt.year == p_dt.year) & (base_dts.dt.month == p_dt.month)
+        else:
+            diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+            return int(np.argmin(diffs))
+
+        idxs = np.where(mask)[0]
+        if len(idxs) > 0:
+            if is_high:
+                sub_vals = base_df["high"].iloc[idxs].values
+                return int(idxs[np.argmax(sub_vals)])
+            else:
+                sub_vals = base_df["low"].iloc[idxs].values
+                return int(idxs[np.argmin(sub_vals)])
+
+        diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+        return int(np.argmin(diffs))
+
+    def plot(self, save_path: str | Path | None = None, show: bool = False) -> Path | None:
+        """在单张画板中绘制同图多周期立体嵌套图。"""
+        import matplotlib
+        if not show:
+            matplotlib.use("Agg")
+        import matplotlib.patches as patches
+        import matplotlib.pyplot as plt
+
+        plt.rcParams["font.sans-serif"] = [
+            "Microsoft YaHei",
+            "SimHei",
+            "PingFang SC",
+            "WenQuanYi Micro Hei",
+            "sans-serif",
+        ]
+        plt.rcParams["axes.unicode_minus"] = False
+
+        base_df = self.dfs[self.p_low]
+        base_res = self.results[self.p_low]
+        res_mid = self.results[self.p_mid]
+        res_high = self.results[self.p_high]
+
+        n_bars = len(base_df)
+        if n_bars == 0:
+            logger.warning("基准最小周期数据为空，无法绘图")
+            return None
+
+        base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+
+        # 画布尺寸：宽 18 吋，高 12 吋
+        fig = plt.figure(figsize=(18, 12), facecolor="#131722")
+        gs = fig.add_gridspec(
+            2,
+            1,
+            height_ratios=[3.8, 1.0],
+            hspace=0.06,
+            left=0.04,
+            right=0.96,
+            top=0.93,
+            bottom=0.05,
+        )
+
+        ax_main = fig.add_subplot(gs[0, 0])
+        ax_main.set_facecolor("#181b27")
+        ax_macd = fig.add_subplot(gs[1, 0])
+        ax_macd.set_facecolor("#181b27")
+
+        # ----------------------------------------------------------------------
+        # 1. 绘制基准最小周期 K 线 (Candlesticks)
+        # ----------------------------------------------------------------------
+        bar_width = 0.65
+        price_span = base_df["high"].max() - base_df["low"].min()
+        min_body = price_span * 0.002 or 0.01
+
+        for i in range(n_bars):
+            row = base_df.iloc[i]
+            op = float(row["open"])
+            cl = float(row["close"])
+            hi = float(row["high"])
+            lo = float(row["low"])
+
+            is_up = cl >= op
+            c_color = "#f23645" if is_up else "#089981"
+
+            ax_main.plot([i, i], [lo, hi], color=c_color, linewidth=1.1, zorder=3)
+            body_y = min(op, cl)
+            body_h = max(abs(cl - op), min_body)
+            rect = patches.Rectangle(
+                (i - bar_width / 2, body_y),
+                bar_width,
+                body_h,
+                facecolor=c_color,
+                edgecolor=c_color,
+                linewidth=0.8,
+                zorder=4,
+            )
+            ax_main.add_patch(rect)
+
+        # ----------------------------------------------------------------------
+        # 2. 绘制大级别 (Level 1, 如周线) 笔与中枢 (洋红/紫罗兰色，最粗)
+        # ----------------------------------------------------------------------
+        high_name = PERIOD_SPECS[self.p_high]["short_name"]
+        c_high = "#e040fb"  # 亮紫色
+        bg_high = "#9c27b0"
+
+        # 大级别中枢
+        for zs in res_high.zss:
+            if not zs.start or not zs.end:
+                continue
+            x_s = self._map_pivot_to_base(zs.start.k.date, zs.zd, False, self.p_high, base_df, base_dts)
+            x_e = self._map_pivot_to_base(zs.end.k.date, zs.zg, True, self.p_high, base_df, base_dts)
+            if x_e < 0 or x_s >= n_bars:
+                continue
+            x_s = max(0, x_s)
+            x_e = min(n_bars - 1, x_e)
+            zs_w = max(1.0, x_e - x_s)
+            zs_h = max(0.01, zs.zg - zs.zd)
+
+            rect = patches.Rectangle(
+                (x_s, zs.zd),
+                zs_w,
+                zs_h,
+                facecolor=bg_high,
+                edgecolor=c_high,
+                alpha=0.15,
+                linestyle="-.",
+                linewidth=1.6,
+                zorder=2,
+            )
+            ax_main.add_patch(rect)
+            ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_high, linestyles="-.", linewidths=1.2, alpha=0.8, zorder=2)
+            mid_x = (x_s + x_e) / 2
+            ax_main.text(mid_x, zs.zg, f"[{high_name}中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+
+        # 大级别笔
+        high_bi_pts = []
+        for bi in res_high.bis:
+            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", self.p_high, base_df, base_dts)
+            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", self.p_high, base_df, base_dts)
+            if s_idx < 0 and e_idx < 0:
+                continue
+            s_clamp = max(0, s_idx)
+            e_clamp = max(0, min(n_bars - 1, e_idx))
+            high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+
+        for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
+            lbl = f"大级别 ({high_name}) 笔" if seg_i == 0 else ""
+            ax_main.plot(
+                [sx, ex], [sy, ey],
+                color=c_high,
+                linewidth=3.6,
+                linestyle="-",
+                marker="o",
+                markersize=7.5,
+                markerfacecolor="#ffffff",
+                markeredgecolor=c_high,
+                alpha=0.95,
+                label=lbl,
+                zorder=7,
+            )
+
+        # ----------------------------------------------------------------------
+        # 3. 绘制中级别 (Level 2, 如日线) 笔与中枢 (青蓝色，中粗)
+        # ----------------------------------------------------------------------
+        mid_name = PERIOD_SPECS[self.p_mid]["short_name"]
+        c_mid = "#00e5ff"  # 亮青色
+        bg_mid = "#00bcd4"
+
+        # 中级别中枢
+        for zs in res_mid.zss:
+            if not zs.start or not zs.end:
+                continue
+            x_s = self._map_pivot_to_base(zs.start.k.date, zs.zd, False, self.p_mid, base_df, base_dts)
+            x_e = self._map_pivot_to_base(zs.end.k.date, zs.zg, True, self.p_mid, base_df, base_dts)
+            if x_e < 0 or x_s >= n_bars:
+                continue
+            x_s = max(0, x_s)
+            x_e = min(n_bars - 1, x_e)
+            zs_w = max(1.0, x_e - x_s)
+            zs_h = max(0.01, zs.zg - zs.zd)
+
+            rect = patches.Rectangle(
+                (x_s, zs.zd),
+                zs_w,
+                zs_h,
+                facecolor=bg_mid,
+                edgecolor=c_mid,
+                alpha=0.18,
+                linestyle="--",
+                linewidth=1.4,
+                zorder=2,
+            )
+            ax_main.add_patch(rect)
+            ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_mid, linestyles="--", linewidths=1.0, alpha=0.8, zorder=2)
+            mid_x = (x_s + x_e) / 2
+            ax_main.text(mid_x, zs.zd, f"[{mid_name}中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_mid, fontsize=8.0, ha="center", va="top", alpha=0.9, zorder=5)
+
+        # 中级别笔
+        mid_bi_pts = []
+        for bi in res_mid.bis:
+            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", self.p_mid, base_df, base_dts)
+            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", self.p_mid, base_df, base_dts)
+            if s_idx < 0 and e_idx < 0:
+                continue
+            s_clamp = max(0, s_idx)
+            e_clamp = max(0, min(n_bars - 1, e_idx))
+            mid_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+
+        for seg_i, (sx, sy, ex, ey) in enumerate(mid_bi_pts):
+            lbl = f"中级别 ({mid_name}) 笔" if seg_i == 0 else ""
+            ax_main.plot(
+                [sx, ex], [sy, ey],
+                color=c_mid,
+                linewidth=2.4,
+                linestyle="-",
+                marker="o",
+                markersize=5.0,
+                markerfacecolor="#ffffff",
+                markeredgecolor=c_mid,
+                alpha=0.92,
+                label=lbl,
+                zorder=8,
+            )
+
+        # ----------------------------------------------------------------------
+        # 4. 绘制小级别 (Level 3, 基准 30F) 笔与中枢 (金黄色细线)
+        # ----------------------------------------------------------------------
+        low_name = PERIOD_SPECS[self.p_low]["short_name"]
+        c_low = "#ffd600"  # 金黄色
+        bg_low = "#ff9800"
+
+        # 小级别中枢
+        for zs in base_res.zss:
+            if not zs.start or not zs.end:
+                continue
+            s_idx = max(0, zs.start.k.k_index)
+            e_idx = min(n_bars - 1, zs.end.k.k_index)
+            if e_idx < s_idx:
+                continue
+            zs_w = max(1.0, e_idx - s_idx)
+            zs_h = max(0.01, zs.zg - zs.zd)
+            rect = patches.Rectangle(
+                (s_idx, zs.zd),
+                zs_w,
+                zs_h,
+                facecolor=bg_low,
+                edgecolor="#ffa726",
+                alpha=0.20,
+                linestyle=":",
+                linewidth=1.2,
+                zorder=2,
+            )
+            ax_main.add_patch(rect)
+            ax_main.hlines([zs.zg, zs.zd], xmin=s_idx, xmax=e_idx, colors="#ffa726", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
+            mid_x = (s_idx + e_idx) / 2
+            ax_main.text(mid_x, zs.zg, f"[{low_name}中枢]", color="#ffa726", fontsize=7.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+
+        # 小级别笔
+        if base_res.bis:
+            low_bi_x = []
+            low_bi_y = []
+            for bi in base_res.bis:
+                low_bi_x.append(bi.start.k.k_index)
+                low_bi_y.append(bi.start.val)
+            last_bi = base_res.bis[-1]
+            low_bi_x.append(last_bi.end.k.k_index)
+            low_bi_y.append(last_bi.end.val)
+
+            ax_main.plot(
+                low_bi_x,
+                low_bi_y,
+                color=c_low,
+                linewidth=1.4,
+                linestyle="-",
+                marker="o",
+                markersize=3.0,
+                markerfacecolor="#ffffff",
+                markeredgecolor=c_low,
+                alpha=0.88,
+                label=f"小级别 ({low_name}) 笔",
+                zorder=9,
+            )
+
+        # ----------------------------------------------------------------------
+        # 5. 绘制买卖点标签 (基准小级别 MMDs)
+        # ----------------------------------------------------------------------
+        offset = max(price_span * 0.04, 0.15)
+        for mmd in base_res.mmds:
+            if not mmd.bi:
+                continue
+            k_idx = mmd.bi.end.k.k_index
+            if 0 <= k_idx < n_bars:
+                val = mmd.bi.end.val
+                mtype = mmd.mmd_type.value
+                is_buy = "buy" in mtype
+                short_tag = mtype.upper().replace("BUY", "B").replace("SELL", "S")
+                c_tag = "#f23645" if is_buy else "#089981"
+                ax_main.annotate(
+                    f"▲{short_tag}" if is_buy else f"▼{short_tag}",
+                    xy=(k_idx, val),
+                    xytext=(k_idx, val - offset * 1.1 if is_buy else val + offset * 1.1),
+                    ha="center",
+                    va="top" if is_buy else "bottom",
+                    fontsize=8.0,
+                    fontweight="bold",
+                    color="#ffffff",
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor=c_tag, edgecolor="#ffffff", alpha=0.9),
+                    arrowprops=dict(facecolor=c_tag, edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
+                    zorder=10,
+                )
+
+        # ----------------------------------------------------------------------
+        # 6. 高亮标注三周期共振买卖点 (Resonance Stars & Neon Guide Lines)
+        # ----------------------------------------------------------------------
+        for r in self.resonances:
+            target_idx = r.low_bar_idx
+            if 0 <= target_idx < n_bars:
+                v_color = "#ffff00" if r.direction == "BUY" else "#00e5ff"
+                # 穿透垂直线
+                ax_main.axvline(x=target_idx, color=v_color, linestyle=":", linewidth=1.4, alpha=0.85, zorder=6)
+                ax_macd.axvline(x=target_idx, color=v_color, linestyle=":", linewidth=1.4, alpha=0.85, zorder=6)
+
+                badge_bg = "#e91e63" if r.direction == "BUY" else "#00b0ff"
+                badge_text = (
+                    f"★ 三周期共振买点 ({r.grade})\n[{high_name}·{mid_name}·{low_name}] ¥{r.price:.2f}"
+                    if r.direction == "BUY"
+                    else f"▼ 三周期共振卖点 ({r.grade})\n[{high_name}·{mid_name}·{low_name}] ¥{r.price:.2f}"
+                )
+                ax_main.annotate(
+                    badge_text,
+                    xy=(target_idx, r.price),
+                    xytext=(target_idx, r.price - offset * 2.8 if r.direction == "BUY" else r.price + offset * 2.8),
+                    ha="center",
+                    va="top" if r.direction == "BUY" else "bottom",
+                    fontsize=9.5,
+                    fontweight="bold",
+                    color="#ffffff",
+                    bbox=dict(
+                        boxstyle="round,pad=0.45",
+                        facecolor=badge_bg,
+                        edgecolor="#ffff00",
+                        linewidth=1.8,
+                        alpha=0.98,
+                    ),
+                    arrowprops=dict(
+                        facecolor="#ffff00",
+                        edgecolor="#ffffff",
+                        shrink=0.08,
+                        width=1.8,
+                        headwidth=6.5,
+                    ),
+                    zorder=12,
+                )
+
+        # ----------------------------------------------------------------------
+        # 7. 绘制副图 MACD (基准小级别)
+        # ----------------------------------------------------------------------
+        macd_data = base_res.macd
+        if macd_data and "hist" in macd_data and len(macd_data["hist"]) == n_bars:
+            hist = np.array(macd_data["hist"])
+            dif = np.array(macd_data["dif"])
+            dea = np.array(macd_data["dea"])
+
+            for i in range(n_bars):
+                h_val = hist[i]
+                c_hist = "#f23645" if h_val >= 0 else "#089981"
+                ax_macd.bar(i, h_val * 2, color=c_hist, width=0.6, alpha=0.85)
+
+            ax_macd.plot(range(n_bars), dif, color="#ffffff", linewidth=1.1, label="DIF")
+            ax_macd.plot(range(n_bars), dea, color="#f0b90b", linewidth=1.1, label="DEA")
+            ax_macd.axhline(0, color="#555555", linewidth=0.6, linestyle="--")
+            ax_macd.legend(loc="upper left", facecolor="#181b27", edgecolor="#2d313f", fontsize=8.5, labelcolor="#e0e0e0")
+
+        # ----------------------------------------------------------------------
+        # 8. 图例与美化
+        # ----------------------------------------------------------------------
+        ax_main.legend(
+            loc="upper left",
+            facecolor="#181b27",
+            edgecolor="#363c4e",
+            fontsize=9.5,
+            labelcolor="#ffffff",
+            framealpha=0.88,
+        )
+
+        ax_main.set_ylim(
+            bottom=base_df["low"].min() - offset * 3.2,
+            top=base_df["high"].max() + offset * 3.2,
+        )
+
+        step = max(1, n_bars // 8)
+        xticks = list(range(0, n_bars, step))
+        if (n_bars - 1) not in xticks:
+            xticks.append(n_bars - 1)
+
+        is_intra = "min" in self.p_low.lower() or "f" in self.p_low.lower()
+        xlabels = [
+            str(base_df["datetime"].iloc[idx])[5:16] if is_intra else str(base_df["datetime"].iloc[idx])[:10]
+            for idx in xticks
+        ]
+        ax_macd.set_xticks(xticks)
+        ax_macd.set_xticklabels(xlabels, color="#9e9e9e", fontsize=8.5)
+        ax_main.set_xticks([])
+
+        ax_main.yaxis.tick_right()
+        ax_macd.yaxis.tick_right()
+        for ax in (ax_main, ax_macd):
+            ax.tick_params(colors="#9e9e9e", labelsize=8.5)
+            ax.grid(True, color="#252936", linestyle=":", linewidth=0.6, alpha=0.7)
+            for spine in ax.spines.values():
+                spine.set_color("#2d313f")
+
+        # 顶部 Header 状态信息
+        last_c = float(base_df["close"].iloc[-1])
+        first_c = float(base_df["open"].iloc[0])
+        chg = (last_c - first_c) / first_c * 100 if first_c else 0
+        p_triplet = f"{high_name} · {mid_name} · {low_name}"
+
+        res_summary = (
+            f"共振信号: {len(self.resonances)} 个"
+            if self.resonances
+            else "当前三级多空平衡中"
+        )
+        if self.resonances:
+            latest_r = self.resonances[-1]
+            latest_str = f"最新共振: {latest_r.pattern_name} @ {latest_r.timestamp} (¥{latest_r.price:.2f})"
+        else:
+            latest_str = "最新状态: 走势中枢震荡推进"
+
+        header_title = f"{self.code} {self.name} · 缠论多周期立体同图走势 [以 {PERIOD_SPECS[self.p_low]['label']} 为基准K线]"
+        header_sub = f"嵌套周期: {p_triplet}   |   最新收盘: ¥{last_c:.2f} ({chg:+.2f}%)   |   {res_summary}   |   {latest_str}"
+
+        fig.suptitle(
+            header_title,
+            fontsize=15,
+            fontweight="bold",
+            color="#ffffff",
+            x=0.04,
+            y=0.985,
+            ha="left",
+        )
+        fig.text(
+            0.04,
+            0.952,
+            header_sub,
+            fontsize=10.0,
+            color="#ffca28" if self.resonances else "#81c784",
+            ha="left",
+        )
+
+        # 保存
+        if save_path is None:
+            out_dir = PROJECT_ROOT / "output"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            p_tag = "_".join(self.periods)
+            save_path = out_dir / f"chanlun_resonance_{self.code}_{p_tag}_unified.png"
+        else:
+            save_path = Path(save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        plt.savefig(
+            save_path,
+            dpi=150,
+            facecolor=fig.get_facecolor(),
+            edgecolor="none",
+            bbox_inches="tight",
+        )
+        logger.info(f"以最小周期为基准的三周期同图 K 线图已保存至: {save_path.resolve()}")
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
+        return save_path
+
+
+# ==============================================================================
+# 4. 独立分屏绘制器 (兼容 --split 参数)
+# ==============================================================================
+
+
+class ChanlunSplitResonancePlotter:
+    """分屏模式绘制器（3 个独立垂直子图并列排布）。"""
 
     def __init__(
         self,
@@ -542,41 +1051,27 @@ class ChanlunResonancePlotter:
     ):
         self.code = code
         self.name = name
-        self.periods = periods  # [High, Mid, Low]
+        self.periods = periods
         self.dfs = dfs
         self.results = results
         self.resonances = resonances
 
     def plot(self, save_path: str | Path | None = None, show: bool = False) -> Path | None:
-        """生成三周期垂直联动暗黑风格 K 线图。"""
         import matplotlib
         if not show:
             matplotlib.use("Agg")
         import matplotlib.patches as patches
         import matplotlib.pyplot as plt
 
-        # 字体与负号兼容设置
         plt.rcParams["font.sans-serif"] = [
-            "Microsoft YaHei",
-            "SimHei",
-            "PingFang SC",
-            "WenQuanYi Micro Hei",
-            "sans-serif",
+            "Microsoft YaHei", "SimHei", "PingFang SC", "WenQuanYi Micro Hei", "sans-serif"
         ]
         plt.rcParams["axes.unicode_minus"] = False
 
-        # 布局：3个周期，每个周期 2 个子图（主图K线 + 副图MACD）
-        # 共 6 行，高度比例：[3, 1, 3, 1, 3, 1]
         fig = plt.figure(figsize=(16, 18), facecolor="#131722")
         gs = fig.add_gridspec(
-            6,
-            1,
-            height_ratios=[3.2, 1.0, 3.2, 1.0, 3.2, 1.0],
-            hspace=0.08,
-            left=0.05,
-            right=0.96,
-            top=0.94,
-            bottom=0.04,
+            6, 1, height_ratios=[3.2, 1.0, 3.2, 1.0, 3.2, 1.0],
+            hspace=0.08, left=0.05, right=0.96, top=0.94, bottom=0.04
         )
 
         axes = []
@@ -585,408 +1080,85 @@ class ChanlunResonancePlotter:
             ax.set_facecolor("#181b27")
             axes.append(ax)
 
-        # 3 个面板的主副图对
         panels = [
             (self.periods[0], axes[0], axes[1]),
             (self.periods[1], axes[2], axes[3]),
             (self.periods[2], axes[4], axes[5]),
         ]
 
-        # 遍历绘制 3 个周期
         for p_idx, (period_key, ax_main, ax_macd) in enumerate(panels):
             df = self.dfs[period_key]
             res = self.results[period_key]
             p_spec = PERIOD_SPECS[period_key]
             n_bars = len(df)
-
             if n_bars == 0:
-                ax_main.text(
-                    0.5, 0.5, f"{p_spec['label']} 暂无数据",
-                    color="#ffffff", ha="center", va="center"
-                )
                 continue
 
-            # ------------------------------------------------------------------
-            # (A) 绘制主图 K 线 (Candlesticks)
-            # ------------------------------------------------------------------
             bar_width = 0.65
-            min_body = (df["high"].max() - df["low"].min()) * 0.002 or 0.01
+            price_span = df["high"].max() - df["low"].min()
+            min_body = price_span * 0.002 or 0.01
 
             for i in range(n_bars):
                 row = df.iloc[i]
-                op = float(row["open"])
-                cl = float(row["close"])
-                hi = float(row["high"])
-                lo = float(row["low"])
-
-                is_up = cl >= op
-                c_wick = "#f23645" if is_up else "#089981"
-                c_body = "#f23645" if is_up else "#089981"
-
-                # 影线
+                op, cl, hi, lo = float(row["open"]), float(row["close"]), float(row["high"]), float(row["low"])
+                c_wick = "#f23645" if cl >= op else "#089981"
                 ax_main.plot([i, i], [lo, hi], color=c_wick, linewidth=1.1, zorder=3)
-                # 实体
-                body_y = min(op, cl)
-                body_h = max(abs(cl - op), min_body)
                 rect = patches.Rectangle(
-                    (i - bar_width / 2, body_y),
-                    bar_width,
-                    body_h,
-                    facecolor=c_body,
-                    edgecolor=c_wick,
-                    linewidth=0.8,
-                    zorder=4,
+                    (i - bar_width / 2, min(op, cl)),
+                    bar_width, max(abs(cl - op), min_body),
+                    facecolor=c_wick, edgecolor=c_wick, linewidth=0.8, zorder=4
                 )
                 ax_main.add_patch(rect)
 
-            # ------------------------------------------------------------------
-            # (B) 绘制缠论中枢 (ZhongShu Boxes)
-            # ------------------------------------------------------------------
             for zs in res.zss:
                 if not zs.start or not zs.end:
                     continue
-                s_idx = max(0, zs.start.k.k_index)
-                e_idx = min(n_bars - 1, zs.end.k.k_index)
+                s_idx, e_idx = max(0, zs.start.k.k_index), min(n_bars - 1, zs.end.k.k_index)
                 if e_idx < s_idx:
                     continue
-
-                zs_w = max(1.0, e_idx - s_idx)
-                zs_h = max(0.01, zs.zg - zs.zd)
-                # 中枢主矩形
-                zs_rect = patches.Rectangle(
-                    (s_idx, zs.zd),
-                    zs_w,
-                    zs_h,
-                    facecolor="#2962ff",
-                    edgecolor="#2962ff",
-                    alpha=0.22,
-                    linestyle="--",
-                    linewidth=1.2,
-                    zorder=2,
+                rect = patches.Rectangle(
+                    (s_idx, zs.zd), max(1.0, e_idx - s_idx), max(0.01, zs.zg - zs.zd),
+                    facecolor="#2962ff", edgecolor="#2962ff", alpha=0.22, linestyle="--", linewidth=1.2, zorder=2
                 )
-                ax_main.add_patch(zs_rect)
+                ax_main.add_patch(rect)
 
-                # 中枢 ZG/ZD 标识线
-                ax_main.hlines(
-                    [zs.zg, zs.zd],
-                    xmin=s_idx,
-                    xmax=e_idx,
-                    colors="#2962ff",
-                    linestyles="solid",
-                    linewidths=0.9,
-                    alpha=0.75,
-                    zorder=2,
-                )
-                # 中枢标注
-                mid_x = (s_idx + e_idx) / 2
-                ax_main.text(
-                    mid_x,
-                    zs.zg,
-                    f"中枢[{zs.zd:.2f}~{zs.zg:.2f}]",
-                    color="#82b1ff",
-                    fontsize=8,
-                    ha="center",
-                    va="bottom",
-                    alpha=0.9,
-                    zorder=5,
-                )
-
-            # ------------------------------------------------------------------
-            # (C) 绘制缠论笔 (Bi Lines)
-            # ------------------------------------------------------------------
             if res.bis:
-                bi_x = []
-                bi_y = []
-                for bi in res.bis:
-                    bi_x.append(bi.start.k.k_index)
-                    bi_y.append(bi.start.val)
-                # 最后一笔终点
-                last_bi = res.bis[-1]
-                bi_x.append(last_bi.end.k.k_index)
-                bi_y.append(last_bi.end.val)
+                bx = [bi.start.k.k_index for bi in res.bis] + [res.bis[-1].end.k.k_index]
+                by = [bi.start.val for bi in res.bis] + [res.bis[-1].end.val]
+                ax_main.plot(bx, by, color="#f0b90b", linewidth=1.8, marker="o", markersize=3.5, zorder=6)
 
-                ax_main.plot(
-                    bi_x,
-                    bi_y,
-                    color="#f0b90b",
-                    linewidth=1.8,
-                    linestyle="-",
-                    marker="o",
-                    markersize=3.5,
-                    markerfacecolor="#ffffff",
-                    markeredgecolor="#f0b90b",
-                    alpha=0.92,
-                    label="缠论笔",
-                    zorder=6,
-                )
-
-            # ------------------------------------------------------------------
-            # (D) 标注买卖点 (MMD Badges)
-            # ------------------------------------------------------------------
-            price_span = df["high"].max() - df["low"].min()
-            offset = max(price_span * 0.05, 0.2)
-
-            for mmd in res.mmds:
-                if not mmd.bi:
-                    continue
-                k_idx = mmd.bi.end.k.k_index
-                if k_idx < 0 or k_idx >= n_bars:
-                    continue
-                val = mmd.bi.end.val
-                mtype = mmd.mmd_type.value
-
-                is_buy = "buy" in mtype
-                tag_color = "#f23645" if is_buy else "#089981"
-                short_tag = mtype.upper().replace("BUY", "B").replace("SELL", "S")
-
-                if is_buy:
-                    ax_main.annotate(
-                        f"▲{short_tag}",
-                        xy=(k_idx, val),
-                        xytext=(k_idx, val - offset * 1.2),
-                        ha="center",
-                        va="top",
-                        fontsize=8.5,
-                        fontweight="bold",
-                        color="#ffffff",
-                        bbox=dict(
-                            boxstyle="round,pad=0.25",
-                            facecolor=tag_color,
-                            edgecolor="#ffffff",
-                            alpha=0.92,
-                        ),
-                        arrowprops=dict(
-                            facecolor=tag_color,
-                            edgecolor="#ffffff",
-                            shrink=0.1,
-                            width=1.0,
-                            headwidth=4,
-                        ),
-                        zorder=8,
-                    )
-                else:
-                    ax_main.annotate(
-                        f"▼{short_tag}",
-                        xy=(k_idx, val),
-                        xytext=(k_idx, val + offset * 1.2),
-                        ha="center",
-                        va="bottom",
-                        fontsize=8.5,
-                        fontweight="bold",
-                        color="#ffffff",
-                        bbox=dict(
-                            boxstyle="round,pad=0.25",
-                            facecolor=tag_color,
-                            edgecolor="#ffffff",
-                            alpha=0.92,
-                        ),
-                        arrowprops=dict(
-                            facecolor=tag_color,
-                            edgecolor="#ffffff",
-                            shrink=0.1,
-                            width=1.0,
-                            headwidth=4,
-                        ),
-                        zorder=8,
-                    )
-
-            # ------------------------------------------------------------------
-            # (E) 高亮三周期共振买卖点 (Resonance Stars & Badges)
-            # ------------------------------------------------------------------
-            for r in self.resonances:
-                # 映射到当前周期的 K 线索引
-                target_bar_idx = (
-                    r.high_bar_idx
-                    if p_idx == 0
-                    else (r.mid_bar_idx if p_idx == 1 else r.low_bar_idx)
-                )
-                if 0 <= target_bar_idx < n_bars:
-                    # 画贯穿该周期的垂直高亮基准线
-                    v_color = "#ffeb3b" if r.direction == "BUY" else "#00e5ff"
-                    ax_main.axvline(
-                        x=target_bar_idx,
-                        color=v_color,
-                        linestyle=":",
-                        linewidth=1.2,
-                        alpha=0.7,
-                        zorder=5,
-                    )
-                    ax_macd.axvline(
-                        x=target_bar_idx,
-                        color=v_color,
-                        linestyle=":",
-                        linewidth=1.2,
-                        alpha=0.7,
-                        zorder=5,
-                    )
-
-                    # 如果是小级别面板（面板 2），绘制显眼的共振大徽章
-                    if p_idx == 2:
-                        res_val = r.price
-                        badge_bg = "#e91e63" if r.direction == "BUY" else "#00b0ff"
-                        badge_text = (
-                            f"★ 三周期共振买点 ({r.grade})\n¥{res_val:.2f}"
-                            if r.direction == "BUY"
-                            else f"▼ 三周期共振卖点 ({r.grade})\n¥{res_val:.2f}"
-                        )
-                        ax_main.annotate(
-                            badge_text,
-                            xy=(target_bar_idx, res_val),
-                            xytext=(target_bar_idx, res_val - offset * 2.5 if r.direction == "BUY" else res_val + offset * 2.5),
-                            ha="center",
-                            va="top" if r.direction == "BUY" else "bottom",
-                            fontsize=9.5,
-                            fontweight="bold",
-                            color="#ffffff",
-                            bbox=dict(
-                                boxstyle="round,pad=0.4",
-                                facecolor=badge_bg,
-                                edgecolor="#ffff00",
-                                linewidth=1.5,
-                                alpha=0.98,
-                            ),
-                            arrowprops=dict(
-                                facecolor="#ffff00",
-                                edgecolor="#ffffff",
-                                shrink=0.08,
-                                width=1.5,
-                                headwidth=6,
-                            ),
-                            zorder=10,
-                        )
-
-            # ------------------------------------------------------------------
-            # (F) 绘制副图 MACD
-            # ------------------------------------------------------------------
             macd_data = res.macd
             if macd_data and "hist" in macd_data and len(macd_data["hist"]) == n_bars:
                 hist = np.array(macd_data["hist"])
-                dif = np.array(macd_data["dif"])
-                dea = np.array(macd_data["dea"])
-
                 for i in range(n_bars):
-                    h_val = hist[i]
-                    c_hist = "#f23645" if h_val >= 0 else "#089981"
-                    ax_macd.bar(i, h_val * 2, color=c_hist, width=0.6, alpha=0.85)
+                    c_h = "#f23645" if hist[i] >= 0 else "#089981"
+                    ax_macd.bar(i, hist[i] * 2, color=c_h, width=0.6, alpha=0.85)
+                ax_macd.plot(range(n_bars), macd_data["dif"], color="#ffffff", linewidth=1.1)
+                ax_macd.plot(range(n_bars), macd_data["dea"], color="#f0b90b", linewidth=1.1)
 
-                ax_macd.plot(range(n_bars), dif, color="#ffffff", linewidth=1.1, label="DIF")
-                ax_macd.plot(range(n_bars), dea, color="#f0b90b", linewidth=1.1, label="DEA")
-                ax_macd.axhline(0, color="#555555", linewidth=0.6, linestyle="--")
-
-            # ------------------------------------------------------------------
-            # (G) 坐标轴与标签美化
-            # ------------------------------------------------------------------
-            # 主图标题与统计
-            last_c = float(df["close"].iloc[-1])
-            first_c = float(df["open"].iloc[0])
-            chg = (last_c - first_c) / first_c * 100 if first_c else 0
-            sub_title = (
-                f"【{p_spec['label']}】 最新价: ¥{last_c:.2f} ({chg:+.2f}%)   "
-                f"分型: {len(res.fractals)} | 笔: {len(res.bis)} | 中枢: {len(res.zss)} | 买卖点: {len(res.mmds)}"
-            )
-            ax_main.set_title(
-                sub_title,
-                fontsize=11,
-                fontweight="bold",
-                color="#e0e0e0",
-                loc="left",
-                pad=6,
-            )
-
-            # Y 轴自适应预留边界
-            ax_main.set_ylim(
-                bottom=df["low"].min() - offset * 2.8,
-                top=df["high"].max() + offset * 2.8,
-            )
-
-            # X 轴刻度
-            step = max(1, n_bars // 7)
-            xticks = list(range(0, n_bars, step))
-            if (n_bars - 1) not in xticks:
-                xticks.append(n_bars - 1)
-
-            xlabels = [
-                str(df["datetime"].iloc[idx])[5:16]
-                if "min" in period_key.lower() or "f" in period_key.lower()
-                else str(df["datetime"].iloc[idx])[:10]
-                for idx in xticks
-            ]
-            ax_macd.set_xticks(xticks)
-            ax_macd.set_xticklabels(xlabels, color="#9e9e9e", fontsize=8.5)
+            ax_main.set_title(f"【{p_spec['label']}】", fontsize=11, color="#e0e0e0", loc="left")
             ax_main.set_xticks([])
-
-            ax_main.yaxis.tick_right()
             ax_macd.yaxis.tick_right()
-            for ax in (ax_main, ax_macd):
-                ax.tick_params(colors="#9e9e9e", labelsize=8)
-                ax.grid(True, color="#252936", linestyle=":", linewidth=0.6, alpha=0.7)
-                for spine in ax.spines.values():
-                    spine.set_color("#2d313f")
+            ax_main.yaxis.tick_right()
 
-        # ----------------------------------------------------------------------
-        # 整体顶部标题仪表盘
-        # ----------------------------------------------------------------------
-        period_str = " · ".join([PERIOD_SPECS[p]["short_name"] for p in self.periods])
-        res_summary = (
-            f"共检出 {len(self.resonances)} 个三周期共振买卖点"
-            if self.resonances
-            else "当前周期组合暂无三级同向共振，维持中枢震荡观察"
-        )
-        if self.resonances:
-            latest_r = self.resonances[-1]
-            latest_str = f"最新信号: {latest_r.pattern_name} @ {latest_r.timestamp} (¥{latest_r.price:.2f})"
-        else:
-            latest_str = "最新状态: 多空平衡等待共振突破"
-
-        header_title = f"{self.code} {self.name} · 缠论多周期立体共振分析 [{period_str}]"
-        header_sub = f"{res_summary}   |   {latest_str}"
-
-        fig.suptitle(
-            header_title,
-            fontsize=15,
-            fontweight="bold",
-            color="#ffffff",
-            x=0.05,
-            y=0.985,
-            ha="left",
-        )
-        fig.text(
-            0.05,
-            0.962,
-            header_sub,
-            fontsize=10.5,
-            color="#ffca28" if self.resonances else "#81c784",
-            ha="left",
-        )
-
-        # 保存与显示
         if save_path is None:
             out_dir = PROJECT_ROOT / "output"
             out_dir.mkdir(parents=True, exist_ok=True)
             p_tag = "_".join(self.periods)
-            save_path = out_dir / f"chanlun_resonance_{self.code}_{p_tag}.png"
+            save_path = out_dir / f"chanlun_resonance_{self.code}_{p_tag}_split.png"
         else:
             save_path = Path(save_path)
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        plt.savefig(
-            save_path,
-            dpi=150,
-            facecolor=fig.get_facecolor(),
-            edgecolor="none",
-            bbox_inches="tight",
-        )
-        logger.info(f"高清三周期共振 K 线图已保存至: {save_path.resolve()}")
-
+        plt.savefig(save_path, dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
         if show:
             plt.show()
-
         plt.close(fig)
         return save_path
 
 
 # ==============================================================================
-# 4. 交互式 HTML 报告生成器 (ECharts)
+# 5. 交互式 HTML 报告生成器 (ECharts，同图立体展示)
 # ==============================================================================
 
 
@@ -999,429 +1171,264 @@ def export_interactive_html(
     resonances: list[ResonanceSignal],
     output_path: Path | str,
 ) -> Path:
-    """生成内置 ECharts 的三周期全景交互式 HTML 报告。"""
+    """生成以最小周期为基准，三级别同图叠加的 ECharts 交互式 HTML 报告。"""
     out_file = Path(output_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # 序列化每个周期的数据供前端 ECharts 渲染
-    chart_payload = {}
-    for p in periods:
-        df = dfs[p]
-        res = results[p]
-        dates = df["datetime"].astype(str).tolist()
-        k_values = df[["open", "close", "low", "high"]].values.tolist()
+    base_p = periods[-1]
+    base_df = dfs[base_p]
+    base_res = results[base_p]
+    base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+    dates = base_df["datetime"].astype(str).tolist()
+    candles = base_df[["open", "close", "low", "high"]].values.tolist()
 
-        # 笔折线数据
-        bi_lines = []
-        for bi in res.bis:
-            bi_lines.append({
-                "start_idx": bi.start.k.k_index,
-                "start_val": round(bi.start.val, 2),
-                "end_idx": bi.end.k.k_index,
-                "end_val": round(bi.end.val, 2),
-                "dir": bi.direction.value,
+    def _map_to_base_idx(dt_val, val, is_high, period_key):
+        p_dt = _to_dt(dt_val)
+        if len(base_df) == 0:
+            return 0
+        if p_dt < base_dts.iloc[0]:
+            return 0
+        if p_dt > base_dts.iloc[-1]:
+            return len(base_df) - 1
+        if period_key == "WEEK":
+            mask = (base_dts.dt.date >= (p_dt - pd.Timedelta(days=6)).date()) & (base_dts.dt.date <= (p_dt + pd.Timedelta(days=1)).date())
+        elif period_key == "DAY":
+            mask = base_dts.dt.date == p_dt.date()
+        elif period_key == "MONTH":
+            mask = (base_dts.dt.year == p_dt.year) & (base_dts.dt.month == p_dt.month)
+        else:
+            diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+            return int(np.argmin(diffs))
+
+        idxs = np.where(mask)[0]
+        if len(idxs) > 0:
+            sub_vals = base_df["high"].iloc[idxs].values if is_high else base_df["low"].iloc[idxs].values
+            return int(idxs[np.argmax(sub_vals) if is_high else np.argmin(sub_vals)])
+        diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+        return int(np.argmin(diffs))
+
+    # 大级别笔线条
+    high_p = periods[0]
+    high_bis = []
+    for bi in results[high_p].bis:
+        s_i = _map_to_base_idx(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p)
+        e_i = _map_to_base_idx(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p)
+        high_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+
+    # 中级别笔线条
+    mid_p = periods[1]
+    mid_bis = []
+    for bi in results[mid_p].bis:
+        s_i = _map_to_base_idx(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p)
+        e_i = _map_to_base_idx(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p)
+        mid_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+
+    # 小级别笔线条
+    low_bis = []
+    for bi in base_res.bis:
+        s_i = min(len(dates) - 1, max(0, bi.start.k.k_index))
+        e_i = min(len(dates) - 1, max(0, bi.end.k.k_index))
+        low_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+
+    # 买卖点 markPoints
+    mmd_marks = []
+    for mmd in base_res.mmds:
+        if mmd.bi:
+            idx = min(len(dates) - 1, max(0, mmd.bi.end.k.k_index))
+            is_buy = "buy" in mmd.mmd_type.value
+            mmd_marks.append({
+                "coord": [dates[idx], mmd.bi.end.val],
+                "value": mmd.mmd_type.value.upper().replace("BUY", "B").replace("SELL", "S"),
+                "itemStyle": {"color": "#f23645" if is_buy else "#089981"},
             })
 
-        # 中枢矩形
-        zs_boxes = []
-        for zs in res.zss:
-            if zs.start and zs.end:
-                zs_boxes.append({
-                    "start_idx": zs.start.k.k_index,
-                    "end_idx": zs.end.k.k_index,
-                    "zg": round(zs.zg, 2),
-                    "zd": round(zs.zd, 2),
-                    "gg": round(zs.gg, 2),
-                    "dd": round(zs.dd, 2),
-                })
+    # 共振买卖点
+    res_marks = []
+    for r in resonances:
+        if 0 <= r.low_bar_idx < len(dates):
+            res_marks.append({
+                "coord": [dates[r.low_bar_idx], r.price],
+                "value": f"★共振买({r.grade})" if r.direction == "BUY" else f"▼共振卖({r.grade})",
+                "itemStyle": {"color": "#ffd600" if r.direction == "BUY" else "#00e5ff"},
+            })
 
-        # 买卖点标记
-        mmd_marks = []
-        for mmd in res.mmds:
-            if mmd.bi:
-                mmd_marks.append({
-                    "idx": mmd.bi.end.k.k_index,
-                    "type": mmd.mmd_type.value,
-                    "val": round(mmd.bi.end.val, 2),
-                    "msg": mmd.msg,
-                })
+    # MACD
+    macd_hist = (base_res.macd.get("hist") or []) if base_res.macd else []
+    dif = (base_res.macd.get("dif") or []) if base_res.macd else []
+    dea = (base_res.macd.get("dea") or []) if base_res.macd else []
 
-        # MACD
-        macd_obj = res.macd if res.macd else {"dif": [], "dea": [], "hist": []}
-
-        chart_payload[p] = {
-            "label": PERIOD_SPECS[p]["label"],
-            "dates": dates,
-            "candles": k_values,
-            "bis": bi_lines,
-            "zss": zs_boxes,
-            "mmds": mmd_marks,
-            "macd": macd_obj,
-        }
-
-    # 共振列表
-    res_list = [
-        {
-            "timestamp": r.timestamp,
-            "price": r.price,
-            "direction": r.direction,
-            "grade": r.grade,
-            "pattern_name": r.pattern_name,
-            "high_bar_idx": r.high_bar_idx,
-            "mid_bar_idx": r.mid_bar_idx,
-            "low_bar_idx": r.low_bar_idx,
-            "desc": r.description.replace("\n", "<br>"),
-        }
-        for r in resonances
-    ]
-
-    payload_json = json.dumps(
-        {
-            "code": code,
-            "name": name,
-            "periods": periods,
-            "charts": chart_payload,
-            "resonances": res_list,
-        },
-        ensure_ascii=False,
-    )
+    payload_json = json.dumps({
+        "code": code,
+        "name": name,
+        "base_period": PERIOD_SPECS[base_p]["label"],
+        "periods_str": f"{PERIOD_SPECS[high_p]['short_name']} · {PERIOD_SPECS[mid_p]['short_name']} · {PERIOD_SPECS[base_p]['short_name']}",
+        "dates": dates,
+        "candles": candles,
+        "high_bis": high_bis,
+        "mid_bis": mid_bis,
+        "low_bis": low_bis,
+        "mmd_marks": mmd_marks,
+        "res_marks": res_marks,
+        "macd_hist": [h * 2 for h in macd_hist],
+        "dif": dif,
+        "dea": dea,
+        "resonances": [
+            {
+                "timestamp": r.timestamp,
+                "price": r.price,
+                "direction": r.direction,
+                "grade": r.grade,
+                "pattern_name": r.pattern_name,
+                "desc": r.description.replace("\n", "<br>"),
+            }
+            for r in resonances
+        ],
+    }, ensure_ascii=False)
 
     html_template = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{code} {name} - 缠论三周期共振买卖点交互K线图</title>
+    <title>{code} {name} - 缠论三周期立体同图K线</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            background-color: #131722;
-            color: #d1d4dc;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
-            overflow-x: hidden;
-            padding: 16px;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #1e222d 0%, #2a2e39 100%);
-            border: 1px solid #363c4e;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }}
-        .title-box h1 {{
-            font-size: 20px;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 6px;
-        }}
-        .title-box .tags {{
-            font-size: 13px;
-            color: #f0b90b;
-        }}
-        .summary-badge {{
-            background: #2a2e39;
-            border-radius: 6px;
-            padding: 8px 14px;
-            text-align: right;
-            border: 1px solid #3a4055;
-        }}
+        body {{ background-color: #131722; color: #d1d4dc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif; padding: 16px; }}
+        .header {{ background: linear-gradient(135deg, #1e222d 0%, #2a2e39 100%); border: 1px solid #363c4e; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }}
+        .header h1 {{ font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 6px; }}
+        .res-table {{ width: 100%; border-collapse: collapse; background: #1e222d; border-radius: 8px; overflow: hidden; margin-bottom: 16px; border: 1px solid #2d313f; }}
+        .res-table th, .res-table td {{ padding: 10px 14px; text-align: left; font-size: 12px; border-bottom: 1px solid #2d313f; }}
+        .res-table th {{ background: #262b3d; color: #a0a6b5; }}
         .badge-buy {{ color: #f23645; font-weight: bold; }}
         .badge-sell {{ color: #089981; font-weight: bold; }}
-        .res-table {{
-            width: 100%;
-            border-collapse: collapse;
-            background: #1e222d;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            border: 1px solid #2d313f;
-        }}
-        .res-table th, .res-table td {{
-            padding: 10px 14px;
-            text-align: left;
-            font-size: 12px;
-            border-bottom: 1px solid #2d313f;
-        }}
-        .res-table th {{
-            background: #262b3d;
-            color: #a0a6b5;
-        }}
-        .chart-container {{
-            background: #181b27;
-            border: 1px solid #2d313f;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            padding: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }}
-        .chart-title {{
-            font-size: 14px;
-            font-weight: 600;
-            color: #ffffff;
-            padding: 4px 8px 10px;
-            border-bottom: 1px solid #262b3d;
-            margin-bottom: 8px;
-        }}
-        .chart-dom {{
-            width: 100%;
-            height: 480px;
-        }}
+        #chart {{ width: 100%; height: 720px; background: #181b27; border: 1px solid #2d313f; border-radius: 8px; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="title-box">
-            <h1>{code} {name} · 缠论三周期立体共振买卖点全景看板</h1>
-            <div class="tags">
-                选定周期: {PERIOD_SPECS[periods[0]]['label']} | {PERIOD_SPECS[periods[1]]['label']} | {PERIOD_SPECS[periods[2]]['label']}
-            </div>
+        <div>
+            <h1>{code} {name} · 缠论多周期立体同图 K 线图</h1>
+            <div style="color: #ffeb3b; font-size: 13px;">以 {PERIOD_SPECS[base_p]['label']} 为基准K线，同图立体嵌套 [{PERIOD_SPECS[high_p]['short_name']} · {PERIOD_SPECS[mid_p]['short_name']} · {PERIOD_SPECS[base_p]['short_name']}]</div>
         </div>
-        <div class="summary-badge">
-            <div>共振信号数: <span style="color:#ffeb3b; font-weight:bold;">{len(resonances)}</span></div>
-            <div style="font-size:12px; margin-top:4px;">技术系统: 通达信行情 + 缠论中枢笔引擎</div>
+        <div style="text-align: right;">
+            <div>共振信号: <span style="color:#ffeb3b; font-weight:bold;">{len(resonances)}</span></div>
         </div>
     </div>
 
-    <!-- 共振信号汇总清单 -->
     <div style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #ffeb3b;">★ 三周期共振信号明细表</div>
     <table class="res-table">
-        <thead>
-            <tr>
-                <th>触发时间</th>
-                <th>共振方向</th>
-                <th>评级</th>
-                <th>共振形态</th>
-                <th>触发价格</th>
-                <th>三周期多空详情</th>
-            </tr>
-        </thead>
+        <thead><tr><th>触发时间</th><th>方向</th><th>评级</th><th>形态名称</th><th>触发价格</th><th>多空详情</th></tr></thead>
         <tbody id="res-tbody"></tbody>
     </table>
 
-    <!-- 三周期图表区域 -->
-    <div class="chart-container">
-        <div class="chart-title">大级别: {PERIOD_SPECS[periods[0]]['label']}</div>
-        <div id="chart-0" class="chart-dom"></div>
-    </div>
-    <div class="chart-container">
-        <div class="chart-title">中级别: {PERIOD_SPECS[periods[1]]['label']}</div>
-        <div id="chart-1" class="chart-dom"></div>
-    </div>
-    <div class="chart-container">
-        <div class="chart-title">小级别 (区间套执行): {PERIOD_SPECS[periods[2]]['label']}</div>
-        <div id="chart-2" class="chart-dom"></div>
-    </div>
+    <div id="chart"></div>
 
     <script>
-        const DATA = {payload_json};
-        const periods = DATA.periods;
-
-        // 填充共振表格
+        const D = {payload_json};
         const tbody = document.getElementById('res-tbody');
-        if (DATA.resonances.length === 0) {{
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">当前选定周期组合未捕捉到强共振信号，建议关注单级别中枢突破。</td></tr>';
+        if (D.resonances.length === 0) {{
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">当前选定周期组合未捕捉到强共振信号。</td></tr>';
         }} else {{
-            DATA.resonances.forEach(r => {{
-                const tr = document.createElement('tr');
+            D.resonances.forEach(r => {{
                 const isBuy = r.direction === 'BUY';
-                tr.innerHTML = `
+                tbody.innerHTML += `<tr>
                     <td>${{r.timestamp}}</td>
                     <td class="${{isBuy ? 'badge-buy' : 'badge-sell'}}">${{isBuy ? '▲ 买点' : '▼ 卖点'}}</td>
                     <td><span style="background:${{isBuy ? '#d32f2f' : '#00796b'}}; padding:2px 6px; border-radius:4px; font-size:11px;">${{r.grade}}</span></td>
                     <td style="font-weight:bold; color:#ffffff;">${{r.pattern_name}}</td>
                     <td>¥${{r.price.toFixed(2)}}</td>
                     <td>${{r.desc}}</td>
-                `;
-                tbody.appendChild(tr);
+                </tr>`;
             }});
         }}
 
-        // 初始化三张 ECharts 图表
-        const chartInstances = [];
-        periods.forEach((p, idx) => {{
-            const dom = document.getElementById(`chart-${{idx}}`);
-            const myChart = echarts.init(dom, 'dark');
-            chartInstances.push(myChart);
-
-            const pData = DATA.charts[p];
-            const dates = pData.dates;
-            const candles = pData.candles;
-
-            // 笔线条 markLine
-            const markLineData = [];
-            pData.bis.forEach(b => {{
-                markLineData.push([
-                    {{ coord: [dates[b.start_idx], b.start_val], lineStyle: {{ color: '#f0b90b', width: 2 }} }},
-                    {{ coord: [dates[b.end_idx], b.end_val] }}
-                ]);
-            }});
-
-            // 中枢矩形 markArea
-            const markAreaData = [];
-            pData.zss.forEach(zs => {{
-                markAreaData.push([
-                    {{
-                        coord: [dates[zs.start_idx], zs.zg],
-                        itemStyle: {{ color: 'rgba(41, 98, 255, 0.22)', borderColor: '#2962ff', borderWidth: 1, borderType: 'dashed' }}
-                    }},
-                    {{ coord: [dates[zs.end_idx], zs.zd] }}
-                ]);
-            }});
-
-            // 买卖点 markPoint
-            const markPointData = [];
-            pData.mmds.forEach(m => {{
-                const isBuy = m.type.includes('buy');
-                markPointData.push({{
-                    coord: [dates[m.idx], m.val],
-                    value: m.type.toUpperCase().replace('BUY', 'B').replace('SELL', 'S'),
-                    itemStyle: {{ color: isBuy ? '#f23645' : '#089981' }},
-                    symbol: isBuy ? 'pin' : 'arrow',
-                    symbolSize: 28,
-                    symbolRotate: isBuy ? 0 : 180,
-                }});
-            }});
-
-            // 注入共振星标
-            DATA.resonances.forEach(r => {{
-                const barIdx = (idx === 0) ? r.high_bar_idx : ((idx === 1) ? r.mid_bar_idx : r.low_bar_idx);
-                if (barIdx >= 0 && barIdx < dates.length) {{
-                    markPointData.push({{
-                        coord: [dates[barIdx], r.price],
-                        value: r.direction === 'BUY' ? '★共振买' : '▼共振卖',
-                        itemStyle: {{ color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff' }},
-                        label: {{ color: '#000000', fontWeight: 'bold', fontSize: 10 }},
-                        symbol: 'diamond',
-                        symbolSize: 34,
-                    }});
-                }}
-            }});
-
-            const option = {{
-                backgroundColor: '#181b27',
-                animation: false,
-                tooltip: {{
-                    trigger: 'axis',
-                    axisPointer: {{ type: 'cross' }},
-                    backgroundColor: 'rgba(30, 34, 45, 0.95)',
-                    borderColor: '#434651',
-                    textStyle: {{ color: '#d1d4dc' }}
+        const myChart = echarts.init(document.getElementById('chart'), 'dark');
+        const option = {{
+            backgroundColor: '#181b27',
+            animation: false,
+            legend: {{
+                data: ['基准K线', '大级别笔(周线)', '中级别笔(日线)', '小级别笔(30F)', 'MACD'],
+                selected: {{ '基准K线': true, '大级别笔(周线)': true, '中级别笔(日线)': true, '小级别笔(30F)': true, 'MACD': true }},
+                top: 10,
+                textStyle: {{ color: '#ffffff' }}
+            }},
+            tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross' }} }},
+            grid: [
+                {{ left: '3%', right: '4%', top: '8%', height: '62%' }},
+                {{ left: '3%', right: '4%', top: '75%', height: '18%' }}
+            ],
+            xAxis: [
+                {{ type: 'category', data: D.dates, gridIndex: 0, axisLabel: {{ show: false }} }},
+                {{ type: 'category', data: D.dates, gridIndex: 1, axisLabel: {{ color: '#888' }} }}
+            ],
+            yAxis: [
+                {{ type: 'value', scale: true, gridIndex: 0, position: 'right', splitLine: {{ lineStyle: {{ color: '#242838' }} }} }},
+                {{ type: 'value', scale: true, gridIndex: 1, position: 'right', splitLine: {{ lineStyle: {{ color: '#242838' }} }} }}
+            ],
+            dataZoom: [
+                {{ type: 'inside', xAxisIndex: [0, 1], start: 40, end: 100 }},
+                {{ type: 'slider', xAxisIndex: [0, 1], top: '95%', height: 16 }}
+            ],
+            series: [
+                {{
+                    name: '基准K线',
+                    type: 'candlestick',
+                    data: D.candles,
+                    itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }},
+                    markPoint: {{ data: [...D.mmd_marks, ...D.res_marks] }}
                 }},
-                axisPointer: {{ link: [{{ xAxisIndex: 'all' }}] }},
-                grid: [
-                    {{ left: '3%', right: '4%', top: '8%', height: '58%' }},
-                    {{ left: '3%', right: '4%', top: '72%', height: '20%' }}
-                ],
-                xAxis: [
-                    {{
-                        type: 'category',
-                        data: dates,
-                        gridIndex: 0,
-                        axisLine: {{ lineStyle: {{ color: '#434651' }} }},
-                        axisLabel: {{ show: false }}
-                    }},
-                    {{
-                        type: 'category',
-                        data: dates,
-                        gridIndex: 1,
-                        axisLine: {{ lineStyle: {{ color: '#434651' }} }},
-                        axisLabel: {{ color: '#888', fontSize: 11 }}
-                    }}
-                ],
-                yAxis: [
-                    {{
-                        type: 'value',
-                        scale: true,
-                        gridIndex: 0,
-                        position: 'right',
-                        axisLine: {{ lineStyle: {{ color: '#434651' }} }},
-                        splitLine: {{ lineStyle: {{ color: '#242838' }} }}
-                    }},
-                    {{
-                        type: 'value',
-                        scale: true,
-                        gridIndex: 1,
-                        position: 'right',
-                        axisLine: {{ lineStyle: {{ color: '#434651' }} }},
-                        splitLine: {{ lineStyle: {{ color: '#242838' }} }}
-                    }}
-                ],
-                dataZoom: [
-                    {{ type: 'inside', xAxisIndex: [0, 1], start: 40, end: 100 }},
-                    {{ type: 'slider', xAxisIndex: [0, 1], top: '94%', height: 16 }}
-                ],
-                series: [
-                    {{
-                        name: 'K线',
-                        type: 'candlestick',
-                        data: candles,
-                        itemStyle: {{
-                            color: '#f23645',
-                            color0: '#089981',
-                            borderColor: '#f23645',
-                            borderColor0: '#089981'
-                        }},
-                        markLine: {{ data: markLineData, symbol: ['circle', 'circle'] }},
-                        markArea: {{ data: markAreaData }},
-                        markPoint: {{ data: markPointData }}
-                    }},
-                    {{
-                        name: 'MACD',
-                        type: 'bar',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: (pData.macd.hist || []).map(h => ({{
-                            value: h * 2,
-                            itemStyle: {{ color: h >= 0 ? '#f23645' : '#089981' }}
-                        }}))
-                    }},
-                    {{
-                        name: 'DIF',
-                        type: 'line',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: pData.macd.dif || [],
-                        lineStyle: {{ color: '#ffffff', width: 1.2 }}
-                    }},
-                    {{
-                        name: 'DEA',
-                        type: 'line',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: pData.macd.dea || [],
-                        lineStyle: {{ color: '#f0b90b', width: 1.2 }}
-                    }}
-                ]
-            }};
-
-            myChart.setOption(option);
-        }});
-
-        window.addEventListener('resize', () => {{
-            chartInstances.forEach(c => c.resize());
-        }});
+                {{
+                    name: '大级别笔(周线)',
+                    type: 'line',
+                    data: [],
+                    lineStyle: {{ color: '#e040fb', width: 3.5 }},
+                    markLine: {{ data: D.high_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#e040fb', width: 3.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                }},
+                {{
+                    name: '中级别笔(日线)',
+                    type: 'line',
+                    data: [],
+                    lineStyle: {{ color: '#00e5ff', width: 2.5 }},
+                    markLine: {{ data: D.mid_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#00e5ff', width: 2.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                }},
+                {{
+                    name: '小级别笔(30F)',
+                    type: 'line',
+                    data: [],
+                    lineStyle: {{ color: '#ffd600', width: 1.5 }},
+                    markLine: {{ data: D.low_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#ffd600', width: 1.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                }},
+                {{
+                    name: 'MACD',
+                    type: 'bar',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.macd_hist.map(v => ({{ value: v, itemStyle: {{ color: v >= 0 ? '#f23645' : '#089981' }} }}))
+                }}
+            ]
+        }};
+        myChart.setOption(option);
+        window.addEventListener('resize', () => myChart.resize());
     </script>
 </body>
 </html>
 """
     out_file.write_text(html_template, encoding="utf-8")
-    logger.info(f"交互式 HTML 全景报告已生成: {out_file.resolve()}")
+    logger.info(f"同图 ECharts 交互式 HTML 报告已生成: {out_file.resolve()}")
     return out_file
 
 
 # ==============================================================================
-# 5. 主流程与调度器
+# 6. 主流程与调度器
 # ==============================================================================
 
 
 def analyze_and_plot_resonance(
     code: str = "000001",
     periods: list[str] | str | None = None,
-    bars_count: int = 140,
+    bars_count: int | None = None,
+    split_panels: bool = False,
     save_png: bool = True,
     save_html: bool = False,
     show_window: bool = False,
@@ -1430,18 +1437,7 @@ def analyze_and_plot_resonance(
 ) -> dict[str, Any]:
     """多周期立体共振分析与图表生成主函数。
 
-    Args:
-        code: 证券代码 (如 "000001", "600519")
-        periods: 选定的 3 个周期 (支持逗号分隔字符串或列表，默认 "WEEK,DAY,30F")
-        bars_count: 每个周期拉取的 K 线根数 (默认 140)
-        save_png: 是否生成 PNG 高清图
-        save_html: 是否生成交互式 HTML
-        show_window: 是否调用 plt.show() 弹窗展示
-        output_png_path: 指定 PNG 保存路径
-        output_html_path: 指定 HTML 保存路径
-
-    Returns:
-        包含分析结果、共振列表及文件路径的字典
+    默认以最小周期 K 线为基准，将 3 个周期的笔、中枢及共振买卖点画在同一张图片中。
     """
     clean_code = (
         str(code)
@@ -1452,7 +1448,6 @@ def analyze_and_plot_resonance(
         .replace("BJ", "")
     )
 
-    # 1. 规范化周期
     if periods is None:
         p_list = ["WEEK", "DAY", "30F"]
     elif isinstance(periods, str):
@@ -1463,28 +1458,41 @@ def analyze_and_plot_resonance(
             key=lambda k: PERIOD_SPECS[k]["weight"],
             reverse=True,
         )
-        if len(p_list) != 3:
-            raise ValueError(f"必须恰好提供 3 个周期，当前提供了: {periods}")
 
     name = get_stock_name(clean_code) or "标的资产"
+    base_period = p_list[-1]
     logger.info(
-        f"🚀 开始执行【{clean_code} {name}】缠论多周期立体共振分析: "
-        f"[{PERIOD_SPECS[p_list[0]]['short_name']} · {PERIOD_SPECS[p_list[1]]['short_name']} · {PERIOD_SPECS[p_list[2]]['short_name']}]"
+        f"🚀 开始执行【{clean_code} {name}】缠论多周期立体同图共振分析: "
+        f"[大:{PERIOD_SPECS[p_list[0]]['short_name']} · 中:{PERIOD_SPECS[p_list[1]]['short_name']} · 基准小:{PERIOD_SPECS[base_period]['short_name']}]"
     )
 
-    # 2. 拉取 3 个周期的 K 线数据
+    # 确定各周期拉取 K 线数量（基准小周期需要足够数量以充分映射大级别形态）
+    if bars_count is None:
+        req_counts = {
+            p_list[0]: 100,  # 大级别
+            p_list[1]: 150,  # 中级别
+            base_period: 300,  # 基准小级别 (约30-40个交易日)
+        }
+    else:
+        req_counts = {
+            p_list[0]: max(80, bars_count // 2),
+            p_list[1]: max(100, int(bars_count * 0.8)),
+            base_period: bars_count,
+        }
+
     dfs: dict[str, pd.DataFrame] = {}
     for p in p_list:
         spec = PERIOD_SPECS[p]
         cat_str = spec["market_cat"]
-        logger.info(f"正在拉取 {spec['label']} 数据 (count={bars_count})...")
-        df = fetch_security_kline(clean_code, category=cat_str, count=bars_count)
+        cnt = req_counts[p]
+        logger.info(f"正在拉取 {spec['label']} 数据 (count={cnt})...")
+        df = fetch_security_kline(clean_code, category=cat_str, count=cnt)
         if df is None or df.empty:
             logger.warning(f"未能获取到 {p} 级别 K 线数据！")
             df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
         dfs[p] = df
 
-    # 3. 运行缠论分析计算管道
+    # 运行缠论分析计算管道
     results: dict[str, ChanlunResult] = {}
     for p in p_list:
         spec = PERIOD_SPECS[p]
@@ -1496,7 +1504,7 @@ def analyze_and_plot_resonance(
             f"笔={len(res.bis)}笔, 中枢={len(res.zss)}个, 买卖点={len(res.mmds)}个"
         )
 
-    # 4. 运行三周期共振引擎
+    # 运行三周期共振引擎
     engine = ThreePeriodResonanceEngine(p_list[0], p_list[1], p_list[2], results)
     resonances = engine.scan_resonances()
 
@@ -1504,20 +1512,23 @@ def analyze_and_plot_resonance(
     for r in resonances:
         logger.info(f"   [{r.grade}] {r.timestamp} {r.pattern_name} @ ¥{r.price:.2f}")
 
-    # 5. 绘制并输出高清 PNG 图表
+    # 绘制图片：默认统一同图模式，--split 则使用分屏模式
     png_path = None
     if save_png or show_window:
-        plotter = ChanlunResonancePlotter(clean_code, name, p_list, dfs, results, resonances)
+        if split_panels:
+            plotter = ChanlunSplitResonancePlotter(clean_code, name, p_list, dfs, results, resonances)
+        else:
+            plotter = ChanlunUnifiedResonancePlotter(clean_code, name, p_list, dfs, results, resonances)
         png_path = plotter.plot(save_path=output_png_path, show=show_window)
 
-    # 6. 生成交互式 HTML 报告
+    # 生成 HTML
     html_path = None
     if save_html:
         if output_html_path is None:
             out_dir = PROJECT_ROOT / "output"
             out_dir.mkdir(parents=True, exist_ok=True)
             p_tag = "_".join(p_list)
-            output_html_path = out_dir / f"chanlun_resonance_{clean_code}_{p_tag}.html"
+            output_html_path = out_dir / f"chanlun_resonance_{clean_code}_{p_tag}_unified.html"
         html_path = export_interactive_html(
             clean_code, name, p_list, dfs, results, resonances, output_html_path
         )
@@ -1526,6 +1537,7 @@ def analyze_and_plot_resonance(
         "code": clean_code,
         "name": name,
         "periods": p_list,
+        "base_period": base_period,
         "dfs": dfs,
         "results": results,
         "resonances": resonances,
@@ -1536,7 +1548,7 @@ def analyze_and_plot_resonance(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="缠论理论多周期共振买卖点 K线图分析系统 (支持月线/周线/日线/120F/60F/30F/15F/5F 自选三周期)"
+        description="缠论理论多周期共振买卖点 K线图分析系统 (以最小周期K线为基准，同图立体绘制 3 个周期)"
     )
     parser.add_argument(
         "--code", "-c",
@@ -1556,8 +1568,13 @@ def main():
     parser.add_argument(
         "--bars", "-b",
         type=int,
-        default=130,
-        help="每个周期抓取的 K 线数量 (默认 130 根)",
+        default=None,
+        help="基准最小周期抓取的 K 线数量 (默认自动匹配 300 根)",
+    )
+    parser.add_argument(
+        "--split",
+        action="store_true",
+        help="采用旧版 3 分屏独立子图模式 (默认关闭，默认画在同一张图片中)",
     )
     parser.add_argument(
         "--output", "-o",
@@ -1568,7 +1585,7 @@ def main():
     parser.add_argument(
         "--html",
         action="store_true",
-        help="同时生成交互式 ECharts HTML 报告并在浏览器中自适应查看",
+        help="同时生成交互式同图 ECharts HTML 报告",
     )
     parser.add_argument(
         "--show", "-s",
@@ -1583,34 +1600,38 @@ def main():
             code=args.code,
             periods=args.periods,
             bars_count=args.bars,
+            split_panels=args.split,
             save_png=True,
             save_html=args.html,
             show_window=args.show,
             output_png_path=args.output,
         )
 
-        print("\n" + "=" * 70)
-        print(f"📊 【{ret['code']} {ret['name']}】缠论多周期立体共振分析报告")
-        print("=" * 70)
-        print(f"周期组合: {' -> '.join([PERIOD_SPECS[p]['short_name'] for p in ret['periods']])}")
+        p_names = [PERIOD_SPECS[p]["short_name"] for p in ret["periods"]]
+        base_name = PERIOD_SPECS[ret["base_period"]]["short_name"]
+        print("\n" + "=" * 75)
+        print(f"📊 【{ret['code']} {ret['name']}】缠论多周期同图立体走势报告")
+        print("=" * 75)
+        print(f"基准底图周期: {base_name} (最小周期)")
+        print(f"同图嵌套周期: {' -> '.join(p_names)}")
         if ret["png_path"]:
-            print(f"🖼  高清 K线图: {ret['png_path']}")
+            print(f"🖼  同图 K线图: {ret['png_path']}")
         if ret["html_path"]:
             print(f"🌐 交互式网页: {ret['html_path']}")
 
         resonances = ret["resonances"]
         print(f"\n共振买卖点事件数量: {len(resonances)}")
         if resonances:
-            print("-" * 70)
+            print("-" * 75)
             print(f"{'触发时间':<18} {'方向':<6} {'评级':<6} {'价格':<9} {'形态名称'}")
-            print("-" * 70)
+            print("-" * 75)
             for r in resonances:
                 dir_str = "买点 ▲" if r.direction == "BUY" else "卖点 ▼"
                 print(f"{r.timestamp:<18} {dir_str:<6} {r.grade:<6} {r.price:<9.2f} {r.pattern_name}")
-            print("-" * 70)
+            print("-" * 75)
         else:
-            print("注: 选定周期内未发现强共振买卖点，建议结合中枢震荡与单级别拐点综合研判。")
-        print("=" * 70 + "\n")
+            print("注: 选定周期内未发现强共振买卖点，维持中枢走势震荡观察。")
+        print("=" * 75 + "\n")
 
     except Exception as e:
         logger.exception(f"执行失败: {e}")

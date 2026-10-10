@@ -23,7 +23,7 @@ const hotSectors = ref<HotSectorItem[]>([
   { code: '881386', name: '全国银行', change_pct: 0, chg: '--' },
 ])
 
-async function loadHotSectors(force = false) {
+async function loadHotSectors(_force = false) {
   const list = await fetchHotSectors(8)
   if (list && list.length > 0) {
     hotSectors.value = list

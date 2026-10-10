@@ -68,3 +68,57 @@ async def chanlun_analyze(
     result = analyser.process_klines(df)
 
     return result.to_dict()
+
+
+@router.get("/chanlun/resonance")
+async def chanlun_resonance_get(
+    code: str = "000001",
+    periods: str = "WEEK,DAY,30F",
+    count: int = 300,
+    cutoff_date: str | None = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """执行缠论多周期立体共振买卖点分析（GET 接口）。
+
+    支持实时刷新、任意三个周期自定义、以及历史回溯（cutoff_date）。
+    """
+    import asyncio
+    from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
+
+    return await asyncio.to_thread(
+        analyze_multi_period_resonance,
+        code=code,
+        periods=periods,
+        count=count,
+        cutoff_date=cutoff_date,
+        force_refresh=force_refresh,
+    )
+
+
+from pydantic import BaseModel, Field
+
+
+class ChanlunResonanceRequest(BaseModel):
+    code: str = Field(default="000001", description="股票代码")
+    periods: list[str] | str = Field(default="WEEK,DAY,30F", description="3个周期组合")
+    count: int = Field(default=300, ge=50, le=1200, description="基准K线数量")
+    cutoff_date: str | None = Field(default=None, description="回溯截止时间")
+    force_refresh: bool = Field(default=False, description="是否强制刷新最新数据")
+
+
+@router.post("/chanlun/resonance")
+async def chanlun_resonance_post(
+    req: ChanlunResonanceRequest,
+) -> dict[str, Any]:
+    """执行缠论多周期立体共振买卖点分析（POST 接口）。"""
+    import asyncio
+    from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
+
+    return await asyncio.to_thread(
+        analyze_multi_period_resonance,
+        code=req.code,
+        periods=req.periods,
+        count=req.count,
+        cutoff_date=req.cutoff_date,
+        force_refresh=req.force_refresh,
+    )

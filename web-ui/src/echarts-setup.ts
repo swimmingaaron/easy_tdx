@@ -8,6 +8,8 @@ import {
   DataZoomComponent,
   GridComponent,
   LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
   MarkPointComponent,
   TitleComponent,
   TooltipComponent,
@@ -28,6 +30,8 @@ echarts.use([
   TitleComponent,
   DataZoomComponent,
   MarkPointComponent,
+  MarkLineComponent,
+  MarkAreaComponent,
   VisualMapComponent,
 ])
 

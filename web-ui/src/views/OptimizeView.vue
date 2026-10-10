@@ -3,7 +3,7 @@
 // 取行情已整合进「开始寻优」。另有「一键寻优所有策略」：用各策略预设网格逐策略寻优再全局排名。
 
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import GradeBadge from '../components/GradeBadge.vue'
 import OptimizeHeatmap from '../components/OptimizeHeatmap.vue'
@@ -18,6 +18,7 @@ import { useBacktestStore } from '../stores/backtest'
 
 const store = useBacktestStore()
 const router = useRouter()
+const route = useRoute()
 
 // SymbolPicker 实例引用，用于触发取行情
 const symbolPicker = ref<InstanceType<typeof SymbolPicker> | null>(null)

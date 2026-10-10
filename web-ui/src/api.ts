@@ -408,3 +408,26 @@ export async function fetchHotSectors(limit = 8): Promise<HotSectorItem[]> {
     return []
   }
 }
+
+// ── 缠论多周期立体共振 ──────────────────────────────────────────────────────────
+
+import type { ChanlunResonanceResponse } from './types'
+
+export async function fetchChanlunResonance(params: {
+  code: string
+  periods?: string
+  count?: number
+  cutoff_date?: string
+  force_refresh?: boolean
+}): Promise<ChanlunResonanceResponse> {
+  const query = new URLSearchParams()
+  query.set('code', params.code)
+  if (params.periods) query.set('periods', params.periods)
+  if (params.count) query.set('count', String(params.count))
+  if (params.cutoff_date) query.set('cutoff_date', params.cutoff_date)
+  if (params.force_refresh) query.set('force_refresh', 'true')
+
+  const resp = await fetch(`${BASE}/chanlun/resonance?${query.toString()}`)
+  if (!resp.ok) await throwError(resp)
+  return (await resp.json()) as ChanlunResonanceResponse
+}

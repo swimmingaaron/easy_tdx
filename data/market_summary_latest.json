@@ -1,7 +1,7 @@
 {
   "status": "success",
   "date": "2026-10-10",
-  "update_time": "00:26:56.594",
+  "update_time": "12:38:00.252",
   "refresh_interval_ms": 5000,
   "is_trading_time": false,
   "major_indices": [
@@ -1283,25 +1283,25 @@
     "status": "上升通道"
   },
   "sentiment": {
-    "score": 61.0,
-    "phase": "主升期 · 顺势参与",
-    "advice": "多头情绪占优，积极把握主线战法低吸"
+    "score": 47.2,
+    "phase": "震荡期 · 控仓低吸",
+    "advice": "多空弱势拉锯，控制仓位在5成以下"
   },
   "breadth": {
-    "up_count": 3039,
-    "down_count": 2122,
-    "flat_count": 126,
-    "ratio": 1.43,
+    "up_count": 1850,
+    "down_count": 2950,
+    "flat_count": 100,
+    "ratio": 0.63,
     "distribution": [
       16,
-      106,
-      254,
-      806,
-      940,
-      1297,
-      1063,
-      425,
-      182,
+      147,
+      354,
+      1121,
+      1312,
+      761,
+      647,
+      259,
+      111,
       72
     ],
     "labels": [

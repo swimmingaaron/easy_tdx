@@ -47,16 +47,16 @@ def _resolve_web_dist_dir() -> Path | None:
         if p.is_dir():
             return p
 
-    # 开发态：从 src/easy_tdx/web/app.py 回溯到仓库根的 web-ui/dist
+    # 优先使用包内的 web/dist（全景量化投研工作台 index.html）
+    pkg_dist = Path(__file__).resolve().parent / "dist"
+    if pkg_dist.is_dir() and (pkg_dist / "index.html").is_file():
+        return pkg_dist
+
+    # 开发态回退：从 src/easy_tdx/web/app.py 回溯到仓库根的 web-ui/dist
     repo_root = Path(__file__).resolve().parents[3]
     p = repo_root / "web-ui" / "dist"
     if p.is_dir():
         return p
-
-    # PyPI 安装态：包内的 web/dist（wheel 打包时 force-include 进来）
-    pkg_dist = Path(__file__).resolve().parent / "dist"
-    if pkg_dist.is_dir():
-        return pkg_dist
 
     return None
 
@@ -276,6 +276,7 @@ def _create_app(
     app.include_router(backtest_router)
     app.include_router(strategies_router)
     app.include_router(server_router)
+    app.include_router(chanlun_router)
 
     app.include_router(market_router, prefix="/api/v1")
     app.include_router(bars_router, prefix="/api/v1")

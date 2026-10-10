@@ -419,3 +419,148 @@ export interface StockSuggestResponse {
   count: number
 }
 
+// ── 缠论多周期立体共振（GET/POST /api/v1/chanlun/resonance）──────────────────
+
+export interface PeriodInfo {
+  key: string
+  label: string
+  name: string
+}
+
+export interface PeriodStateInfo {
+  period: string
+  period_label: string
+  bar_index: number
+  bar_date: string
+  price: number
+  bi_direction: string
+  recent_mmd: string
+  recent_mmd_bars_ago: number
+  is_bullish: boolean
+  is_bearish: boolean
+  detail: string
+}
+
+export interface ChanlunResonanceSignal {
+  timestamp: string
+  price: number
+  direction: 'BUY' | 'SELL'
+  grade: 'AAA' | 'AA' | 'A'
+  pattern_name: string
+  high_period: string
+  mid_period: string
+  low_period: string
+  low_bar_idx: number
+  high_state: PeriodStateInfo
+  mid_state: PeriodStateInfo
+  low_state: PeriodStateInfo
+  description: string
+}
+
+export interface BiLine {
+  start: [string, number]
+  end: [string, number]
+  start_idx: number
+  end_idx: number
+  direction: 'up' | 'down'
+}
+
+export interface ZsBox {
+  start_date: string
+  end_date: string
+  start_idx: number
+  end_idx: number
+  zg: number
+  zd: number
+  gg?: number
+  dd?: number
+}
+
+export interface MmdMark {
+  coord: [string, number]
+  date: string
+  price: number
+  type: string
+  label: string
+  is_buy: boolean
+  msg: string
+}
+
+export interface ResMark {
+  coord: [string, number]
+  date: string
+  price: number
+  direction: 'BUY' | 'SELL'
+  grade: string
+  pattern_name: string
+  label: string
+  desc: string
+}
+
+export interface MacdData {
+  hist: number[]
+  dif: number[]
+  dea: number[]
+}
+
+export interface UnifiedChartData {
+  dates: string[]
+  candles: [number, number, number, number][] // [open, close, low, high]
+  volumes: [number, number, number][] // [index, vol, 1|-1]
+  high_bis: BiLine[]
+  high_zss: ZsBox[]
+  mid_bis: BiLine[]
+  mid_zss: ZsBox[]
+  low_bis: BiLine[]
+  low_zss: ZsBox[]
+  mmd_marks: MmdMark[]
+  res_marks: ResMark[]
+  macd: MacdData
+}
+
+export interface LevelChartData {
+  period: string
+  label: string
+  short_name: string
+  dates: string[]
+  candles: [number, number, number, number][]
+  bis: [ [string, number], [string, number] ][]
+  zss: { start_date: string; end_date: string; zg: number; zd: number }[]
+  macd: MacdData
+}
+
+export interface BacktrackTimeline {
+  min_date: string
+  max_date: string
+  available_dates: string[]
+  current_date: string
+  total_bars: number
+  current_bar_index: number
+}
+
+export interface ChanlunResonanceResponse {
+  code: string
+  name: string
+  periods: {
+    high: PeriodInfo
+    mid: PeriodInfo
+    low: PeriodInfo
+  }
+  base_period: string
+  summary: {
+    latest_price: number
+    change_pct: number
+    latest_date: string
+    high_state: PeriodStateInfo
+    mid_state: PeriodStateInfo
+    low_state: PeriodStateInfo
+    resonance_count: number
+    is_backtracking: boolean
+    cutoff_date: string | null
+  }
+  resonances: ChanlunResonanceSignal[]
+  unified_chart: UnifiedChartData
+  levels_data: Record<string, LevelChartData>
+  backtrack_timeline: BacktrackTimeline
+}
+
