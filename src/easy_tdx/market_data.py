@@ -304,14 +304,25 @@ def fetch_security_kline(
 
     market = _get_market(symbol)
     cache_suffix = "120M" if is_120m else (category.value if hasattr(category, 'value') else category)
-    cache_key = f"{market.value}_{clean_sym}_{cache_suffix}_{count}_{adj_val.name}"
+    base_prefix = f"{market.value}_{clean_sym}_{cache_suffix}_"
+    adj_suffix = f"_{adj_val.name}"
+    cache_key = f"{base_prefix}{count}{adj_suffix}"
     now = time.time()
     
     # Check cache
-    if not force_refresh and cache_key in _CACHE:
-        ts, cached_df = _CACHE[cache_key]
-        if now - ts < CACHE_TTL_SEC:
-            return cached_df.copy()
+    if not force_refresh:
+        if cache_key in _CACHE:
+            ts, cached_df = _CACHE[cache_key]
+            if now - ts < CACHE_TTL_SEC:
+                return cached_df.copy()
+        # 超集截取复用：若已缓存了更长的相同周期K线序列且未过期，直接截取后 count 根返回，无需重新连接网络
+        for ck, (ts, cached_df) in _CACHE.items():
+            if ck.startswith(base_prefix) and ck.endswith(adj_suffix) and (now - ts < CACHE_TTL_SEC):
+                if len(cached_df) >= count:
+                    res = cached_df.iloc[-count:].copy().reset_index(drop=True)
+                    _CACHE[cache_key] = (ts, res)
+                    return res
+
 
     from easy_tdx.mac.enums import Period as MacPeriod
 

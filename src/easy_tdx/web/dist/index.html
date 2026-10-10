@@ -21332,10 +21332,16 @@
             loadChanlunData(false);
         }
 
+        let _clIsDataLoading = false;
+        let _clPendingBacktrackDate = null;
+        let _clBacktrackDebounceTimer = null;
+
         async function loadChanlunData(forceRefresh = false) {
+            _clIsDataLoading = true;
             const chartDom = document.getElementById('chanlun-echart-main');
             const loadingOverlay = document.getElementById('cl-loading-overlay');
-            if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            // 回溯切片时不显示全屏强遮罩，避免画面闪烁，保持沉浸推演
+            if (loadingOverlay && !_clIsBacktracking) loadingOverlay.style.display = 'flex';
 
             try {
                 const query = new URLSearchParams();
@@ -21369,6 +21375,7 @@
                     showToast('缠论数据错误', err.message || '获取多周期共振数据失败');
                 }
             } finally {
+                _clIsDataLoading = false;
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
             }
         }
@@ -21712,8 +21719,11 @@
                 stockInput.value = d.code;
             }
 
-            // 6. 异步拉取盘口估值指标 (参考K线弹窗: 总市值/流通市值/PE/换手/量比/主力净流)
-            fetchKlineQuoteMetrics(d.code);
+            // 6. 异步拉取盘口估值指标 (仅在股票变更且非回溯时拉取，避免回溯推演时产生冗余网络请求)
+            if (!_clIsBacktracking && window._clLastMetricsCode !== d.code) {
+                window._clLastMetricsCode = d.code;
+                fetchKlineQuoteMetrics(d.code);
+            }
         }
 
         async function fetchKlineQuoteMetrics(code) {
@@ -22790,6 +22800,19 @@
             loadChanlunData(false);
         }
 
+        async function triggerChanlunBacktrackLoad() {
+            if (_clIsDataLoading) {
+                _clPendingBacktrackDate = _clBacktrackDate;
+                return;
+            }
+            await loadChanlunData(false);
+            if (_clPendingBacktrackDate && _clPendingBacktrackDate !== _clBacktrackDate) {
+                _clBacktrackDate = _clPendingBacktrackDate;
+                _clPendingBacktrackDate = null;
+                await loadChanlunData(false);
+            }
+        }
+
         function onChanlunSliderChange(val) {
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
@@ -22801,7 +22824,20 @@
                 const dates = _clCachedData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
                     _clBacktrackDate = dates[_clBacktrackIndex];
-                    loadChanlunData(false);
+
+                    // 1. 立即更新界面截断时间文本与输入框，0延迟视觉反馈
+                    const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+                    if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                    const cutoffInput = document.getElementById('cl-cutoff-date');
+                    if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
+                    const latestBtn = document.getElementById('cl-btn-latest-bar');
+                    if (latestBtn) latestBtn.classList.remove('hidden');
+
+                    // 2. 45ms 防抖渲染，避免鼠标拖拽滑块时发出过多请求
+                    if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
+                    _clBacktrackDebounceTimer = setTimeout(() => {
+                        triggerChanlunBacktrackLoad();
+                    }, 45);
                 }
             }
         }
@@ -22818,7 +22854,21 @@
             if (nextIdx >= 0 && nextIdx < dates.length) {
                 _clBacktrackIndex = nextIdx;
                 _clBacktrackDate = dates[nextIdx];
-                loadChanlunData(false);
+
+                // 同步滑块与文本
+                const slider = document.getElementById('cl-backtrack-slider');
+                if (slider) slider.value = String(_clBacktrackIndex);
+                const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                const cutoffInput = document.getElementById('cl-cutoff-date');
+                if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
+                const latestBtn = document.getElementById('cl-btn-latest-bar');
+                if (latestBtn) latestBtn.classList.remove('hidden');
+
+                if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
+                _clBacktrackDebounceTimer = setTimeout(() => {
+                    triggerChanlunBacktrackLoad();
+                }, 30);
             }
         }
 

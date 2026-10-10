@@ -124,10 +124,30 @@ function onCustomPeriodChange() {
   loadData()
 }
 
+let isDataLoading = false
+let pendingBacktrackDate: string | null = null
+let sliderDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+async function triggerBacktrackLoad() {
+  if (isDataLoading) {
+    pendingBacktrackDate = backtrackDate.value
+    return
+  }
+  await loadData()
+  if (pendingBacktrackDate && pendingBacktrackDate !== backtrackDate.value) {
+    backtrackDate.value = pendingBacktrackDate
+    pendingBacktrackDate = null
+    await loadData()
+  }
+}
+
 // ── 数据加载 ─────────────────────────────────────────────────────────────────
 async function loadData(forceRefresh = false) {
   if (!code.value) return
-  loading.value = true
+  isDataLoading = true
+  if (!isBacktrackingMode.value) {
+    loading.value = true
+  }
   errorMsg.value = ''
 
   try {
@@ -157,6 +177,7 @@ async function loadData(forceRefresh = false) {
   } catch (err: unknown) {
     errorMsg.value = `数据获取失败: ${err instanceof Error ? err.message : String(err)}`
   } finally {
+    isDataLoading = false
     loading.value = false
   }
 }
@@ -244,7 +265,10 @@ function onSliderChange(e: Event) {
   backtrackIndex.value = val
   if (availableDates.value[val]) {
     backtrackDate.value = availableDates.value[val]
-    loadData()
+    if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
+    sliderDebounceTimer = setTimeout(() => {
+      triggerBacktrackLoad()
+    }, 45)
   }
 }
 
@@ -253,7 +277,10 @@ function stepBacktrack(step: number) {
   if (nextIdx >= 0 && nextIdx < availableDates.value.length) {
     backtrackIndex.value = nextIdx
     backtrackDate.value = availableDates.value[nextIdx]
-    loadData()
+    if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
+    sliderDebounceTimer = setTimeout(() => {
+      triggerBacktrackLoad()
+    }, 30)
   }
 }
 

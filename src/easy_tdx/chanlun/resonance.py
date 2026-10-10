@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import bisect
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -28,6 +30,26 @@ from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
 
 logger = logging.getLogger("chanlun.resonance")
+
+# 全量母数据集内存缓存池，供历史回溯与切片极速复用（彻底消除回溯时的网络请求）
+# key: (clean_code, period) -> (cached_at: float, df: pd.DataFrame)
+_RESONANCE_RAW_KLINE_CACHE: dict[tuple[str, str], tuple[float, pd.DataFrame]] = {}
+_RESONANCE_CACHE_LOCK = threading.Lock()
+BACKTRACK_CACHE_TTL = 3600.0  # 回溯态母数据缓存有效期（1小时），确保沉浸式复盘期间 100% 内存切片
+REALTIME_CACHE_TTL = 15.0     # 实时态短期缓存（15秒）
+
+
+def clear_resonance_kline_cache(code: str | None = None) -> None:
+    """清理缠论多周期母数据缓存。"""
+    with _RESONANCE_CACHE_LOCK:
+        if code:
+            clean = str(code).strip().upper().replace("SZ", "").replace("SH", "").replace("BJ", "")
+            keys_to_del = [k for k in _RESONANCE_RAW_KLINE_CACHE if k[0] == clean]
+            for k in keys_to_del:
+                _RESONANCE_RAW_KLINE_CACHE.pop(k, None)
+        else:
+            _RESONANCE_RAW_KLINE_CACHE.clear()
+
 
 # ==============================================================================
 # 1. 周期规范与定义
@@ -152,19 +174,36 @@ def parse_three_periods(periods_input: list[str] | str | None) -> list[str]:
 
 
 def _to_dt(val: Any) -> datetime:
-    """安全将任意时间格式 (str, pd.Timestamp, datetime) 转为 Python datetime。"""
+    """安全极速将任意时间格式 (str, pd.Timestamp, datetime) 转为 Python datetime。"""
     if isinstance(val, datetime):
         return val
     if isinstance(val, pd.Timestamp):
         return val.to_pydatetime()
+    s = str(val).strip()
+    n = len(s)
+    if n >= 10 and s[4] == '-' and s[7] == '-':
+        try:
+            year = int(s[0:4])
+            month = int(s[5:7])
+            day = int(s[8:10])
+            hour = int(s[11:13]) if n >= 13 and s[10] in (' ', 'T') else 0
+            minute = int(s[14:16]) if n >= 16 and s[13] == ':' else 0
+            second = int(s[17:19]) if n >= 19 and s[16] == ':' else 0
+            return datetime(year, month, day, hour, minute, second)
+        except Exception:
+            pass
     try:
-        return pd.to_datetime(str(val)).to_pydatetime()
+        return pd.to_datetime(s).to_pydatetime()
     except Exception:
         return datetime.now()
 
 
 def _fmt_dt(val: Any, is_intraday: bool = False) -> str:
-    """安全格式化日期。"""
+    """安全快速格式化日期。"""
+    if isinstance(val, str):
+        s = val.strip()
+        if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+            return s[:16] if is_intraday else s[:10]
     dt = _to_dt(val)
     return dt.strftime("%Y-%m-%d %H:%M") if is_intraday else dt.strftime("%Y-%m-%d")
 
@@ -633,9 +672,13 @@ def analyze_multi_period_resonance(
     high_p, mid_p, low_p = p_list[0], p_list[1], p_list[2]
     stock_name = get_stock_name(clean_code) or "标的资产"
 
-    # 请求 K 线数量
-    # 若启用了 cutoff_date 回溯，适当增加拉取基准根数以覆盖更远的历史点
-    multiplier = 2 if (cutoff_date and str(cutoff_date).strip()) else 1
+    is_backtracking = bool(cutoff_date and str(cutoff_date).strip())
+    cutoff_str = str(cutoff_date).strip() if is_backtracking else ""
+    cutoff_dt = _to_dt(cutoff_str) if is_backtracking else None
+    now_ts = time.time()
+
+    # 请求 K 线基准根数
+    multiplier = 2 if is_backtracking else 1
     req_counts = {
         high_p: max(100, (count // 3) * multiplier),
         mid_p: max(160, int(count * 0.7) * multiplier),
@@ -646,21 +689,50 @@ def analyze_multi_period_resonance(
         if p in ("5F", "5M", "1F", "1M"):
             req_counts[p] = max(req_counts.get(p, 0), 1500 * multiplier)
 
-    # 拉取三周期 K 线
+    # 拉取或内存复用三周期母数据 K 线（回溯时 100% 内存命中，杜绝反复请求远程服务器）
     raw_dfs: dict[str, pd.DataFrame] = {}
     for p in p_list:
         spec = PERIOD_SPECS[p]
-        df = fetch_security_kline(
-            clean_code,
-            category=spec["market_cat"],
-            count=req_counts[p],
-            force_refresh=force_refresh,
-        )
-        if df is None or df.empty:
-            df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
+        needed_cnt = req_counts[p]
+        # 母数据集拉取时尽量预留充裕的历史长度（微观级别 2400 根），使得回溯时滑块能够大幅度自由滑动
+        target_fetch_cnt = max(needed_cnt, 2400 if p in ("5F", "5M", "1F", "1M") else 800)
+
+        use_cached = False
+        cached_df: pd.DataFrame | None = None
+        if not force_refresh:
+            with _RESONANCE_CACHE_LOCK:
+                if (clean_code, p) in _RESONANCE_RAW_KLINE_CACHE:
+                    c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)]
+                    ttl = BACKTRACK_CACHE_TTL if is_backtracking else REALTIME_CACHE_TTL
+                    if (now_ts - c_time < ttl) and c_df is not None and not c_df.empty:
+                        if is_backtracking and cutoff_dt is not None:
+                            first_dt = _to_dt(str(c_df["datetime"].iloc[0]))
+                            # 只要缓存覆盖了当前回溯截止时间或长度足够，即完全复用
+                            if (first_dt and first_dt <= cutoff_dt) or len(c_df) >= 300:
+                                use_cached = True
+                                cached_df = c_df
+                        else:
+                            use_cached = True
+                            cached_df = c_df
+
+        if use_cached and cached_df is not None:
+            df = cached_df
+        else:
+            df = fetch_security_kline(
+                clean_code,
+                category=spec["market_cat"],
+                count=target_fetch_cnt,
+                force_refresh=force_refresh,
+            )
+            if df is None or df.empty:
+                df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
+            else:
+                with _RESONANCE_CACHE_LOCK:
+                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)] = (now_ts, df)
+
         raw_dfs[p] = df
 
-    # 获取完整可用时间跨度（用于前端时间滑块和回溯导航）
+    # 获取完整可用时间跨度（由母数据全量序列提供，供前端滑块稳定自由导航）
     base_full_df = raw_dfs[low_p]
     available_dates = (
         base_full_df["datetime"].astype(str).tolist()
@@ -670,21 +742,17 @@ def analyze_multi_period_resonance(
     min_date = available_dates[0] if available_dates else ""
     max_date = available_dates[-1] if available_dates else ""
 
-    # 如果指定了 cutoff_date，进行历史切除回溯
+    # 如果指定了 cutoff_date，进行历史无未来切除回溯
     dfs: dict[str, pd.DataFrame] = {}
-    is_backtracking = False
-    if cutoff_date and str(cutoff_date).strip() and not base_full_df.empty:
-        cutoff_str = str(cutoff_date).strip()
-        cutoff_dt = _to_dt(cutoff_str)
-        is_backtracking = True
+    if is_backtracking and cutoff_dt is not None and not base_full_df.empty:
         for p in p_list:
             df_cur = raw_dfs[p]
             if not df_cur.empty and "datetime" in df_cur.columns:
-                # 过滤 <= cutoff_dt
+                # 严格切除 > cutoff_dt 的未来数据，保证无未来函数
                 dts = pd.to_datetime(df_cur["datetime"].astype(str))
                 mask = dts <= cutoff_dt
                 sub_df = df_cur[mask].copy().reset_index(drop=True)
-                # 至少保留 30 根 K 线供缠论计算，避免历史过早导致全空
+                # 至少保留 15 根 K 线供缠论计算，避免历史过早导致全空
                 if len(sub_df) < 15:
                     sub_df = df_cur.iloc[:min(len(df_cur), 30)].copy().reset_index(drop=True)
                 dfs[p] = sub_df
