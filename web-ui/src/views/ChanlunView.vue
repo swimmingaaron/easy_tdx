@@ -115,6 +115,7 @@ function applyPreset(pStr: string) {
     periodMid.value = parts[1]
     periodLow.value = parts[2]
   }
+  clearClientBacktrackCache()
   loadData()
 }
 
@@ -143,7 +144,19 @@ function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
   periodHigh.value = PERIOD_ORDER[hIdx]
   periodMid.value = PERIOD_ORDER[mIdx]
   periodLow.value = PERIOD_ORDER[lIdx]
+  clearClientBacktrackCache()
   loadData()
+}
+
+// ── 客户端本地回溯分析结果内存缓存（同股票相同截断点 100% 内存瞬时渲染，免除向后端请求）──
+const backtrackCache = new Map<string, ChanlunResonanceResponse>()
+
+function getBacktrackCacheKey(c: string, p: string, cutoff?: string | null): string {
+  return `${c}_${p}_${cutoff || 'LATEST'}`
+}
+
+function clearClientBacktrackCache() {
+  backtrackCache.clear()
 }
 
 let isDataLoading = false
@@ -166,6 +179,21 @@ async function triggerBacktrackLoad() {
 // ── 数据加载 ─────────────────────────────────────────────────────────────────
 async function loadData(forceRefresh = false) {
   if (!code.value) return
+
+  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+
+  // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
+  if (isBacktrackingMode.value && backtrackDate.value && !forceRefresh && backtrackCache.has(cacheKey)) {
+    const cached = backtrackCache.get(cacheKey)!
+    chanData.value = cached
+    const idx = cached.backtrack_timeline.available_dates.indexOf(cached.summary.latest_date)
+    if (idx >= 0) backtrackIndex.value = idx
+    nextTick(() => {
+      renderChart()
+    })
+    return
+  }
+
   isDataLoading = true
   if (!isBacktrackingMode.value) {
     loading.value = true
@@ -183,6 +211,12 @@ async function loadData(forceRefresh = false) {
     })
     chanData.value = res
     lastRefreshTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+
+    // 存入客户端回溯缓存池
+    backtrackCache.set(cacheKey, res)
+    if (!isBacktrackingMode.value && res.summary.latest_date) {
+      backtrackCache.set(getBacktrackCacheKey(code.value, currentPeriodsStr.value, res.summary.latest_date), res)
+    }
 
     // 初始化回溯滑块索引
     if (!isBacktrackingMode.value) {
@@ -209,6 +243,7 @@ function selectStock(c: string) {
   code.value = c
   searchKeyword.value = ''
   suggestList.value = []
+  clearClientBacktrackCache()
   exitBacktracking()
   loadData(true)
 }
@@ -282,16 +317,48 @@ function exitBacktracking() {
   loadData()
 }
 
+function onSliderInput(e: Event) {
+  const val = Number((e.target as HTMLInputElement).value)
+  backtrackIndex.value = val
+  if (availableDates.value[val]) {
+    backtrackDate.value = availableDates.value[val]
+  }
+
+  // 1. 若拖动途中的该时间点已在客户端缓存，直接 0ms 顺畅刷新图表，完全不向服务器发请求
+  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+  if (backtrackCache.has(cacheKey)) {
+    const cached = backtrackCache.get(cacheKey)!
+    chanData.value = cached
+    renderChart()
+    return
+  }
+
+  // 2. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 350ms 后才防抖请求一次
+  if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
+  sliderDebounceTimer = setTimeout(() => {
+    triggerBacktrackLoad()
+  }, 350)
+}
+
 function onSliderChange(e: Event) {
   const val = Number((e.target as HTMLInputElement).value)
   backtrackIndex.value = val
   if (availableDates.value[val]) {
     backtrackDate.value = availableDates.value[val]
-    if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
-    sliderDebounceTimer = setTimeout(() => {
-      triggerBacktrackLoad()
-    }, 45)
   }
+  if (sliderDebounceTimer) {
+    clearTimeout(sliderDebounceTimer)
+    sliderDebounceTimer = null
+  }
+  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+  if (backtrackCache.has(cacheKey)) {
+    chanData.value = backtrackCache.get(cacheKey)!
+    nextTick(() => {
+      renderChart()
+    })
+    return
+  }
+  triggerBacktrackLoad()
 }
 
 function stepBacktrack(step: number) {
@@ -299,10 +366,18 @@ function stepBacktrack(step: number) {
   if (nextIdx >= 0 && nextIdx < availableDates.value.length) {
     backtrackIndex.value = nextIdx
     backtrackDate.value = availableDates.value[nextIdx]
+    const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+    if (backtrackCache.has(cacheKey)) {
+      chanData.value = backtrackCache.get(cacheKey)!
+      nextTick(() => {
+        renderChart()
+      })
+      return
+    }
     if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
     sliderDebounceTimer = setTimeout(() => {
       triggerBacktrackLoad()
-    }, 30)
+    }, 60)
   }
 }
 
@@ -1121,7 +1196,8 @@ onBeforeUnmount(() => {
           :max="maxBacktrackIndex"
           :value="backtrackIndex"
           class="time-slider"
-          @input="onSliderChange"
+          @input="onSliderInput"
+          @change="onSliderChange"
         />
         <span class="slider-bound">{{ chanData?.backtrack_timeline?.max_date }}</span>
       </div>

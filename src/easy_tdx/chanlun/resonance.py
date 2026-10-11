@@ -34,21 +34,28 @@ logger = logging.getLogger("chanlun.resonance")
 # 全量母数据集内存缓存池，供历史回溯与切片极速复用（彻底消除回溯时的网络请求）
 # key: (clean_code, period) -> (cached_at: float, df: pd.DataFrame)
 _RESONANCE_RAW_KLINE_CACHE: dict[tuple[str, str], tuple[float, pd.DataFrame]] = {}
+# 回溯态分析结果全量缓存池，相同股票、周期与截断时点 100% 内存瞬时返回，免除重复缠论管道计算
+# key: (clean_code, tuple(p_list), cutoff_str) -> result_dict
+_RESONANCE_BACKTRACK_ANALYSIS_CACHE: dict[tuple[str, tuple[str, ...], str], dict[str, Any]] = {}
 _RESONANCE_CACHE_LOCK = threading.Lock()
 BACKTRACK_CACHE_TTL = 3600.0  # 回溯态母数据缓存有效期（1小时），确保沉浸式复盘期间 100% 内存切片
 REALTIME_CACHE_TTL = 15.0     # 实时态短期缓存（15秒）
 
 
 def clear_resonance_kline_cache(code: str | None = None) -> None:
-    """清理缠论多周期母数据缓存。"""
+    """清理缠论多周期母数据缓存及回溯结果缓存。"""
     with _RESONANCE_CACHE_LOCK:
         if code:
             clean = str(code).strip().upper().replace("SZ", "").replace("SH", "").replace("BJ", "")
             keys_to_del = [k for k in _RESONANCE_RAW_KLINE_CACHE if k[0] == clean]
             for k in keys_to_del:
                 _RESONANCE_RAW_KLINE_CACHE.pop(k, None)
+            ana_keys_to_del = [k for k in _RESONANCE_BACKTRACK_ANALYSIS_CACHE if k[0] == clean]
+            for k in ana_keys_to_del:
+                _RESONANCE_BACKTRACK_ANALYSIS_CACHE.pop(k, None)
         else:
             _RESONANCE_RAW_KLINE_CACHE.clear()
+            _RESONANCE_BACKTRACK_ANALYSIS_CACHE.clear()
 
 
 # ==============================================================================
@@ -785,6 +792,17 @@ def analyze_multi_period_resonance(
     cutoff_dt = _to_dt(cutoff_str) if is_backtracking else None
     now_ts = time.time()
 
+    # 历史回溯极速缓存：相同标的、周期组合、截断点 100% 内存瞬时返回，彻底避免重复向行情服务器与缠论管道计算
+    if is_backtracking:
+        backtrack_cache_key = (clean_code, tuple(p_list), cutoff_str)
+        with _RESONANCE_CACHE_LOCK:
+            if backtrack_cache_key in _RESONANCE_BACKTRACK_ANALYSIS_CACHE:
+                logger.debug(
+                    "回溯直接命中内存分析结果缓存: code=%s periods=%s cutoff=%s",
+                    clean_code, p_list, cutoff_str
+                )
+                return _RESONANCE_BACKTRACK_ANALYSIS_CACHE[backtrack_cache_key]
+
     # 请求 K 线基准根数
     multiplier = 2 if is_backtracking else 1
     req_counts = {
@@ -1392,7 +1410,7 @@ def analyze_multi_period_resonance(
     prev_close = base_df["close"].iloc[-2] if len(base_df) >= 2 else latest_close
     chg_pct = round((latest_close - prev_close) / prev_close * 100, 2) if prev_close else 0.0
 
-    return {
+    result_data = {
         "code": clean_code,
         "name": stock_name,
         "periods": {
@@ -1445,3 +1463,12 @@ def analyze_multi_period_resonance(
             "current_bar_index": len(base_df) - 1 if not base_df.empty else 0,
         },
     }
+
+    if is_backtracking:
+        with _RESONANCE_CACHE_LOCK:
+            if len(_RESONANCE_BACKTRACK_ANALYSIS_CACHE) > 500:
+                for k in list(_RESONANCE_BACKTRACK_ANALYSIS_CACHE.keys())[:200]:
+                    _RESONANCE_BACKTRACK_ANALYSIS_CACHE.pop(k, None)
+            _RESONANCE_BACKTRACK_ANALYSIS_CACHE[(clean_code, tuple(p_list), cutoff_str)] = result_data
+
+    return result_data

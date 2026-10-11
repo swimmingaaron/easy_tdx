@@ -4530,7 +4530,7 @@
                 <!-- 时间轴滑块 (回溯模式下显示或始终优雅呈现) -->
                 <div class="flex items-center space-x-2 pt-0.5 text-[10px] text-slate-500 font-mono">
                     <span id="cl-slider-min" class="text-slate-400 whitespace-nowrap">--</span>
-                    <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderChange(this.value)"
+                    <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderInput(this.value)" onchange="onChanlunSliderChange(this.value)"
                         class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-cyan-400 transition">
                     <span id="cl-slider-max" class="text-slate-400 whitespace-nowrap">--</span>
                     <span id="cl-backtrack-cutoff-text" class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap hidden sm:inline">截断: 最新</span>
@@ -21263,8 +21263,30 @@
         let _clIsDataLoading = false;
         let _clPendingBacktrackDate = null;
         let _clBacktrackDebounceTimer = null;
+        const _clBacktrackCache = new Map();
+
+        function getClBacktrackKey(code, periods, cutoff) {
+            return `${code}_${periods}_${cutoff || 'LATEST'}`;
+        }
+
+        function clearClBacktrackCache() {
+            _clBacktrackCache.clear();
+        }
 
         async function loadChanlunData(forceRefresh = false) {
+            const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+
+            // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
+            if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKey)) {
+                const cached = _clBacktrackCache.get(cacheKey);
+                _clCachedData = cached;
+                updateChanlunOverview(cached);
+                updateChanlunTimeline(cached);
+                renderChanlunSignalsTable(cached);
+                renderChanlunChart(cached);
+                return;
+            }
+
             _clIsDataLoading = true;
             const chartDom = document.getElementById('chanlun-echart-main');
             const loadingOverlay = document.getElementById('cl-loading-overlay');
@@ -21290,6 +21312,12 @@
                 }
                 const data = await resp.json();
                 _clCachedData = data;
+
+                // 写入客户端本地内存回溯缓存池
+                _clBacktrackCache.set(cacheKey, data);
+                if (!_clIsBacktracking && data.summary && data.summary.latest_date) {
+                    _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clPeriods, data.summary.latest_date), data);
+                }
 
                 // 更新概览卡片、时间轴与表格
                 updateChanlunOverview(data);
@@ -22684,6 +22712,7 @@
             _clCurrentCode = codeVal;
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
+            clearClBacktrackCache();
             exitChanlunBacktrack();
             loadChanlunData(true);
         }
@@ -22708,6 +22737,7 @@
                 activeBtn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0';
             }
 
+            clearClBacktrackCache();
             loadChanlunData(false);
         }
 
@@ -22751,6 +22781,7 @@
                 btn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
             });
 
+            clearClBacktrackCache();
             loadChanlunData(false);
         }
 
@@ -22850,7 +22881,7 @@
             }
         }
 
-        function onChanlunSliderChange(val) {
+        function onChanlunSliderInput(val) {
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
             _clAutoRefresh = false;
@@ -22870,11 +22901,53 @@
                     const latestBtn = document.getElementById('cl-btn-latest-bar');
                     if (latestBtn) latestBtn.classList.remove('hidden');
 
-                    // 2. 45ms 防抖渲染，避免鼠标拖拽滑块时发出过多请求
+                    // 2. 检查客户端内存缓存：若已命中，直接 0ms 顺畅刷新图表，完全不向服务器发请求
+                    const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+                    if (_clBacktrackCache.has(cacheKey)) {
+                        const cached = _clBacktrackCache.get(cacheKey);
+                        _clCachedData = cached;
+                        updateChanlunOverview(cached);
+                        updateChanlunTimeline(cached);
+                        renderChanlunSignalsTable(cached);
+                        renderChanlunChart(cached);
+                        return;
+                    }
+
+                    // 3. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 350ms 后才防抖请求一次
                     if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
                     _clBacktrackDebounceTimer = setTimeout(() => {
                         triggerChanlunBacktrackLoad();
-                    }, 45);
+                    }, 350);
+                }
+            }
+        }
+
+        function onChanlunSliderChange(val) {
+            _clIsBacktracking = true;
+            stopChanlunAutoRefresh();
+            _clAutoRefresh = false;
+            toggleChanlunAutoRefreshState(false);
+
+            _clBacktrackIndex = Number(val);
+            if (_clCachedData && _clCachedData.backtrack_timeline) {
+                const dates = _clCachedData.backtrack_timeline.available_dates || [];
+                if (dates[_clBacktrackIndex]) {
+                    _clBacktrackDate = dates[_clBacktrackIndex];
+                    if (_clBacktrackDebounceTimer) {
+                        clearTimeout(_clBacktrackDebounceTimer);
+                        _clBacktrackDebounceTimer = null;
+                    }
+                    const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+                    if (_clBacktrackCache.has(cacheKey)) {
+                        const cached = _clBacktrackCache.get(cacheKey);
+                        _clCachedData = cached;
+                        updateChanlunOverview(cached);
+                        updateChanlunTimeline(cached);
+                        renderChanlunSignalsTable(cached);
+                        renderChanlunChart(cached);
+                        return;
+                    }
+                    triggerChanlunBacktrackLoad();
                 }
             }
         }
@@ -22902,10 +22975,21 @@
                 const latestBtn = document.getElementById('cl-btn-latest-bar');
                 if (latestBtn) latestBtn.classList.remove('hidden');
 
+                const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+                if (_clBacktrackCache.has(cacheKey)) {
+                    const cached = _clBacktrackCache.get(cacheKey);
+                    _clCachedData = cached;
+                    updateChanlunOverview(cached);
+                    updateChanlunTimeline(cached);
+                    renderChanlunSignalsTable(cached);
+                    renderChanlunChart(cached);
+                    return;
+                }
+
                 if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
                 _clBacktrackDebounceTimer = setTimeout(() => {
                     triggerChanlunBacktrackLoad();
-                }, 30);
+                }, 60);
             }
         }
 
