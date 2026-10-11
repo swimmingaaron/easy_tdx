@@ -383,7 +383,7 @@ class ChanlunUnifiedResonancePlotter:
         # ----------------------------------------------------------------------
         # 1. 绘制基准最小周期 K 线 (Candlesticks)
         # ----------------------------------------------------------------------
-        bar_width = 0.325
+        bar_width = 0.5
         price_span = base_df["high"].max() - base_df["low"].min()
         min_body = price_span * 0.002 or 0.01
 
@@ -730,7 +730,7 @@ class ChanlunUnifiedResonancePlotter:
         for i in range(n_bars):
             amt_val = float(amts[i]) / 1e8 if (pd.notna(amts[i]) and float(amts[i]) > 0) else (float(base_df["volume"].iloc[i] * cl_arr[i]) / 1e8)
             c_amt = "#f23645" if cl_arr[i] >= op_arr[i] else "#089981"
-            ax_macd.bar(i, amt_val, color=c_amt, width=0.3, alpha=0.85)
+            ax_macd.bar(i, amt_val, color=c_amt, width=0.5, alpha=0.85)
 
         ax_macd.set_ylabel("成交额 (亿元)", color="#94a3b8", fontsize=8.5)
         ax_macd.tick_params(axis="y", labelcolor="#94a3b8", labelsize=8)
@@ -1329,14 +1329,15 @@ def export_interactive_html(
                 }}
             ],
             dataZoom: [
-                {{ type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - (240 / D.dates.length) * 100), end: 100 }},
-                {{ type: 'slider', xAxisIndex: [0, 1], top: '95%', height: 16, start: Math.max(0, 100 - (240 / D.dates.length) * 100), end: 100 }}
+                {{ type: 'inside', xAxisIndex: [0, 1], minValueSpan: 20, start: Math.max(0, 100 - (110 / D.dates.length) * 100), end: 100 }},
+                {{ type: 'slider', xAxisIndex: [0, 1], top: '95%', height: 16, minValueSpan: 20, start: Math.max(0, 100 - (110 / D.dates.length) * 100), end: 100 }}
             ],
             series: [
                 {{
                     name: '基准K线',
                     type: 'candlestick',
-                    barMaxWidth: 7,
+                    barWidth: '55%',
+                    barMaxWidth: 14,
                     data: D.candles,
                     itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }},
                     markPoint: {{ data: D.mmd_marks }}
@@ -1371,7 +1372,8 @@ def export_interactive_html(
                 {{
                     name: '成交额',
                     type: 'bar',
-                    barWidth: '30%',
+                    barWidth: '55%',
+                    barMaxWidth: 14,
                     xAxisIndex: 1,
                     yAxisIndex: 1,
                     data: D.amounts.map(v => ({{ value: v[1], itemStyle: {{ color: v[2] >= 0 ? '#f23645' : '#089981' }} }}))
@@ -1379,7 +1381,8 @@ def export_interactive_html(
                 {{
                     name: 'MACD',
                     type: 'bar',
-                    barWidth: '28%',
+                    barWidth: '55%',
+                    barMaxWidth: 14,
                     xAxisIndex: 1,
                     yAxisIndex: 1,
                     data: D.macd_hist.map(v => ({{ value: v, itemStyle: {{ color: v >= 0 ? '#f23645' : '#089981' }} }})),

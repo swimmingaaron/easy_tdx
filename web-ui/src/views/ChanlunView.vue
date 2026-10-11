@@ -545,7 +545,8 @@ function renderChart() {
         value: v[1],
         itemStyle: { color: v[2] >= 0 ? '#ef4146' : '#089981' },
       })),
-      barWidth: '30%',
+      barWidth: '55%',
+      barMaxWidth: 14,
     })
   } else if (isSubMacd) {
     subSeries.push(
@@ -558,7 +559,8 @@ function renderChart() {
           value: v,
           itemStyle: { color: v >= 0 ? '#ef4146' : '#089981' },
         })),
-        barWidth: '28%',
+        barWidth: '55%',
+        barMaxWidth: 14,
       },
       {
         name: 'DIF',
@@ -735,17 +737,24 @@ function renderChart() {
       },
     ],
     dataZoom: [
-      { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - (240 / uc.dates.length) * 100), end: 100 },
+      {
+        type: 'inside',
+        xAxisIndex: [0, 1],
+        minValueSpan: 20,
+        start: Math.max(0, 100 - (110 / uc.dates.length) * 100),
+        end: 100,
+      },
       {
         type: 'slider',
         xAxisIndex: [0, 1],
         top: '94%',
         height: 18,
+        minValueSpan: 20,
         borderColor: '#2a2e39',
         backgroundColor: '#181b27',
         fillerColor: 'rgba(41, 98, 255, 0.25)',
         textStyle: { color: '#888888', fontSize: 10 },
-        start: Math.max(0, 100 - (240 / uc.dates.length) * 100),
+        start: Math.max(0, 100 - (110 / uc.dates.length) * 100),
         end: 100,
       },
     ],
@@ -753,7 +762,8 @@ function renderChart() {
       {
         name: '基准K线',
         type: 'candlestick',
-        barMaxWidth: 7,
+        barWidth: '55%',
+        barMaxWidth: 14,
         data: uc.candles,
         itemStyle: {
           color: '#ef4146',
@@ -809,7 +819,9 @@ function zoomChart(factor: number) {
   let start = opt.dataZoom[0].start ?? 40
   let end = opt.dataZoom[0].end ?? 100
   const span = end - start
-  const newSpan = Math.max(2, Math.min(100, span * factor))
+  const totalBars = chanData.value?.unified_chart?.dates?.length || 100
+  const minSpan = Math.min(100, (20 / totalBars) * 100)
+  const newSpan = Math.max(minSpan, Math.min(100, span * factor))
   const delta = (newSpan - span) / 2
   let newStart = Math.max(0, start - delta)
   let newEnd = Math.min(100, end + delta)
