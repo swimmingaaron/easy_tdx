@@ -877,6 +877,8 @@ def analyze_multi_period_resonance(
     # 1. 映射大级别笔与中枢
     high_res = results[high_p]
     high_bis = []
+    prev_high_end_coord = None
+    prev_high_end_idx = None
     for bi in high_res.bis:
         s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p, base_df, base_dts, base_dts_list)
         e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p, base_df, base_dts, base_dts_list)
@@ -884,13 +886,18 @@ def analyze_multi_period_resonance(
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
         e_clamp = max(0, min(n_base - 1, e_i))
+        start_coord = prev_high_end_coord if prev_high_end_coord is not None else [dates[s_clamp], bi.start.val]
+        start_idx = prev_high_end_idx if prev_high_end_idx is not None else s_clamp
+        end_coord = [dates[e_clamp], bi.end.val]
         high_bis.append({
-            "start": [dates[s_clamp], bi.start.val],
-            "end": [dates[e_clamp], bi.end.val],
-            "start_idx": s_clamp,
+            "start": start_coord,
+            "end": end_coord,
+            "start_idx": start_idx,
             "end_idx": e_clamp,
             "direction": bi.direction.value,
         })
+        prev_high_end_coord = end_coord
+        prev_high_end_idx = e_clamp
 
     high_zss = []
     for zs in results[high_p].zss:
@@ -916,6 +923,8 @@ def analyze_multi_period_resonance(
     # 2. 映射中级别笔与中枢
     mid_res = results[mid_p]
     mid_bis = []
+    prev_mid_end_coord = None
+    prev_mid_end_idx = None
     for bi in mid_res.bis:
         s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p, base_df, base_dts, base_dts_list)
         e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p, base_df, base_dts, base_dts_list)
@@ -923,13 +932,18 @@ def analyze_multi_period_resonance(
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
         e_clamp = max(0, min(n_base - 1, e_i))
+        start_coord = prev_mid_end_coord if prev_mid_end_coord is not None else [dates[s_clamp], bi.start.val]
+        start_idx = prev_mid_end_idx if prev_mid_end_idx is not None else s_clamp
+        end_coord = [dates[e_clamp], bi.end.val]
         mid_bis.append({
-            "start": [dates[s_clamp], bi.start.val],
-            "end": [dates[e_clamp], bi.end.val],
-            "start_idx": s_clamp,
+            "start": start_coord,
+            "end": end_coord,
+            "start_idx": start_idx,
             "end_idx": e_clamp,
             "direction": bi.direction.value,
         })
+        prev_mid_end_coord = end_coord
+        prev_mid_end_idx = e_clamp
 
     mid_zss = []
     for zs in results[mid_p].zss:
@@ -944,7 +958,6 @@ def analyze_multi_period_resonance(
         mid_zss.append({
             "start_date": dates[s_clamp],
             "end_date": dates[e_clamp],
-
             "start_idx": s_clamp,
             "end_idx": e_clamp,
             "zg": round(zs.zg, 2),
@@ -956,16 +969,24 @@ def analyze_multi_period_resonance(
     # 3. 小级别（基准）笔与中枢
     low_res = results[low_p]
     low_bis = []
+    prev_low_end_coord = None
+    prev_low_end_idx = None
     for bi in low_res.bis:
         s_i = max(0, min(n_base - 1, bi.start.k.k_index))
         e_i = max(0, min(n_base - 1, bi.end.k.k_index))
+        start_coord = prev_low_end_coord if prev_low_end_coord is not None else [dates[s_i], bi.start.val]
+        start_idx = prev_low_end_idx if prev_low_end_idx is not None else s_i
+        end_coord = [dates[e_i], bi.end.val]
         low_bis.append({
-            "start": [dates[s_i], bi.start.val],
-            "end": [dates[e_i], bi.end.val],
-            "start_idx": s_i,
+            "start": start_coord,
+            "end": end_coord,
+            "start_idx": start_idx,
             "end_idx": e_i,
             "direction": bi.direction.value,
         })
+        prev_low_end_coord = end_coord
+        prev_low_end_idx = e_i
+
 
     low_zss = []
     for zs in low_res.zss:

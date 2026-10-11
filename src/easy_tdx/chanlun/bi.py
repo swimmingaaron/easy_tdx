@@ -80,20 +80,13 @@ def find_bis(
     config: ChanlunConfig | None = None,
     cklines: list[CLKline] | None = None,
 ) -> list[BI]:
-    """从分型列表中计算笔。
+    """从分型列表中计算笔（严格连续折线状态机）。
 
-    算法（贪心，带 pending 保护，修复版）：
-    1. 遍历分型列表，维护最后一个有效分型（start_fx）
-    2. 如果当前分型与 start_fx 可以成笔，形成新笔
-    3. 如果当前分型与 start_fx 同类型：
-       - 无论是否有 pending_opposite，始终用更极端的值更新 start_fx
-         （因为分型层已保证顶底交替，重叠同向分型不应出现，但即使出现也要选更极端）
-       - 当有 pending_opposite 时更新 start_fx 后，重置 pending_opposite
-         （新的 start_fx 更极端，重新评估之前跳过的异类型）
-    4. 如果当前分型与 start_fx 异类型但 gap 不够，记录为 pending_opposite
-
-    注意：分型层（find_fractals）已确保顶底交替，
-    因此步骤 3 在正常情况下不会触发，仅作容错处理。
+    核心原则（连续性公理）：
+    1. 笔序列在几何上必须构成首尾无缝相接的连续折线 (bis[i].end == bis[i+1].start)，绝不允许断层。
+    2. 当最后一笔形成后，若后续同向分型创出更极端价格（未确立反向笔前），
+       属于前一笔的延伸，直接更新前一笔的 end 为该更极端分型。
+    3. 只有当反向分型与前一笔终点满足成笔条件时，才确认生成下一笔，且新笔的 start 严格等于前一笔的 end。
 
     Args:
         fxs: 分型列表（顶底交替）
@@ -101,7 +94,7 @@ def find_bis(
         cklines: 缠论K线列表（可选，用于计算笔内真实高低）
 
     Returns:
-        笔列表
+        笔列表（首尾绝对无缝连续）
     """
     if config is None:
         config = ChanlunConfig()
@@ -111,55 +104,68 @@ def find_bis(
 
     bis: list[BI] = []
 
-    # 用一个指针追踪当前笔的起始分型
+    # 1. 寻找第一笔
+    i = 0
     start_fx = fxs[0]
-    # 记录最近一个因 gap 不足而跳过的异类型分型
-    pending_opposite: FX | None = None
-
-    for i in range(1, len(fxs)):
-        current_fx = fxs[i]
-
-        # 同类型分型：取更极端的（容错处理，正常情况下已由分型层过滤）
-        if current_fx.fx_type == start_fx.fx_type:
-            if start_fx.fx_type == FXType.DING and current_fx.val > start_fx.val:
-                start_fx = current_fx
-                pending_opposite = None  # 重置 pending，重新评估
-            elif start_fx.fx_type == FXType.DI and current_fx.val < start_fx.val:
-                start_fx = current_fx
-                pending_opposite = None  # 重置 pending，重新评估
+    while i < len(fxs) - 1:
+        i += 1
+        cur = fxs[i]
+        if cur.fx_type == start_fx.fx_type:
+            # 同向更极端，更新起始点
+            if (start_fx.fx_type == FXType.DING and cur.val > start_fx.val) or \
+               (start_fx.fx_type == FXType.DI and cur.val < start_fx.val):
+                start_fx = cur
             continue
 
-        # 异类型分型，检查是否可以成笔
-        if _can_form_bi(start_fx, current_fx, config):
+        if _can_form_bi(start_fx, cur, config):
             direction = Direction.UP if start_fx.fx_type == FXType.DI else Direction.DOWN
-
-            # 计算笔内真实高低
             if cklines:
-                high, low = _calc_bi_range(start_fx, current_fx, cklines)
+                high, low = _calc_bi_range(start_fx, cur, cklines)
             else:
-                high = max(start_fx.val, current_fx.val)
-                low = min(start_fx.val, current_fx.val)
+                high = max(start_fx.val, cur.val)
+                low = min(start_fx.val, cur.val)
+            bis.append(BI(start=start_fx, end=cur, direction=direction, index=0, high=high, low=low))
+            break
 
-            bi = BI(
-                start=start_fx,
-                end=current_fx,
-                direction=direction,
-                index=len(bis),
-                high=high,
-                low=low,
-            )
-            bis.append(bi)
-            start_fx = current_fx
-            pending_opposite = None
-        else:
-            # gap 不够，记录为 pending
-            # 若已有 pending 且当前更极端，更新 pending
-            if pending_opposite is None:
-                pending_opposite = current_fx
-            else:
-                if current_fx.fx_type == FXType.DING and current_fx.val > pending_opposite.val:
-                    pending_opposite = current_fx
-                elif current_fx.fx_type == FXType.DI and current_fx.val < pending_opposite.val:
-                    pending_opposite = current_fx
+    if not bis:
+        return []
+
+    # 2. 依次寻找后续笔（保持首尾连续）
+    for fx in fxs[i:]:
+        last_bi = bis[-1]
+        expected_type = FXType.DI if last_bi.direction == Direction.UP else FXType.DING
+        same_type = FXType.DING if last_bi.direction == Direction.UP else FXType.DI
+
+        if fx.fx_type == same_type:
+            # 同类型分型：检查是否是前一笔的延伸（创出更极端价格）
+            if (last_bi.direction == Direction.UP and fx.val > last_bi.end.val) or \
+               (last_bi.direction == Direction.DOWN and fx.val < last_bi.end.val):
+                last_bi.end = fx
+                if cklines:
+                    last_bi.high, last_bi.low = _calc_bi_range(last_bi.start, fx, cklines)
+                else:
+                    last_bi.high = max(last_bi.start.val, fx.val)
+                    last_bi.low = min(last_bi.start.val, fx.val)
+            continue
+
+        elif fx.fx_type == expected_type:
+            # 反向分型：检查与当前最后一笔终点能否构成新笔
+            if _can_form_bi(last_bi.end, fx, config):
+                direction = Direction.DOWN if last_bi.direction == Direction.UP else Direction.UP
+                if cklines:
+                    high, low = _calc_bi_range(last_bi.end, fx, cklines)
+                else:
+                    high = max(last_bi.end.val, fx.val)
+                    low = min(last_bi.end.val, fx.val)
+                new_bi = BI(
+                    start=last_bi.end,
+                    end=fx,
+                    direction=direction,
+                    index=len(bis),
+                    high=high,
+                    low=low,
+                )
+                bis.append(new_bi)
 
     return bis
+
