@@ -1264,33 +1264,10 @@ def export_interactive_html(
         </div>
     </div>
 
-    <div style="margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #ffeb3b;">★ 三周期共振信号明细表</div>
-    <table class="res-table">
-        <thead><tr><th>触发时间</th><th>方向</th><th>评级</th><th>形态名称</th><th>触发价格</th><th>多空详情</th></tr></thead>
-        <tbody id="res-tbody"></tbody>
-    </table>
-
     <div id="chart"></div>
 
     <script>
         const D = {payload_json};
-        const tbody = document.getElementById('res-tbody');
-        if (D.resonances.length === 0) {{
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">当前选定周期组合未捕捉到强共振信号。</td></tr>';
-        }} else {{
-            D.resonances.forEach(r => {{
-                const isBuy = r.direction === 'BUY';
-                tbody.innerHTML += `<tr>
-                    <td>${{r.timestamp}}</td>
-                    <td class="${{isBuy ? 'badge-buy' : 'badge-sell'}}">${{isBuy ? '▲ 买点' : '▼ 卖点'}}</td>
-                    <td><span style="background:${{isBuy ? '#d32f2f' : '#00796b'}}; padding:2px 6px; border-radius:4px; font-size:11px;">${{r.grade}}</span></td>
-                    <td style="font-weight:bold; color:#ffffff;">${{r.pattern_name}}</td>
-                    <td>¥${{r.price.toFixed(2)}}</td>
-                    <td>${{r.desc}}</td>
-                </tr>`;
-            }});
-        }}
-
         const myChart = echarts.init(document.getElementById('chart'), 'dark');
         const option = {{
             backgroundColor: '#181b27',

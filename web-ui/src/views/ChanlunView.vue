@@ -14,7 +14,6 @@ import { fetchChanlunResonance, fetchStockSuggestions } from '../api'
 import echarts from '../echarts-setup'
 import type {
   ChanlunResonanceResponse,
-  ChanlunResonanceSignal,
   StockSuggestItem,
 } from '../types'
 
@@ -799,28 +798,6 @@ function handleResize() {
   chartInstance?.resize()
 }
 
-// 点击共振表格行，快速将图表聚焦到该 K 线位置
-function focusSignal(signal: ChanlunResonanceSignal) {
-  if (!chartInstance || !chanData.value) return
-  const dates = chanData.value.unified_chart.dates
-  const idx = signal.low_bar_idx
-  if (idx < 0 || idx >= dates.length) return
-
-  const total = dates.length
-  const span = 40 // 显示窗口约 40 根 K 线
-  const startIdx = Math.max(0, idx - Math.floor(span / 2))
-  const endIdx = Math.min(total - 1, idx + Math.floor(span / 2))
-
-  const startPercent = (startIdx / total) * 100
-  const endPercent = (endIdx / total) * 100
-
-  chartInstance.dispatchAction({
-    type: 'dataZoom',
-    start: startPercent,
-    end: endPercent,
-  })
-}
-
 function zoomChart(factor: number) {
   if (!chartInstance) return
   const opt = chartInstance.getOption() as any
@@ -1146,61 +1123,6 @@ onBeforeUnmount(() => {
 
       <div ref="chartContainer" class="main-echart"></div>
     </div>
-
-    <!-- 底部：三周期共振买卖点明细表 -->
-    <section class="resonance-table-section">
-      <div class="table-header">
-        <div class="t-left">
-          <span class="star-icon">★</span>
-          <h3>三周期立体共振买卖点事件表 (Three-Period Resonance Signals)</h3>
-          <span class="table-count">共捕捉 {{ chanData?.resonances.length || 0 }} 处立体共振机会</span>
-        </div>
-        <span class="t-tip">提示：点击任意行，主图表将自动居中缩放到该 K 线信号</span>
-      </div>
-
-      <div class="table-body">
-        <table v-if="chanData && chanData.resonances.length > 0" class="signals-table">
-          <thead>
-            <tr>
-              <th>触发时间</th>
-              <th>方向</th>
-              <th>评级</th>
-              <th>形态名称</th>
-              <th>触发价格</th>
-              <th>大级别多空 ({{ chanData.periods.high.name }})</th>
-              <th>中级别多空 ({{ chanData.periods.mid.name }})</th>
-              <th>微观买卖点 ({{ chanData.periods.low.name }})</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(r, idx) in chanData.resonances"
-              :key="idx"
-              class="clickable-row"
-              @click="focusSignal(r)"
-            >
-              <td class="dt-cell">{{ r.timestamp }}</td>
-              <td>
-                <span class="dir-badge" :class="r.direction === 'BUY' ? 'buy' : 'sell'">
-                  {{ r.direction === 'BUY' ? '▲ 共振买点' : '▼ 共振卖点' }}
-                </span>
-              </td>
-              <td>
-                <span class="grade-badge" :class="r.grade">{{ r.grade }}级</span>
-              </td>
-              <td class="pattern-name">{{ r.pattern_name }}</td>
-              <td class="price-cell">¥{{ r.price.toFixed(2) }}</td>
-              <td class="detail-cell">{{ r.high_state.detail }}</td>
-              <td class="detail-cell">{{ r.mid_state.detail }}</td>
-              <td class="detail-cell"><b style="color:#ffd600;">{{ r.low_state.recent_mmd }}</b> (¥{{ r.price.toFixed(2) }})</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-else class="empty-signals">
-          当前周期组合及 K 线时间范围内未捕捉到强共振信号。
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
