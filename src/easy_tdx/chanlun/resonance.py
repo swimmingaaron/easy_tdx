@@ -657,8 +657,13 @@ def map_pivot_to_base(
     base_df: pd.DataFrame,
     base_dts: pd.Series,
     base_dts_list: list[datetime] | None = None,
+    fx_obj: Any = None,
 ) -> int:
-    """将较高级别的笔分型端点精确映射到基准小周期的某根 K 线索引。"""
+    """将较高级别的笔分型端点精确映射到基准小周期的某根 K 线索引。
+    
+    对于同波段或包含处理合并后的极端高低点，智能定位到在基准周期上实际触及该极值价格的 K 线，
+    使大级别、次级别、小级别的顶点或底点在视觉与数学坐标上精准落在同一根 K 线周期上。
+    """
     p_dt = _to_dt(dt_val)
     n_bars = len(base_df)
     if n_bars == 0:
@@ -668,40 +673,74 @@ def map_pivot_to_base(
     if p_dt > base_dts.iloc[-1]:
         return n_bars - 1
 
-    if period_key == "WEEK":
-        w_start = (p_dt - pd.Timedelta(days=6)).date()
-        w_end = (p_dt + pd.Timedelta(days=1)).date()
+    # 1. 如果提供了分型对象且其合并 K 线包含多根原始 K 线，优先定位到实际达到极值价格的原始 K 线时间
+    anchor_dt = p_dt
+    if fx_obj is not None and hasattr(fx_obj, "k") and hasattr(fx_obj.k, "klines") and fx_obj.k.klines:
+        for raw_k in fx_obj.k.klines:
+            raw_target = raw_k.high if is_high else raw_k.low
+            if abs(raw_target - val) < 1e-4:
+                anchor_dt = _to_dt(raw_k.date)
+                break
+
+    # 2. 根据周期类型确定基准周期的候选搜索时间窗口
+    p_upper = period_key.upper()
+    if p_upper in ("MONTH", "M"):
+        mask = (base_dts.dt.year == anchor_dt.year) & (base_dts.dt.month == anchor_dt.month)
+    elif p_upper in ("WEEK", "W"):
+        w_start = (anchor_dt - pd.Timedelta(days=6)).date()
+        w_end = (anchor_dt + pd.Timedelta(days=1)).date()
         mask = (base_dts.dt.date >= w_start) & (base_dts.dt.date <= w_end)
-    elif period_key == "DAY":
-        mask = base_dts.dt.date == p_dt.date()
-    elif period_key == "MONTH":
-        mask = (base_dts.dt.year == p_dt.year) & (base_dts.dt.month == p_dt.month)
+    elif p_upper in ("DAY", "D"):
+        mask = base_dts.dt.date == anchor_dt.date()
     else:
-        mask = None
+        # 分钟周期 (如 120F, 60F, 30F, 15F, 5F, 1F)
+        delta_m = 30
+        if "120" in p_upper:
+            delta_m = 120
+        elif "60" in p_upper:
+            delta_m = 60
+        elif "30" in p_upper:
+            delta_m = 30
+        elif "15" in p_upper:
+            delta_m = 15
+        elif "5" in p_upper:
+            delta_m = 5
+        elif "1" in p_upper:
+            delta_m = 1
+
+        t_min = anchor_dt - pd.Timedelta(minutes=delta_m + 5)
+        t_max = anchor_dt + pd.Timedelta(minutes=5)
+        mask = (base_dts >= t_min) & (base_dts <= t_max)
 
     if mask is not None:
         idxs = np.where(mask)[0]
         if len(idxs) > 0:
-            if is_high:
-                sub_vals = base_df["high"].iloc[idxs].values
+            target_col = "high" if is_high else "low"
+            sub_vals = base_df[target_col].iloc[idxs].values
+            diffs = np.abs(sub_vals - val)
+            # 优先精确匹配极值价格（浮点容差 1e-3）
+            if np.min(diffs) < 1e-3:
+                match_positions = np.where(diffs < 1e-3)[0]
+                return int(idxs[match_positions[0]])
+            elif is_high:
                 return int(idxs[np.argmax(sub_vals)])
             else:
-                sub_vals = base_df["low"].iloc[idxs].values
                 return int(idxs[np.argmin(sub_vals)])
 
-    # 高速二分查找最邻近索引 (O(log N))
+    # 高速二分查找最邻近索引 (O(log N)) 作为保底
     if base_dts_list is not None and len(base_dts_list) == n_bars:
-        pos = bisect.bisect_left(base_dts_list, p_dt)
+        pos = bisect.bisect_left(base_dts_list, anchor_dt)
         if pos == 0:
             return 0
         if pos >= n_bars:
             return n_bars - 1
-        diff1 = abs((base_dts_list[pos - 1] - p_dt).total_seconds())
-        diff2 = abs((base_dts_list[pos] - p_dt).total_seconds())
+        diff1 = abs((base_dts_list[pos - 1] - anchor_dt).total_seconds())
+        diff2 = abs((base_dts_list[pos] - anchor_dt).total_seconds())
         return pos - 1 if diff1 <= diff2 else pos
 
-    diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+    diffs = np.abs((base_dts - anchor_dt).dt.total_seconds().values)
     return int(np.argmin(diffs))
+
 
 
 
@@ -880,8 +919,10 @@ def analyze_multi_period_resonance(
     prev_high_end_coord = None
     prev_high_end_idx = None
     for bi in high_res.bis:
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p, base_df, base_dts, base_dts_list)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p, base_df, base_dts, base_dts_list)
+        s_is_high = bi.start.fx_type == FXType.DING
+        e_is_high = bi.end.fx_type == FXType.DING
+        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
+        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
         if s_i < 0 and e_i < 0:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -926,8 +967,10 @@ def analyze_multi_period_resonance(
     prev_mid_end_coord = None
     prev_mid_end_idx = None
     for bi in mid_res.bis:
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p, base_df, base_dts, base_dts_list)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p, base_df, base_dts, base_dts_list)
+        s_is_high = bi.start.fx_type == FXType.DING
+        e_is_high = bi.end.fx_type == FXType.DING
+        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
+        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
         if s_i < 0 and e_i < 0:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -972,8 +1015,26 @@ def analyze_multi_period_resonance(
     prev_low_end_coord = None
     prev_low_end_idx = None
     for bi in low_res.bis:
-        s_i = max(0, min(n_base - 1, bi.start.k.k_index))
-        e_i = max(0, min(n_base - 1, bi.end.k.k_index))
+        s_i = bi.start.k.k_index
+        if hasattr(bi.start.k, "klines") and bi.start.k.klines:
+            is_start_high = (bi.start.fx_type == FXType.DING)
+            for raw_k in bi.start.k.klines:
+                raw_target = raw_k.high if is_start_high else raw_k.low
+                if abs(raw_target - bi.start.val) < 1e-4:
+                    s_i = raw_k.index
+                    break
+
+        e_i = bi.end.k.k_index
+        if hasattr(bi.end.k, "klines") and bi.end.k.klines:
+            is_end_high = (bi.end.fx_type == FXType.DING)
+            for raw_k in bi.end.k.klines:
+                raw_target = raw_k.high if is_end_high else raw_k.low
+                if abs(raw_target - bi.end.val) < 1e-4:
+                    e_i = raw_k.index
+                    break
+
+        s_i = max(0, min(n_base - 1, s_i))
+        e_i = max(0, min(n_base - 1, e_i))
         start_coord = prev_low_end_coord if prev_low_end_coord is not None else [dates[s_i], bi.start.val]
         start_idx = prev_low_end_idx if prev_low_end_idx is not None else s_i
         end_coord = [dates[e_i], bi.end.val]
@@ -1013,7 +1074,15 @@ def analyze_multi_period_resonance(
     # 小级别自身买卖点 (底背驰 T1 / 顶背驰 T1 / 2买 / 3买)
     for mmd in low_res.mmds:
         if mmd.bi:
-            k_idx = max(0, min(n_base - 1, mmd.bi.end.k.k_index))
+            k_idx = mmd.bi.end.k.k_index
+            if hasattr(mmd.bi.end.k, "klines") and mmd.bi.end.k.klines:
+                is_end_high = (mmd.bi.end.fx_type == FXType.DING)
+                for raw_k in mmd.bi.end.k.klines:
+                    raw_target = raw_k.high if is_end_high else raw_k.low
+                    if abs(raw_target - mmd.bi.end.val) < 1e-4:
+                        k_idx = raw_k.index
+                        break
+            k_idx = max(0, min(n_base - 1, k_idx))
             is_buy = "buy" in mmd.mmd_type.value
             m_type = mmd.mmd_type.value.lower()
             if "1buy" in m_type:
@@ -1046,8 +1115,8 @@ def analyze_multi_period_resonance(
     for mmd in mid_res.mmds:
         if mmd.bi:
             end_val = mmd.bi.end.val
-            is_high = mmd.bi.direction.value == "up"
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts, base_dts_list)
+            is_high = mmd.bi.end.fx_type == FXType.DING
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
             if 0 <= b_idx < n_base:
                 is_buy = "buy" in mmd.mmd_type.value
                 m_type = mmd.mmd_type.value.lower()
@@ -1081,8 +1150,8 @@ def analyze_multi_period_resonance(
     for mmd in high_res.mmds:
         if mmd.bi:
             end_val = mmd.bi.end.val
-            is_high = mmd.bi.direction.value == "up"
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list)
+            is_high = mmd.bi.end.fx_type == FXType.DING
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
             if 0 <= b_idx < n_base:
 
                 is_buy = "buy" in mmd.mmd_type.value

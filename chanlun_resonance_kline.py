@@ -268,6 +268,7 @@ class ChanlunUnifiedResonancePlotter:
         period_key: str,
         base_df: pd.DataFrame,
         base_dts: pd.Series,
+        fx_obj: Any = None,
     ) -> int:
         """将较高级别的笔分型端点精确对齐映射到基准小周期的某根 K 线索引。"""
         p_dt = _to_dt(dt_val)
@@ -279,28 +280,57 @@ class ChanlunUnifiedResonancePlotter:
         if p_dt > base_dts.iloc[-1]:
             return n_bars - 1
 
-        if period_key == "WEEK":
-            w_start = (p_dt - pd.Timedelta(days=6)).date()
-            w_end = (p_dt + pd.Timedelta(days=1)).date()
+        anchor_dt = p_dt
+        if fx_obj is not None and hasattr(fx_obj, "k") and hasattr(fx_obj.k, "klines") and fx_obj.k.klines:
+            for raw_k in fx_obj.k.klines:
+                raw_target = raw_k.high if is_high else raw_k.low
+                if abs(raw_target - val) < 1e-4:
+                    anchor_dt = _to_dt(raw_k.date)
+                    break
+
+        p_upper = period_key.upper()
+        if p_upper in ("MONTH", "M"):
+            mask = (base_dts.dt.year == anchor_dt.year) & (base_dts.dt.month == anchor_dt.month)
+        elif p_upper in ("WEEK", "W"):
+            w_start = (anchor_dt - pd.Timedelta(days=6)).date()
+            w_end = (anchor_dt + pd.Timedelta(days=1)).date()
             mask = (base_dts.dt.date >= w_start) & (base_dts.dt.date <= w_end)
-        elif period_key == "DAY":
-            mask = base_dts.dt.date == p_dt.date()
-        elif period_key == "MONTH":
-            mask = (base_dts.dt.year == p_dt.year) & (base_dts.dt.month == p_dt.month)
+        elif p_upper in ("DAY", "D"):
+            mask = base_dts.dt.date == anchor_dt.date()
         else:
-            diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
-            return int(np.argmin(diffs))
+            delta_m = 30
+            if "120" in p_upper:
+                delta_m = 120
+            elif "60" in p_upper:
+                delta_m = 60
+            elif "30" in p_upper:
+                delta_m = 30
+            elif "15" in p_upper:
+                delta_m = 15
+            elif "5" in p_upper:
+                delta_m = 5
+            elif "1" in p_upper:
+                delta_m = 1
 
-        idxs = np.where(mask)[0]
-        if len(idxs) > 0:
-            if is_high:
-                sub_vals = base_df["high"].iloc[idxs].values
-                return int(idxs[np.argmax(sub_vals)])
-            else:
-                sub_vals = base_df["low"].iloc[idxs].values
-                return int(idxs[np.argmin(sub_vals)])
+            t_min = anchor_dt - pd.Timedelta(minutes=delta_m + 5)
+            t_max = anchor_dt + pd.Timedelta(minutes=5)
+            mask = (base_dts >= t_min) & (base_dts <= t_max)
 
-        diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
+        if mask is not None:
+            idxs = np.where(mask)[0]
+            if len(idxs) > 0:
+                target_col = "high" if is_high else "low"
+                sub_vals = base_df[target_col].iloc[idxs].values
+                diffs = np.abs(sub_vals - val)
+                if np.min(diffs) < 1e-3:
+                    match_positions = np.where(diffs < 1e-3)[0]
+                    return int(idxs[match_positions[0]])
+                elif is_high:
+                    return int(idxs[np.argmax(sub_vals)])
+                else:
+                    return int(idxs[np.argmin(sub_vals)])
+
+        diffs = np.abs((base_dts - anchor_dt).dt.total_seconds().values)
         return int(np.argmin(diffs))
 
     def plot(self, save_path: str | Path | None = None, show: bool = False) -> Path | None:
@@ -419,14 +449,18 @@ class ChanlunUnifiedResonancePlotter:
 
         # 大级别笔
         high_bi_pts = []
+        prev_h_end = None
         for bi in res_high.bis:
-            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", self.p_high, base_df, base_dts)
-            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", self.p_high, base_df, base_dts)
+            s_is_high = bi.start.fx_type == FXType.DING
+            e_is_high = bi.end.fx_type == FXType.DING
+            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, self.p_high, base_df, base_dts, fx_obj=bi.start)
+            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, self.p_high, base_df, base_dts, fx_obj=bi.end)
             if s_idx < 0 and e_idx < 0:
                 continue
-            s_clamp = max(0, s_idx)
+            s_clamp = prev_h_end if prev_h_end is not None else max(0, s_idx)
             e_clamp = max(0, min(n_bars - 1, e_idx))
             high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+            prev_h_end = e_clamp
 
         for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
             lbl = f"大级别 ({high_name}) 紫线笔" if seg_i == 0 else ""
@@ -482,14 +516,18 @@ class ChanlunUnifiedResonancePlotter:
 
         # 中级别笔
         mid_bi_pts = []
+        prev_m_end = None
         for bi in res_mid.bis:
-            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", self.p_mid, base_df, base_dts)
-            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", self.p_mid, base_df, base_dts)
+            s_is_high = bi.start.fx_type == FXType.DING
+            e_is_high = bi.end.fx_type == FXType.DING
+            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, self.p_mid, base_df, base_dts, fx_obj=bi.start)
+            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, self.p_mid, base_df, base_dts, fx_obj=bi.end)
             if s_idx < 0 and e_idx < 0:
                 continue
-            s_clamp = max(0, s_idx)
+            s_clamp = prev_m_end if prev_m_end is not None else max(0, s_idx)
             e_clamp = max(0, min(n_bars - 1, e_idx))
             mid_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+            prev_m_end = e_clamp
 
         for seg_i, (sx, sy, ex, ey) in enumerate(mid_bi_pts):
             lbl = f"次级别 ({mid_name}) 黄线笔" if seg_i == 0 else ""
@@ -545,10 +583,26 @@ class ChanlunUnifiedResonancePlotter:
             low_bi_x = []
             low_bi_y = []
             for bi in base_res.bis:
-                low_bi_x.append(bi.start.k.k_index)
+                s_i = bi.start.k.k_index
+                if hasattr(bi.start.k, "klines") and bi.start.k.klines:
+                    is_start_high = (bi.start.fx_type == FXType.DING)
+                    for raw_k in bi.start.k.klines:
+                        raw_target = raw_k.high if is_start_high else raw_k.low
+                        if abs(raw_target - bi.start.val) < 1e-4:
+                            s_i = raw_k.index
+                            break
+                low_bi_x.append(s_i)
                 low_bi_y.append(bi.start.val)
             last_bi = base_res.bis[-1]
-            low_bi_x.append(last_bi.end.k.k_index)
+            e_i = last_bi.end.k.k_index
+            if hasattr(last_bi.end.k, "klines") and last_bi.end.k.klines:
+                is_end_high = (last_bi.end.fx_type == FXType.DING)
+                for raw_k in last_bi.end.k.klines:
+                    raw_target = raw_k.high if is_end_high else raw_k.low
+                    if abs(raw_target - last_bi.end.val) < 1e-4:
+                        e_i = raw_k.index
+                        break
+            low_bi_x.append(e_i)
             low_bi_y.append(last_bi.end.val)
 
             ax_main.plot(
