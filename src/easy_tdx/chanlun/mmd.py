@@ -24,6 +24,7 @@ def find_mmds(
     zss: list[ZS],
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
+    macd_hist: list[float] | None = None,
 ) -> list[MMD]:
     """从笔和中枢中识别买卖点。
 
@@ -32,6 +33,7 @@ def find_mmds(
         zss: 中枢列表
         config: 缠论配置
         closes: 收盘价序列（可选，用于计算 MACD 面积力度）
+        macd_hist: 预计算的 MACD hist 序列（可选）
 
     Returns:
         买卖点列表
@@ -43,11 +45,14 @@ def find_mmds(
         return []
 
     mmds: list[MMD] = []
+    force_cache: dict[int, float] = {}
 
     for bi in bis:
         # 寻找与该笔最近的中枢
         for zs in reversed(zss):
-            mmd = _check_bi_mmd(bi, zs, bis, config=config, closes=closes)
+            mmd = _check_bi_mmd(
+                bi, zs, bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+            )
             if mmd is not None:
                 mmds.append(mmd)
                 break  # 每笔最多一个买卖点
@@ -61,12 +66,18 @@ def _check_bi_mmd(
     all_bis: list[BI],
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> MMD | None:
     """检查单笔是否在某中枢附近形成买卖点。"""
     if bi.direction.value == "down":
-        return _check_buy_point(bi, zs, all_bis, config=config, closes=closes)
+        return _check_buy_point(
+            bi, zs, all_bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+        )
     else:
-        return _check_sell_point(bi, zs, all_bis, config=config, closes=closes)
+        return _check_sell_point(
+            bi, zs, all_bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+        )
 
 
 def _check_buy_point(
@@ -75,6 +86,8 @@ def _check_buy_point(
     all_bis: list[BI],
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> MMD | None:
     """检查向下笔是否形成买点。"""
     # 三类买点优先：突破中枢后，回调不跌破中枢上沿（必须先于二买判定）
@@ -88,7 +101,9 @@ def _check_buy_point(
 
     # 一类买点：笔低点低于中枢下沿（中枢下方），且底背驰（力度衰减）
     if bi.low < zs.zd:
-        if _check_force_decreasing(bi, all_bis, "down", closes=closes, config=config):
+        if _check_force_decreasing(
+            bi, all_bis, "down", closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
+        ):
             return MMD(
                 mmd_type=MMDType.BUY_1,
                 zs=zs,
@@ -119,6 +134,8 @@ def _check_sell_point(
     all_bis: list[BI],
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> MMD | None:
     """检查向上笔是否形成卖点。"""
     # 三类卖点优先：跌破中枢后，反弹不突破中枢下沿（必须先于二卖判定）
@@ -132,7 +149,9 @@ def _check_sell_point(
 
     # 一类卖点：笔高点高于中枢上沿，且顶背驰（力度衰减）
     if bi.high > zs.zg:
-        if _check_force_decreasing(bi, all_bis, "up", closes=closes, config=config):
+        if _check_force_decreasing(
+            bi, all_bis, "up", closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
+        ):
             return MMD(
                 mmd_type=MMDType.SELL_1,
                 zs=zs,
@@ -163,6 +182,8 @@ def _check_force_decreasing(
     direction: str,
     closes: list[float] | None = None,
     config: ChanlunConfig | None = None,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> bool:
     """检查力度是否衰减（优先使用 MACD hist 面积，回退到幅度）。"""
     bi_idx = bi.index
@@ -176,8 +197,12 @@ def _check_force_decreasing(
             if closes:
                 from easy_tdx.chanlun.beichi import _calc_bi_force
 
-                curr_force = _calc_bi_force(bi, closes, config)
-                prev_force = _calc_bi_force(prev, closes, config)
+                curr_force = _calc_bi_force(
+                    bi, closes, config, macd_hist=macd_hist, force_cache=force_cache
+                )
+                prev_force = _calc_bi_force(
+                    prev, closes, config, macd_hist=macd_hist, force_cache=force_cache
+                )
             else:
                 curr_force = bi.high - bi.low
                 prev_force = prev.high - prev.low
@@ -188,3 +213,4 @@ def _check_force_decreasing(
                 return curr_force < prev_force and bi.high > prev.high
 
     return False
+

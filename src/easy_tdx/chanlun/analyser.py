@@ -226,15 +226,17 @@ class ChanlunAnalyser:
         xds = find_xds(bis, self._config)
         self._result.xds = xds
 
-        # Step 8: 买卖点识别（传入 closes 以计算 MACD 面积力度）
-        mmds = find_mmds(bis, zss, self._config, closes=closes)
+        # Step 8: 买卖点识别（传入 closes 与已计算好的 macd_hist 以极速评估 MACD 面积力度）
+        macd_hist = self._result.macd.get("hist") if self._result.macd else None
+        mmds = find_mmds(bis, zss, self._config, closes=closes, macd_hist=macd_hist)
         self._result.mmds = mmds
 
-        # Step 9: 背驰判断（传入 closes 以计算 MACD 面积力度）
-        bcs = check_bi_beichi(bis, zss, self._config, closes=closes)
+        # Step 9: 背驰判断（传入 closes 与 macd_hist 以极速评估背驰）
+        bcs = check_bi_beichi(bis, zss, self._config, closes=closes, macd_hist=macd_hist)
         self._result.bcs = bcs
 
         return self._result
+
 
     def append_klines(self, df_new: pd.DataFrame) -> ChanlunResult:
         """增量追加 K 线数据并重新计算。

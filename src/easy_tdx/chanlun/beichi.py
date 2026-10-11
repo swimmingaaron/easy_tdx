@@ -23,6 +23,7 @@ def check_bi_beichi(
     zss: list[ZS],
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
+    macd_hist: list[float] | None = None,
 ) -> list[BC]:
     """检查笔级别的背驰。
 
@@ -36,6 +37,7 @@ def check_bi_beichi(
         zss: 中枢列表
         config: 缠论配置
         closes: 完整收盘价序列（用于 MACD 面积计算，可选）
+        macd_hist: 预计算的 MACD hist 序列（可选）
 
     Returns:
         背驰列表
@@ -46,18 +48,21 @@ def check_bi_beichi(
     if len(bis) < 2:
         return []
 
+    # 笔力度缓存池（避免相同笔反复计算）
+    force_cache: dict[int, float] = {}
+
     bcs: list[BC] = []
 
     # 1. 笔背驰检查
-    bcs.extend(_check_bi_level_beichi(bis, closes, config))
+    bcs.extend(_check_bi_level_beichi(bis, closes, config, macd_hist, force_cache))
 
     # 2. 盘整背驰检查
     if len(zss) > 0:
-        bcs.extend(_check_pz_beichi(bis, zss, closes, config))
+        bcs.extend(_check_pz_beichi(bis, zss, closes, config, macd_hist, force_cache))
 
     # 3. 趋势背驰检查
     if len(zss) >= 2:
-        bcs.extend(_check_qs_beichi(bis, zss, closes, config))
+        bcs.extend(_check_qs_beichi(bis, zss, closes, config, macd_hist, force_cache))
 
     return bcs
 
@@ -66,11 +71,18 @@ def _calc_bi_force(
     bi: BI | XD,
     closes: list[float] | None = None,
     config: ChanlunConfig | None = None,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> float:
     """计算笔的力度。
 
     优先使用 MACD hist 面积（绝对值之和），若无收盘价序列则回退到幅度。
     """
+    bi_idx = getattr(bi, "index", None)
+    if force_cache is not None and bi_idx is not None and bi_idx in force_cache:
+        return force_cache[bi_idx]
+
+    force_val: float
     if closes:
         start_idx = bi.start.k.k_index
         end_idx = bi.end.k.k_index
@@ -78,19 +90,31 @@ def _calc_bi_force(
             fast = config.macd_fast if config else 12
             slow = config.macd_slow if config else 26
             signal = config.macd_signal if config else 9
-            result = calc_macd_force(closes, start_idx, end_idx, fast, slow, signal)
+            result = calc_macd_force(
+                closes, start_idx, end_idx, fast, slow, signal, macd_hist=macd_hist
+            )
             macd_force = result.get("hist_sum", 0.0)
             if macd_force > 0:
-                return macd_force
+                force_val = macd_force
+            else:
+                force_val = abs(bi.high - bi.low)
+        else:
+            force_val = abs(bi.high - bi.low)
+    else:
+        # 回退到幅度
+        force_val = abs(bi.high - bi.low)
 
-    # 回退到幅度
-    return abs(bi.high - bi.low)
+    if force_cache is not None and bi_idx is not None:
+        force_cache[bi_idx] = force_val
+    return force_val
 
 
 def _check_bi_level_beichi(
     bis: list[BI],
     closes: list[float] | None,
     config: ChanlunConfig,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> list[BC]:
     """检查笔级别的力度背驰。"""
     bcs: list[BC] = []
@@ -101,8 +125,9 @@ def _check_bi_level_beichi(
         for j in range(i - 1, -1, -1):
             prev = bis[j]
             if prev.direction == curr.direction:
-                curr_force = _calc_bi_force(curr, closes, config)
-                prev_force = _calc_bi_force(prev, closes, config)
+                curr_force = _calc_bi_force(curr, closes, config, macd_hist, force_cache)
+                prev_force = _calc_bi_force(prev, closes, config, macd_hist, force_cache)
+
 
                 # 力度衰减 = 背驰
                 if curr_force < prev_force and curr_force > 0:
@@ -129,6 +154,8 @@ def _check_pz_beichi(
     zss: list[ZS],
     closes: list[float] | None,
     config: ChanlunConfig,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> list[BC]:
     """检查盘整背驰。
 
@@ -148,8 +175,8 @@ def _check_pz_beichi(
         if first_bi.direction != last_bi.direction:
             continue
 
-        first_force = _calc_bi_force(first_bi, closes, config)
-        last_force = _calc_bi_force(last_bi, closes, config)
+        first_force = _calc_bi_force(first_bi, closes, config, macd_hist, force_cache)
+        last_force = _calc_bi_force(last_bi, closes, config, macd_hist, force_cache)
 
         if last_force < first_force and last_force > 0:
             bcs.append(
@@ -174,6 +201,8 @@ def _check_qs_beichi(
     zss: list[ZS],
     closes: list[float] | None,
     config: ChanlunConfig,
+    macd_hist: list[float] | None = None,
+    force_cache: dict[int, float] | None = None,
 ) -> list[BC]:
     """检查趋势背驰。"""
     bcs: list[BC] = []
@@ -191,8 +220,8 @@ def _check_qs_beichi(
             prev_exit = prev_zs.lines[-1]
             curr_exit = curr_zs.lines[-1]
             if prev_exit.direction == curr_exit.direction:
-                prev_force = _calc_bi_force(prev_exit, closes, config)
-                curr_force = _calc_bi_force(curr_exit, closes, config)
+                prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
+                curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
 
                 if curr_force < prev_force and curr_force > 0:
                     bcs.append(
@@ -213,8 +242,8 @@ def _check_qs_beichi(
             prev_exit = prev_zs.lines[-1]
             curr_exit = curr_zs.lines[-1]
             if prev_exit.direction == curr_exit.direction:
-                prev_force = _calc_bi_force(prev_exit, closes, config)
-                curr_force = _calc_bi_force(curr_exit, closes, config)
+                prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
+                curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
 
                 if curr_force < prev_force and curr_force > 0:
                     bcs.append(

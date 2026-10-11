@@ -656,6 +656,7 @@ def map_pivot_to_base(
     period_key: str,
     base_df: pd.DataFrame,
     base_dts: pd.Series,
+    base_dts_list: list[datetime] | None = None,
 ) -> int:
     """将较高级别的笔分型端点精确映射到基准小周期的某根 K 线索引。"""
     p_dt = _to_dt(dt_val)
@@ -676,20 +677,32 @@ def map_pivot_to_base(
     elif period_key == "MONTH":
         mask = (base_dts.dt.year == p_dt.year) & (base_dts.dt.month == p_dt.month)
     else:
-        diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
-        return int(np.argmin(diffs))
+        mask = None
 
-    idxs = np.where(mask)[0]
-    if len(idxs) > 0:
-        if is_high:
-            sub_vals = base_df["high"].iloc[idxs].values
-            return int(idxs[np.argmax(sub_vals)])
-        else:
-            sub_vals = base_df["low"].iloc[idxs].values
-            return int(idxs[np.argmin(sub_vals)])
+    if mask is not None:
+        idxs = np.where(mask)[0]
+        if len(idxs) > 0:
+            if is_high:
+                sub_vals = base_df["high"].iloc[idxs].values
+                return int(idxs[np.argmax(sub_vals)])
+            else:
+                sub_vals = base_df["low"].iloc[idxs].values
+                return int(idxs[np.argmin(sub_vals)])
+
+    # 高速二分查找最邻近索引 (O(log N))
+    if base_dts_list is not None and len(base_dts_list) == n_bars:
+        pos = bisect.bisect_left(base_dts_list, p_dt)
+        if pos == 0:
+            return 0
+        if pos >= n_bars:
+            return n_bars - 1
+        diff1 = abs((base_dts_list[pos - 1] - p_dt).total_seconds())
+        diff2 = abs((base_dts_list[pos] - p_dt).total_seconds())
+        return pos - 1 if diff1 <= diff2 else pos
 
     diffs = np.abs((base_dts - p_dt).dt.total_seconds().values)
     return int(np.argmin(diffs))
+
 
 
 # ==============================================================================
@@ -755,19 +768,21 @@ def analyze_multi_period_resonance(
 
         use_cached = False
         cached_df: pd.DataFrame | None = None
-        if not force_refresh:
-            with _RESONANCE_CACHE_LOCK:
-                if (clean_code, p) in _RESONANCE_RAW_KLINE_CACHE:
-                    c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)]
-                    ttl = BACKTRACK_CACHE_TTL if is_backtracking else REALTIME_CACHE_TTL
-                    if (now_ts - c_time < ttl) and c_df is not None and not c_df.empty:
-                        if is_backtracking and cutoff_dt is not None:
-                            first_dt = _to_dt(str(c_df["datetime"].iloc[0]))
-                            # 只要缓存覆盖了当前回溯截止时间或长度足够，即完全复用
-                            if (first_dt and first_dt <= cutoff_dt) or len(c_df) >= 300:
-                                use_cached = True
-                                cached_df = c_df
-                        else:
+
+        # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
+        if is_backtracking:
+            force_refresh = False
+
+        with _RESONANCE_CACHE_LOCK:
+            if (clean_code, p) in _RESONANCE_RAW_KLINE_CACHE:
+                c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)]
+                if c_df is not None and not c_df.empty:
+                    if is_backtracking:
+                        # 回溯时 100% 内存复用已有母数据，绝不发起网络请求
+                        use_cached = True
+                        cached_df = c_df
+                    elif not force_refresh:
+                        if (now_ts - c_time < REALTIME_CACHE_TTL):
                             use_cached = True
                             cached_df = c_df
 
@@ -785,6 +800,7 @@ def analyze_multi_period_resonance(
             else:
                 with _RESONANCE_CACHE_LOCK:
                     _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)] = (now_ts, df)
+
 
         raw_dfs[p] = df
 
@@ -843,26 +859,27 @@ def analyze_multi_period_resonance(
         if not base_df.empty
         else []
     )
-    volumes = (
-        [
-            [i, row["volume"], 1 if row["close"] >= row["open"] else -1]
-            for i, (_, row) in enumerate(base_df.iterrows())
+    if not base_df.empty:
+        vols = base_df["volume"].values
+        closes_arr = base_df["close"].values
+        opens_arr = base_df["open"].values
+        volumes = [
+            [i, float(vols[i]), 1 if closes_arr[i] >= opens_arr[i] else -1]
+            for i in range(n_base)
         ]
-        if not base_df.empty
-        else []
-    )
-    base_dts = (
-        pd.to_datetime(base_df["datetime"].astype(str))
-        if not base_df.empty
-        else pd.Series(dtype="datetime64[ns]")
-    )
+        base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+        base_dts_list = [t.to_pydatetime() for t in base_dts]
+    else:
+        volumes = []
+        base_dts = pd.Series(dtype="datetime64[ns]")
+        base_dts_list = []
 
     # 1. 映射大级别笔与中枢
     high_res = results[high_p]
     high_bis = []
     for bi in high_res.bis:
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p, base_df, base_dts)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p, base_df, base_dts)
+        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p, base_df, base_dts, base_dts_list)
+        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p, base_df, base_dts, base_dts_list)
         if s_i < 0 and e_i < 0:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -879,8 +896,8 @@ def analyze_multi_period_resonance(
     for zs in results[high_p].zss:
         if not zs.start or not zs.end:
             continue
-        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, high_p, base_df, base_dts)
-        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, high_p, base_df, base_dts)
+        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, high_p, base_df, base_dts, base_dts_list)
+        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, high_p, base_df, base_dts, base_dts_list)
         if e_i < 0 or s_i >= n_base:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -900,8 +917,8 @@ def analyze_multi_period_resonance(
     mid_res = results[mid_p]
     mid_bis = []
     for bi in mid_res.bis:
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p, base_df, base_dts)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p, base_df, base_dts)
+        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p, base_df, base_dts, base_dts_list)
+        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p, base_df, base_dts, base_dts_list)
         if s_i < 0 and e_i < 0:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -918,8 +935,8 @@ def analyze_multi_period_resonance(
     for zs in results[mid_p].zss:
         if not zs.start or not zs.end:
             continue
-        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, mid_p, base_df, base_dts)
-        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, mid_p, base_df, base_dts)
+        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, mid_p, base_df, base_dts, base_dts_list)
+        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, mid_p, base_df, base_dts, base_dts_list)
         if e_i < 0 or s_i >= n_base:
             continue
         s_clamp = max(0, min(n_base - 1, s_i))
@@ -927,6 +944,7 @@ def analyze_multi_period_resonance(
         mid_zss.append({
             "start_date": dates[s_clamp],
             "end_date": dates[e_clamp],
+
             "start_idx": s_clamp,
             "end_idx": e_clamp,
             "zg": round(zs.zg, 2),
@@ -1008,7 +1026,7 @@ def analyze_multi_period_resonance(
         if mmd.bi:
             end_val = mmd.bi.end.val
             is_high = mmd.bi.direction.value == "up"
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts)
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts, base_dts_list)
             if 0 <= b_idx < n_base:
                 is_buy = "buy" in mmd.mmd_type.value
                 m_type = mmd.mmd_type.value.lower()
@@ -1043,8 +1061,9 @@ def analyze_multi_period_resonance(
         if mmd.bi:
             end_val = mmd.bi.end.val
             is_high = mmd.bi.direction.value == "up"
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts)
+            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list)
             if 0 <= b_idx < n_base:
+
                 is_buy = "buy" in mmd.mmd_type.value
                 m_type = mmd.mmd_type.value.lower()
                 if "1buy" in m_type:

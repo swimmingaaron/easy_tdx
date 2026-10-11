@@ -21370,7 +21370,7 @@
                 if (_clIsBacktracking && _clBacktrackDate) {
                     query.set('cutoff_date', _clBacktrackDate);
                 }
-                if (forceRefresh) {
+                if (forceRefresh && !_clIsBacktracking) {
                     query.set('force_refresh', 'true');
                 }
 

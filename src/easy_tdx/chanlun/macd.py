@@ -68,6 +68,10 @@ def _calc_ema(data: list[float], period: int) -> list[float]:
     return result
 
 
+# 全局单对象 MACD 缓存（避免反复计算同一组 closes 的 EMA）
+_LAST_MACD_CACHE: tuple[int, int, int, int, list[float]] | None = None
+
+
 def calc_macd_force(
     closes: list[float],
     start_idx: int,
@@ -75,6 +79,7 @@ def calc_macd_force(
     fast: int = 12,
     slow: int = 26,
     signal: int = 9,
+    macd_hist: list[float] | None = None,
 ) -> dict[str, float]:
     """计算区间内的 MACD 力度（用于背驰判断）。
 
@@ -83,6 +88,7 @@ def calc_macd_force(
         start_idx: 起始索引
         end_idx: 结束索引（含）
         fast, slow, signal: MACD 参数
+        macd_hist: 可选已预先计算好的 MACD hist 序列，若提供则无需重新计算 MACD
 
     Returns:
         {"hist_sum": 总柱子面积, "hist_up_sum": 红柱总和, "hist_down_sum": 绿柱总和}
@@ -90,8 +96,27 @@ def calc_macd_force(
     if start_idx > end_idx or end_idx >= len(closes):
         return {"hist_sum": 0.0, "hist_up_sum": 0.0, "hist_down_sum": 0.0}
 
-    macd = calc_macd(closes, fast, slow, signal)
-    hist_slice = macd["hist"][start_idx : end_idx + 1]
+    global _LAST_MACD_CACHE
+    if macd_hist is not None:
+        hist_series = macd_hist
+    else:
+        # 检查是否匹配最近一次缓存 (id, len, fast, slow, signal)
+        c_id = id(closes)
+        c_len = len(closes)
+        if (
+            _LAST_MACD_CACHE is not None
+            and _LAST_MACD_CACHE[0] == c_id
+            and _LAST_MACD_CACHE[1] == c_len
+            and _LAST_MACD_CACHE[2] == fast
+            and _LAST_MACD_CACHE[3] == slow
+        ):
+            hist_series = _LAST_MACD_CACHE[4]
+        else:
+            macd = calc_macd(closes, fast, slow, signal)
+            hist_series = macd["hist"]
+            _LAST_MACD_CACHE = (c_id, c_len, fast, slow, hist_series)
+
+    hist_slice = hist_series[start_idx : end_idx + 1]
 
     hist_abs = [abs(h) for h in hist_slice]
     hist_up = [h for h in hist_slice if h > 0]
@@ -102,3 +127,4 @@ def calc_macd_force(
         "hist_up_sum": sum(hist_up),
         "hist_down_sum": abs(sum(hist_down)),
     }
+

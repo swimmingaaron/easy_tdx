@@ -180,7 +180,7 @@ async function loadData(forceRefresh = false) {
       periods: currentPeriodsStr.value,
       count: reqCount,
       cutoff_date: isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined,
-      force_refresh: forceRefresh,
+      force_refresh: isBacktrackingMode.value ? false : forceRefresh,
     })
     chanData.value = res
     lastRefreshTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
