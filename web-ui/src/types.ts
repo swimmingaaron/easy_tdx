@@ -507,6 +507,7 @@ export interface UnifiedChartData {
   dates: string[]
   candles: [number, number, number, number][] // [open, close, low, high]
   volumes: [number, number, number][] // [index, vol, 1|-1]
+  amounts?: [number, number, number][] // [index, amount, 1|-1]
   high_bis: BiLine[]
   high_zss: ZsBox[]
   mid_bis: BiLine[]

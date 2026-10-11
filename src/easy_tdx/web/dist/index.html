@@ -4507,15 +4507,15 @@
                             <button onclick="toggleChanlunLayer('mmd')" id="cl-btn-layer-mmd"
                                 class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-rose-950 text-rose-300 border border-rose-800 transition cursor-pointer shrink-0">买卖点</button>
                             <button onclick="toggleChanlunLayer('res')" id="cl-btn-layer-res"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-yellow-950 text-yellow-300 border border-yellow-800 transition cursor-pointer shrink-0">★共振信号</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">★共振信号</button>
 
                             <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
 
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
+                            <button onclick="setChanlunSubIndicator('amount')" id="cl-btn-sub-amount"
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">成交额</button>
                             <button onclick="setChanlunSubIndicator('macd')" id="cl-btn-sub-macd"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-indigo-950 text-indigo-300 border border-indigo-800 transition cursor-pointer shrink-0">MACD</button>
-                            <button onclick="setChanlunSubIndicator('vol')" id="cl-btn-sub-vol"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">成交量</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">MACD</button>
                         </div>
                     </div>
 
@@ -21356,9 +21356,9 @@
             lowBi: true,
             lowZs: true,
             mmd: true,
-            res: true
+            res: false
         };
-        let _clSubIndicator = 'macd'; // 'macd' | 'vol'
+        let _clSubIndicator = 'amount'; // 'amount' | 'macd'
 
         function updateChanlunLayerButtons() {
             const layerDefs = [
@@ -21383,12 +21383,12 @@
             });
 
             const macdEl = document.getElementById('cl-btn-sub-macd');
-            const volEl = document.getElementById('cl-btn-sub-vol');
+            const amtEl = document.getElementById('cl-btn-sub-amount') || document.getElementById('cl-btn-sub-vol');
             if (macdEl) {
                 macdEl.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${_clSubIndicator === 'macd' ? 'bg-indigo-950 text-indigo-300 border-indigo-800' : inactiveClass}`;
             }
-            if (volEl) {
-                volEl.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${_clSubIndicator === 'vol' ? 'bg-cyan-950 text-cyan-300 border-cyan-800' : inactiveClass}`;
+            if (amtEl) {
+                amtEl.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${_clSubIndicator === 'amount' ? 'bg-cyan-950 text-cyan-300 border-cyan-800' : inactiveClass}`;
             }
         }
 
@@ -22095,23 +22095,25 @@
             }) : [];
 
 
-            // 7. 副图指标系列 (MACD vs 成交量)
+            // 7. 副图指标系列 (成交额 vs MACD，默认成交额)
             const macdData = uc.macd || { hist: [], dif: [], dea: [] };
             let subSeries = [];
             let subYAxis = {};
 
-            if (_clSubIndicator === 'vol') {
-                const volVals = volumes.map(v => v[1] || 0);
+            if (_clSubIndicator === 'amount' || _clSubIndicator === 'vol') {
+                const amountsData = (uc.amounts && uc.amounts.length > 0)
+                    ? uc.amounts
+                    : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
                 subSeries = [
                     {
-                        name: '成交量',
+                        name: '成交额',
                         type: 'bar',
                         xAxisIndex: 1,
                         yAxisIndex: 1,
-                        data: volumes.map(v => ({
+                        data: amountsData.map(v => ({
                             value: v[1],
                             itemStyle: {
-                                color: v[2] >= 0 ? 'rgba(199, 64, 64, 0.75)' : 'rgba(45, 155, 101, 0.75)'
+                                color: v[2] >= 0 ? 'rgba(239, 68, 68, 0.78)' : 'rgba(16, 185, 129, 0.78)'
                             }
                         })),
                         barWidth: '60%'
@@ -22535,6 +22537,12 @@
                                     <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
                                     <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
                                     <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${(() => {
+                                        const curAmt = (uc.amounts && uc.amounts[idx]) ? uc.amounts[idx][1] : ((volumes && volumes[idx]) ? volumes[idx][1] * close : 0);
+                                        if (curAmt >= 1e8) return `${(curAmt / 1e8).toFixed(2)}亿`;
+                                        if (curAmt >= 1e4) return `${(curAmt / 1e4).toFixed(0)}万`;
+                                        return curAmt > 0 ? `${curAmt.toFixed(0)}元` : '--';
+                                    })()}</span>
                                 </div>
                                 ${resHtml}
                                 ${macdHtml}

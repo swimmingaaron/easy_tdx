@@ -906,10 +906,20 @@ def analyze_multi_period_resonance(
             [i, float(vols[i]), 1 if closes_arr[i] >= opens_arr[i] else -1]
             for i in range(n_base)
         ]
+        amts = base_df["amount"].values if "amount" in base_df.columns else None
+        amounts = [
+            [
+                i,
+                float(amts[i]) if (amts is not None and pd.notna(amts[i]) and float(amts[i]) > 0) else float(vols[i] * closes_arr[i]),
+                1 if closes_arr[i] >= opens_arr[i] else -1,
+            ]
+            for i in range(n_base)
+        ]
         base_dts = pd.to_datetime(base_df["datetime"].astype(str))
         base_dts_list = [t.to_pydatetime() for t in base_dts]
     else:
         volumes = []
+        amounts = []
         base_dts = pd.Series(dtype="datetime64[ns]")
         base_dts_list = []
 
@@ -1407,6 +1417,7 @@ def analyze_multi_period_resonance(
             "dates": dates,
             "candles": candles,
             "volumes": volumes,
+            "amounts": amounts,
             "high_bis": high_bis,
             "high_zss": high_zss,
             "mid_bis": mid_bis,

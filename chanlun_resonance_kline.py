@@ -717,67 +717,24 @@ class ChanlunUnifiedResonancePlotter:
                 )
 
         # ----------------------------------------------------------------------
-        # 6. 高亮标注三周期共振买卖点 (Resonance Stars & Neon Guide Lines)
+        # 6. 高亮标注三周期共振买卖点 (默认 disable，按需可展示)
         # ----------------------------------------------------------------------
-        for r in self.resonances:
-            target_idx = r.low_bar_idx
-            if 0 <= target_idx < n_bars:
-                v_color = "#ffff00" if r.direction == "BUY" else "#00e5ff"
-                # 穿透垂直线
-                ax_main.axvline(x=target_idx, color=v_color, linestyle=":", linewidth=1.4, alpha=0.85, zorder=6)
-                ax_macd.axvline(x=target_idx, color=v_color, linestyle=":", linewidth=1.4, alpha=0.85, zorder=6)
-
-                badge_bg = "#e91e63" if r.direction == "BUY" else "#00b0ff"
-                badge_text = (
-                    f"★ 三周期共振买点 ({r.grade})\n[{high_name}·{mid_name}·{low_name}] ¥{r.price:.2f}"
-                    if r.direction == "BUY"
-                    else f"▼ 三周期共振卖点 ({r.grade})\n[{high_name}·{mid_name}·{low_name}] ¥{r.price:.2f}"
-                )
-                ax_main.annotate(
-                    badge_text,
-                    xy=(target_idx, r.price),
-                    xytext=(target_idx, r.price - offset * 2.8 if r.direction == "BUY" else r.price + offset * 2.8),
-                    ha="center",
-                    va="top" if r.direction == "BUY" else "bottom",
-                    fontsize=9.5,
-                    fontweight="bold",
-                    color="#ffffff",
-                    bbox=dict(
-                        boxstyle="round,pad=0.45",
-                        facecolor=badge_bg,
-                        edgecolor="#ffff00",
-                        linewidth=1.8,
-                        alpha=0.98,
-                    ),
-                    arrowprops=dict(
-                        facecolor="#ffff00",
-                        edgecolor="#ffffff",
-                        shrink=0.08,
-                        width=1.8,
-                        headwidth=6.5,
-                    ),
-                    zorder=12,
-                )
+        # 默认关闭主图共振信号图层，避免强遮挡K线走势
 
         # ----------------------------------------------------------------------
-        # 7. 绘制副图 MACD (基准小级别)
+        # 7. 绘制副图成交额 (Amount，基准小级别，默认成交额)
         # ----------------------------------------------------------------------
-        macd_data = base_res.macd
-        if macd_data and "hist" in macd_data and len(macd_data["hist"]) == n_bars:
-            hist = np.array(macd_data["hist"])
-            dif = np.array(macd_data["dif"])
-            dea = np.array(macd_data["dea"])
+        amts = base_df["amount"].values if "amount" in base_df.columns else (base_df["volume"].values * base_df["close"].values)
+        cl_arr = base_df["close"].values
+        op_arr = base_df["open"].values
+        for i in range(n_bars):
+            amt_val = float(amts[i]) / 1e8 if (pd.notna(amts[i]) and float(amts[i]) > 0) else (float(base_df["volume"].iloc[i] * cl_arr[i]) / 1e8)
+            c_amt = "#f23645" if cl_arr[i] >= op_arr[i] else "#089981"
+            ax_macd.bar(i, amt_val, color=c_amt, width=0.6, alpha=0.85)
 
-            for i in range(n_bars):
-                h_val = hist[i]
-                c_hist = "#f23645" if h_val >= 0 else "#089981"
-                ax_macd.bar(i, h_val * 2, color=c_hist, width=0.6, alpha=0.85)
-
-            ax_macd.plot(range(n_bars), dif, color="#ffffff", linewidth=1.1, label="DIF")
-            ax_macd.plot(range(n_bars), dea, color="#f0b90b", linewidth=1.1, label="DEA")
-            ax_macd.axhline(0, color="#555555", linewidth=0.6, linestyle="--")
-
-            ax_macd.legend(loc="upper left", facecolor="#181b27", edgecolor="#2d313f", fontsize=8.5, labelcolor="#e0e0e0")
+        ax_macd.set_ylabel("成交额 (亿元)", color="#94a3b8", fontsize=8.5)
+        ax_macd.tick_params(axis="y", labelcolor="#94a3b8", labelsize=8)
+        ax_macd.grid(True, color="#242838", linestyle="--", alpha=0.5)
 
         # ----------------------------------------------------------------------
         # 8. 图例与美化
@@ -1235,6 +1192,16 @@ def export_interactive_html(
                     "itemStyle": {"color": "#10b981"},
                 })
 
+    amts = base_df["amount"].values if "amount" in base_df.columns else (base_df["volume"].values * base_df["close"].values)
+    amounts = [
+        [
+            i,
+            float(amts[i]) if (pd.notna(amts[i]) and float(amts[i]) > 0) else float(base_df["volume"].iloc[i] * base_df["close"].iloc[i]),
+            1 if base_df["close"].iloc[i] >= base_df["open"].iloc[i] else -1,
+        ]
+        for i in range(len(base_df))
+    ]
+
     payload_json = json.dumps({
         "code": code,
         "name": name,
@@ -1242,6 +1209,7 @@ def export_interactive_html(
         "periods_str": f"{PERIOD_SPECS[high_p]['short_name']} · {PERIOD_SPECS[mid_p]['short_name']} · {PERIOD_SPECS[base_p]['short_name']}",
         "dates": dates,
         "candles": candles,
+        "amounts": amounts,
         "high_bis": high_bis,
         "mid_bis": mid_bis,
         "low_bis": low_bis,
@@ -1328,12 +1296,40 @@ def export_interactive_html(
             backgroundColor: '#181b27',
             animation: false,
             legend: {{
-                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', 'MACD'],
-                selected: {{ '基准K线': true, '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true, '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})': true, '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true, 'MACD': true }},
+                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '★共振信号', '成交额', 'MACD'],
+                selected: {{
+                    '基准K线': true,
+                    '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true,
+                    '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})': true,
+                    '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true,
+                    '★共振信号': false,
+                    '成交额': true,
+                    'MACD': false
+                }},
                 top: 10,
                 textStyle: {{ color: '#ffffff' }}
             }},
-            tooltip: {{ trigger: 'axis', axisPointer: {{ type: 'cross' }} }},
+            tooltip: {{
+                trigger: 'axis',
+                axisPointer: {{ type: 'cross' }},
+                formatter: function(params) {{
+                    if (!params || params.length === 0) return '';
+                    var dt = params[0].name;
+                    var idx = params[0].dataIndex;
+                    var k = params.find(p => p.seriesType === 'candlestick');
+                    var html = '<b>' + dt + '</b><br/>';
+                    if (k && k.value) {{
+                        var op = k.value[1], cl = k.value[2], lo = k.value[3], hi = k.value[4];
+                        html += '开: ' + op.toFixed(2) + ' 收: ' + cl.toFixed(2) + ' 高: ' + hi.toFixed(2) + ' 低: ' + lo.toFixed(2) + '<br/>';
+                    }}
+                    if (D.amounts && D.amounts[idx]) {{
+                        var a = D.amounts[idx][1];
+                        var aStr = a >= 1e8 ? (a / 1e8).toFixed(2) + '亿' : (a >= 1e4 ? (a / 1e4).toFixed(0) + '万' : a.toFixed(0) + '元');
+                        html += '成交额: ' + aStr + '<br/>';
+                    }}
+                    return html;
+                }}
+            }},
             grid: [
                 {{ left: '3%', right: '4%', top: '8%', height: '62%' }},
                 {{ left: '3%', right: '4%', top: '75%', height: '18%' }}
@@ -1344,7 +1340,16 @@ def export_interactive_html(
             ],
             yAxis: [
                 {{ type: 'value', scale: true, gridIndex: 0, position: 'right', splitLine: {{ lineStyle: {{ color: '#242838' }} }} }},
-                {{ type: 'value', scale: true, gridIndex: 1, position: 'right', splitLine: {{ lineStyle: {{ color: '#242838' }} }} }}
+                {{
+                    type: 'value', scale: true, gridIndex: 1, position: 'right', splitLine: {{ lineStyle: {{ color: '#242838' }} }},
+                    axisLabel: {{
+                        formatter: function(val) {{
+                            if (val >= 1e8) return (val / 1e8).toFixed(1) + '亿';
+                            if (val >= 1e4) return (val / 1e4).toFixed(0) + '万';
+                            return val;
+                        }}
+                    }}
+                }}
             ],
             dataZoom: [
                 {{ type: 'inside', xAxisIndex: [0, 1], start: 40, end: 100 }},
@@ -1356,7 +1361,13 @@ def export_interactive_html(
                     type: 'candlestick',
                     data: D.candles,
                     itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }},
-                    markPoint: {{ data: [...D.mmd_marks, ...D.res_marks] }}
+                    markPoint: {{ data: D.mmd_marks }}
+                }},
+                {{
+                    name: '★共振信号',
+                    type: 'line',
+                    data: [],
+                    markPoint: {{ data: D.res_marks }}
                 }},
                 {{
                     name: '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})',
@@ -1378,6 +1389,13 @@ def export_interactive_html(
                     data: [],
                     lineStyle: {{ color: '#00e5ff', width: 1.5 }},
                     markLine: {{ data: D.low_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#00e5ff', width: 1.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                }},
+                {{
+                    name: '成交额',
+                    type: 'bar',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.amounts.map(v => ({{ value: v[1], itemStyle: {{ color: v[2] >= 0 ? '#f23645' : '#089981' }} }}))
                 }},
                 {{
                     name: 'MACD',

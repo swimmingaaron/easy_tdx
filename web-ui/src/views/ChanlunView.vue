@@ -69,8 +69,8 @@ const showMidZs = ref(true)
 const showLowBi = ref(true)
 const showLowZs = ref(true)
 const showMmdMarks = ref(true)
-const showResonanceMarks = ref(true)
-const showMacd = ref(true)
+const showResonanceMarks = ref(false)
+const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
 
 // ── 实时刷新 ─────────────────────────────────────────────────────────────────
 const autoRefresh = ref(false)
@@ -526,8 +526,83 @@ function renderChart() {
       })
     : []
 
-  // 副图 MACD
+  // 副图指标配置 (默认成交额，不要 MACD)
+  const hasSub = subIndicator.value !== 'none'
+  const isSubAmount = subIndicator.value === 'amount'
+  const isSubMacd = subIndicator.value === 'macd'
   const macdData = uc.macd || { hist: [], dif: [], dea: [] }
+
+  const subSeries: any[] = []
+  if (isSubAmount) {
+    const amountsData = (uc.amounts && uc.amounts.length > 0)
+      ? uc.amounts
+      : (uc.volumes || []).map((v) => [v[0], v[1] * (uc.candles[v[0]] ? uc.candles[v[0]][1] : 0), v[2]] as [number, number, number])
+    subSeries.push({
+      name: '成交额',
+      type: 'bar',
+      xAxisIndex: 1,
+      yAxisIndex: 1,
+      data: amountsData.map((v) => ({
+        value: v[1],
+        itemStyle: { color: v[2] >= 0 ? '#ef4146' : '#089981' },
+      })),
+      barWidth: '60%',
+    })
+  } else if (isSubMacd) {
+    subSeries.push(
+      {
+        name: 'MACD',
+        type: 'bar',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: macdData.hist.map((v) => ({
+          value: v,
+          itemStyle: { color: v >= 0 ? '#ef4146' : '#089981' },
+        })),
+      },
+      {
+        name: 'DIF',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: macdData.dif,
+        lineStyle: { color: '#ffffff', width: 1.2 },
+        symbol: 'none',
+        markPoint: {
+          symbolSize: 22,
+          data: (uc.macd_marks || []).map((m: any) => ({
+            name: m.label,
+            coord: [m.date, m.dif],
+            value: m.label,
+            symbol: 'triangle',
+            symbolRotate: m.type === 'bottom' ? 0 : 180,
+            itemStyle: {
+              color: m.type === 'bottom' ? '#ef4444' : '#10b981',
+              borderColor: '#ffffff',
+              borderWidth: 1.2,
+            },
+            label: {
+              show: true,
+              position: m.type === 'bottom' ? 'bottom' : 'top',
+              color: m.type === 'bottom' ? '#f87171' : '#34d399',
+              fontWeight: 'bold',
+              fontSize: 9.5,
+              formatter: m.label,
+            },
+          })),
+        },
+      },
+      {
+        name: 'DEA',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: macdData.dea,
+        lineStyle: { color: '#ffd600', width: 1.2 },
+        symbol: 'none',
+      }
+    )
+  }
 
   const option: echarts.EChartsCoreOption = {
     backgroundColor: '#131722',
@@ -542,14 +617,22 @@ function renderChart() {
       formatter: (params: any) => {
         if (!Array.isArray(params) || params.length === 0) return ''
         const dateStr = params[0].name
+        const idx = params[0].dataIndex
         const kParam = params.find((p: any) => p.seriesType === 'candlestick')
         let html = `<div style="font-weight:bold; margin-bottom:4px; color:#ffffff;">📅 ${dateStr}</div>`
         if (kParam && kParam.value) {
           const [, open, close, low, high] = kParam.value
           const isUp = close >= open
           const color = isUp ? '#ef4146' : '#089981'
+          const curAmt = (uc.amounts && uc.amounts[idx]) ? uc.amounts[idx][1] : ((uc.volumes && uc.volumes[idx]) ? uc.volumes[idx][1] * close : 0)
+          let amtStr = '--'
+          if (curAmt >= 1e8) amtStr = `¥${(curAmt / 1e8).toFixed(2)}亿`
+          else if (curAmt >= 1e4) amtStr = `¥${(curAmt / 1e4).toFixed(1)}万`
+          else if (curAmt > 0) amtStr = `¥${curAmt.toFixed(0)}元`
+
           html += `<div style="color:${color}; margin-bottom:4px;">
             开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
+            <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
           </div>`
         }
         // 匹配共振点
@@ -583,21 +666,22 @@ function renderChart() {
         `大级别笔(${d.periods.high.name})`,
         `中级别笔(${d.periods.mid.name})`,
         `小级别笔(${d.periods.low.name})`,
-        'MACD',
+        ...(isSubAmount ? ['成交额'] : (isSubMacd ? ['MACD'] : [])),
       ],
       selected: {
         基准K线: true,
         [`大级别笔(${d.periods.high.name})`]: showHighBi.value,
         [`中级别笔(${d.periods.mid.name})`]: showMidBi.value,
         [`小级别笔(${d.periods.low.name})`]: showLowBi.value,
-        MACD: showMacd.value,
+        成交额: true,
+        MACD: true,
       },
       top: 10,
       textStyle: { color: '#a0a6b5', fontSize: 12 },
     },
     grid: [
-      { left: '3.5%', right: '3.5%', top: '7%', height: showMacd.value ? '63%' : '82%' },
-      { left: '3.5%', right: '3.5%', top: '74%', height: showMacd.value ? '18%' : '0%' },
+      { left: '3.5%', right: '3.5%', top: '7%', height: hasSub ? '63%' : '82%' },
+      { left: '3.5%', right: '3.5%', top: '74%', height: hasSub ? '18%' : '0%' },
     ],
     xAxis: [
       {
@@ -605,14 +689,14 @@ function renderChart() {
         data: uc.dates,
         gridIndex: 0,
         axisLine: { lineStyle: { color: '#2a2e39' } },
-        axisLabel: { show: !showMacd.value, color: '#888888', fontSize: 11 },
+        axisLabel: { show: !hasSub, color: '#888888', fontSize: 11 },
         splitLine: { show: true, lineStyle: { color: '#1e222d', type: 'dashed' } },
       },
       {
         type: 'category',
         data: uc.dates,
         gridIndex: 1,
-        show: showMacd.value,
+        show: hasSub,
         axisLine: { lineStyle: { color: '#2a2e39' } },
         axisLabel: { color: '#888888', fontSize: 11 },
         splitLine: { show: true, lineStyle: { color: '#1e222d', type: 'dashed' } },
@@ -632,11 +716,22 @@ function renderChart() {
         type: 'value',
         scale: true,
         gridIndex: 1,
-        show: showMacd.value,
+        show: hasSub,
         position: 'right',
         splitLine: { lineStyle: { color: '#1e222d' } },
         axisLine: { lineStyle: { color: '#2a2e39' } },
-        axisLabel: { color: '#888888', fontSize: 10 },
+        axisLabel: {
+          color: '#888888',
+          fontSize: 10,
+          formatter: isSubAmount
+            ? (val: any) => {
+                const n = Number(val)
+                if (n >= 1e8) return `${(n / 1e8).toFixed(1)}亿`
+                if (n >= 1e4) return `${(n / 1e4).toFixed(0)}万`
+                return String(n)
+              }
+            : undefined,
+        },
       },
     ],
     dataZoom: [
@@ -693,57 +788,7 @@ function renderChart() {
         data: [],
         lineStyle: { color: '#00e5ff', width: 1.5 },
       },
-      {
-        name: 'MACD',
-        type: 'bar',
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        data: macdData.hist.map((v) => ({
-          value: v,
-          itemStyle: { color: v >= 0 ? '#ef4146' : '#089981' },
-        })),
-      },
-      {
-        name: 'DIF',
-        type: 'line',
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        data: macdData.dif,
-        lineStyle: { color: '#ffffff', width: 1.2 },
-        symbol: 'none',
-        markPoint: {
-          symbolSize: 22,
-          data: (uc.macd_marks || []).map((m: any) => ({
-            name: m.label,
-            coord: [m.date, m.dif],
-            value: m.label,
-            symbol: 'triangle',
-            symbolRotate: m.type === 'bottom' ? 0 : 180,
-            itemStyle: {
-              color: m.type === 'bottom' ? '#ef4444' : '#10b981',
-              borderColor: '#ffffff',
-              borderWidth: 1.2,
-            },
-            label: {
-              show: true,
-              position: m.type === 'bottom' ? 'bottom' : 'top',
-              color: m.type === 'bottom' ? '#f87171' : '#34d399',
-              fontWeight: 'bold',
-              fontSize: 9.5,
-              formatter: m.label,
-            },
-          })),
-        },
-      },
-      {
-        name: 'DEA',
-        type: 'line',
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        data: macdData.dea,
-        lineStyle: { color: '#ffd600', width: 1.2 },
-        symbol: 'none',
-      },
+      ...subSeries,
     ],
   }
 
@@ -1035,9 +1080,19 @@ onBeforeUnmount(() => {
           <input type="checkbox" v-model="showResonanceMarks" @change="renderChart" />
           ★共振信号
         </label>
-        <label class="toggle-item macd-layer">
-          <input type="checkbox" v-model="showMacd" @change="renderChart" />
-          MACD副图
+        <span class="sub-sep">|</span>
+        <span class="label">副图:</span>
+        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'amount' }">
+          <input type="radio" value="amount" v-model="subIndicator" @change="renderChart" />
+          成交额
+        </label>
+        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'macd' }">
+          <input type="radio" value="macd" v-model="subIndicator" @change="renderChart" />
+          MACD
+        </label>
+        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'none' }">
+          <input type="radio" value="none" v-model="subIndicator" @change="renderChart" />
+          关闭
         </label>
       </div>
     </div>
@@ -1489,6 +1544,18 @@ onBeforeUnmount(() => {
 .high-dot { background: #c084fc; }
 .mid-dot { background: #facc15; }
 .low-dot { background: #00e5ff; }
+.sub-sep {
+  color: #4b5563;
+  margin: 0 4px;
+}
+.sub-layer input[type="radio"] {
+  accent-color: #06b6d4;
+  cursor: pointer;
+}
+.sub-layer.active {
+  color: #38bdf8;
+  font-weight: 600;
+}
 
 /* 回溯控制面板 */
 .backtrack-panel {
