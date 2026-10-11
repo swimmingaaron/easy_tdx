@@ -22076,7 +22076,7 @@
                                 color: v[2] >= 0 ? 'rgba(239, 68, 68, 0.78)' : 'rgba(16, 185, 129, 0.78)'
                             }
                         })),
-                        barWidth: '60%'
+                        barWidth: '30%'
                     }
                 ];
                 subYAxis = {
@@ -22324,7 +22324,7 @@
                             value: v,
                             itemStyle: { color: v >= 0 ? '#ef4444' : '#10b981' }
                         })),
-                        barWidth: '55%',
+                        barWidth: '28%',
                         markLine: {
                             silent: true,
                             animation: false,
@@ -22550,7 +22550,7 @@
                     {
                         type: 'inside',
                         xAxisIndex: [0, 1],
-                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 120),
+                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 240),
                         end: prevDataZoom ? prevDataZoom.end : 100
                     },
                     {
@@ -22562,7 +22562,7 @@
                         backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)',
                         fillerColor: 'rgba(147, 51, 234, 0.25)',
                         textStyle: { color: textColor, fontSize: 9 },
-                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 120),
+                        start: prevDataZoom ? prevDataZoom.start : Math.max(0, 100 - (100 / dates.length) * 240),
                         end: prevDataZoom ? prevDataZoom.end : 100
                     }
                 ],
@@ -22571,6 +22571,7 @@
                     {
                         name: '基准K线',
                         type: 'candlestick',
+                        barMaxWidth: 7,
                         xAxisIndex: 0,
                         yAxisIndex: 0,
                         data: candles,

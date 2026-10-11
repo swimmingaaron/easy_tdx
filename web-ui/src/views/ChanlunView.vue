@@ -545,7 +545,7 @@ function renderChart() {
         value: v[1],
         itemStyle: { color: v[2] >= 0 ? '#ef4146' : '#089981' },
       })),
-      barWidth: '60%',
+      barWidth: '30%',
     })
   } else if (isSubMacd) {
     subSeries.push(
@@ -558,6 +558,7 @@ function renderChart() {
           value: v,
           itemStyle: { color: v >= 0 ? '#ef4146' : '#089981' },
         })),
+        barWidth: '28%',
       },
       {
         name: 'DIF',
@@ -734,7 +735,7 @@ function renderChart() {
       },
     ],
     dataZoom: [
-      { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - (120 / uc.dates.length) * 100), end: 100 },
+      { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - (240 / uc.dates.length) * 100), end: 100 },
       {
         type: 'slider',
         xAxisIndex: [0, 1],
@@ -744,12 +745,15 @@ function renderChart() {
         backgroundColor: '#181b27',
         fillerColor: 'rgba(41, 98, 255, 0.25)',
         textStyle: { color: '#888888', fontSize: 10 },
+        start: Math.max(0, 100 - (240 / uc.dates.length) * 100),
+        end: 100,
       },
     ],
     series: [
       {
         name: '基准K线',
         type: 'candlestick',
+        barMaxWidth: 7,
         data: uc.candles,
         itemStyle: {
           color: '#ef4146',
