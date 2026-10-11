@@ -4537,57 +4537,7 @@
                 </div>
             </div>
 
-            <!-- 三周期宏观/波段/微观状态胶囊卡片 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                <!-- 卡片 1: 实时行情 -->
-                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 space-y-1 shadow-sm">
-                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span class="flex items-center"><i data-lucide="activity" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>标的实时行情</span>
-                        <span id="cl-card-code" class="px-1.5 py-0.2 rounded text-[10px] bg-purple-500/10 text-purple-400 font-mono font-bold">000001</span>
-                    </div>
-                    <div class="flex items-baseline justify-between">
-                        <div id="cl-card-name" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
-                        <div class="flex items-baseline space-x-1 font-mono">
-                            <span id="cl-card-price" class="text-base font-extrabold text-rose-500">¥--</span>
-                            <span id="cl-card-pct" class="text-xs font-bold text-rose-500">+0.00%</span>
-                        </div>
-                    </div>
-                    <div id="cl-card-time" class="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">时刻: --</div>
-                </div>
 
-                <!-- 卡片 2: 大级别趋势 (定方向) -->
-                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-purple-500 space-y-1 shadow-sm">
-                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span class="flex items-center"><i data-lucide="compass" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>大级别趋势 (定方向)</span>
-                        <span id="cl-card-high-period" class="px-1.5 py-0.2 rounded text-[10px] bg-purple-500/10 text-purple-400 font-mono font-bold">周线</span>
-                    </div>
-                    <div id="cl-card-high-status" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
-                    <div id="cl-card-high-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">处于宏观结构研判</div>
-                </div>
-
-                <!-- 卡片 3: 中级别形态 (定波段) -->
-                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-cyan-400 space-y-1 shadow-sm">
-                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span class="flex items-center"><i data-lucide="git-branch" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>中级别形态 (定波段)</span>
-                        <span id="cl-card-mid-period" class="px-1.5 py-0.2 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-mono font-bold">日线</span>
-                    </div>
-                    <div id="cl-card-mid-status" class="text-sm font-bold text-slate-900 dark:text-white truncate">--</div>
-                    <div id="cl-card-mid-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">处于波段中枢与笔震荡</div>
-                </div>
-
-                <!-- 卡片 4: 小级别微观买卖点 (定入场) -->
-                <div class="p-3 rounded-xl glass-card border border-slate-200/80 dark:border-slate-800/80 border-l-4 border-l-amber-400 space-y-1 shadow-sm">
-                    <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span class="flex items-center"><i data-lucide="target" class="w-3.5 h-3.5 mr-1 text-amber-400"></i>基准小周期 (定买卖点)</span>
-                        <span id="cl-card-low-period" class="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-400 font-mono font-bold">30F</span>
-                    </div>
-                    <div class="flex items-baseline justify-between">
-                        <div id="cl-card-low-status" class="text-sm font-bold text-amber-400 truncate">--</div>
-                        <div id="cl-card-res-count" class="text-xs font-mono font-bold text-rose-500">0处共振</div>
-                    </div>
-                    <div id="cl-card-low-desc" class="text-[10px] text-slate-500 dark:text-slate-400 truncate">区间套精确锚定入场</div>
-                </div>
-            </div>
 
             <!-- ECharts 主图呈现卡片 (参考K线弹窗) -->
             <div class="glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
