@@ -119,8 +119,31 @@ function applyPreset(pStr: string) {
   loadData()
 }
 
-function onCustomPeriodChange() {
+const PERIOD_ORDER = ['MONTH', 'WEEK', 'DAY', '120F', '60F', '30F', '15F', '5F', '1F']
+
+function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
   activePreset.value = ''
+  let hIdx = PERIOD_ORDER.indexOf(periodHigh.value)
+  let mIdx = PERIOD_ORDER.indexOf(periodMid.value)
+  let lIdx = PERIOD_ORDER.indexOf(periodLow.value)
+  if (hIdx < 0) hIdx = 2
+  if (mIdx < 0) mIdx = 5
+  if (lIdx < 0) lIdx = 7
+
+  if (changed === 'low') {
+    if (mIdx >= lIdx) mIdx = Math.max(lIdx - 1, 1)
+    if (hIdx >= mIdx) hIdx = Math.max(mIdx - 1, 0)
+  } else if (changed === 'mid') {
+    if (hIdx >= mIdx) hIdx = Math.max(mIdx - 1, 0)
+    if (lIdx <= mIdx) lIdx = Math.min(mIdx + 1, PERIOD_ORDER.length - 1)
+  } else {
+    if (mIdx <= hIdx) mIdx = Math.min(hIdx + 1, PERIOD_ORDER.length - 2)
+    if (lIdx <= mIdx) lIdx = Math.min(mIdx + 1, PERIOD_ORDER.length - 1)
+  }
+
+  periodHigh.value = PERIOD_ORDER[hIdx]
+  periodMid.value = PERIOD_ORDER[mIdx]
+  periodLow.value = PERIOD_ORDER[lIdx]
   loadData()
 }
 
@@ -963,15 +986,15 @@ onBeforeUnmount(() => {
         <!-- 自定义选择器 -->
         <div class="custom-periods">
           <span>大:</span>
-          <select v-model="periodHigh" @change="onCustomPeriodChange">
+          <select v-model="periodHigh" @change="onCustomPeriodChange('high')">
             <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
           </select>
           <span>中:</span>
-          <select v-model="periodMid" @change="onCustomPeriodChange">
+          <select v-model="periodMid" @change="onCustomPeriodChange('mid')">
             <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
           </select>
           <span>基准小:</span>
-          <select v-model="periodLow" @change="onCustomPeriodChange">
+          <select v-model="periodLow" @change="onCustomPeriodChange('low')">
             <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
           </select>
         </div>
