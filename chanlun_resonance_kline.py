@@ -670,8 +670,8 @@ class ChanlunUnifiedResonancePlotter:
 
         base_dts = pd.to_datetime(base_df["datetime"].astype(str))
 
-        # 画布尺寸：宽 18 吋，高 12 吋
-        fig = plt.figure(figsize=(18, 12), facecolor="#131722")
+        # 画布尺寸：宽 18 吋，高 15.6 吋 (高度增加 30%)
+        fig = plt.figure(figsize=(18, 15.6), facecolor="#131722")
         gs = fig.add_gridspec(
             2,
             1,
@@ -1202,7 +1202,7 @@ class ChanlunSplitResonancePlotter:
         ]
         plt.rcParams["axes.unicode_minus"] = False
 
-        fig = plt.figure(figsize=(16, 18), facecolor="#131722")
+        fig = plt.figure(figsize=(16, 23.4), facecolor="#131722")
         gs = fig.add_gridspec(
             6, 1, height_ratios=[3.2, 1.0, 3.2, 1.0, 3.2, 1.0],
             hspace=0.08, left=0.05, right=0.96, top=0.94, bottom=0.04
@@ -1566,7 +1566,7 @@ def export_interactive_html(
         .res-table th {{ background: #262b3d; color: #a0a6b5; }}
         .badge-buy {{ color: #f23645; font-weight: bold; }}
         .badge-sell {{ color: #089981; font-weight: bold; }}
-        #chart {{ width: 100%; height: 720px; background: #181b27; border: 1px solid #2d313f; border-radius: 8px; }}
+        #chart {{ width: 100%; height: 936px; background: #181b27; border: 1px solid #2d313f; border-radius: 8px; }}
     </style>
 </head>
 <body>
@@ -1699,6 +1699,36 @@ def export_interactive_html(
         }};
         myChart.setOption(option);
         window.addEventListener('resize', () => myChart.resize());
+
+        function zoomChart(factor) {{
+            const opt = myChart.getOption();
+            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+            let start = opt.dataZoom[0].start;
+            let end = opt.dataZoom[0].end;
+            if (start === undefined || start === null) start = 40;
+            if (end === undefined || end === null) end = 100;
+            const span = end - start;
+            const newSpan = Math.max(2, Math.min(100, span * factor));
+            const delta = (newSpan - span) / 2;
+            let newStart = Math.max(0, start - delta);
+            let newEnd = Math.min(100, end + delta);
+            if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
+            if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
+            myChart.dispatchAction({{
+                type: 'dataZoom',
+                start: newStart,
+                end: newEnd
+            }});
+        }}
+        window.addEventListener('keydown', (e) => {{
+            if (e.key === 'ArrowUp') {{
+                e.preventDefault();
+                zoomChart(0.8);
+            }} else if (e.key === 'ArrowDown') {{
+                e.preventDefault();
+                zoomChart(1.25);
+            }}
+        }});
     </script>
 </body>
 </html>

@@ -4432,8 +4432,22 @@
                             </select>
                     </div>
 
-                    <!-- 1点钟方向: 前日/结束日期/后日 历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
+                    <!-- 1点钟方向: 缩放与历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
                     <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
+                        <!-- 缩放K线控制器 (通达信快捷键: ↑ 放大 / ↓ 缩小) -->
+                        <div class="flex items-center space-x-0.5 border-r border-slate-700/60 pr-1 mr-0.5">
+                            <button type="button" onclick="zoomChanlunChart(0.8)" id="cl-btn-zoom-in"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                title="放大K线 (快捷键: ↑ 方向键)">
+                                <span>放大</span>
+                            </button>
+                            <button type="button" onclick="zoomChanlunChart(1.25)" id="cl-btn-zoom-out"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                title="缩小K线 (快捷键: ↓ 方向键)">
+                                <span>缩小</span>
+                            </button>
+                        </div>
+
                         <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
                             class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
                             title="前移 1 根K线 (快捷键: ← 方向键)">
@@ -4589,7 +4603,7 @@
                 </div>
 
                 <!-- ECharts 画布容器 -->
-                <div id="chanlun-echart-main" style="width: 100%; height: 620px;"></div>
+                <div id="chanlun-echart-main" style="width: 100%; height: 806px;"></div>
             </div>
 
             <!-- 三周期共振买卖点事件明细卡片 -->
@@ -22966,11 +22980,40 @@
             }
         }
 
-        // 全局键盘快捷键监听 (完全参考K线弹窗快捷键体验: 方向键推演，空格播放/暂停)
+        // ==================== 缠论 K 线缩放 (通达信快捷键: ↑ 放大 / ↓ 缩小) ==================== //
+        function zoomChanlunChart(factor) {
+            if (!window.chanlunChart) return;
+            const opt = window.chanlunChart.getOption();
+            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+            let start = opt.dataZoom[0].start;
+            let end = opt.dataZoom[0].end;
+            if (start === undefined || start === null) start = 40;
+            if (end === undefined || end === null) end = 100;
+            const span = end - start;
+            const newSpan = Math.max(2, Math.min(100, span * factor));
+            const delta = (newSpan - span) / 2;
+            let newStart = Math.max(0, start - delta);
+            let newEnd = Math.min(100, end + delta);
+            if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
+            if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
+            window.chanlunChart.dispatchAction({
+                type: 'dataZoom',
+                start: newStart,
+                end: newEnd
+            });
+        }
+
+        // 全局键盘快捷键监听 (完全参考通达信与K线弹窗快捷键体验: ↑/↓ 缩放，←/→ 推演，空格 播放/暂停)
         window.addEventListener('keydown', (e) => {
             if (window.currentTab !== 'chanlun') return;
             if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-            if (e.key === 'ArrowLeft') {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                zoomChanlunChart(0.8);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                zoomChanlunChart(1.25);
+            } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 stepChanlunBacktrack(-1);
             } else if (e.key === 'ArrowRight') {

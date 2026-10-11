@@ -4393,8 +4393,10 @@
                     <!-- 周期组合滚动区 -->
                     <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
                         <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
+                            <button onclick="applyChanlunPreset('DAY,30F,5F')" id="cl-preset-DAY-30F-5F"
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">标准 (日·30F·5F)</button>
                             <button onclick="applyChanlunPreset('WEEK,DAY,30F')" id="cl-preset-WEEK-DAY-30F"
-                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">波段 (周·日·30F)</button>
+                                class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">波段 (周·日·30F)</button>
                             <button onclick="applyChanlunPreset('MONTH,WEEK,DAY')" id="cl-preset-MONTH-WEEK-DAY"
                                 class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">长线 (月·周·日)</button>
                             <button onclick="applyChanlunPreset('DAY,60F,15F')" id="cl-preset-DAY-60F-15F"
@@ -4408,30 +4410,44 @@
                             <span class="text-slate-500 font-sans px-1">大:</span>
                             <select id="cl-select-high" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-purple-400 font-mono outline-none">
                                 <option value="MONTH">月线</option>
-                                <option value="WEEK" selected>周线</option>
-                                <option value="DAY">日线</option>
+                                <option value="WEEK">周线</option>
+                                <option value="DAY" selected>日线</option>
                             </select>
                             <span class="text-slate-500 font-sans px-1">中:</span>
                             <select id="cl-select-mid" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-cyan-400 font-mono outline-none">
                                 <option value="WEEK">周线</option>
-                                <option value="DAY" selected>日线</option>
+                                <option value="DAY">日线</option>
                                 <option value="120F">120F</option>
                                 <option value="60F">60F</option>
-                                <option value="30F">30F</option>
+                                <option value="30F" selected>30F</option>
                             </select>
                             <span class="text-slate-500 font-sans px-1">基准底图:</span>
                             <select id="cl-select-low" onchange="onChanlunCustomPeriodChange()" class="h-5 bg-transparent text-amber-400 font-mono outline-none">
                                 <option value="DAY">日线</option>
                                 <option value="60F">60F</option>
-                                <option value="30F" selected>30F</option>
+                                <option value="30F">30F</option>
                                 <option value="15F">15F</option>
-                                <option value="5F">5F</option>
+                                <option value="5F" selected>5F</option>
                                 <option value="1F">1F</option>
                             </select>
                     </div>
 
-                    <!-- 1点钟方向: 前日/结束日期/后日 历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
+                    <!-- 1点钟方向: 缩放与历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
                     <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
+                        <!-- 缩放K线控制器 (通达信快捷键: ↑ 放大 / ↓ 缩小) -->
+                        <div class="flex items-center space-x-0.5 border-r border-slate-700/60 pr-1 mr-0.5">
+                            <button type="button" onclick="zoomChanlunChart(0.8)" id="cl-btn-zoom-in"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                title="放大K线 (快捷键: ↑ 方向键)">
+                                <span>放大</span>
+                            </button>
+                            <button type="button" onclick="zoomChanlunChart(1.25)" id="cl-btn-zoom-out"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                title="缩小K线 (快捷键: ↓ 方向键)">
+                                <span>缩小</span>
+                            </button>
+                        </div>
+
                         <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
                             class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
                             title="前移 1 根K线 (快捷键: ← 方向键)">
@@ -4577,12 +4593,17 @@
                     <span class="text-xs font-mono font-medium">正在拉取三周期数据并执行缠论立体共振计算...</span>
                 </div>
 
-                <!-- 蜡烛图左上角形态特征 HTML 悬浮高对比度胶囊 (参考K线弹窗 updateKpPatternBadgeOverlay) -->
-                <div id="cl-pattern-overlay" class="absolute top-4 left-14 z-10 flex items-center space-x-1.5 text-[11px] font-sans font-medium pointer-events-none select-none">
+                <!-- 蜡烛图左上角：蓝色标题 (上移至顶部独立区域) 与形态胶囊 (分层排布，避开重叠) -->
+                <div class="absolute top-2.5 left-14 z-10 flex flex-col space-y-1 pointer-events-none select-none">
+                    <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-sky-600 dark:text-sky-400 tracking-wide flex items-center">
+                        <span id="cl-chart-title-text">--</span>
+                    </div>
+                    <div id="cl-pattern-overlay" class="flex items-center space-x-1.5 text-[11px] font-sans font-medium">
+                    </div>
                 </div>
 
                 <!-- ECharts 画布容器 -->
-                <div id="chanlun-echart-main" style="width: 100%; height: 620px;"></div>
+                <div id="chanlun-echart-main" style="width: 100%; height: 806px;"></div>
             </div>
 
             <!-- 三周期共振买卖点事件明细卡片 -->
@@ -21302,7 +21323,7 @@
         // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
         // ==============================================================================
         let _clCurrentCode = '000001';
-        let _clPeriods = 'WEEK,DAY,30F';
+        let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
         let _clIsBacktracking = false;
         let _clBacktrackDate = null;
@@ -21325,16 +21346,23 @@
             loadChanlunData(false);
         }
 
+        let _clIsDataLoading = false;
+        let _clPendingBacktrackDate = null;
+        let _clBacktrackDebounceTimer = null;
+
         async function loadChanlunData(forceRefresh = false) {
+            _clIsDataLoading = true;
             const chartDom = document.getElementById('chanlun-echart-main');
             const loadingOverlay = document.getElementById('cl-loading-overlay');
-            if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            // 回溯切片时不显示全屏强遮罩，避免画面闪烁，保持沉浸推演
+            if (loadingOverlay && !_clIsBacktracking) loadingOverlay.style.display = 'flex';
 
             try {
                 const query = new URLSearchParams();
                 query.set('code', _clCurrentCode);
                 query.set('periods', _clPeriods);
-                query.set('count', '300');
+                const reqCount = (_clPeriods.includes('5F') || _clPeriods.includes('1F')) ? '1500' : '300';
+                query.set('count', reqCount);
                 if (_clIsBacktracking && _clBacktrackDate) {
                     query.set('cutoff_date', _clBacktrackDate);
                 }
@@ -21361,6 +21389,7 @@
                     showToast('缠论数据错误', err.message || '获取多周期共振数据失败');
                 }
             } finally {
+                _clIsDataLoading = false;
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
             }
         }
@@ -21704,8 +21733,11 @@
                 stockInput.value = d.code;
             }
 
-            // 6. 异步拉取盘口估值指标 (参考K线弹窗: 总市值/流通市值/PE/换手/量比/主力净流)
-            fetchKlineQuoteMetrics(d.code);
+            // 6. 异步拉取盘口估值指标 (仅在股票变更且非回溯时拉取，避免回溯推演时产生冗余网络请求)
+            if (!_clIsBacktracking && window._clLastMetricsCode !== d.code) {
+                window._clLastMetricsCode = d.code;
+                fetchKlineQuoteMetrics(d.code);
+            }
         }
 
         async function fetchKlineQuoteMetrics(code) {
@@ -21932,7 +21964,11 @@
                 return;
             }
 
-            // 更新左上角 HTML 形态胶囊覆盖层 (参考K线弹窗 updateKpPatternBadgeOverlay)
+            // 更新左上角独立蓝色标题 (上移至顶部安全区) 与 HTML 形态胶囊
+            const titleEl = document.getElementById('cl-chart-title-text');
+            if (titleEl) {
+                titleEl.textContent = `${d.code} | ${d.name} · 缠论多周期立体共振系统`;
+            }
             const patternOverlay = document.getElementById('cl-pattern-overlay');
             if (patternOverlay && d.summary) {
                 const s = d.summary;
@@ -21943,38 +21979,38 @@
                     <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-cyan-950/80 text-cyan-300 border-cyan-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-amber-950/80 text-amber-300 border-amber-800'} border shadow-sm font-bold">
+                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-cyan-950/80 text-cyan-300 border-cyan-800'} border shadow-sm font-bold">
                         ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
                     </span>
                 `;
             }
 
-            // 1. 笔线段 MarkLines (大/中/基准小)
+            // 1. 笔线段 MarkLines (花姐标准：大紫·次黄·微蓝)
             const highBiLines = _clLayers.highBi ? (uc.high_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#e040fb', width: 2.8, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#c084fc', width: 2.8, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
             const midBiLines = _clLayers.midBi ? (uc.mid_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#00e5ff', width: 2.0, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#facc15', width: 2.0, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
             const lowBiLines = _clLayers.lowBi ? (uc.low_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#ffd600', width: 1.2, type: 'solid' } },
+                { coord: b.start, lineStyle: { color: '#00e5ff', width: 1.4, type: 'solid' } },
                 { coord: b.end }
             ]) : [];
 
-            // 2. 中枢 MarkAreas (大/中/基准小)
+            // 2. 中枢 MarkAreas (大紫·次黄·微蓝)
             const highZsAreas = _clLayers.highZs ? (uc.high_zss || []).map(zs => [
                 {
                     name: `[${d.periods.high.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(156, 39, 176, 0.16)', borderColor: '#e040fb', borderWidth: 1.2, borderType: 'dashed' },
-                    label: { show: true, position: 'top', color: '#e040fb', fontSize: 10, formatter: `[${d.periods.high.name}中枢]` }
+                    itemStyle: { color: 'rgba(147, 51, 234, 0.18)', borderColor: '#c084fc', borderWidth: 1.2, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#c084fc', fontSize: 10, formatter: `[${d.periods.high.name}紫色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -21983,8 +22019,8 @@
                 {
                     name: `[${d.periods.mid.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(0, 188, 212, 0.16)', borderColor: '#00e5ff', borderWidth: 1.0, borderType: 'dashed' },
-                    label: { show: true, position: 'top', color: '#00e5ff', fontSize: 10, formatter: `[${d.periods.mid.name}中枢]` }
+                    itemStyle: { color: 'rgba(202, 138, 4, 0.18)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -21993,64 +22029,116 @@
                 {
                     name: `[${d.periods.low.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(255, 152, 0, 0.14)', borderColor: '#ffa726', borderWidth: 0.8, borderType: 'dotted' },
-                    label: { show: true, position: 'insideTopLeft', color: '#ffa726', fontSize: 9, formatter: `[${d.periods.low.name}中枢]` }
+                    itemStyle: { color: 'rgba(2, 132, 199, 0.16)', borderColor: '#00e5ff', borderWidth: 0.8, borderType: 'dotted' },
+                    label: { show: true, position: 'insideTopLeft', color: '#00e5ff', fontSize: 9, formatter: `[${d.periods.low.name}微观中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
 
 
-            // 4. 买卖点 MarkPoints
-            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => ({
-                name: m.type,
-                coord: m.coord,
-                value: m.label,
-                symbol: m.is_buy ? 'pin' : 'arrow',
-                symbolRotate: m.is_buy ? 0 : 180,
-                symbolSize: 22,
-                itemStyle: { color: m.is_buy ? '#ef4444' : '#10b981' },
-                label: { show: true, color: '#ffffff', fontWeight: 'bold', fontSize: 9, formatter: m.label }
-            })) : [];
+            // 4. 买卖点 MarkPoints (多级别同图融合)
+            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => {
+                const isBig = m.label && (m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2'));
+                const isMid = m.label && m.label.includes('次');
+                let color = m.is_buy ? '#ef4444' : '#10b981';
+                if (isBig) {
+                    color = '#9333ea';
+                } else if (isMid) {
+                    color = m.is_buy ? '#f59e0b' : '#d97706';
+                }
+
+                // 暗色与亮色模式下的文字颜色与描边优化：
+                // 暗色模式：高对比亮白/浅金黄/浅翡翠字体 + 纯黑描边(Halo)，无论在任何K线/背景上都清晰立体
+                // 亮色模式：高饱和深红/深绿/深琥珀字体 + 纯白描边(Halo)，彻底解决浅色三角形或水滴里白字隐形融化的问题
+                let textColor, textBorderColor;
+                if (isDark) {
+                    textColor = isMid && m.is_buy ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5');
+                    textBorderColor = 'rgba(0, 0, 0, 0.9)';
+                } else {
+                    textColor = isMid ? (m.is_buy ? '#78350f' : '#9a3412') : (m.is_buy ? '#991b1b' : '#064e3b');
+                    textBorderColor = '#ffffff';
+                }
+
+                return {
+                    name: m.type,
+                    coord: m.coord,
+                    value: m.label,
+                    symbol: m.is_buy ? 'pin' : 'arrow',
+                    symbolRotate: m.is_buy ? 0 : 180,
+                    symbolSize: isBig ? 30 : (isMid ? 26 : 24),
+                    itemStyle: { 
+                        color: color,
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.2)',
+                        borderWidth: 1
+                    },
+                    label: {
+                        show: true,
+                        color: textColor,
+                        textBorderColor: textBorderColor,
+                        textBorderWidth: 2.5,
+                        fontWeight: 'bold',
+                        fontSize: 9.5,
+                        formatter: m.label
+                    }
+                };
+            }) : [];
 
             // 5. 共振买卖点 MarkPoints & 贯穿线
-            const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => ({
-                name: r.pattern_name,
-                coord: r.coord,
-                value: r.label,
-                symbol: 'diamond',
-                symbolSize: 28,
-                itemStyle: {
-                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-                    borderColor: '#ffffff',
-                    borderWidth: 1.5,
-                    shadowBlur: 10,
-                    shadowColor: r.direction === 'BUY' ? '#ffd600' : '#00e5ff'
-                },
-                label: {
-                    show: true,
-                    position: r.direction === 'BUY' ? 'bottom' : 'top',
-                    color: '#ffffff',
-                    fontWeight: 'bold',
-                    fontSize: 10,
-                    formatter: r.label
-                }
-            })) : [];
+            const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => {
+                const isBuy = r.direction === 'BUY';
+                const labelColor = isDark ? '#ffffff' : (isBuy ? '#92400e' : '#0e7490');
+                const labelBorderColor = isDark ? '#000000' : '#ffffff';
 
-            const resVerticalLines = _clLayers.res ? (uc.res_marks || []).map(r => ({
-                xAxis: r.date,
-                lineStyle: {
-                    color: r.direction === 'BUY' ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
-                    width: 1.5,
-                    type: 'dashed'
-                },
-                label: {
-                    show: true,
-                    position: 'end',
-                    formatter: `★ ${r.grade}共振`,
-                    color: r.direction === 'BUY' ? '#ffd600' : '#00e5ff',
-                    fontSize: 10
-                }
-            })) : [];
+                return {
+                    name: r.pattern_name,
+                    coord: r.coord,
+                    value: r.label,
+                    symbol: 'diamond',
+                    symbolSize: 30,
+                    itemStyle: {
+                        color: isBuy ? '#ffd600' : '#00e5ff',
+                        borderColor: isDark ? '#ffffff' : '#0f172a',
+                        borderWidth: 1.5,
+                        shadowBlur: 8,
+                        shadowColor: isBuy ? '#ffd600' : '#00e5ff'
+                    },
+                    label: {
+                        show: true,
+                        position: isBuy ? 'bottom' : 'top',
+                        color: labelColor,
+                        textBorderColor: labelBorderColor,
+                        textBorderWidth: 2.5,
+                        fontWeight: 'bold',
+                        fontSize: 10.5,
+                        formatter: r.label
+                    }
+                };
+            }) : [];
+
+            const resVerticalLines = _clLayers.res ? (uc.res_marks || []).map(r => {
+                const isBuy = r.direction === 'BUY';
+                const tagColor = isDark 
+                    ? (isBuy ? '#ffd600' : '#00e5ff') 
+                    : (isBuy ? '#b45309' : '#0284c7');
+                return {
+                    xAxis: r.date,
+                    lineStyle: {
+                        color: isBuy ? 'rgba(255, 214, 0, 0.85)' : 'rgba(0, 229, 255, 0.85)',
+                        width: 1.5,
+                        type: 'dashed'
+                    },
+                    label: {
+                        show: true,
+                        position: 'end',
+                        formatter: `★ ${r.grade}共振`,
+                        color: tagColor,
+                        textBorderColor: isDark ? '#000000' : '#ffffff',
+                        textBorderWidth: 2.5,
+                        fontSize: 10,
+                        fontWeight: 'bold'
+                    }
+                };
+            }) : [];
 
 
             // 7. 副图指标系列 (MACD vs 成交量)
@@ -22091,7 +22179,225 @@
                     }
                 };
             } else {
-                // MACD
+                // 计算 K 线弹窗同款 Enhanced MACD 完整分析引擎 (背离箭头连线、金叉死叉、共振、RSI)
+                const barsForMacd = candles.map((c, i) => ({
+                    open: c[0],
+                    close: c[1],
+                    low: c[2],
+                    high: c[3],
+                    datetime: dates[i],
+                    macd_dif: (macdData.dif && macdData.dif[i] != null) ? macdData.dif[i] : null,
+                    macd_dea: (macdData.dea && macdData.dea[i] != null) ? macdData.dea[i] : null,
+                    macd_hist: (macdData.hist && macdData.hist[i] != null) ? macdData.hist[i] : null,
+                }));
+                const enhancedMacd = typeof calcEnhancedMacdData === 'function' ? calcEnhancedMacdData(barsForMacd, dates) : null;
+
+                const macdMarks = [];
+                const macdMarkLines = [
+                    {
+                        yAxis: 0,
+                        lineStyle: { color: '#64748b', type: 'dashed', width: 1 },
+                        label: { show: false }
+                    }
+                ];
+
+                if (enhancedMacd) {
+                    // 1. 背离箭头连线 map 起来 (底背离红线带箭头、顶背离绿线带箭头)
+                    if (enhancedMacd.divMarkLines && enhancedMacd.divMarkLines.length > 0) {
+                        enhancedMacd.divMarkLines.forEach(line => {
+                            macdMarkLines.push([
+                                { coord: line[0].coord, lineStyle: { ...line[0].lineStyle, width: 2 } },
+                                { coord: line[1].coord }
+                            ]);
+                        });
+                    }
+                    if (uc.macd_div_lines && uc.macd_div_lines.length > 0) {
+                        uc.macd_div_lines.forEach(line => {
+                            macdMarkLines.push([
+                                { coord: line.start, lineStyle: { color: line.color || '#ef4444', width: 2, type: 'solid' } },
+                                { coord: line.end }
+                            ]);
+                        });
+                    }
+                    // 底部垂直支撑线 (STICKLINE)
+                    if (enhancedMacd.botStickLines && enhancedMacd.botStickLines.length > 0) {
+                        macdMarkLines.push(...enhancedMacd.botStickLines);
+                    }
+
+                    // 2. K 线弹窗同款 MACD 标记胶囊 (金叉共振、底部、金叉、死叉、RSI等)
+                    for (let i = 0; i < n_bars; i++) {
+                        const dt = dates[i];
+                        const difV = enhancedMacd.dif[i];
+                        const macdV = enhancedMacd.macd[i];
+
+                        if (enhancedMacd.resonanceSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(difV - 0.05).toFixed(2)],
+                                value: '★金叉共振',
+                                symbol: 'diamond',
+                                symbolSize: 8,
+                                itemStyle: { color: '#eab308' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: '★金叉共振',
+                                    color: '#ffffff',
+                                    fontSize: 10,
+                                    fontWeight: 'bold',
+                                    backgroundColor: 'rgba(161, 98, 7, 0.95)',
+                                    borderColor: '#facc15',
+                                    borderWidth: 1,
+                                    padding: [2, 4],
+                                    borderRadius: 3
+                                }
+                            });
+                        } else if (enhancedMacd.macdGcSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(difV - 0.04).toFixed(2)],
+                                value: '金叉',
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                itemStyle: { color: '#ef4444' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: '金叉',
+                                    color: '#fca5a5',
+                                    fontSize: 9,
+                                    backgroundColor: 'rgba(127, 29, 29, 0.75)',
+                                    padding: [1, 3],
+                                    borderRadius: 2
+                                }
+                            });
+                        } else if (enhancedMacd.macdDcSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(difV + 0.04).toFixed(2)],
+                                value: '死叉',
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                itemStyle: { color: '#10b981' },
+                                label: {
+                                    show: true,
+                                    position: 'top',
+                                    formatter: '死叉',
+                                    color: '#86efac',
+                                    fontSize: 9,
+                                    backgroundColor: 'rgba(6, 78, 59, 0.75)',
+                                    padding: [1, 3],
+                                    borderRadius: 2
+                                }
+                            });
+                        }
+
+                        if (enhancedMacd.botSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, 0],
+                                value: '底部',
+                                symbol: 'pin',
+                                symbolSize: 8,
+                                itemStyle: { color: '#facc15' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: '底部',
+                                    color: '#fef08a',
+                                    fontSize: 9,
+                                    fontWeight: '600',
+                                    backgroundColor: 'rgba(113, 63, 18, 0.85)',
+                                    borderColor: '#eab308',
+                                    borderWidth: 1,
+                                    padding: [1, 3],
+                                    borderRadius: 2
+                                }
+                            });
+                        }
+
+                        if (enhancedMacd.botDivSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(macdV * 1.2).toFixed(2)],
+                                value: 'MACD底离',
+                                symbol: 'none',
+                                itemStyle: { color: '#ef4444' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: 'MACD底离',
+                                    color: '#fca5a5',
+                                    fontSize: 9,
+                                    fontWeight: 'bold',
+                                    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+                                    borderColor: '#ef4444',
+                                    borderWidth: 1,
+                                    padding: [1.5, 3.5],
+                                    borderRadius: 3
+                                }
+                            });
+                        }
+
+                        if (enhancedMacd.topDivSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(macdV * 1.2).toFixed(2)],
+                                value: 'MACD顶离',
+                                symbol: 'none',
+                                itemStyle: { color: '#10b981' },
+                                label: {
+                                    show: true,
+                                    position: 'top',
+                                    formatter: 'MACD顶离',
+                                    color: '#86efac',
+                                    fontSize: 9,
+                                    fontWeight: 'bold',
+                                    backgroundColor: 'rgba(6, 78, 59, 0.9)',
+                                    borderColor: '#10b981',
+                                    borderWidth: 1,
+                                    padding: [1.5, 3.5],
+                                    borderRadius: 3
+                                }
+                            });
+                        }
+
+                        if (enhancedMacd.rsiBuySignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(macdV - 0.05).toFixed(2)],
+                                value: 'RSI买',
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                itemStyle: { color: '#ec4899' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: 'RSI买',
+                                    color: '#fbcfe8',
+                                    fontSize: 9,
+                                    backgroundColor: 'rgba(131, 24, 67, 0.85)',
+                                    padding: [1, 3],
+                                    borderRadius: 2
+                                }
+                            });
+                        }
+
+                        if (enhancedMacd.rsiDivSignals[i]) {
+                            macdMarks.push({
+                                coord: [dt, +(difV - 0.08).toFixed(2)],
+                                value: 'RSI底离',
+                                symbol: 'circle',
+                                symbolSize: 4,
+                                itemStyle: { color: '#06b6d4' },
+                                label: {
+                                    show: true,
+                                    position: 'bottom',
+                                    formatter: 'RSI底离',
+                                    color: '#a5f3fc',
+                                    fontSize: 9,
+                                    backgroundColor: 'rgba(22, 78, 99, 0.85)',
+                                    padding: [1, 3],
+                                    borderRadius: 2
+                                }
+                            });
+                        }
+                    }
+                }
+
                 subSeries = [
                     {
                         name: 'MACD柱',
@@ -22102,7 +22408,14 @@
                             value: v,
                             itemStyle: { color: v >= 0 ? '#ef4444' : '#10b981' }
                         })),
-                        barWidth: '55%'
+                        barWidth: '55%',
+                        markLine: {
+                            silent: true,
+                            animation: false,
+                            symbol: ['circle', 'arrow'],
+                            symbolSize: [4, 8],
+                            data: macdMarkLines
+                        }
                     },
                     {
                         name: 'DIF',
@@ -22111,7 +22424,31 @@
                         yAxisIndex: 1,
                         data: macdData.dif || [],
                         lineStyle: { color: '#cbd5e1', width: 1.2 },
-                        symbol: 'none'
+                        symbol: 'none',
+                        markPoint: {
+                            silent: true,
+                            data: macdMarks
+                        }
+                    },
+                    {
+                        name: 'DIF强(红)',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: enhancedMacd ? enhancedMacd.difStrong : [],
+                        showSymbol: false,
+                        lineStyle: { width: 2.2, color: '#ef4444' },
+                        itemStyle: { color: '#ef4444' }
+                    },
+                    {
+                        name: 'DIF弱(绿)',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: enhancedMacd ? enhancedMacd.difWeak : [],
+                        showSymbol: false,
+                        lineStyle: { width: 1.2, color: '#10b981' },
+                        itemStyle: { color: '#10b981' }
                     },
                     {
                         name: 'DEA',
@@ -22142,20 +22479,8 @@
             const tooltipTextColor = isDark ? '#cbd5e1' : '#334155';
             const tooltipTitleColor = isDark ? '#ffffff' : '#0f172a';
 
-            // 左上角水印
-            const watermarkGraphic = [
-                {
-                    type: 'text',
-                    left: 54,
-                    top: 14,
-                    z: 5,
-                    style: {
-                        text: `${d.code} | ${d.name} · 缠论多周期立体共振系统`,
-                        font: 'bold 11px "JetBrains Mono", Consolas, monospace',
-                        fill: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.85)'
-                    }
-                }
-            ];
+            // 蓝色标题已通过 HTML 元素在主图左上角顶部分离呈现，此处不再在画布内重叠绘制
+            const watermarkGraphic = [];
 
             // 保持当前 dataZoom
             let prevDataZoom = null;
@@ -22207,12 +22532,41 @@
                         let resHtml = '';
                         if (matchedRes) {
                             const isBuy = matchedRes.direction === 'BUY';
+                            const resBg = isDark 
+                                ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') 
+                                : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
+                            const resBorder = isBuy ? '#ef4444' : '#10b981';
+                            const resColor = isDark 
+                                ? (isBuy ? '#fca5a5' : '#86efac') 
+                                : (isBuy ? '#991b1b' : '#064e3b');
                             resHtml = `
-                                <div style="margin-top: 6px; padding: 4px 8px; background: ${isBuy ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; border: 1px solid ${isBuy ? '#ef4444' : '#10b981'}; border-radius: 4px; color: ${isBuy ? '#fca5a5' : '#86efac'}; font-weight: bold; font-size: 11px;">
+                                <div style="margin-top: 6px; padding: 4px 8px; background: ${resBg}; border: 1px solid ${resBorder}; border-radius: 4px; color: ${resColor}; font-weight: bold; font-size: 11px;">
                                     ★ ${matchedRes.grade}级${isBuy ? '买点' : '卖点'}: ${matchedRes.pattern_name} (¥${Number(matchedRes.price).toFixed(2)})
                                 </div>
                             `;
                         }
+
+                        // 查找 MACD 背离事件
+                        const matchedMacd = (uc.macd_marks || []).find(m => m.date === dateStr);
+                        let macdHtml = '';
+                        if (matchedMacd) {
+                            const isBottom = matchedMacd.type === 'bottom';
+                            const macdBg = isDark 
+                                ? (isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') 
+                                : (isBottom ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
+                            const macdBorder = isBottom ? '#ef4444' : '#10b981';
+                            const macdColor = isDark 
+                                ? (isBottom ? '#fca5a5' : '#86efac') 
+                                : (isBottom ? '#991b1b' : '#064e3b');
+                            macdHtml = `
+                                <div style="margin-top: 4px; padding: 3px 8px; background: ${macdBg}; border: 1px solid ${macdBorder}; border-radius: 4px; color: ${macdColor}; font-weight: bold; font-size: 11px;">
+                                    ${matchedMacd.label}: ${matchedMacd.msg}
+                                </div>
+                            `;
+                        }
+
+                        const fieldLabelColor = isDark ? '#94a3b8' : '#475569';
+                        const ampColor = isDark ? '#e2e8f0' : '#1e293b';
 
                         return `
                             <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
@@ -22221,20 +22575,21 @@
                                     <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <span style="color: #64748b; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">开盘:</span><span style="color: ${open >= close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
-                                    <span style="color: #64748b; font-weight: 600;">振幅:</span><span style="color: #cbd5e1; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${open >= close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: #10b981; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                 </div>
                                 ${resHtml}
+                                ${macdHtml}
                             </div>
                         `;
                     }
                 },
                 grid: [
-                    { left: 52, right: 32, top: 44, height: '60%' },
+                    { left: 52, right: 32, top: 52, height: '58%' },
                     { left: 52, right: 32, top: '75%', height: '18%' }
                 ],
                 xAxis: [
@@ -22417,9 +22772,9 @@
         }
 
         function onChanlunCustomPeriodChange() {
-            const h = document.getElementById('cl-select-high')?.value || 'WEEK';
-            const m = document.getElementById('cl-select-mid')?.value || 'DAY';
-            const l = document.getElementById('cl-select-low')?.value || '30F';
+            const h = document.getElementById('cl-select-high')?.value || 'DAY';
+            const m = document.getElementById('cl-select-mid')?.value || '30F';
+            const l = document.getElementById('cl-select-low')?.value || '5F';
             _clPeriods = `${h},${m},${l}`;
 
             document.querySelectorAll('.cl-preset-btn').forEach(btn => {
@@ -22512,6 +22867,19 @@
             loadChanlunData(false);
         }
 
+        async function triggerChanlunBacktrackLoad() {
+            if (_clIsDataLoading) {
+                _clPendingBacktrackDate = _clBacktrackDate;
+                return;
+            }
+            await loadChanlunData(false);
+            if (_clPendingBacktrackDate && _clPendingBacktrackDate !== _clBacktrackDate) {
+                _clBacktrackDate = _clPendingBacktrackDate;
+                _clPendingBacktrackDate = null;
+                await loadChanlunData(false);
+            }
+        }
+
         function onChanlunSliderChange(val) {
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
@@ -22523,7 +22891,20 @@
                 const dates = _clCachedData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
                     _clBacktrackDate = dates[_clBacktrackIndex];
-                    loadChanlunData(false);
+
+                    // 1. 立即更新界面截断时间文本与输入框，0延迟视觉反馈
+                    const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+                    if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                    const cutoffInput = document.getElementById('cl-cutoff-date');
+                    if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
+                    const latestBtn = document.getElementById('cl-btn-latest-bar');
+                    if (latestBtn) latestBtn.classList.remove('hidden');
+
+                    // 2. 45ms 防抖渲染，避免鼠标拖拽滑块时发出过多请求
+                    if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
+                    _clBacktrackDebounceTimer = setTimeout(() => {
+                        triggerChanlunBacktrackLoad();
+                    }, 45);
                 }
             }
         }
@@ -22540,7 +22921,21 @@
             if (nextIdx >= 0 && nextIdx < dates.length) {
                 _clBacktrackIndex = nextIdx;
                 _clBacktrackDate = dates[nextIdx];
-                loadChanlunData(false);
+
+                // 同步滑块与文本
+                const slider = document.getElementById('cl-backtrack-slider');
+                if (slider) slider.value = String(_clBacktrackIndex);
+                const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                const cutoffInput = document.getElementById('cl-cutoff-date');
+                if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
+                const latestBtn = document.getElementById('cl-btn-latest-bar');
+                if (latestBtn) latestBtn.classList.remove('hidden');
+
+                if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
+                _clBacktrackDebounceTimer = setTimeout(() => {
+                    triggerChanlunBacktrackLoad();
+                }, 30);
             }
         }
 
@@ -22585,11 +22980,40 @@
             }
         }
 
-        // 全局键盘快捷键监听 (完全参考K线弹窗快捷键体验: 方向键推演，空格播放/暂停)
+        // ==================== 缠论 K 线缩放 (通达信快捷键: ↑ 放大 / ↓ 缩小) ==================== //
+        function zoomChanlunChart(factor) {
+            if (!window.chanlunChart) return;
+            const opt = window.chanlunChart.getOption();
+            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+            let start = opt.dataZoom[0].start;
+            let end = opt.dataZoom[0].end;
+            if (start === undefined || start === null) start = 40;
+            if (end === undefined || end === null) end = 100;
+            const span = end - start;
+            const newSpan = Math.max(2, Math.min(100, span * factor));
+            const delta = (newSpan - span) / 2;
+            let newStart = Math.max(0, start - delta);
+            let newEnd = Math.min(100, end + delta);
+            if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
+            if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
+            window.chanlunChart.dispatchAction({
+                type: 'dataZoom',
+                start: newStart,
+                end: newEnd
+            });
+        }
+
+        // 全局键盘快捷键监听 (完全参考通达信与K线弹窗快捷键体验: ↑/↓ 缩放，←/→ 推演，空格 播放/暂停)
         window.addEventListener('keydown', (e) => {
             if (window.currentTab !== 'chanlun') return;
             if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-            if (e.key === 'ArrowLeft') {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                zoomChanlunChart(0.8);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                zoomChanlunChart(1.25);
+            } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 stepChanlunBacktrack(-1);
             } else if (e.key === 'ArrowRight') {

@@ -753,6 +753,37 @@ function focusSignal(signal: ChanlunResonanceSignal) {
   })
 }
 
+function zoomChart(factor: number) {
+  if (!chartInstance) return
+  const opt = chartInstance.getOption() as any
+  if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return
+  let start = opt.dataZoom[0].start ?? 40
+  let end = opt.dataZoom[0].end ?? 100
+  const span = end - start
+  const newSpan = Math.max(2, Math.min(100, span * factor))
+  const delta = (newSpan - span) / 2
+  let newStart = Math.max(0, start - delta)
+  let newEnd = Math.min(100, end + delta)
+  if (newStart === 0) newEnd = Math.min(100, newStart + newSpan)
+  if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan)
+  chartInstance.dispatchAction({
+    type: 'dataZoom',
+    start: newStart,
+    end: newEnd,
+  })
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    zoomChart(0.8)
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    zoomChart(1.25)
+  }
+}
+
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
 onMounted(() => {
   const qCode = (route.query.code || route.query.symbol) as string | undefined
@@ -760,9 +791,11 @@ onMounted(() => {
     code.value = qCode
   }
   loadData(true)
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown)
   stopAutoRefresh()
   stopReplay()
   if (chartInstance) {
@@ -1508,8 +1541,8 @@ onBeforeUnmount(() => {
   background: #181b27;
   border: 1px solid #2a2e39;
   border-radius: 8px;
-  height: 580px;
-  min-height: 480px;
+  height: 754px;
+  min-height: 624px;
   flex-shrink: 0;
 }
 .main-echart {

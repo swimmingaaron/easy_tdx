@@ -515,6 +515,7 @@ export interface UnifiedChartData {
   low_zss: ZsBox[]
   mmd_marks: MmdMark[]
   res_marks: ResMark[]
+  macd_marks?: any[]
   macd: MacdData
 }
 
