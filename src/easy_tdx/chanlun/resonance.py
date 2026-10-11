@@ -936,7 +936,6 @@ def analyze_multi_period_resonance(
             "start_idx": start_idx,
             "end_idx": e_clamp,
             "direction": bi.direction.value,
-            "is_done": bi.is_done(),
         })
         prev_high_end_coord = end_coord
         prev_high_end_idx = e_clamp
@@ -985,7 +984,6 @@ def analyze_multi_period_resonance(
             "start_idx": start_idx,
             "end_idx": e_clamp,
             "direction": bi.direction.value,
-            "is_done": bi.is_done(),
         })
         prev_mid_end_coord = end_coord
         prev_mid_end_idx = e_clamp
@@ -1046,7 +1044,6 @@ def analyze_multi_period_resonance(
             "start_idx": start_idx,
             "end_idx": e_i,
             "direction": bi.direction.value,
-            "is_done": bi.is_done(),
         })
         prev_low_end_coord = end_coord
         prev_low_end_idx = e_i

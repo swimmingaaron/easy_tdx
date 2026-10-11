@@ -463,7 +463,6 @@ export interface BiLine {
   start_idx: number
   end_idx: number
   direction: 'up' | 'down'
-  is_done?: boolean
 }
 
 export interface ZsBox {

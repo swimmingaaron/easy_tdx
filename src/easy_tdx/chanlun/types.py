@@ -104,11 +104,10 @@ class Line:
     index: int = 0  # 序号
     high: float = 0.0  # 区间最高价
     low: float = 0.0  # 区间最低价
-    is_sure: bool = True  # 是否已确认
 
     def is_done(self) -> bool:
-        """线是否完成（结束分型已完成且已确认）。"""
-        return bool(self.is_sure and self.end.done)
+        """线是否完成（结束分型已完成）。"""
+        return self.end.done
 
     def __str__(self) -> str:
         return (

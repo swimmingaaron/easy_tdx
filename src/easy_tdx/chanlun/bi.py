@@ -79,7 +79,6 @@ def find_bis(
     fxs: list[FX],
     config: ChanlunConfig | None = None,
     cklines: list[CLKline] | None = None,
-    include_developing: bool = True,
 ) -> list[BI]:
     """从分型列表中计算笔（严格连续折线状态机）。
 
@@ -88,14 +87,11 @@ def find_bis(
     2. 当最后一笔形成后，若后续同向分型创出更极端价格（未确立反向笔前），
        属于前一笔的延伸，直接更新前一笔的 end 为该更极端分型。
     3. 只有当反向分型与前一笔终点满足成笔条件时，才确认生成下一笔，且新笔的 start 严格等于前一笔的 end。
-    4. 对末尾尚未确认的新一笔/反向趋势，自动生成未完成笔（is_sure=False / is_done()=False），
-       用于在图表上以虚线标识大级别待确认趋势，一旦后续成笔确认即自动转为实线。
 
     Args:
         fxs: 分型列表（顶底交替）
         config: 缠论配置
-        cklines: 缠论K线列表（可选，用于计算笔内真实高低及末端待确认笔）
-        include_developing: 是否包含末尾未确定趋势笔（虚笔）
+        cklines: 缠论K线列表（可选，用于计算笔内真实高低）
 
     Returns:
         笔列表（首尾绝对无缝连续）
@@ -104,19 +100,6 @@ def find_bis(
         config = ChanlunConfig()
 
     if len(fxs) < 2:
-        if include_developing and cklines and len(cklines) >= 2:
-            first_k = cklines[0]
-            last_k = cklines[-1]
-            if last_k.high >= first_k.high:
-                peak_k = max(cklines, key=lambda k: k.high)
-                start_fx = FX(FXType.DI, first_k, [first_k], first_k.low, 0, done=True)
-                end_fx = FX(FXType.DING, peak_k, [peak_k], peak_k.high, 1, done=False)
-                return [BI(start=start_fx, end=end_fx, direction=Direction.UP, index=0, high=peak_k.high, low=first_k.low, is_sure=False)]
-            else:
-                trough_k = min(cklines, key=lambda k: k.low)
-                start_fx = FX(FXType.DING, first_k, [first_k], first_k.high, 0, done=True)
-                end_fx = FX(FXType.DI, trough_k, [trough_k], trough_k.low, 1, done=False)
-                return [BI(start=start_fx, end=end_fx, direction=Direction.DOWN, index=0, high=first_k.high, low=trough_k.low, is_sure=False)]
         return []
 
     bis: list[BI] = []
@@ -141,7 +124,7 @@ def find_bis(
             else:
                 high = max(start_fx.val, cur.val)
                 low = min(start_fx.val, cur.val)
-            bis.append(BI(start=start_fx, end=cur, direction=direction, index=0, high=high, low=low, is_sure=True))
+            bis.append(BI(start=start_fx, end=cur, direction=direction, index=0, high=high, low=low))
             break
 
     if not bis:
@@ -181,99 +164,8 @@ def find_bis(
                     index=len(bis),
                     high=high,
                     low=low,
-                    is_sure=True,
                 )
                 bis.append(new_bi)
-
-    # 3. 检查并生成末尾未确定趋势笔（虚笔 / 待确认笔）
-    if include_developing and cklines and bis:
-        last_bi = bis[-1]
-        end_ck_idx = last_bi.end.k.index
-        remaining_cklines = [ck for ck in cklines if ck.index > end_ck_idx]
-
-        if remaining_cklines:
-            if last_bi.direction == Direction.UP:
-                max_high_k = max(remaining_cklines, key=lambda ck: ck.high)
-                if max_high_k.high > last_bi.end.val:
-                    # 原向上笔继续延伸，未最终确定
-                    last_bi.end = FX(
-                        fx_type=FXType.DING,
-                        k=max_high_k,
-                        klines=[max_high_k],
-                        val=max_high_k.high,
-                        index=len(fxs),
-                        done=False,
-                    )
-                    last_bi.high, last_bi.low = _calc_bi_range(last_bi.start, last_bi.end, cklines)
-                    last_bi.is_sure = False
-                else:
-                    # 价格回调，产生向下待确认趋势（虚笔）
-                    trough_k = min(remaining_cklines, key=lambda ck: ck.low)
-                    if trough_k.low < last_bi.end.val:
-                        dev_fx = FX(
-                            fx_type=FXType.DI,
-                            k=trough_k,
-                            klines=[trough_k],
-                            val=trough_k.low,
-                            index=len(fxs),
-                            done=False,
-                        )
-                        high, low = _calc_bi_range(last_bi.end, dev_fx, cklines)
-                        dev_bi = BI(
-                            start=last_bi.end,
-                            end=dev_fx,
-                            direction=Direction.DOWN,
-                            index=len(bis),
-                            high=high,
-                            low=low,
-                            is_sure=False,
-                        )
-                        bis.append(dev_bi)
-                    else:
-                        last_bi.is_sure = False
-            else:
-                # last_bi 是向下笔
-                min_low_k = min(remaining_cklines, key=lambda ck: ck.low)
-                if min_low_k.low < last_bi.end.val:
-                    # 原向下笔继续延伸，未最终确定
-                    last_bi.end = FX(
-                        fx_type=FXType.DI,
-                        k=min_low_k,
-                        klines=[min_low_k],
-                        val=min_low_k.low,
-                        index=len(fxs),
-                        done=False,
-                    )
-                    last_bi.high, last_bi.low = _calc_bi_range(last_bi.start, last_bi.end, cklines)
-                    last_bi.is_sure = False
-                else:
-                    # 价格反弹，产生向上待确认趋势（虚笔）
-                    peak_k = max(remaining_cklines, key=lambda ck: ck.high)
-                    if peak_k.high > last_bi.end.val:
-                        dev_fx = FX(
-                            fx_type=FXType.DING,
-                            k=peak_k,
-                            klines=[peak_k],
-                            val=peak_k.high,
-                            index=len(fxs),
-                            done=False,
-                        )
-                        high, low = _calc_bi_range(last_bi.end, dev_fx, cklines)
-                        dev_bi = BI(
-                            start=last_bi.end,
-                            end=dev_fx,
-                            direction=Direction.UP,
-                            index=len(bis),
-                            high=high,
-                            low=low,
-                            is_sure=False,
-                        )
-                        bis.append(dev_bi)
-                    else:
-                        last_bi.is_sure = False
-        else:
-            # 没有剩余 K 线，最后一笔本身就是末端活动笔，标记为未确定
-            last_bi.is_sure = False
 
     return bis
 
