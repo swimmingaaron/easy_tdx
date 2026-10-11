@@ -792,18 +792,18 @@ def analyze_multi_period_resonance(
         mid_p: max(160, int(count * 0.7) * multiplier),
         low_p: max(200, count * multiplier),
     }
-    # 5F / 1F 级别保证至少拉取 1500 根 K 线，充分覆盖微观走势与共振形态
+    # 5F / 1F 级别保证至少拉取 3000 根 K 线，充分覆盖微观走势与共振形态
     for p in p_list:
         if p in ("5F", "5M", "1F", "1M"):
-            req_counts[p] = max(req_counts.get(p, 0), 1500 * multiplier)
+            req_counts[p] = max(req_counts.get(p, 0), 3000 * multiplier)
 
     # 拉取或内存复用三周期母数据 K 线（回溯时 100% 内存命中，杜绝反复请求远程服务器）
     raw_dfs: dict[str, pd.DataFrame] = {}
     for p in p_list:
         spec = PERIOD_SPECS[p]
         needed_cnt = req_counts[p]
-        # 母数据集拉取时尽量预留充裕的历史长度（微观级别 2400 根），使得回溯时滑块能够大幅度自由滑动
-        target_fetch_cnt = max(needed_cnt, 2400 if p in ("5F", "5M", "1F", "1M") else 800)
+        # 母数据集拉取时尽量预留充裕的历史长度（微观级别 3500 根），使得回溯时滑块能够大幅度自由滑动
+        target_fetch_cnt = max(needed_cnt, 3500 if p in ("5F", "5M", "1F", "1M") else 800)
 
         use_cached = False
         cached_df: pd.DataFrame | None = None

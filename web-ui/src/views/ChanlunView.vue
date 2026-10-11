@@ -173,7 +173,7 @@ async function loadData(forceRefresh = false) {
   errorMsg.value = ''
 
   try {
-    const reqCount = (currentPeriodsStr.value.includes('5F') || currentPeriodsStr.value.includes('1F')) ? 1500 : 300
+    const reqCount = (currentPeriodsStr.value.includes('5F') || currentPeriodsStr.value.includes('1F')) ? 3000 : 300
     const res = await fetchChanlunResonance({
       code: code.value,
       periods: currentPeriodsStr.value,

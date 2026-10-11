@@ -21275,7 +21275,7 @@
                 const query = new URLSearchParams();
                 query.set('code', _clCurrentCode);
                 query.set('periods', _clPeriods);
-                const reqCount = (_clPeriods.includes('5F') || _clPeriods.includes('1F')) ? '1500' : '300';
+                const reqCount = (_clPeriods.includes('5F') || _clPeriods.includes('1F')) ? '3000' : '300';
                 query.set('count', reqCount);
                 if (_clIsBacktracking && _clBacktrackDate) {
                     query.set('cutoff_date', _clBacktrackDate);
