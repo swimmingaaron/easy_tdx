@@ -459,24 +459,34 @@ class ChanlunUnifiedResonancePlotter:
                 continue
             s_clamp = prev_h_end if prev_h_end is not None else max(0, s_idx)
             e_clamp = max(0, min(n_bars - 1, e_idx))
-            high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+            high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val, bi.is_done()))
             prev_h_end = e_clamp
 
-        for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
+        for seg_i, (sx, sy, ex, ey, is_done) in enumerate(high_bi_pts):
             lbl = f"大级别 ({high_name}) 紫线笔" if seg_i == 0 else ""
+            ls = "-" if is_done else "--"
             ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_high,
-                linewidth=3.6,
-                linestyle="-",
+                linewidth=3.6 if is_done else 2.6,
+                linestyle=ls,
                 marker="o",
-                markersize=7.5,
-                markerfacecolor="#ffffff",
+                markersize=7.5 if is_done else 5.5,
+                markerfacecolor="#ffffff" if is_done else "#c084fc",
                 markeredgecolor=c_high,
-                alpha=0.95,
+                alpha=0.95 if is_done else 0.85,
                 label=lbl,
                 zorder=7,
             )
+            if not is_done:
+                mid_x = (sx + ex) / 2
+                mid_y = (sy + ey) / 2
+                ax_main.text(
+                    mid_x, mid_y, "【大趋势待确认】",
+                    color="#e9d5ff", fontsize=7.5, ha="center", va="center",
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor="#9333ea", edgecolor="#ffffff", linewidth=0.8, alpha=0.88),
+                    zorder=8,
+                )
 
         # ----------------------------------------------------------------------
         # 3. 绘制中级别 (Level 2, 次级别如30F) 笔与中枢 (花姐标准：黄色，中粗)
@@ -526,24 +536,34 @@ class ChanlunUnifiedResonancePlotter:
                 continue
             s_clamp = prev_m_end if prev_m_end is not None else max(0, s_idx)
             e_clamp = max(0, min(n_bars - 1, e_idx))
-            mid_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
+            mid_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val, bi.is_done()))
             prev_m_end = e_clamp
 
-        for seg_i, (sx, sy, ex, ey) in enumerate(mid_bi_pts):
+        for seg_i, (sx, sy, ex, ey, is_done) in enumerate(mid_bi_pts):
             lbl = f"次级别 ({mid_name}) 黄线笔" if seg_i == 0 else ""
+            ls = "-" if is_done else "--"
             ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_mid,
-                linewidth=2.4,
-                linestyle="-",
+                linewidth=2.4 if is_done else 1.8,
+                linestyle=ls,
                 marker="o",
-                markersize=5.0,
-                markerfacecolor="#ffffff",
+                markersize=5.0 if is_done else 3.8,
+                markerfacecolor="#ffffff" if is_done else "#facc15",
                 markeredgecolor=c_mid,
-                alpha=0.92,
+                alpha=0.92 if is_done else 0.82,
                 label=lbl,
                 zorder=8,
             )
+            if not is_done:
+                mid_x = (sx + ex) / 2
+                mid_y = (sy + ey) / 2
+                ax_main.text(
+                    mid_x, mid_y, "【次趋势待确认】",
+                    color="#fef08a", fontsize=7.0, ha="center", va="center",
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor="#ca8a04", edgecolor="#ffffff", linewidth=0.8, alpha=0.88),
+                    zorder=8,
+                )
 
         # ----------------------------------------------------------------------
         # 4. 绘制小级别 (Level 3, 基准 5F) 笔与中枢 (花姐标准：蓝色细线)
@@ -1060,25 +1080,49 @@ def export_interactive_html(
     # 大级别笔线条
     high_p = periods[0]
     high_bis = []
+    prev_high_end = None
     for bi in results[high_p].bis:
         s_i = _map_to_base_idx(bi.start.k.date, bi.start.val, bi.direction.value == "down", high_p)
         e_i = _map_to_base_idx(bi.end.k.date, bi.end.val, bi.direction.value == "up", high_p)
-        high_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+        start_coord = prev_high_end if prev_high_end is not None else [dates[s_i], bi.start.val]
+        end_coord = [dates[e_i], bi.end.val]
+        high_bis.append({
+            "start": start_coord,
+            "end": end_coord,
+            "is_done": bi.is_done(),
+        })
+        prev_high_end = end_coord
 
     # 中级别笔线条
     mid_p = periods[1]
     mid_bis = []
+    prev_mid_end = None
     for bi in results[mid_p].bis:
         s_i = _map_to_base_idx(bi.start.k.date, bi.start.val, bi.direction.value == "down", mid_p)
         e_i = _map_to_base_idx(bi.end.k.date, bi.end.val, bi.direction.value == "up", mid_p)
-        mid_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+        start_coord = prev_mid_end if prev_mid_end is not None else [dates[s_i], bi.start.val]
+        end_coord = [dates[e_i], bi.end.val]
+        mid_bis.append({
+            "start": start_coord,
+            "end": end_coord,
+            "is_done": bi.is_done(),
+        })
+        prev_mid_end = end_coord
 
     # 小级别笔线条
     low_bis = []
+    prev_low_end = None
     for bi in base_res.bis:
         s_i = min(len(dates) - 1, max(0, bi.start.k.k_index))
         e_i = min(len(dates) - 1, max(0, bi.end.k.k_index))
-        low_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
+        start_coord = prev_low_end if prev_low_end is not None else [dates[s_i], bi.start.val]
+        end_coord = [dates[e_i], bi.end.val]
+        low_bis.append({
+            "start": start_coord,
+            "end": end_coord,
+            "is_done": bi.is_done(),
+        })
+        prev_low_end = end_coord
 
     # 买卖点 markPoints (多级别同图融合)
     mmd_marks = []
@@ -1363,21 +1407,80 @@ def export_interactive_html(
                     type: 'line',
                     data: [],
                     lineStyle: {{ color: '#c084fc', width: 3.5 }},
-                    markLine: {{ data: D.high_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#c084fc', width: 3.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    markLine: {{
+                        data: D.high_bis.map(b => [
+                            {{
+                                coord: b.start,
+                                lineStyle: {{
+                                    color: '#c084fc',
+                                    width: b.is_done === false ? 2.8 : 3.5,
+                                    type: b.is_done === false ? 'dashed' : 'solid'
+                                }},
+                                label: b.is_done === false ? {{
+                                    show: true,
+                                    formatter: '【大趋势待确认】',
+                                    position: 'middle',
+                                    color: '#e9d5ff',
+                                    fontSize: 10,
+                                    backgroundColor: 'rgba(147, 51, 234, 0.5)',
+                                    padding: [2, 4],
+                                    borderRadius: 3
+                                }} : undefined
+                            }},
+                            {{ coord: b.end }}
+                        ]),
+                        symbol: ['circle', 'circle']
+                    }}
                 }},
                 {{
                     name: '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})',
                     type: 'line',
                     data: [],
                     lineStyle: {{ color: '#facc15', width: 2.5 }},
-                    markLine: {{ data: D.mid_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#facc15', width: 2.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    markLine: {{
+                        data: D.mid_bis.map(b => [
+                            {{
+                                coord: b.start,
+                                lineStyle: {{
+                                    color: '#facc15',
+                                    width: b.is_done === false ? 1.8 : 2.5,
+                                    type: b.is_done === false ? 'dashed' : 'solid'
+                                }},
+                                label: b.is_done === false ? {{
+                                    show: true,
+                                    formatter: '【次趋势待确认】',
+                                    position: 'middle',
+                                    color: '#fef08a',
+                                    fontSize: 9,
+                                    backgroundColor: 'rgba(202, 138, 4, 0.5)',
+                                    padding: [2, 4],
+                                    borderRadius: 3
+                                }} : undefined
+                            }},
+                            {{ coord: b.end }}
+                        ]),
+                        symbol: ['circle', 'circle']
+                    }}
                 }},
                 {{
                     name: '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})',
                     type: 'line',
                     data: [],
                     lineStyle: {{ color: '#00e5ff', width: 1.5 }},
-                    markLine: {{ data: D.low_bis.map(b => [{{ coord: b[0], lineStyle: {{ color: '#00e5ff', width: 1.5 }} }}, {{ coord: b[1] }}]), symbol: ['circle', 'circle'] }}
+                    markLine: {{
+                        data: D.low_bis.map(b => [
+                            {{
+                                coord: b.start,
+                                lineStyle: {{
+                                    color: '#00e5ff',
+                                    width: b.is_done === false ? 1.2 : 1.5,
+                                    type: b.is_done === false ? 'dashed' : 'solid'
+                                }}
+                            }},
+                            {{ coord: b.end }}
+                        ]),
+                        symbol: ['circle', 'circle']
+                    }}
                 }},
                 {{
                     name: 'MACD',

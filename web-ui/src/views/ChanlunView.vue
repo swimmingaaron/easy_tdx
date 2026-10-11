@@ -355,26 +355,73 @@ function renderChart() {
     return
   }
 
-  // 大级别笔 MarkLines (花姐标准：紫色粗线)
+  // 大级别笔 MarkLines (花姐标准：紫色粗线；未确认趋势显示为虚线)
   const highBiLines = showHighBi.value
     ? uc.high_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#c084fc', width: 3.2, type: 'solid' } },
+        {
+          coord: b.start,
+          lineStyle: {
+            color: '#c084fc',
+            width: b.is_done === false ? 2.8 : 3.2,
+            type: b.is_done === false ? 'dashed' : 'solid',
+          },
+          label:
+            b.is_done === false
+              ? {
+                  show: true,
+                  formatter: '【大趋势待确认】',
+                  position: 'middle',
+                  color: '#e9d5ff',
+                  fontSize: 10,
+                  backgroundColor: 'rgba(147, 51, 234, 0.5)',
+                  padding: [2, 4],
+                  borderRadius: 3,
+                }
+              : undefined,
+        },
         { coord: b.end },
       ])
     : []
 
-  // 中级别笔 MarkLines (花姐标准：金黄色中粗线)
+  // 中级别笔 MarkLines (花姐标准：金黄色中粗线；未确认趋势显示为虚线)
   const midBiLines = showMidBi.value
     ? uc.mid_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#facc15', width: 2.2, type: 'solid' } },
+        {
+          coord: b.start,
+          lineStyle: {
+            color: '#facc15',
+            width: b.is_done === false ? 1.8 : 2.2,
+            type: b.is_done === false ? 'dashed' : 'solid',
+          },
+          label:
+            b.is_done === false
+              ? {
+                  show: true,
+                  formatter: '【次趋势待确认】',
+                  position: 'middle',
+                  color: '#fef08a',
+                  fontSize: 9,
+                  backgroundColor: 'rgba(202, 138, 4, 0.5)',
+                  padding: [2, 4],
+                  borderRadius: 3,
+                }
+              : undefined,
+        },
         { coord: b.end },
       ])
     : []
 
-  // 小级别笔 MarkLines (花姐标准：青蓝色细线)
+  // 小级别笔 MarkLines (花姐标准：青蓝色细线；未确认趋势显示为虚线)
   const lowBiLines = showLowBi.value
     ? uc.low_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#00e5ff', width: 1.5, type: 'solid' } },
+        {
+          coord: b.start,
+          lineStyle: {
+            color: '#00e5ff',
+            width: b.is_done === false ? 1.2 : 1.5,
+            type: b.is_done === false ? 'dashed' : 'solid',
+          },
+        },
         { coord: b.end },
       ])
     : []
@@ -1039,6 +1086,10 @@ onBeforeUnmount(() => {
           <input type="checkbox" v-model="showMacd" @change="renderChart" />
           MACD副图
         </label>
+        <span class="legend-hint" style="font-size: 11px; color: #9ca3af; margin-left: 10px; display: inline-flex; align-items: center; gap: 5px;">
+          <span style="border-bottom: 2px dashed #c084fc; width: 14px; display: inline-block; vertical-align: middle;"></span>
+          虚线: 发展中待确认趋势 (确立后转实线)
+        </span>
       </div>
     </div>
 
