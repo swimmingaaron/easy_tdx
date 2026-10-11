@@ -208,8 +208,8 @@ class ChanlunAnalyser:
         fractals = find_fractals(cklines, self._config)
         self._result.fractals = fractals
 
-        # Step 4: 笔计算
-        bis = find_bis(fractals, self._config)
+        # Step 4: 笔计算（传入 cklines 以计算笔内真实高低）
+        bis = find_bis(fractals, self._config, cklines=cklines)
         self._result.bis = bis
 
         # Step 5: 中枢计算
@@ -226,12 +226,12 @@ class ChanlunAnalyser:
         xds = find_xds(bis, self._config)
         self._result.xds = xds
 
-        # Step 8: 买卖点识别
-        mmds = find_mmds(bis, zss, self._config)
+        # Step 8: 买卖点识别（传入 closes 以计算 MACD 面积力度）
+        mmds = find_mmds(bis, zss, self._config, closes=closes)
         self._result.mmds = mmds
 
-        # Step 9: 背驰判断
-        bcs = check_bi_beichi(bis, zss, self._config)
+        # Step 9: 背驰判断（传入 closes 以计算 MACD 面积力度）
+        bcs = check_bi_beichi(bis, zss, self._config, closes=closes)
         self._result.bcs = bcs
 
         return self._result

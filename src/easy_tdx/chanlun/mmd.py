@@ -8,7 +8,9 @@
 - 二类卖点：一类卖点后反弹不创新高的顶分型
 - 三类卖点：向下跌破中枢后反弹不突破中枢下沿的顶分型
 
-简化实现：基于笔和中枢的相对位置关系判断。
+优化（v2）：
+1. 修正优先级：三类买卖点先于二类买卖点判断（三买回调不跌破上沿更严格，避免被宽松的二买误拦截）
+2. 力度衰减接入 MACD hist 面积（当有 closes 时优先使用，无 closes 时回退到幅度）
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ def find_mmds(
     bis: list[BI],
     zss: list[ZS],
     config: ChanlunConfig | None = None,
+    closes: list[float] | None = None,
 ) -> list[MMD]:
     """从笔和中枢中识别买卖点。
 
@@ -28,6 +31,7 @@ def find_mmds(
         bis: 笔列表
         zss: 中枢列表
         config: 缠论配置
+        closes: 收盘价序列（可选，用于计算 MACD 面积力度）
 
     Returns:
         买卖点列表
@@ -43,7 +47,7 @@ def find_mmds(
     for bi in bis:
         # 寻找与该笔最近的中枢
         for zs in reversed(zss):
-            mmd = _check_bi_mmd(bi, zs, bis)
+            mmd = _check_bi_mmd(bi, zs, bis, config=config, closes=closes)
             if mmd is not None:
                 mmds.append(mmd)
                 break  # 每笔最多一个买卖点
@@ -51,20 +55,40 @@ def find_mmds(
     return mmds
 
 
-def _check_bi_mmd(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
+def _check_bi_mmd(
+    bi: BI,
+    zs: ZS,
+    all_bis: list[BI],
+    config: ChanlunConfig | None = None,
+    closes: list[float] | None = None,
+) -> MMD | None:
     """检查单笔是否在某中枢附近形成买卖点。"""
     if bi.direction.value == "down":
-        return _check_buy_point(bi, zs, all_bis)
+        return _check_buy_point(bi, zs, all_bis, config=config, closes=closes)
     else:
-        return _check_sell_point(bi, zs, all_bis)
+        return _check_sell_point(bi, zs, all_bis, config=config, closes=closes)
 
 
-def _check_buy_point(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
+def _check_buy_point(
+    bi: BI,
+    zs: ZS,
+    all_bis: list[BI],
+    config: ChanlunConfig | None = None,
+    closes: list[float] | None = None,
+) -> MMD | None:
     """检查向下笔是否形成买点。"""
-    # 一类买点：笔低点低于中枢下沿（中枢下方），且 MACD 力度衰减
+    # 三类买点优先：突破中枢后，回调不跌破中枢上沿（必须先于二买判定）
+    if bi.low > zs.zg:
+        return MMD(
+            mmd_type=MMDType.BUY_3,
+            zs=zs,
+            bi=bi,
+            msg=f"回调不破中枢上沿，三类买点 (l={bi.low:.2f} > zg={zs.zg:.2f})",
+        )
+
+    # 一类买点：笔低点低于中枢下沿（中枢下方），且底背驰（力度衰减）
     if bi.low < zs.zd:
-        # 检查力度衰减（简化：比较相邻同向笔的幅度）
-        if _check_force_decreasing(bi, all_bis, "down"):
+        if _check_force_decreasing(bi, all_bis, "down", closes=closes, config=config):
             return MMD(
                 mmd_type=MMDType.BUY_1,
                 zs=zs,
@@ -72,9 +96,8 @@ def _check_buy_point(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
                 msg=f"中枢下方力度衰减，一类买点 (l={bi.low:.2f} < zd={zs.zd:.2f})",
             )
 
-    # 二类买点：前一个同类买点之后回调不创新低
+    # 二类买点：回调不创新低
     if bi.low > zs.zd and bi.low > zs.dd:
-        # 检查是否在二买位置（简化判断）
         bi_idx = bi.index
         if bi_idx >= 2:
             prev_down_bi = all_bis[bi_idx - 2] if bi_idx - 2 < len(all_bis) else None
@@ -87,23 +110,29 @@ def _check_buy_point(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
                         msg=f"回调不创新低，二类买点 (l={bi.low:.2f})",
                     )
 
-    # 三类买点：回调不跌破中枢上沿
-    if bi.low > zs.zg and bi.low > zs.zd:
-        return MMD(
-            mmd_type=MMDType.BUY_3,
-            zs=zs,
-            bi=bi,
-            msg=f"回调不破中枢上沿，三类买点 (l={bi.low:.2f} > zg={zs.zg:.2f})",
-        )
-
     return None
 
 
-def _check_sell_point(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
+def _check_sell_point(
+    bi: BI,
+    zs: ZS,
+    all_bis: list[BI],
+    config: ChanlunConfig | None = None,
+    closes: list[float] | None = None,
+) -> MMD | None:
     """检查向上笔是否形成卖点。"""
-    # 一类卖点：笔高点高于中枢上沿，且力度衰减
+    # 三类卖点优先：跌破中枢后，反弹不突破中枢下沿（必须先于二卖判定）
+    if bi.high < zs.zd:
+        return MMD(
+            mmd_type=MMDType.SELL_3,
+            zs=zs,
+            bi=bi,
+            msg=f"反弹不破中枢下沿，三类卖点 (h={bi.high:.2f} < zd={zs.zd:.2f})",
+        )
+
+    # 一类卖点：笔高点高于中枢上沿，且顶背驰（力度衰减）
     if bi.high > zs.zg:
-        if _check_force_decreasing(bi, all_bis, "up"):
+        if _check_force_decreasing(bi, all_bis, "up", closes=closes, config=config):
             return MMD(
                 mmd_type=MMDType.SELL_1,
                 zs=zs,
@@ -125,20 +154,17 @@ def _check_sell_point(bi: BI, zs: ZS, all_bis: list[BI]) -> MMD | None:
                         msg=f"反弹不创新高，二类卖点 (h={bi.high:.2f})",
                     )
 
-    # 三类卖点：反弹不突破中枢下沿
-    if bi.high < zs.zd:
-        return MMD(
-            mmd_type=MMDType.SELL_3,
-            zs=zs,
-            bi=bi,
-            msg=f"反弹不破中枢下沿，三类卖点 (h={bi.high:.2f} < zd={zs.zd:.2f})",
-        )
-
     return None
 
 
-def _check_force_decreasing(bi: BI, all_bis: list[BI], direction: str) -> bool:
-    """检查力度是否衰减（简化版：比较相邻同向笔的幅度）。"""
+def _check_force_decreasing(
+    bi: BI,
+    all_bis: list[BI],
+    direction: str,
+    closes: list[float] | None = None,
+    config: ChanlunConfig | None = None,
+) -> bool:
+    """检查力度是否衰减（优先使用 MACD hist 面积，回退到幅度）。"""
     bi_idx = bi.index
     if bi_idx < 2 or bi_idx >= len(all_bis):
         return False
@@ -147,14 +173,18 @@ def _check_force_decreasing(bi: BI, all_bis: list[BI], direction: str) -> bool:
     for j in range(bi_idx - 1, -1, -1):
         prev = all_bis[j]
         if prev.direction.value == direction:
-            if direction == "down":
-                # 比较低点是否创新低，但幅度减小
-                curr_range = bi.high - bi.low
-                prev_range = prev.high - prev.low
-                return curr_range < prev_range and bi.low < prev.low
+            if closes:
+                from easy_tdx.chanlun.beichi import _calc_bi_force
+
+                curr_force = _calc_bi_force(bi, closes, config)
+                prev_force = _calc_bi_force(prev, closes, config)
             else:
-                curr_range = bi.high - bi.low
-                prev_range = prev.high - prev.low
-                return curr_range < prev_range and bi.high > prev.high
+                curr_force = bi.high - bi.low
+                prev_force = prev.high - prev.low
+
+            if direction == "down":
+                return curr_force < prev_force and bi.low < prev.low
+            else:
+                return curr_force < prev_force and bi.high > prev.high
 
     return False

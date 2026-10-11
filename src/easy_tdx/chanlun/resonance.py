@@ -285,6 +285,21 @@ class ResonanceSignal:
         }
 
 
+# 各周期有效买卖点回溯窗口（根数），根据 K 线时间粒度动态配置
+# 原则：覆盖约 1~2 周的交易时间
+_PERIOD_MMD_WINDOW: dict[str, int] = {
+    "MONTH": 3,    # 月线：3根 ≈ 一个季度
+    "WEEK":  6,    # 周线：6根 ≈ 1.5个月
+    "DAY":  20,    # 日线：20根 ≈ 1个月
+    "120F": 40,   # 120分钟：40根 ≈ 1周
+    "60F":  60,   # 60分钟：60根 ≈ 1.5周
+    "30F": 80,    # 30分钟：80根 ≈ 2周
+    "15F": 100,   # 15分钟：100根
+    "5F":  150,   # 5分钟：150根 ≈ 3天
+    "1F":  300,   # 1分钟：300根
+}
+
+
 class ThreePeriodResonanceEngine:
     """三周期缠论共振买卖点识别引擎。"""
 
@@ -315,6 +330,7 @@ class ThreePeriodResonanceEngine:
                     "mmd_entries": [],
                     "mmd_dts": [],
                     "is_intra": "min" in p.lower() or "f" in p.lower() or "m" in p.lower(),
+                    "mmd_window": _PERIOD_MMD_WINDOW.get(p, 20),
                 }
                 continue
 
@@ -337,6 +353,7 @@ class ThreePeriodResonanceEngine:
                 "mmd_entries": mmd_entries,
                 "mmd_dts": mmd_dts,
                 "is_intra": "min" in p.lower() or "f" in p.lower() or "m" in p.lower(),
+                "mmd_window": _PERIOD_MMD_WINDOW.get(p, 20),
             }
 
     def get_period_state_at(self, period: str, target_dt: Any) -> PeriodState:
@@ -392,26 +409,45 @@ class ThreePeriodResonanceEngine:
             else 999
         )
 
+        # 动态有效买卖点回溯窗口（根据周期K线粒度自适应）
+        mmd_window: int = cache.get("mmd_window", 20)
+
         is_bullish = False
         is_bearish = False
         detail_msg = []
 
-        if mmd_type in ("1buy", "2buy", "3buy") and bars_ago <= 15:
+        # 判断逻辑（优先级从高到低）：
+        # 1. 近期有买点信号（在有效窗口内）→ 多头
+        # 2. 近期有卖点信号（在有效窗口内）→ 空头
+        # 3. 当前活跃笔方向（兜底）→ 仅作辅助参考
+        #
+        # 注意：买卖点信号优先于笔方向判断，
+        # 因为笔方向只反映最近一笔走势，可能在大趋势下的回调中显示反向笔
+        if mmd_type in ("1buy", "2buy", "3buy") and bars_ago <= mmd_window:
             is_bullish = True
             detail_msg.append(f"{mmd_type.upper()}确立({bars_ago}根前)")
-        elif bi_dir == "up":
-            is_bullish = True
-            detail_msg.append("处于向上笔运行中")
 
-        if mmd_type in ("1sell", "2sell", "3sell") and bars_ago <= 15:
+        if mmd_type in ("1sell", "2sell", "3sell") and bars_ago <= mmd_window:
             is_bearish = True
             detail_msg.append(f"{mmd_type.upper()}确立({bars_ago}根前)")
-        elif bi_dir == "down":
-            is_bearish = True
-            detail_msg.append("处于向下笔运行中")
 
-        if is_bullish and is_bearish:
+        # 买卖点过期或无买卖点时，用笔方向兜底
+        if not is_bullish and not is_bearish:
             if bi_dir == "up":
+                is_bullish = True
+                detail_msg.append("向上笔运行中（无近期信号）")
+            elif bi_dir == "down":
+                is_bearish = True
+                detail_msg.append("向下笔运行中（无近期信号）")
+
+        # 冲突时：买卖点信号优先于笔方向
+        if is_bullish and is_bearish:
+            # 优先取更近的买卖点；若距离相同则笔方向决定
+            if mmd_type in ("1buy", "2buy", "3buy"):
+                is_bearish = False
+            elif mmd_type in ("1sell", "2sell", "3sell"):
+                is_bullish = False
+            elif bi_dir == "up":
                 is_bearish = False
             else:
                 is_bullish = False
@@ -433,8 +469,12 @@ class ThreePeriodResonanceEngine:
         )
 
     def scan_resonances(self) -> list[ResonanceSignal]:
-        """扫描在小级别上触发的三周期共振买卖点。"""
-        resonances: list[ResonanceSignal] = []
+        """扫描在小级别上触发的三周期共振买卖点，并去重。
+
+        去重规则：同一 K 线位置（bar_idx）同方向（BUY/SELL）只保留等级最高的信号。
+        等级顺序：AAA > AA > A
+        """
+        raw_resonances: list[ResonanceSignal] = []
         low_res = self.res_low
 
         trigger_events = []
@@ -452,6 +492,12 @@ class ThreePeriodResonanceEngine:
 
         trigger_events = sorted(trigger_events, key=lambda x: _to_dt(x["dt"]))
 
+        is_intra = (
+            "min" in self.p_low.lower()
+            or "f" in self.p_low.lower()
+            or "m" in self.p_low.lower()
+        )
+
         for ev in trigger_events:
             target_dt = ev["dt"]
             is_buy = ev["is_buy"]
@@ -459,12 +505,6 @@ class ThreePeriodResonanceEngine:
             low_state = self.get_period_state_at(self.p_low, target_dt)
             mid_state = self.get_period_state_at(self.p_mid, target_dt)
             high_state = self.get_period_state_at(self.p_high, target_dt)
-
-            is_intra = (
-                "min" in self.p_low.lower()
-                or "f" in self.p_low.lower()
-                or "m" in self.p_low.lower()
-            )
 
             if is_buy:
                 if mid_state.is_bullish and high_state.is_bullish:
@@ -477,7 +517,7 @@ class ThreePeriodResonanceEngine:
                         f"- {PERIOD_SPECS[self.p_mid]['short_name']}(中): {mid_state.detail}\n"
                         f"- {PERIOD_SPECS[self.p_low]['short_name']}(小): 触发 {ev['type'].upper()} ({ev['price']:.2f})"
                     )
-                    resonances.append(
+                    raw_resonances.append(
                         ResonanceSignal(
                             timestamp=_fmt_dt(target_dt, is_intraday=is_intra),
                             price=ev["price"],
@@ -507,7 +547,7 @@ class ThreePeriodResonanceEngine:
                         f"- {PERIOD_SPECS[self.p_mid]['short_name']}(中): {mid_state.detail}\n"
                         f"- {PERIOD_SPECS[self.p_low]['short_name']}(小): 触发 {ev['type'].upper()} ({ev['price']:.2f})"
                     )
-                    resonances.append(
+                    raw_resonances.append(
                         ResonanceSignal(
                             timestamp=_fmt_dt(target_dt, is_intraday=is_intra),
                             price=ev["price"],
@@ -527,7 +567,8 @@ class ThreePeriodResonanceEngine:
                         )
                     )
 
-        return resonances
+        # 去重：同 bar_idx + 同方向只保留等级最高的信号
+        return _dedup_resonances(raw_resonances)
 
     def _classify_resonance(
         self,
@@ -591,6 +632,21 @@ class ThreePeriodResonanceEngine:
 # ==============================================================================
 # 3. 跨级别笔与中枢向基准周期的对齐映射
 # ==============================================================================
+
+
+def _dedup_resonances(resonances: list[ResonanceSignal]) -> list[ResonanceSignal]:
+    """去重共振信号：同 bar_idx + 同方向只保留等级最高的信号。
+
+    等级顺序：AAA > AA > A
+    """
+    _grade_order = {"AAA": 3, "AA": 2, "A": 1}
+    best: dict[tuple[int, str], ResonanceSignal] = {}
+    for r in resonances:
+        key = (r.low_bar_idx, r.direction)
+        existing = best.get(key)
+        if existing is None or _grade_order.get(r.grade, 0) > _grade_order.get(existing.grade, 0):
+            best[key] = r
+    return sorted(best.values(), key=lambda r: r.low_bar_idx)
 
 
 def map_pivot_to_base(
@@ -995,10 +1051,14 @@ def analyze_multi_period_resonance(
                     label_txt = "大级别走势1买"
                 elif "2buy" in m_type:
                     label_txt = "大级别2买"
+                elif "3buy" in m_type:
+                    label_txt = "大级别3买"
                 elif "1sell" in m_type:
                     label_txt = "大级别1卖"
                 elif "2sell" in m_type:
                     label_txt = "大级别2卖"
+                elif "3sell" in m_type:
+                    label_txt = "大级别3卖"
                 else:
                     label_txt = f"大级别{mmd.mmd_type.value.upper()}"
 
