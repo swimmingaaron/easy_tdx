@@ -1296,7 +1296,6 @@
 
         html.light .stock-code-link,
         html.light a.stock-code-link,
-        html.light #screener-results-table td:first-child a,
         html.light #screener-results-table td:nth-child(3) a,
         html.light #screener-results-table td:nth-child(4) a,
         html.light #realtime-quotes-table td:first-child a,
@@ -1307,7 +1306,6 @@
 
         html:not(.light) .stock-code-link,
         html:not(.light) a.stock-code-link,
-        html:not(.light) #screener-results-table td:first-child a,
         html:not(.light) #screener-results-table td:nth-child(3) a,
         html:not(.light) #screener-results-table td:nth-child(4) a,
         html:not(.light) #realtime-quotes-table td:first-child a,
@@ -1318,7 +1316,6 @@
 
         .stock-code-link:hover,
         a.stock-code-link:hover,
-        html.light #screener-results-table td:first-child a:hover,
         html.light #screener-results-table td:nth-child(3) a:hover,
         html.light #screener-results-table td:nth-child(4) a:hover,
         html.light #realtime-quotes-table td:first-child a:hover,
@@ -1330,7 +1327,6 @@
 
         html:not(.light) .stock-code-link:hover,
         html:not(.light) a.stock-code-link:hover,
-        html:not(.light) #screener-results-table td:first-child a:hover,
         html:not(.light) #screener-results-table td:nth-child(3) a:hover,
         html:not(.light) #screener-results-table td:nth-child(4) a:hover,
         html:not(.light) #realtime-quotes-table td:first-child a:hover,
@@ -1338,6 +1334,41 @@
         html:not(.light) #ai-4d-ranking-tbody td:nth-child(2) a:hover {
             color: #38bdf8 !important;
             text-decoration: underline !important;
+        }
+
+        /* 48大策略选股结果中缠论专属微胶囊按钮样式 */
+        .cl-screener-btn {
+            display: inline-block !important;
+            padding: 2px 7px !important;
+            border-radius: 4px !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            text-decoration: none !important;
+            cursor: pointer !important;
+            line-height: 1.25 !important;
+            transition: all 0.15s ease-in-out !important;
+            white-space: nowrap !important;
+            text-align: center !important;
+        }
+        html.light .cl-screener-btn {
+            background-color: #f3e8ff !important;
+            color: #9333ea !important;
+            border: 1px solid #d8b4fe !important;
+        }
+        html.light .cl-screener-btn:hover {
+            background-color: #e9d5ff !important;
+            color: #7e22ce !important;
+            text-decoration: none !important;
+        }
+        html:not(.light) .cl-screener-btn {
+            background-color: #3b0764 !important;
+            color: #c084fc !important;
+            border: 1px solid #7e22ce !important;
+        }
+        html:not(.light) .cl-screener-btn:hover {
+            background-color: #581c87 !important;
+            color: #e9d5ff !important;
+            text-decoration: none !important;
         }
 
         .board-link {
@@ -6047,13 +6078,14 @@
             if (!code) return;
             const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
             if (!cleanCode) return;
+            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
 
             // 如果链接已有原生 target="_blank" 属性，由浏览器原生在新标签页中打开
             if (event && event.currentTarget && event.currentTarget.tagName === 'A' && event.currentTarget.target === '_blank') {
                 return true;
             }
             // 否则（例如来自非 target=_blank 元素或 JS 直接调用），在新标签页中打开对应标的的缠论页面
-            window.open(`/#chanlun?code=${cleanCode}`, '_blank');
+            window.open(targetUrl, '_blank');
             if (event) {
                 try { event.preventDefault(); } catch (e) { }
             }
@@ -17279,10 +17311,12 @@
                     }
                 }
 
-                // 1. 诊断与缠论超链接 (参考交易系统/财报分析标准: 诊断 + 缠论)
+                // 1. 诊断与缠论超链接 (48大策略选股: 诊断 + 缠论)
+                const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
+                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
                 const btnDiag = `<div class="inline-flex items-center space-x-1">
-                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>
-                    <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
+                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>
+                    <a href="${chanlunUrl}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${name}', event)" class="cl-screener-btn" title="在新标签中打开【${name}】(${cleanCode}) 缠论K线">缠论</a>
                 </div>`;
 
                 // 2. 自选
@@ -17449,6 +17483,7 @@
 
             if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
             updateScreenerPaginationUI(matches.length, pageMatches.length, screenerCurrentPage, screenerTotalPages, startIdx, endIdx);
+            ensureScreenerChanlunLinks();
 
             // 异步补全当前页尚未拥有量化打分/估值数据的个股
             const missingCodes = pageMatches
@@ -17525,7 +17560,107 @@
             window._lastScreenerStrategy = strategyName;
             window._lastScreenerUniverse = universeDesc;
             renderScreenerTableRows(matches, strategyName, universeDesc);
+            setTimeout(ensureScreenerChanlunLinks, 50);
         }
+
+        /**
+         * 自动巡检与补齐 48 大策略选股表格中的「缠论」超链接
+         * 确保所有策略选出的结果中，「诊断」列后若无「缠论」，立即在诊断后增加「缠论」超链接，
+         * 并保证点击在新标签页打开 ${window.location.origin}/#chanlun?code=当前code
+         */
+        function ensureScreenerChanlunLinks() {
+            const tbody = document.getElementById('screener-results-table');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(tr => {
+                const firstTd = tr.querySelector('td:first-child');
+                if (!firstTd) return;
+                // 忽略空数据行或正在扫描占位提示行 (colspan)
+                if (firstTd.getAttribute('colspan')) return;
+
+                // 检查是否已有缠论超链接
+                const hasChanlun = firstTd.querySelector('a.cl-screener-btn') || 
+                                   Array.from(firstTd.querySelectorAll('a')).some(a => a.textContent.includes('缠论') || (a.getAttribute('href') || '').includes('#chanlun'));
+                if (hasChanlun) return;
+
+                // 检查是否有诊断按钮
+                const diagBtn = Array.from(firstTd.querySelectorAll('button, a, span')).find(el => el.textContent.includes('诊断'));
+                if (!diagBtn) return;
+
+                // 提取标的代码与名称
+                let code = '';
+                let name = '';
+
+                // 优先从 diagBtn 的 onclick 属性提取: openTsFinaModal('600519', '贵州茅台')
+                const onclickStr = diagBtn.getAttribute('onclick') || '';
+                const mModal = onclickStr.match(/openTsFinaModal\s*\(\s*['"]([^'"]+)['"]\s*(?:,\s*['"]([^'"]+)['"])?/);
+                if (mModal) {
+                    code = mModal[1];
+                    name = mModal[2] || '';
+                }
+
+                // 若未提取到，从第3列提取代码、第4列提取名称
+                if (!code) {
+                    const codeTd = tr.querySelector('td:nth-child(3)');
+                    if (codeTd) {
+                        code = codeTd.textContent.trim();
+                    }
+                }
+                if (!name) {
+                    const nameTd = tr.querySelector('td:nth-child(4)');
+                    if (nameTd) {
+                        name = nameTd.textContent.trim();
+                    }
+                }
+
+                const cleanCode = (code || '').replace(/[^0-9]/g, '');
+                if (!cleanCode) return;
+
+                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+                const clLink = document.createElement('a');
+                clLink.href = chanlunUrl;
+                clLink.target = '_blank';
+                clLink.rel = 'noopener noreferrer';
+                clLink.className = 'cl-screener-btn ml-1';
+                clLink.innerText = '缠论';
+                clLink.title = `在新标签中打开【${name || cleanCode}】(${cleanCode}) 缠论K线`;
+                clLink.onclick = function(e) {
+                    openChanlunKline(cleanCode, name, e);
+                };
+
+                const parentBox = diagBtn.parentElement;
+                if (parentBox && (parentBox.classList.contains('inline-flex') || parentBox.classList.contains('flex') || parentBox.classList.contains('space-x-1'))) {
+                    parentBox.appendChild(clLink);
+                } else {
+                    diagBtn.insertAdjacentElement('afterend', clLink);
+                }
+            });
+        }
+        window.ensureScreenerChanlunLinks = ensureScreenerChanlunLinks;
+
+        // 监听选股结果表格，确保任何异步/局部渲染策略结果中诊断后必定存在缠论超链接
+        (function setupScreenerTableObserver() {
+            let debounceTimer = null;
+            const observer = new MutationObserver(() => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    ensureScreenerChanlunLinks();
+                }, 30);
+            });
+            function tryObserve() {
+                const tbody = document.getElementById('screener-results-table');
+                if (tbody) {
+                    observer.observe(tbody, { childList: true, subtree: true });
+                } else {
+                    setTimeout(tryObserve, 500);
+                }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', tryObserve);
+            } else {
+                tryObserve();
+            }
+        })();
 
         async function startScreenerTask(strategy, universe, strategyName, universeDesc, period = 'DAY', forceRefresh = null) {
             if (screenerPollTimer) {
