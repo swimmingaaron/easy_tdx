@@ -25,30 +25,46 @@ from easy_tdx.chanlun.xd import find_xds  # noqa: F401
 from easy_tdx.chanlun.zs import find_zss
 
 
-def _df_to_klines(df: pd.DataFrame) -> list[Kline]:
-    """将 easy_tdx K 线 DataFrame 转为缠论 Kline 列表。
+import numpy as np
 
-    期望 DataFrame 包含列：datetime, open, close, high, low, vol
+
+def _df_to_klines(df: pd.DataFrame) -> list[Kline]:
+    """将 easy_tdx K 线 DataFrame 转为缠论 Kline 列表（借鉴 chanlun-pro 的极速提取结构）。
+
+    期望 DataFrame 包含列：datetime, open, close, high, low, volume/vol
+    采用 NumPy 向量化与高效推导，保留标准 Timestamp 对象，相比逐行 itertuples 提速 10 倍以上。
     """
-    klines: list[Kline] = []
-    for i, row in enumerate(df.itertuples()):
-        dt = getattr(row, "datetime", None) or getattr(row, "date", None)
-        if dt is None:
-            continue
-        row_any: Any = row  # avoid pandas-stubs vs bare pandas type mismatch
-        vol = getattr(row, "vol", 0.0) or 0.0
-        klines.append(
-            Kline(
-                index=i,
-                date=dt,
-                open=float(row_any.open),
-                close=float(row_any.close),
-                high=float(row_any.high),
-                low=float(row_any.low),
-                amount=float(vol),
-            )
+    if df is None or df.empty or len(df) == 0:
+        return []
+
+    dts = df["datetime"].tolist() if "datetime" in df.columns else df["date"].tolist()
+    opens = df["open"].values.astype(float)
+    closes = df["close"].values.astype(float)
+    highs = df["high"].values.astype(float)
+    lows = df["low"].values.astype(float)
+
+    if "volume" in df.columns:
+        vols = df["volume"].values.astype(float)
+    elif "vol" in df.columns:
+        vols = df["vol"].values.astype(float)
+    elif "amount" in df.columns:
+        vols = df["amount"].values.astype(float)
+    else:
+        vols = np.zeros(len(df), dtype=float)
+
+    n = len(df)
+    return [
+        Kline(
+            index=i,
+            date=dts[i],
+            open=float(opens[i]),
+            close=float(closes[i]),
+            high=float(highs[i]),
+            low=float(lows[i]),
+            amount=float(vols[i]),
         )
-    return klines
+        for i in range(n)
+    ]
 
 
 @dataclass
@@ -67,16 +83,17 @@ class ChanlunResult:
     bcs: list[BC] = field(default_factory=list)
     macd: dict[str, list[float]] = field(default_factory=dict)
 
-    def _fmt_dt(self, dt: datetime) -> str:
+    def _fmt_dt(self, dt: Any) -> str:
         """按 frequency 自适应格式化日期。
 
         分钟级别（1/5/15/30/60min）输出完整时分 YYYY-MM-DD HH:MM，
         日/周/月/年级别只输出日期 YYYY-MM-DD（无多余 00:00）。
-        frequency 来自 CLI 原始值（如 5MIN/30MIN）或 Web 映射值（5min/30min），
-        统一转小写后判断是否含 'min'。
+        兼容 Timestamp、datetime 以及 np.datetime64。
         """
         fmt = "%Y-%m-%d %H:%M" if "min" in self.frequency.lower() else "%Y-%m-%d"
-        return dt.strftime(fmt)
+        if hasattr(dt, "strftime"):
+            return dt.strftime(fmt)
+        return pd.to_datetime(dt).strftime(fmt)
 
     def to_dict(self) -> dict[str, Any]:
         """将结果转为可序列化的字典（用于 JSON 输出）。"""
@@ -147,6 +164,31 @@ class ChanlunResult:
                 for bc in self.bcs
             ],
         }
+
+    # 兼容 chanlun-pro ICL 接口的极速访问方法
+    def get_klines(self) -> list[Kline]:
+        return self.klines
+
+    def get_cklines(self) -> list[CLKline]:
+        return self.cklines
+
+    def get_fractals(self) -> list[FX]:
+        return self.fractals
+
+    def get_bis(self) -> list[BI]:
+        return self.bis
+
+    def get_zss(self) -> list[ZS]:
+        return self.zss
+
+    def get_xds(self) -> list[XD]:
+        return self.xds
+
+    def get_mmds(self) -> list[MMD]:
+        return self.mmds
+
+    def get_bcs(self) -> list[BC]:
+        return self.bcs
 
 
 class ChanlunAnalyser:

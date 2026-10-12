@@ -296,7 +296,8 @@ async function loadData(forceRefresh = false) {
   errorMsg.value = ''
 
   try {
-    const reqCount = (currentPeriodsStr.value.includes('5F') || currentPeriodsStr.value.includes('1F')) ? 3000 : 300
+    // 借鉴 chanlun-pro：实时模式下使用 800 根 (单网络包最优上限，~17个交易日，微秒级加载)；回溯时光机模式使用 2500 根全量母数据
+    const reqCount = isBacktrackingMode.value ? 2500 : ((currentPeriodsStr.value.includes('5F') || currentPeriodsStr.value.includes('1F')) ? 800 : 300)
     const res = await fetchChanlunResonance({
       code: code.value,
       periods: currentPeriodsStr.value,
@@ -340,7 +341,7 @@ function selectStock(c: string) {
   suggestList.value = []
   clearClientBacktrackCache()
   exitBacktracking()
-  loadData(true)
+  loadData(false)
 }
 
 // 联想搜索
@@ -385,7 +386,7 @@ function startAutoRefresh() {
   refreshTimer = setInterval(() => {
     inTradeSession.value = isTradeSession()
     if (!isBacktrackingMode.value && !loading.value && inTradeSession.value && autoRefresh.value) {
-      loadData(true)
+      loadData(false) // 允许命中后端智能增量缓存，避免击穿
       loadHotStocks() // 热门股票也随之实时更新
     }
   }, periodLowSeconds.value * 1000)
@@ -1018,7 +1019,7 @@ function renderChart() {
     ],
   }
 
-  chartInstance.setOption(option, true)
+  chartInstance.setOption(option, { notMerge: true, lazyUpdate: true })
 }
 
 function handleResize() {

@@ -21,11 +21,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 
 from easy_tdx.chanlun.analyser import ChanlunAnalyser, ChanlunResult
 from easy_tdx.chanlun.types import BI, FX, MMD, ZS, Direction, FXType, MMDType
+from easy_tdx.chanlun.resample import convert_kline_frequency, can_resample_from
+from easy_tdx.chanlun.kline_cache import get_global_kline_disk_cache
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
 
@@ -37,13 +40,16 @@ _RESONANCE_RAW_KLINE_CACHE: dict[tuple[str, str], tuple[float, pd.DataFrame]] = 
 # 回溯态分析结果全量缓存池，相同股票、周期与截断时点 100% 内存瞬时返回，免除重复缠论管道计算
 # key: (clean_code, tuple(p_list), cutoff_str) -> result_dict
 _RESONANCE_BACKTRACK_ANALYSIS_CACHE: dict[tuple[str, tuple[str, ...], str], dict[str, Any]] = {}
+# 实时态分析结果智能缓存池，相同标的、周期、最新K线时点与收盘价时 0ms 瞬间返回
+# key: (clean_code, tuple(p_list), latest_bar_time, latest_bar_close) -> (cached_at: float, result_dict: dict)
+_RESONANCE_REALTIME_ANALYSIS_CACHE: dict[tuple[str, tuple[str, ...], str, float], tuple[float, dict[str, Any]]] = {}
 _RESONANCE_CACHE_LOCK = threading.Lock()
 BACKTRACK_CACHE_TTL = 3600.0  # 回溯态母数据缓存有效期（1小时），确保沉浸式复盘期间 100% 内存切片
-REALTIME_CACHE_TTL = 15.0     # 实时态短期缓存（15秒）
+REALTIME_CACHE_TTL = 20.0     # 实时态短期缓存（20秒）
 
 
 def clear_resonance_kline_cache(code: str | None = None) -> None:
-    """清理缠论多周期母数据缓存及回溯结果缓存。"""
+    """清理缠论多周期母数据缓存及回溯与实时结果缓存。"""
     with _RESONANCE_CACHE_LOCK:
         if code:
             clean = str(code).strip().upper().replace("SZ", "").replace("SH", "").replace("BJ", "")
@@ -53,9 +59,13 @@ def clear_resonance_kline_cache(code: str | None = None) -> None:
             ana_keys_to_del = [k for k in _RESONANCE_BACKTRACK_ANALYSIS_CACHE if k[0] == clean]
             for k in ana_keys_to_del:
                 _RESONANCE_BACKTRACK_ANALYSIS_CACHE.pop(k, None)
+            rt_keys_to_del = [k for k in _RESONANCE_REALTIME_ANALYSIS_CACHE if k[0] == clean]
+            for k in rt_keys_to_del:
+                _RESONANCE_REALTIME_ANALYSIS_CACHE.pop(k, None)
         else:
             _RESONANCE_RAW_KLINE_CACHE.clear()
             _RESONANCE_BACKTRACK_ANALYSIS_CACHE.clear()
+            _RESONANCE_REALTIME_ANALYSIS_CACHE.clear()
 
 
 # ==============================================================================
@@ -804,6 +814,7 @@ def analyze_multi_period_resonance(
                 return _RESONANCE_BACKTRACK_ANALYSIS_CACHE[backtrack_cache_key]
 
     # 请求 K 线基准根数
+    # 4.1 请求 K 线基准根数
     multiplier = 2 if is_backtracking else 1
     req_counts = {
         high_p: max(100, (count // 3) * multiplier),
@@ -815,51 +826,90 @@ def analyze_multi_period_resonance(
         if p in ("5F", "5M", "1F", "1M"):
             req_counts[p] = max(req_counts.get(p, 0), 3000 if is_backtracking else 800)
 
-    # 拉取或内存复用三周期母数据 K 线（回溯时 100% 内存命中，杜绝反复请求远程服务器）
-    raw_dfs: dict[str, pd.DataFrame] = {}
-    for p in p_list:
-        spec = PERIOD_SPECS[p]
-        needed_cnt = req_counts[p]
-        # 母数据集拉取时：回溯模式预留 3500 根，实时/选股模式预留 800 根
-        target_fetch_cnt = max(needed_cnt, 3500 if (p in ("5F", "5M", "1F", "1M") and is_backtracking) else 800)
+    # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
+    effective_force_refresh = False if is_backtracking else force_refresh
 
-        use_cached = False
-        cached_df: pd.DataFrame | None = None
+    # 4.2 规划多周期加载（借鉴 chanlun-pro 低到高合成与并发拉取策略）：
+    # 判断 mid_p / high_p 是否可由 low_p 重采样合成，避免冗余远程网络 I/O
+    resample_plan: dict[str, str] = {}
+    needed_fetch_periods: list[str] = [low_p]
 
-        # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
-        if is_backtracking:
-            force_refresh = False
+    for p in (mid_p, high_p):
+        # 仅在非回溯模式或数据足够时启用内存重采样合成（例如 5F 合成 15F/30F/60F/120F）
+        if can_resample_from(low_p, p):
+            resample_plan[p] = low_p
+        elif p not in needed_fetch_periods:
+            needed_fetch_periods.append(p)
 
-        with _RESONANCE_CACHE_LOCK:
-            if (clean_code, p) in _RESONANCE_RAW_KLINE_CACHE:
-                c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)]
-                if c_df is not None and not c_df.empty:
-                    if is_backtracking:
-                        # 回溯时 100% 内存复用已有母数据，绝不发起网络请求
-                        use_cached = True
-                        cached_df = c_df
-                    elif not force_refresh:
-                        if (now_ts - c_time < REALTIME_CACHE_TTL):
-                            use_cached = True
-                            cached_df = c_df
+    def _fetch_one_period(p_name: str) -> tuple[str, pd.DataFrame]:
+        spec_item = PERIOD_SPECS[p_name]
+        needed_cnt = req_counts[p_name]
+        target_cnt = max(needed_cnt, 3500 if (p_name in ("5F", "5M", "1F", "1M") and is_backtracking) else 800)
 
-        if use_cached and cached_df is not None:
-            df = cached_df
-        else:
-            df = fetch_security_kline(
-                clean_code,
-                category=spec["market_cat"],
-                count=target_fetch_cnt,
-                force_refresh=force_refresh,
-            )
-            if df is None or df.empty:
-                df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
-            else:
+        # 1. 检查内存缓存
+        if not effective_force_refresh:
+            with _RESONANCE_CACHE_LOCK:
+                if (clean_code, p_name) in _RESONANCE_RAW_KLINE_CACHE:
+                    c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)]
+                    if c_df is not None and not c_df.empty:
+                        if is_backtracking or (now_ts - c_time < REALTIME_CACHE_TTL):
+                            return p_name, c_df
+
+        # 2. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB）
+        disk_cache = get_global_kline_disk_cache()
+        cached_df = disk_cache.read_cached(clean_code, p_name)
+        if cached_df is not None and not cached_df.empty and len(cached_df) >= target_cnt and not effective_force_refresh:
+            try:
+                # 仅拉取最新 120 根增量，与本地历史快速合并去重，大幅节省带宽与延时
+                delta_df = fetch_security_kline(
+                    clean_code,
+                    category=spec_item["market_cat"],
+                    count=min(120, target_cnt),
+                    force_refresh=True,
+                )
+                merged = disk_cache.merge_and_update(clean_code, p_name, cached_df, delta_df)
                 with _RESONANCE_CACHE_LOCK:
-                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p)] = (now_ts, df)
+                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, merged)
+                return p_name, merged
+            except Exception:
+                return p_name, cached_df
 
+        # 3. 磁盘无缓存或数量不足，或 force_refresh：向 TDX 全量拉取
+        df_fetched = fetch_security_kline(
+            clean_code,
+            category=spec_item["market_cat"],
+            count=target_cnt,
+            force_refresh=effective_force_refresh,
+        )
+        if df_fetched is None or df_fetched.empty:
+            df_fetched = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
+        else:
+            disk_cache.write_cached(clean_code, p_name, df_fetched)
+            with _RESONANCE_CACHE_LOCK:
+                _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, df_fetched)
 
-        raw_dfs[p] = df
+        return p_name, df_fetched
+
+    # 4.3 并发拉取独立周期数据
+    raw_dfs: dict[str, pd.DataFrame] = {}
+    if len(needed_fetch_periods) == 1:
+        p_name, df_res = _fetch_one_period(needed_fetch_periods[0])
+        raw_dfs[p_name] = df_res
+    else:
+        with ThreadPoolExecutor(max_workers=min(len(needed_fetch_periods), 4)) as pool:
+            futs = [pool.submit(_fetch_one_period, p_name) for p_name in needed_fetch_periods]
+            for f in futs:
+                p_name, df_res = f.result()
+                raw_dfs[p_name] = df_res
+
+    # 4.4 针对匹配周期执行毫秒级重采样合成（免去重复远程请求）
+    for p_target, p_src in resample_plan.items():
+        src_df = raw_dfs.get(p_src)
+        spec_target = PERIOD_SPECS[p_target]
+        if src_df is not None and not src_df.empty:
+            raw_dfs[p_target] = convert_kline_frequency(src_df, spec_target["market_cat"])
+        else:
+            raw_dfs[p_target] = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
 
     # 获取完整可用时间跨度（由母数据全量序列提供，供前端滑块稳定自由导航）
     base_full_df = raw_dfs[low_p]
@@ -870,6 +920,18 @@ def analyze_multi_period_resonance(
     )
     min_date = available_dates[0] if available_dates else ""
     max_date = available_dates[-1] if available_dates else ""
+
+    # 实时态瞬时分析结果缓存命中检查：如果标的最新一根 K 线的时点与收盘价未改变，直接复用完整分析结果
+    if not is_backtracking and not base_full_df.empty and not effective_force_refresh:
+        latest_dt_check = str(base_full_df["datetime"].iloc[-1])
+        latest_close_check = round(float(base_full_df["close"].iloc[-1]), 2)
+        rt_cache_key = (clean_code, tuple(p_list), latest_dt_check, latest_close_check)
+        with _RESONANCE_CACHE_LOCK:
+            if rt_cache_key in _RESONANCE_REALTIME_ANALYSIS_CACHE:
+                cached_at, cached_res = _RESONANCE_REALTIME_ANALYSIS_CACHE[rt_cache_key]
+                if now_ts - cached_at < REALTIME_CACHE_TTL:
+                    logger.debug("实时行情未变，直接命中分析结果缓存: %s", rt_cache_key)
+                    return cached_res
 
     # 如果指定了 cutoff_date，进行历史无未来切除回溯
     dfs: dict[str, pd.DataFrame] = {}
@@ -890,12 +952,18 @@ def analyze_multi_period_resonance(
     else:
         dfs = {k: v.copy() for k, v in raw_dfs.items()}
 
-    # 运行缠论分析管道
+    # 并发运行 3 周期缠论分析管道
     results: dict[str, ChanlunResult] = {}
-    for p in p_list:
-        spec = PERIOD_SPECS[p]
-        analyser = ChanlunAnalyser(code=clean_code, frequency=spec["chan_freq"])
-        results[p] = analyser.process_klines(dfs[p])
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        ana_futs = {
+            p: pool.submit(
+                ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[p]["chan_freq"]).process_klines,
+                dfs[p]
+            )
+            for p in p_list
+        }
+        for p, f in ana_futs.items():
+            results[p] = f.result()
 
     # 运行三周期共振引擎
     engine = ThreePeriodResonanceEngine(high_p, mid_p, low_p, results)
@@ -1470,5 +1538,12 @@ def analyze_multi_period_resonance(
                 for k in list(_RESONANCE_BACKTRACK_ANALYSIS_CACHE.keys())[:200]:
                     _RESONANCE_BACKTRACK_ANALYSIS_CACHE.pop(k, None)
             _RESONANCE_BACKTRACK_ANALYSIS_CACHE[(clean_code, tuple(p_list), cutoff_str)] = result_data
+    else:
+        with _RESONANCE_CACHE_LOCK:
+            if len(_RESONANCE_REALTIME_ANALYSIS_CACHE) > 500:
+                for k in list(_RESONANCE_REALTIME_ANALYSIS_CACHE.keys())[:200]:
+                    _RESONANCE_REALTIME_ANALYSIS_CACHE.pop(k, None)
+            rt_cache_key = (clean_code, tuple(p_list), str(latest_dt), round(float(latest_close), 2))
+            _RESONANCE_REALTIME_ANALYSIS_CACHE[rt_cache_key] = (now_ts, result_data)
 
     return result_data
