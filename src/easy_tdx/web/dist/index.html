@@ -4003,7 +4003,7 @@
                         <thead
                             class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none bg-slate-50/95 dark:bg-slate-950/95 sticky top-0 z-20">
                             <tr>
-                                <th class="py-2.5 px-2 text-center w-14 font-semibold whitespace-nowrap">诊断</th>
+                                <th class="py-2.5 px-3 text-center font-semibold whitespace-nowrap">诊断</th>
                                 <th class="py-2.5 px-2 text-center w-10 font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
                                     onclick="changeFinaSort('is_optional')">自选</th>
                                 <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-500 whitespace-nowrap"
@@ -19268,7 +19268,7 @@
                 thead.innerHTML = `
                 <tr>
                     <th class="py-2.5 px-2 text-center w-8 font-semibold">#</th>
-                    <th class="py-2.5 px-2 text-center w-12 font-semibold">诊断</th>
+                    <th class="py-2.5 px-3 text-center font-semibold whitespace-nowrap">诊断</th>
                     <th class="py-2.5 px-2 text-center w-10 font-semibold">自选</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_code')">代码</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_name')">名称</th>
@@ -19297,7 +19297,7 @@
                 thead.innerHTML = `
                 <tr>
                     <th class="py-2.5 px-2 text-center w-8 font-semibold">#</th>
-                    <th class="py-2.5 px-2 text-center w-12 font-semibold">诊断</th>
+                    <th class="py-2.5 px-3 text-center font-semibold whitespace-nowrap">诊断</th>
                     <th class="py-2.5 px-2 text-center w-10 font-semibold">自选</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_code')">代码</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_name')">名称</th>
@@ -19375,6 +19375,7 @@
                 // 诊断: 优雅微胶囊按钮 (indigo, 严格匹配参考图片)
                 let btnDiag = `<div class="inline-flex items-center space-x-1">
                     <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
+                    <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
                     <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-300 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                 </div>`;
 
@@ -20220,6 +20221,7 @@
                     const diagTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">
                 <div class="inline-flex items-center space-x-1">
                     <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看【${name}】4D业绩量化体检与近8期财报">诊断</button>
+                    <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
                     <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-300 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                 </div>
             </td>`;
