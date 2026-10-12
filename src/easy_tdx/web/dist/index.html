@@ -5962,6 +5962,22 @@
                     if (optSym) optSym.value = sym;
                     updateOptimizeKlineHint();
                 }
+            } else if (targetTab === 'chanlun') {
+                const params = new URLSearchParams(queryStr || window.location.search || '');
+                const sym = params.get('symbol') || params.get('code');
+                if (sym) {
+                    const cleanCode = sym.trim().replace(/[^0-9]/g, '');
+                    if (cleanCode) {
+                        window._clCurrentCode = cleanCode;
+                        window._clCurrentCodeChangedByUser = true;
+                        if (typeof _clCurrentCode !== 'undefined') {
+                            _clCurrentCode = cleanCode;
+                            _clCurrentCodeChangedByUser = true;
+                        }
+                        const clInp = document.getElementById('cl-stock-input');
+                        if (clInp) clInp.value = cleanCode;
+                    }
+                }
             }
         }
 
@@ -5969,7 +5985,9 @@
             const rawHash = (window.location.hash || '').replace('#', '').trim();
             const [hashTab, queryStr] = rawHash.split('?');
             if (VALID_TABS.includes(hashTab)) {
-                switchTab(hashTab, false);
+                if (hashTab !== window.currentTab) {
+                    switchTab(hashTab, false);
+                }
                 if (hashTab === 'optimize') {
                     const params = new URLSearchParams(queryStr || window.location.search || '');
                     const sym = params.get('symbol') || params.get('code');
@@ -5978,9 +5996,64 @@
                         if (optSym) optSym.value = sym;
                         updateOptimizeKlineHint();
                     }
+                } else if (hashTab === 'chanlun') {
+                    const params = new URLSearchParams(queryStr || window.location.search || '');
+                    const sym = params.get('symbol') || params.get('code');
+                    if (sym) {
+                        const cleanCode = sym.trim().replace(/[^0-9]/g, '');
+                        if (cleanCode) {
+                            if (typeof openChanlunKline === 'function') {
+                                openChanlunKline(cleanCode);
+                            }
+                        }
+                    }
                 }
             }
         });
+
+        // 点击股票代码/K线链接直接跳转打开缠论视图并定位到该股缠论K线
+        function openChanlunKline(code, name, event) {
+            if (event && (event.ctrlKey || event.metaKey || event.button === 1)) {
+                return; // 支持用户按 Ctrl/中键在浏览器新标签页中打开
+            }
+            if (event) {
+                try { event.preventDefault(); } catch (e) { }
+            }
+            if (!code) return;
+            const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
+            if (!cleanCode) return;
+
+            window._clCurrentCode = cleanCode;
+            window._clCurrentCodeChangedByUser = true;
+            if (typeof _clCurrentCode !== 'undefined') {
+                _clCurrentCode = cleanCode;
+                _clCurrentCodeChangedByUser = true;
+            }
+
+            // 1. 切换 Tab 至 缠论 视图
+            switchTab('chanlun', false);
+            try {
+                history.replaceState(null, null, `#chanlun?code=${cleanCode}`);
+            } catch (e) { }
+
+            window.scrollTo({ top: 0, behavior: 'instant' });
+
+            // 2. 更新输入框、热门列表选中态及退出回溯
+            const inp = document.getElementById('cl-stock-input');
+            if (inp) inp.value = cleanCode;
+            if (typeof renderChanlunPopularStocks === 'function') renderChanlunPopularStocks();
+            if (typeof clearClBacktrackCache === 'function') clearClBacktrackCache();
+            if (typeof exitChanlunBacktrack === 'function') exitChanlunBacktrack();
+
+            // 3. 立即加载该标的缠论多周期共振数据与K线图
+            if (typeof loadChanlunData === 'function') {
+                loadChanlunData(true);
+            }
+            if (window.chanlunChart) {
+                setTimeout(() => { window.chanlunChart.resize(); }, 60);
+            }
+        }
+        window.openChanlunKline = openChanlunKline;
 
         // ==================== Theme Management (TickFlow Pattern) ==================== //
         const THEME_KEY = 'tf-theme';
@@ -14882,7 +14955,7 @@
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
                                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
-                                <button onclick="openKlineModal('${code}', '${name}', null, _cachedWatchlistRows)" class="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看K线行情">K线</button>
+                                <a href="#chanlun?code=${code}" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium no-underline text-center" title="在缠论页面查看【${name}】(${code}) 缠论K线">K线</a>
                                 <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-200 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
                             </div>
@@ -21260,8 +21333,8 @@
         // ==============================================================================
         // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
         // ==============================================================================
-        let _clCurrentCode = '000001';
-        let _clCurrentCodeChangedByUser = false;
+        let _clCurrentCode = window._clCurrentCode || '000001';
+        let _clCurrentCodeChangedByUser = window._clCurrentCodeChangedByUser || false;
         let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
         let _clIsBacktracking = false;
@@ -21330,12 +21403,15 @@
             }
 
             // 1. 默认 K 线显示热门股票 (优先请求最新热门股票池第一名)
+            const input = document.getElementById('cl-stock-input');
+            if (input && _clCurrentCode) input.value = _clCurrentCode;
+
             if (!_clCurrentCodeChangedByUser) {
                 try {
                     const hots = await loadChanlunHotStocks();
                     if (hots && hots.length > 0 && !_clCurrentCodeChangedByUser) {
                         _clCurrentCode = hots[0].code;
-                        const input = document.getElementById('cl-stock-input');
+                        window._clCurrentCode = _clCurrentCode;
                         if (input) input.value = _clCurrentCode;
                         renderChanlunPopularStocks();
                     }
@@ -21368,6 +21444,7 @@
         }
 
         async function loadChanlunData(forceRefresh = false) {
+            if (_clIsDataLoading && !forceRefresh) return;
             const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
 
             // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
@@ -22804,7 +22881,9 @@
 
         function selectChanlunStock(codeVal) {
             _clCurrentCode = codeVal;
+            window._clCurrentCode = codeVal;
             _clCurrentCodeChangedByUser = true;
+            window._clCurrentCodeChangedByUser = true;
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
             renderChanlunPopularStocks();
