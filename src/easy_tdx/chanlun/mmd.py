@@ -48,8 +48,26 @@ def find_mmds(
     force_cache: dict[int, float] = {}
 
     for bi in bis:
-        # 寻找与该笔最近的中枢
+        # 寻找与该笔最近且在中枢生命周期匹配的中枢 (杜绝未来中枢穿越与过远跨越)
         for zs in reversed(zss):
+            if zs.lines:
+                zs_start_bi_idx = zs.lines[0].index
+                zs_end_bi_idx = zs.lines[-1].index
+                # 笔不能早于中枢产生之前 (杜绝未来中枢穿越)
+                if bi.index < zs_start_bi_idx - 1:
+                    continue
+                # 笔距离中枢结束不能跨越过远
+                if bi.index - zs_end_bi_idx > 6:
+                    continue
+                # 三类买点：必须发生在中枢结束离开阶段 (不可发生在中枢形成之前)
+                if bi.direction.value == "down" and bi.low > zs.zg:
+                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 4:
+                        continue
+                # 三类卖点：必须发生在中枢结束离开阶段 (不可发生在中枢形成之前)
+                if bi.direction.value == "up" and bi.high < zs.zd:
+                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 4:
+                        continue
+
             mmd = _check_bi_mmd(
                 bi, zs, bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
             )
@@ -91,13 +109,20 @@ def _check_buy_point(
 ) -> MMD | None:
     """检查向下笔是否形成买点。"""
     # 三类买点优先：突破中枢后，回调不跌破中枢上沿（必须先于二买判定）
+    # 离开笔必须向上且突破 zg
     if bi.low > zs.zg:
-        return MMD(
-            mmd_type=MMDType.BUY_3,
-            zs=zs,
-            bi=bi,
-            msg=f"回调不破中枢上沿，三类买点 (l={bi.low:.2f} > zg={zs.zg:.2f})",
-        )
+        is_breakout = True
+        if bi.index >= 1:
+            prev_bi = all_bis[bi.index - 1]
+            if prev_bi.direction.value == "up" and prev_bi.high <= zs.zg:
+                is_breakout = False
+        if is_breakout:
+            return MMD(
+                mmd_type=MMDType.BUY_3,
+                zs=zs,
+                bi=bi,
+                msg=f"回调不破中枢上沿，三类买点 (l={bi.low:.2f} > zg={zs.zg:.2f})",
+            )
 
     # 一类买点：笔低点低于中枢下沿（中枢下方），且底背驰（力度衰减）
     if bi.low < zs.zd:
@@ -139,13 +164,20 @@ def _check_sell_point(
 ) -> MMD | None:
     """检查向上笔是否形成卖点。"""
     # 三类卖点优先：跌破中枢后，反弹不突破中枢下沿（必须先于二卖判定）
+    # 离开笔必须向下且跌破 zd
     if bi.high < zs.zd:
-        return MMD(
-            mmd_type=MMDType.SELL_3,
-            zs=zs,
-            bi=bi,
-            msg=f"反弹不破中枢下沿，三类卖点 (h={bi.high:.2f} < zd={zs.zd:.2f})",
-        )
+        is_breakdown = True
+        if bi.index >= 1:
+            prev_bi = all_bis[bi.index - 1]
+            if prev_bi.direction.value == "down" and prev_bi.low >= zs.zd:
+                is_breakdown = False
+        if is_breakdown:
+            return MMD(
+                mmd_type=MMDType.SELL_3,
+                zs=zs,
+                bi=bi,
+                msg=f"反弹不破中枢下沿，三类卖点 (h={bi.high:.2f} < zd={zs.zd:.2f})",
+            )
 
     # 一类卖点：笔高点高于中枢上沿，且顶背驰（力度衰减）
     if bi.high > zs.zg:

@@ -434,9 +434,35 @@ def _evaluate_stock_for_strategy(
                     trigger_loc = len(sig_df) - 1
                     days_ago = 0
 
-            max_lookback = max(lookback_bars, 60) if lookback_bars > 0 else 60
-            if days_ago > max_lookback:
+            # 1. 严格时效性控制：买点必须发生在近期 (默认 <= 15 根 K 线内，杜绝陈旧失效信号)
+            effective_lookback = min(lookback_bars, 15) if lookback_bars > 0 else 15
+            if days_ago > effective_lookback:
                 return None
+
+            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
+            last_c = float(sig_df.iloc[-1]["close"])
+            trigger_p = float(last_m.get("price", 0.0))
+            if trigger_p > 0:
+                # 止损过滤：跌破买点价 4% 视为买点破坏失效
+                if last_c < trigger_p * 0.96:
+                    return None
+                # 透支过滤：自买点以来涨幅超 15% 视为已大幅兑现/追高风险，不推荐
+                since_pct = (last_c - trigger_p) / trigger_p * 100.0
+                if since_pct > 15.0:
+                    return None
+
+            # 3. 区间套次级别共振过滤 (30F / 5F 确认)：
+            # 若次级别 (30F) 最新最后点位处于卖点破位 (如 30F 处于 3卖 或 1卖)，说明次级别正在下杀，大级别买点当前正在被破坏，排除！
+            mid_mmds = [m for m in chan_res.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+            if mid_mmds:
+                last_mid = mid_mmds[-1]
+                if not last_mid.get("is_buy", True):
+                    mid_date_str = str(last_mid.get("date", "")).split(" ")[0]
+                    mid_matches = sig_df.index[dt_series.str.startswith(mid_date_str)]
+                    if len(mid_matches) > 0:
+                        mid_days_ago = len(sig_df) - 1 - sig_df.index.get_loc(mid_matches[-1])
+                        if mid_days_ago <= 3:
+                            return None
         elif strategy_name == "td_sequential":
             sig_df = st.generate_signals(df)
             if sig_df is None:

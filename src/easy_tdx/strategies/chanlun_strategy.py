@@ -28,17 +28,6 @@ class ChanlunBuySellStrategy(BaseStrategy):
             if 0 <= s_idx < len(sell_sig):
                 sell_sig.iloc[s_idx] = True
                 
-        if buy_sig.sum() == 0:
-            fractals = engine.find_fractals()
-            for frac in fractals:
-                idx = getattr(frac, "index", 0)
-                f_str = str(getattr(frac, "fx_type", "")).lower()
-                if 0 <= idx < len(res):
-                    if "bottom" in f_str or "di" in f_str:
-                        buy_sig.iloc[min(len(res) - 1, idx + 1)] = True
-                    elif "top" in f_str or "ding" in f_str:
-                        sell_sig.iloc[min(len(res) - 1, idx + 1)] = True
-
         res["buy_signal"] = buy_sig.fillna(False)
         res["sell_signal"] = sell_sig.fillna(False)
         return res

@@ -67,11 +67,7 @@ class ChanlunEngine:
                 elif "3S" in str(mtype) or "SELL_3" in str(mtype):
                     points["sell_3"].append(idx)
         except Exception:
-            for frac in self.find_fractals():
-                if frac.fx_type == FXType.BOTTOM:
-                    points["buy_1"].append(frac.index)
-                else:
-                    points["sell_1"].append(frac.index)
+            pass
                     
         return points
 
