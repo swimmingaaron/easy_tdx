@@ -9,7 +9,7 @@ class ChanlunBuySellStrategy(BaseStrategy):
     name = "chanlun_strategy"
     display_name = "缠论1/2/3类买卖点与笔背驰策略"
     category = "chanlun"
-    description = "基于缠论分型、笔、线段与中枢算法，捕捉一买底背驰与二/三买突破"
+    description = "以【日线 30F 5F】区间套为大中小周期，筛选出最近最后大周期为大级别买点(大级别1买/2买/3买)的优质标的"
     params_schema = {}
     
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -38,11 +38,6 @@ class ChanlunBuySellStrategy(BaseStrategy):
                         buy_sig.iloc[min(len(res) - 1, idx + 1)] = True
                     elif "top" in f_str or "ding" in f_str:
                         sell_sig.iloc[min(len(res) - 1, idx + 1)] = True
-
-        if buy_sig.sum() == 0:
-            ma5 = res["close"].rolling(5).mean()
-            buy_sig = (res["close"] > ma5) & (res["close"].shift(1) <= ma5.shift(1))
-            sell_sig = (res["close"] < ma5) & (res["close"].shift(1) >= ma5.shift(1))
 
         res["buy_signal"] = buy_sig.fillna(False)
         res["sell_signal"] = sell_sig.fillna(False)

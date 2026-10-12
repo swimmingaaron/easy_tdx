@@ -377,11 +377,70 @@ def _evaluate_stock_for_strategy(
         return None
 
     try:
-        sig_df = st.generate_signals(df)
-        if sig_df is None:
-            return None
+        if strategy_name == "chanlun_strategy":
+            # 严格以 “日线 30F 5F” 区间套为大中小周期，筛选出最近最后 大周期 为“ 大级别买 大级别1买 大级别2买 大级别3买 ” 的股票
+            from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
+            chan_res = analyze_multi_period_resonance(
+                code=sym,
+                periods=["DAY", "30F", "5F"],
+                count=300,
+                force_refresh=force_refresh
+            )
+            if not chan_res:
+                return None
 
-        if strategy_name == "td_sequential":
+            high_mmds = [m for m in chan_res.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+            if not high_mmds:
+                return None
+
+            last_m = high_mmds[-1]
+            label = str(last_m.get("label", ""))
+            m_type = str(last_m.get("type", "")).upper()
+            is_buy = bool(last_m.get("is_buy", False))
+
+            # 筛选出最近最后大周期为“大级别买 大级别1买 大级别2买 大级别3买”的股票
+            # 严格排除卖点 (大级别1卖 / 2卖 / 3卖)
+            is_high_buy = is_buy and (
+                any(k in label for k in ["大级别买", "大级别1买", "大级别2买", "大级别3买", "大级别走势1买", "买"]) or
+                m_type in ("1BUY", "2BUY", "3BUY", "BUY_1", "BUY_2", "BUY_3")
+            )
+            if not is_high_buy:
+                return None
+
+            chan_tag = label or ("大级别1买" if "1BUY" in m_type else ("大级别2买" if "2BUY" in m_type else ("大级别3买" if "3BUY" in m_type else "大级别买")))
+            sig_df = df.copy()
+
+            # 定位触发日及价格
+            sig_date_str = str(last_m.get("date", "")).split(" ")[0]
+            date_col = "datetime" if "datetime" in sig_df.columns else "date"
+            dt_series = sig_df[date_col].astype(str)
+            match_indices = sig_df.index[dt_series.str.startswith(sig_date_str)]
+            if len(match_indices) > 0:
+                trigger_loc = sig_df.index.get_loc(match_indices[-1])
+                trigger_bar = sig_df.iloc[trigger_loc]
+                trigger_idx = match_indices[-1]
+                days_ago = len(sig_df) - 1 - trigger_loc
+            else:
+                high_state = chan_res.get("summary", {}).get("high_state", {})
+                bars_ago_val = high_state.get("recent_mmd_bars_ago")
+                if bars_ago_val is not None and 0 <= int(bars_ago_val) < len(sig_df):
+                    days_ago = int(bars_ago_val)
+                    trigger_loc = max(0, len(sig_df) - 1 - days_ago)
+                    trigger_bar = sig_df.iloc[trigger_loc]
+                    trigger_idx = sig_df.index[trigger_loc]
+                else:
+                    trigger_bar = sig_df.iloc[-1]
+                    trigger_idx = sig_df.index[-1]
+                    trigger_loc = len(sig_df) - 1
+                    days_ago = 0
+
+            max_lookback = max(lookback_bars, 60) if lookback_bars > 0 else 60
+            if days_ago > max_lookback:
+                return None
+        elif strategy_name == "td_sequential":
+            sig_df = st.generate_signals(df)
+            if sig_df is None:
+                return None
             # 严格以 K 线显示的 TD_SEQUENTIAL 算法为单一基准：
             # 必须保证最新一根 K 线的上升九转序列真实点亮且在第3根日线及以上 (td9_h[-1] >= 3)，
             # 在第3根日线时开始标注，严格过滤掉未达3根 (td9_h[-1] < 3)、未点亮/已中断 (td9_h[-1] == 0) 或已转为下跌低序列 (td9_l[-1] > 0) 的股票
@@ -400,6 +459,9 @@ def _evaluate_stock_for_strategy(
             trigger_bar = sig_df.iloc[trigger_loc]
             trigger_idx = sig_df.index[trigger_loc]
         else:
+            sig_df = st.generate_signals(df)
+            if sig_df is None:
+                return None
             if "buy_signal" not in sig_df.columns:
                 return None
 
@@ -537,6 +599,11 @@ def _evaluate_stock_for_strategy(
                 status_label = f"今日四边形·{q_type}" if p_clean == "DAY" else f"最新{p_name}四边形·{q_type}"
             else:
                 status_label = f"{days_ago}日前四边形·{q_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形·{q_type}"
+        elif strategy_name == "chanlun_strategy":
+            if days_ago == 0:
+                status_label = f"今日{chan_tag}" if p_clean == "DAY" else f"最新{p_name}{chan_tag}"
+            else:
+                status_label = f"{days_ago}日前{chan_tag}" if p_clean == "DAY" else f"{days_ago}{p_unit}前{chan_tag}"
         else:
             if days_ago == 0:
                 status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
@@ -549,7 +616,9 @@ def _evaluate_stock_for_strategy(
         except Exception:
             patterns = ["震荡整理"]
 
-        if strategy_name == "td_sequential":
+        if strategy_name == "chanlun_strategy":
+            patterns = [chan_tag] + [p for p in patterns if "缠论" not in p and "买" not in p and "卖" not in p]
+        elif strategy_name == "td_sequential":
             td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
             patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
         elif strategy_name == "wave_theory_impulse":
@@ -588,7 +657,10 @@ def _evaluate_stock_for_strategy(
             except Exception:
                 trigger_patterns = ["震荡整理"]
 
-        if strategy_name == "td_sequential":
+        if strategy_name == "chanlun_strategy":
+            if chan_tag not in trigger_patterns:
+                trigger_patterns = [chan_tag] + [p for p in trigger_patterns if "缠论" not in p and "买" not in p and "卖" not in p]
+        elif strategy_name == "td_sequential":
             if "高3序列" not in trigger_patterns:
                 trigger_patterns = ["高3序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]
         elif strategy_name == "wave_theory_impulse":
