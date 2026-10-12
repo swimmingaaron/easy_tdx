@@ -1274,7 +1274,8 @@ onBeforeUnmount(() => {
   background: #131722;
   color: #d1d4dc;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 0 16px 12px 16px;
+  margin-top: 0;
   gap: 10px;
 }
 

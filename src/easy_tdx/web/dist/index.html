@@ -511,6 +511,21 @@
             background: #ffffff !important;
         }
 
+        /* ==================== 缠论页面顶部间距消除：将 header 与缠论卡片间 gap 缩小至 0 ==================== */
+        body:has(#view-chanlun:not(.hidden)) main,
+        main.chanlun-active {
+            padding-top: 0 !important;
+        }
+
+        #view-chanlun {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+
+        #view-chanlun > .glass-card:first-child {
+            margin-top: 0 !important;
+        }
+
         /* ==================== K线窗口专属：彻底杜绝手机双击放大与手势缩放导致的图像变形截断 ==================== */
         #kline-preview-modal {
             touch-action: manipulation;
@@ -4286,7 +4301,7 @@
         </section>
 
         <!-- ==================== 12. 缠论多周期立体同图共振 (Chanlun Resonance) ==================== -->
-        <section id="view-chanlun" class="space-y-3 hidden">
+        <section id="view-chanlun" class="space-y-3 hidden !mt-0 !pt-0">
             <!-- 缠论主控面板卡片 (参考K线弹窗风格: 标的属性/现价/极值/估值指标/操作工具) -->
             <div class="glass-card bg-[#0b0f19]/85 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4 space-y-2.5 shadow-xl backdrop-blur-xl">
                 <!-- Row 1: Stock Symbol, Name, Live Price, Strategy/Resonance Status, Visible Extrema, Valuation & Tools -->
@@ -5838,6 +5853,14 @@
                 tId = 'dashboard';
             }
             window.currentTab = tId;
+            const mainEl = document.querySelector('main');
+            if (mainEl) {
+                if (tId === 'chanlun') {
+                    mainEl.classList.add('chanlun-active');
+                } else {
+                    mainEl.classList.remove('chanlun-active');
+                }
+            }
             if (tId === 'screener' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
                 window._currentKlineNavList = window._lastScreenerMatches;
             }
