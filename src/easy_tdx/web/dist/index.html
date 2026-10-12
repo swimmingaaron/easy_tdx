@@ -4557,17 +4557,17 @@
                         <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
                             <button onclick="toggleChanlunLayer('highBi')" id="cl-btn-layer-high-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔(紫)</button>
                             <button onclick="toggleChanlunLayer('highZs')" id="cl-btn-layer-high-zs"
                                 class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大中枢</button>
                             <button onclick="toggleChanlunLayer('midBi')" id="cl-btn-layer-mid-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">中笔</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 transition cursor-pointer shrink-0">中笔(绿)</button>
                             <button onclick="toggleChanlunLayer('midZs')" id="cl-btn-layer-mid-zs"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">空中枢</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 transition cursor-pointer shrink-0">中中枢</button>
                             <button onclick="toggleChanlunLayer('lowBi')" id="cl-btn-layer-low-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">基准笔</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小笔(蓝)</button>
                             <button onclick="toggleChanlunLayer('lowZs')" id="cl-btn-layer-low-zs"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">基准中枢</button>
+                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小中枢</button>
 
                             <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
 
@@ -21681,10 +21681,10 @@
             const layerDefs = [
                 { key: 'highBi', id: 'cl-btn-layer-high-bi', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
                 { key: 'highZs', id: 'cl-btn-layer-high-zs', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
-                { key: 'midBi', id: 'cl-btn-layer-mid-bi', activeClass: 'bg-cyan-950 text-cyan-300 border-cyan-800' },
-                { key: 'midZs', id: 'cl-btn-layer-mid-zs', activeClass: 'bg-cyan-950 text-cyan-300 border-cyan-800' },
-                { key: 'lowBi', id: 'cl-btn-layer-low-bi', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
-                { key: 'lowZs', id: 'cl-btn-layer-low-zs', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
+                { key: 'midBi', id: 'cl-btn-layer-mid-bi', activeClass: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
+                { key: 'midZs', id: 'cl-btn-layer-mid-zs', activeClass: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
+                { key: 'lowBi', id: 'cl-btn-layer-low-bi', activeClass: 'bg-blue-950 text-blue-300 border-blue-800' },
+                { key: 'lowZs', id: 'cl-btn-layer-low-zs', activeClass: 'bg-blue-950 text-blue-300 border-blue-800' },
                 { key: 'mmd', id: 'cl-btn-layer-mmd', activeClass: 'bg-rose-950 text-rose-300 border-rose-800' },
                 { key: 'res', id: 'cl-btn-layer-res', activeClass: 'bg-yellow-950 text-yellow-300 border-yellow-800' },
             ];
@@ -22254,37 +22254,64 @@
                     <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
                         ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
                     </span>
-                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-cyan-950/80 text-cyan-300 border-cyan-800'} border shadow-sm font-bold">
+                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-blue-950/80 text-blue-300 border-blue-800'} border shadow-sm font-bold">
                         ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
                     </span>
                 `;
             }
 
-            // 1. 笔线段 MarkLines (花姐标准：大紫·次黄·微蓝)
+            // 1. 笔线段 MarkLines (标准：大紫·中绿·小蓝，重合时大周期最顶层为主)
             const highBiLines = _clLayers.highBi ? (uc.high_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#c084fc', width: 2.8, type: 'solid' } },
-                { coord: b.end }
+                { 
+                    coord: b.start, 
+                    lineStyle: { color: '#c084fc', width: 3.5, type: 'solid' },
+                    itemStyle: { color: '#c084fc' },
+                    symbolSize: 5
+                },
+                { 
+                    coord: b.end,
+                    itemStyle: { color: '#c084fc' },
+                    symbolSize: 5
+                }
             ]) : [];
 
             const midBiLines = _clLayers.midBi ? (uc.mid_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#facc15', width: 2.0, type: 'solid' } },
-                { coord: b.end }
+                { 
+                    coord: b.start, 
+                    lineStyle: { color: '#10b981', width: 2.2, type: 'solid' },
+                    itemStyle: { color: '#10b981' },
+                    symbolSize: 4
+                },
+                { 
+                    coord: b.end,
+                    itemStyle: { color: '#10b981' },
+                    symbolSize: 4
+                }
             ]) : [];
 
             const lowBiLines = _clLayers.lowBi ? (uc.low_bis || []).map(b => [
-                { coord: b.start, lineStyle: { color: '#00e5ff', width: 1.4, type: 'solid' } },
-                { coord: b.end }
+                { 
+                    coord: b.start, 
+                    lineStyle: { color: '#3b82f6', width: 1.5, type: 'solid' },
+                    itemStyle: { color: '#3b82f6' },
+                    symbolSize: 3
+                },
+                { 
+                    coord: b.end,
+                    itemStyle: { color: '#3b82f6' },
+                    symbolSize: 3
+                }
             ]) : [];
 
-            // 2. 中枢 MarkAreas (大紫·次黄·微蓝)
+            // 2. 中枢 MarkAreas (大紫·中绿·小蓝)
             const highZsAreas = _clLayers.highZs ? (uc.high_zss || []).map(zs => [
                 {
                     name: `[${d.periods.high.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(147, 51, 234, 0.18)', borderColor: '#c084fc', borderWidth: 1.2, borderType: 'dashed' },
+                    itemStyle: { color: 'rgba(147, 51, 234, 0.20)', borderColor: '#c084fc', borderWidth: 1.5, borderType: 'dashed' },
                     label: { show: true, position: 'top', color: '#c084fc', fontSize: 10, formatter: `[${d.periods.high.name}紫色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
@@ -22294,8 +22321,8 @@
                 {
                     name: `[${d.periods.mid.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(202, 138, 4, 0.18)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
-                    label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` }
+                    itemStyle: { color: 'rgba(16, 185, 129, 0.20)', borderColor: '#10b981', borderWidth: 1.0, borderType: 'dashed' },
+                    label: { show: true, position: 'top', color: '#10b981', fontSize: 10, formatter: `[${d.periods.mid.name}绿色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -22304,8 +22331,8 @@
                 {
                     name: `[${d.periods.low.name}中枢]`,
                     coord: [zs.start_date, zs.zg],
-                    itemStyle: { color: 'rgba(2, 132, 199, 0.16)', borderColor: '#00e5ff', borderWidth: 0.8, borderType: 'dotted' },
-                    label: { show: true, position: 'insideTopLeft', color: '#00e5ff', fontSize: 9, formatter: `[${d.periods.low.name}微观中枢]` }
+                    itemStyle: { color: 'rgba(59, 130, 246, 0.16)', borderColor: '#3b82f6', borderWidth: 0.8, borderType: 'dotted' },
+                    label: { show: true, position: 'insideTopLeft', color: '#3b82f6', fontSize: 9, formatter: `[${d.periods.low.name}蓝色中枢]` }
                 },
                 { coord: [zs.end_date, zs.zd] }
             ]) : [];
@@ -22968,18 +22995,18 @@
                         markLine: {
                             data: [
                                 ...resVerticalLines,
-                                ...highBiLines,
-                                ...midBiLines,
-                                ...lowBiLines
+                                ...lowBiLines,     // 小周期底层
+                                ...midBiLines,     // 中周期中间层
+                                ...highBiLines     // 大周期最顶层（线段重合时大周期的颜色显示为主！）
                             ],
                             symbol: ['circle', 'circle'],
                             symbolSize: 4
                         },
                         markArea: {
                             data: [
-                                ...highZsAreas,
-                                ...midZsAreas,
-                                ...lowZsAreas
+                                ...lowZsAreas,     // 小中枢底层
+                                ...midZsAreas,     // 中中枢中间层
+                                ...highZsAreas     // 大中枢顶层
                             ]
                         }
                     },

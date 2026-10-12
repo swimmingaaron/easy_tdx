@@ -531,27 +531,54 @@ function renderChart() {
     return
   }
 
-  // 大级别笔 MarkLines (花姐标准：紫色粗线)
+  // 大级别笔 MarkLines (大周期：紫色粗线，置顶主导)
   const highBiLines = showHighBi.value
     ? uc.high_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#c084fc', width: 3.2, type: 'solid' } },
-        { coord: b.end },
+        { 
+          coord: b.start, 
+          lineStyle: { color: '#c084fc', width: 3.5, type: 'solid' },
+          itemStyle: { color: '#c084fc' },
+          symbolSize: 5,
+        },
+        { 
+          coord: b.end,
+          itemStyle: { color: '#c084fc' },
+          symbolSize: 5,
+        },
       ])
     : []
 
-  // 中级别笔 MarkLines (花姐标准：金黄色中粗线)
+  // 中级别笔 MarkLines (中周期：绿色中粗线)
   const midBiLines = showMidBi.value
     ? uc.mid_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#facc15', width: 2.2, type: 'solid' } },
-        { coord: b.end },
+        { 
+          coord: b.start, 
+          lineStyle: { color: '#10b981', width: 2.2, type: 'solid' },
+          itemStyle: { color: '#10b981' },
+          symbolSize: 4,
+        },
+        { 
+          coord: b.end,
+          itemStyle: { color: '#10b981' },
+          symbolSize: 4,
+        },
       ])
     : []
 
-  // 小级别笔 MarkLines (花姐标准：青蓝色细线)
+  // 小级别笔 MarkLines (小周期：蓝色细线，基础层级)
   const lowBiLines = showLowBi.value
     ? uc.low_bis.map((b) => [
-        { coord: b.start, lineStyle: { color: '#00e5ff', width: 1.5, type: 'solid' } },
-        { coord: b.end },
+        { 
+          coord: b.start, 
+          lineStyle: { color: '#3b82f6', width: 1.5, type: 'solid' },
+          itemStyle: { color: '#3b82f6' },
+          symbolSize: 3,
+        },
+        { 
+          coord: b.end,
+          itemStyle: { color: '#3b82f6' },
+          symbolSize: 3,
+        },
       ])
     : []
 
@@ -561,34 +588,34 @@ function renderChart() {
         {
           name: `[${d.periods.high.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(147, 51, 234, 0.20)', borderColor: '#c084fc', borderWidth: 1.2, borderType: 'dashed' },
+          itemStyle: { color: 'rgba(147, 51, 234, 0.20)', borderColor: '#c084fc', borderWidth: 1.5, borderType: 'dashed' },
           label: { show: true, position: 'top', color: '#c084fc', fontSize: 10, formatter: `[${d.periods.high.name}紫色中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
     : []
 
-  // 中级别中枢 MarkAreas (黄色半透明箱体)
+  // 中级别中枢 MarkAreas (绿色半透明箱体)
   const midZsAreas = showMidZs.value
     ? uc.mid_zss.map((zs) => [
         {
           name: `[${d.periods.mid.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(202, 138, 4, 0.20)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
-          label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` },
+          itemStyle: { color: 'rgba(16, 185, 129, 0.20)', borderColor: '#10b981', borderWidth: 1.0, borderType: 'dashed' },
+          label: { show: true, position: 'top', color: '#10b981', fontSize: 10, formatter: `[${d.periods.mid.name}绿色中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
     : []
 
-  // 小级别中枢 MarkAreas (微观青蓝箱体)
+  // 小级别中枢 MarkAreas (微观蓝色箱体)
   const lowZsAreas = showLowZs.value
     ? uc.low_zss.map((zs) => [
         {
           name: `[${d.periods.low.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(2, 132, 199, 0.18)', borderColor: '#00e5ff', borderWidth: 0.8, borderType: 'dotted' },
-          label: { show: true, position: 'insideTopLeft', color: '#00e5ff', fontSize: 9, formatter: `[${d.periods.low.name}微观中枢]` },
+          itemStyle: { color: 'rgba(59, 130, 246, 0.16)', borderColor: '#3b82f6', borderWidth: 0.8, borderType: 'dotted' },
+          label: { show: true, position: 'insideTopLeft', color: '#3b82f6', fontSize: 9, formatter: `[${d.periods.low.name}蓝色中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
@@ -952,31 +979,40 @@ function renderChart() {
           data: [...mmdMarkPoints, ...resonanceMarkPoints],
         },
         markLine: {
-          data: [...resonanceVerticalLines, ...highBiLines, ...midBiLines, ...lowBiLines] as any,
+          data: [
+            ...resonanceVerticalLines,
+            ...lowBiLines,     // 小周期底层
+            ...midBiLines,     // 中周期中间层
+            ...highBiLines,    // 大周期顶层（线段重合时大周期的颜色显示为主！）
+          ] as any,
           symbol: ['circle', 'circle'],
           symbolSize: 4,
         },
         markArea: {
-          data: [...highZsAreas, ...midZsAreas, ...lowZsAreas] as any,
+          data: [
+            ...lowZsAreas,     // 小中枢底层
+            ...midZsAreas,     // 中中枢中间层
+            ...highZsAreas,    // 大中枢顶层
+          ] as any,
         },
       },
       {
         name: `大级别笔(${d.periods.high.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#c084fc', width: 3.2 },
+        lineStyle: { color: '#c084fc', width: 3.5 },
       },
       {
         name: `中级别笔(${d.periods.mid.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#facc15', width: 2.2 },
+        lineStyle: { color: '#10b981', width: 2.2 },
       },
       {
         name: `小级别笔(${d.periods.low.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#00e5ff', width: 1.5 },
+        lineStyle: { color: '#3b82f6', width: 1.5 },
       },
       ...subSeries,
     ],
@@ -1240,7 +1276,7 @@ onBeforeUnmount(() => {
         <span class="label">图层控制:</span>
         <label class="toggle-item high-layer">
           <input type="checkbox" v-model="showHighBi" @change="renderChart" />
-          <span class="color-dot high-dot"></span> 大笔
+          <span class="color-dot high-dot"></span> 大笔(紫)
         </label>
         <label class="toggle-item high-layer">
           <input type="checkbox" v-model="showHighZs" @change="renderChart" />
@@ -1248,19 +1284,19 @@ onBeforeUnmount(() => {
         </label>
         <label class="toggle-item mid-layer">
           <input type="checkbox" v-model="showMidBi" @change="renderChart" />
-          <span class="color-dot mid-dot"></span> 中笔
+          <span class="color-dot mid-dot"></span> 中笔(绿)
         </label>
         <label class="toggle-item mid-layer">
           <input type="checkbox" v-model="showMidZs" @change="renderChart" />
-          空中枢
+          中中枢
         </label>
         <label class="toggle-item low-layer">
           <input type="checkbox" v-model="showLowBi" @change="renderChart" />
-          <span class="color-dot low-dot"></span> 基准笔
+          <span class="color-dot low-dot"></span> 小笔(蓝)
         </label>
         <label class="toggle-item low-layer">
           <input type="checkbox" v-model="showLowZs" @change="renderChart" />
-          基准中枢
+          小中枢
         </label>
         <label class="toggle-item mmd-layer">
           <input type="checkbox" v-model="showMmdMarks" @change="renderChart" />
@@ -1679,8 +1715,8 @@ onBeforeUnmount(() => {
   display: inline-block;
 }
 .high-dot { background: #c084fc; }
-.mid-dot { background: #facc15; }
-.low-dot { background: #00e5ff; }
+.mid-dot { background: #10b981; }
+.low-dot { background: #3b82f6; }
 .sub-sep {
   color: #4b5563;
   margin: 0 4px;
