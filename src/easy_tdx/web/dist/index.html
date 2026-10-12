@@ -869,14 +869,16 @@
             background-color: rgba(30, 41, 59, 0.8);
         }
 
-        .industry-row .btn-kline {
-            background-color: rgba(49, 46, 129, 0.6);
-            color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.5);
+        .industry-row .btn-kline,
+        .industry-row .btn-chanlun {
+            background-color: rgba(88, 28, 135, 0.6);
+            color: #d8b4fe;
+            border: 1px solid rgba(168, 85, 247, 0.5);
         }
 
-        .industry-row .btn-kline:hover {
-            background-color: rgba(67, 56, 202, 0.85);
+        .industry-row .btn-kline:hover,
+        .industry-row .btn-chanlun:hover {
+            background-color: rgba(126, 34, 206, 0.85);
             color: #ffffff;
         }
 
@@ -929,15 +931,17 @@
             background-color: #f1f5f9 !important;
         }
 
-        html.light .industry-row .btn-kline {
-            background-color: #f8fafc !important;
-            color: #4338ca !important;
-            border: 1px solid #c7d2fe !important;
+        html.light .industry-row .btn-kline,
+        html.light .industry-row .btn-chanlun {
+            background-color: #faf5ff !important;
+            color: #7e22ce !important;
+            border: 1px solid #e9d5ff !important;
         }
 
-        html.light .industry-row .btn-kline:hover {
-            background-color: #e0e7ff !important;
-            color: #3730a3 !important;
+        html.light .industry-row .btn-kline:hover,
+        html.light .industry-row .btn-chanlun:hover {
+            background-color: #f3e8ff !important;
+            color: #6b21a8 !important;
         }
 
         html.light .industry-row .btn-bt {
@@ -15969,7 +15973,7 @@
                     </div>
                     <!-- 8. 操作 -->
                     <div class="flex items-center justify-center space-x-1 whitespace-nowrap" onclick="event.stopPropagation()">
-                        <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="btn-kline px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="查看${ind.name}K线">K线</button>
+                        <a href="/#chanlun?code=${ind.code || ''}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${ind.code || ''}', '${ind.name}', event)" class="btn-chanlun px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap no-underline inline-block text-center" title="在新的标签页中打开【${ind.name}】(${ind.code || ''}) 缠论K线">缠论</a>
                         <button onclick="quickBacktest('${ind.code || ''}')" class="btn-bt px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="对${ind.name}执行回测">回测</button>
                     </div>
                 </div>
@@ -16139,7 +16143,7 @@
                     <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                     <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-2 text-center">
-                        <button onclick="openKlineModal('${s.code}', '${s.name}')" class="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 text-[10px] font-medium transition cursor-pointer">K线</button>
+                        <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${s.code}', '${s.name}', event)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论K线">缠论</a>
                     </td>
                 </tr>
             `;
