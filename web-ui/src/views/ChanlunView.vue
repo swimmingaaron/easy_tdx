@@ -548,18 +548,18 @@ function renderChart() {
       ])
     : []
 
-  // 中级别笔 MarkLines (中周期：绿色中粗线)
+  // 中级别笔 MarkLines (中周期：黄色中粗线)
   const midBiLines = showMidBi.value
     ? uc.mid_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: '#10b981', width: 2.2, type: 'solid' },
-          itemStyle: { color: '#10b981' },
+          lineStyle: { color: '#facc15', width: 2.2, type: 'solid' },
+          itemStyle: { color: '#facc15' },
           symbolSize: 4,
         },
         { 
           coord: b.end,
-          itemStyle: { color: '#10b981' },
+          itemStyle: { color: '#facc15' },
           symbolSize: 4,
         },
       ])
@@ -595,14 +595,14 @@ function renderChart() {
       ])
     : []
 
-  // 中级别中枢 MarkAreas (绿色半透明箱体)
+  // 中级别中枢 MarkAreas (黄色半透明箱体)
   const midZsAreas = showMidZs.value
     ? uc.mid_zss.map((zs) => [
         {
           name: `[${d.periods.mid.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(16, 185, 129, 0.20)', borderColor: '#10b981', borderWidth: 1.0, borderType: 'dashed' },
-          label: { show: true, position: 'top', color: '#10b981', fontSize: 10, formatter: `[${d.periods.mid.name}绿色中枢]` },
+          itemStyle: { color: 'rgba(202, 138, 4, 0.20)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
+          label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
@@ -1006,7 +1006,7 @@ function renderChart() {
         name: `中级别笔(${d.periods.mid.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#10b981', width: 2.2 },
+        lineStyle: { color: '#facc15', width: 2.2 },
       },
       {
         name: `小级别笔(${d.periods.low.name})`,
@@ -1284,7 +1284,7 @@ onBeforeUnmount(() => {
         </label>
         <label class="toggle-item mid-layer">
           <input type="checkbox" v-model="showMidBi" @change="renderChart" />
-          <span class="color-dot mid-dot"></span> 中笔(绿)
+          <span class="color-dot mid-dot"></span> 中笔(黄)
         </label>
         <label class="toggle-item mid-layer">
           <input type="checkbox" v-model="showMidZs" @change="renderChart" />
@@ -1715,7 +1715,7 @@ onBeforeUnmount(() => {
   display: inline-block;
 }
 .high-dot { background: #c084fc; }
-.mid-dot { background: #10b981; }
+.mid-dot { background: #facc15; }
 .low-dot { background: #3b82f6; }
 .sub-sep {
   color: #4b5563;
