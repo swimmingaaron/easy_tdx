@@ -83,10 +83,62 @@ const PERIOD_SECONDS: Record<string, number> = {
   MONTH: 30 * 86400,
 }
 
-// ── 实时刷新 ─────────────────────────────────────────────────────────────────
+function isTradeSession(): boolean {
+  const now = new Date()
+  const day = now.getDay()
+  if (day === 0 || day === 6) return false
+  const totalSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()
+  const morning = totalSec >= 33300 && totalSec <= 41430
+  const afternoon = totalSec >= 46800 && totalSec <= 54330
+  return morning || afternoon
+}
+
+// ── 实时刷新与休市判断 ─────────────────────────────────────────────────────────
 const autoRefresh = ref(true)
+const inTradeSession = ref(isTradeSession())
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+let clockTimer: ReturnType<typeof setInterval> | null = null
 const lastRefreshTime = ref('')
+
+// ── 自选股状态管理 (watchlist.json) ───────────────────────────────────────────
+const watchlistSymbols = ref<string[]>([])
+const isInWatchlist = computed(() => {
+  const c = code.value.replace(/[^0-9a-zA-Z]/g, '')
+  return watchlistSymbols.value.includes(c)
+})
+
+async function fetchWatchlist() {
+  try {
+    const res = await fetch('/api/quotes/watchlist')
+    if (res.ok) {
+      const json = await res.json()
+      if (Array.isArray(json.data)) {
+        watchlistSymbols.value = json.data
+      }
+    }
+  } catch (e) {
+    console.debug('Failed to fetch watchlist:', e)
+  }
+}
+
+async function toggleWatchlist() {
+  const c = code.value.replace(/[^0-9a-zA-Z]/g, '')
+  if (!c) return
+  if (isInWatchlist.value) {
+    watchlistSymbols.value = watchlistSymbols.value.filter(s => s !== c)
+  } else {
+    watchlistSymbols.value.unshift(c)
+  }
+  try {
+    await fetch('/api/quotes/watchlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: watchlistSymbols.value }),
+    })
+  } catch (e) {
+    console.debug('Failed to save watchlist:', e)
+  }
+}
 
 const periodLowLabel = computed(() => {
   const map: Record<string, string> = {
@@ -311,6 +363,11 @@ async function onSearchInput() {
 
 // ── 实时刷新控制 ─────────────────────────────────────────────────────────────
 function toggleAutoRefresh() {
+  if (!inTradeSession.value) {
+    loadData(true)
+    loadHotStocks()
+    return
+  }
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
     // 开启实时刷新自动退出回溯态
@@ -326,7 +383,8 @@ function toggleAutoRefresh() {
 function startAutoRefresh() {
   stopAutoRefresh()
   refreshTimer = setInterval(() => {
-    if (!isBacktrackingMode.value && !loading.value) {
+    inTradeSession.value = isTradeSession()
+    if (!isBacktrackingMode.value && !loading.value && inTradeSession.value && autoRefresh.value) {
       loadData(true)
       loadHotStocks() // 热门股票也随之实时更新
     }
@@ -982,6 +1040,10 @@ onMounted(async () => {
     }
   }
   await loadData(true)
+  fetchWatchlist()
+  clockTimer = setInterval(() => {
+    inTradeSession.value = isTradeSession()
+  }, 1000)
   if (autoRefresh.value) {
     startAutoRefresh()
   }
@@ -990,6 +1052,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  if (clockTimer) {
+    clearInterval(clockTimer)
+    clockTimer = null
+  }
   stopAutoRefresh()
   stopReplay()
   if (chartInstance) {
@@ -1052,16 +1118,24 @@ onBeforeUnmount(() => {
 
       <!-- 右侧：实时与回溯切换控制器 -->
       <div class="toolbar-right">
-        <!-- 实时刷新开关 (实时更新周期设为当前选择的区间套最小周期) -->
+        <!-- 实时刷新与休市开关 + 加入/移出自选 -->
         <div class="refresh-box">
           <button
             class="tool-btn"
-            :class="{ active: autoRefresh, pulsing: autoRefresh }"
+            :class="{ active: autoRefresh && inTradeSession, pulsing: autoRefresh && inTradeSession, closed: !inTradeSession }"
             @click="toggleAutoRefresh"
-            :title="autoRefresh ? `点击暂停实时轮询 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次，支持手动立即刷新)` : `点击开启实时自动刷新 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次)`"
+            :title="inTradeSession ? (autoRefresh ? `点击暂停实时轮询 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次，支持手动立即刷新)` : `点击开启实时自动刷新 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次)`) : 'A股非交易时段 自动更新已休眠 (休市中，点击可立即手动刷新最新盘后数据)'"
           >
-            <span class="dot" :class="{ live: autoRefresh }"></span>
-            {{ autoRefresh ? `实时: ${periodLowLabel} (${periodLowSeconds}s)` : '实时: 关' }}
+            <span class="dot" :class="{ live: autoRefresh && inTradeSession }"></span>
+            {{ inTradeSession ? (autoRefresh ? `实时: ${periodLowLabel} (${periodLowSeconds}s)` : '实时: 关') : '休市' }}
+          </button>
+          <button
+            class="tool-btn watchlist-btn"
+            :class="{ active: isInWatchlist }"
+            @click="toggleWatchlist"
+            :title="isInWatchlist ? `【${code}】已在自选池中，点击移出 (watchlist.json)` : `点击将【${code}】加入自选监控池 (watchlist.json)`"
+          >
+            <span>{{ isInWatchlist ? '★ 删除' : '☆ 加入' }}</span>
           </button>
           <button class="icon-btn" @click="loadData(true)" :title="`立即刷新最新${periodLowLabel}K线数据`">
             🔄

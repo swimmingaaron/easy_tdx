@@ -1044,50 +1044,58 @@
             color: #94a3b8 !important;
         }
 
-        /* K线弹窗加入/移出自选按钮响应样式 */
-        #kp-watchlist-btn.is-in-watchlist {
+        /* K线弹窗与缠论页面加入/移出自选按钮响应样式 */
+        #kp-watchlist-btn.is-in-watchlist,
+        #cl-watchlist-btn.is-in-watchlist {
             background-color: rgba(69, 26, 3, 0.8) !important;
             color: #fbbf24 !important;
             border-color: rgba(146, 64, 14, 0.8) !important;
         }
 
-        #kp-watchlist-btn.is-in-watchlist:hover {
+        #kp-watchlist-btn.is-in-watchlist:hover,
+        #cl-watchlist-btn.is-in-watchlist:hover {
             background-color: rgba(76, 5, 25, 0.85) !important;
             color: #fb7185 !important;
             border-color: rgba(159, 18, 57, 0.85) !important;
         }
 
-        #kp-watchlist-btn.not-in-watchlist {
+        #kp-watchlist-btn.not-in-watchlist,
+        #cl-watchlist-btn.not-in-watchlist {
             background-color: rgba(30, 41, 59, 0.9) !important;
             color: #cbd5e1 !important;
             border-color: rgba(51, 65, 85, 0.8) !important;
         }
 
-        #kp-watchlist-btn.not-in-watchlist:hover {
+        #kp-watchlist-btn.not-in-watchlist:hover,
+        #cl-watchlist-btn.not-in-watchlist:hover {
             background-color: rgba(69, 26, 3, 0.8) !important;
             color: #fbbf24 !important;
             border-color: rgba(146, 64, 14, 0.8) !important;
         }
 
-        html.light #kp-watchlist-btn.is-in-watchlist {
+        html.light #kp-watchlist-btn.is-in-watchlist,
+        html.light #cl-watchlist-btn.is-in-watchlist {
             background-color: #fefce8 !important;
             color: #b45309 !important;
             border-color: #fde047 !important;
         }
 
-        html.light #kp-watchlist-btn.is-in-watchlist:hover {
+        html.light #kp-watchlist-btn.is-in-watchlist:hover,
+        html.light #cl-watchlist-btn.is-in-watchlist:hover {
             background-color: #fff1f2 !important;
             color: #e11d48 !important;
             border-color: #fecdd3 !important;
         }
 
-        html.light #kp-watchlist-btn.not-in-watchlist {
+        html.light #kp-watchlist-btn.not-in-watchlist,
+        html.light #cl-watchlist-btn.not-in-watchlist {
             background-color: #f1f5f9 !important;
             color: #334155 !important;
             border-color: #cbd5e1 !important;
         }
 
-        html.light #kp-watchlist-btn.not-in-watchlist:hover {
+        html.light #kp-watchlist-btn.not-in-watchlist:hover,
+        html.light #cl-watchlist-btn.not-in-watchlist:hover {
             background-color: #fefce8 !important;
             color: #b45309 !important;
             border-color: #fde047 !important;
@@ -4374,6 +4382,14 @@
                             </span>
                             <span id="cl-live-text">实时: 5F (300s)</span>
                         </div>
+
+                        <!-- 加入/移出自选按钮 (参考K线弹窗 kp-watchlist-btn，保存到/移出 watchlist.json) -->
+                        <button id="cl-watchlist-btn" onclick="toggleChanlunWatchlist()"
+                            class="flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition cursor-pointer not-in-watchlist shrink-0"
+                            title="加入或移出自选监控池 (watchlist.json)">
+                            <i id="cl-watchlist-icon" data-lucide="star" class="w-3.5 h-3.5"></i>
+                            <span id="cl-watchlist-text">加入</span>
+                        </button>
 
                         <button onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
                             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -14432,6 +14448,7 @@
                         const countBadge = document.getElementById('watchlist-count-badge');
                         if (countBadge) countBadge.innerText = `${json.data.length} 只标的`;
                         updateKpWatchlistButton();
+                        if (typeof updateChanlunWatchlistButton === 'function') updateChanlunWatchlistButton();
                         return json.data;
                     }
                 }
@@ -14562,6 +14579,7 @@
 
             showToast('添加成功', `已将「${codeToAdd} ${nameToAdd}」加入自选监控池`);
             loadRealtimeQuotes();
+            if (typeof updateChanlunWatchlistButton === 'function') updateChanlunWatchlistButton();
         }
 
         function removeWatchlistStock(code, name) {
@@ -14570,6 +14588,7 @@
             saveWatchlistSymbols(updated);
             showToast('已移除', `已从自选监控池移除「${code} ${name || ''}」`);
             loadRealtimeQuotes();
+            if (typeof updateChanlunWatchlistButton === 'function') updateChanlunWatchlistButton();
         }
 
         async function resetWatchlistToDefault() {
@@ -15491,6 +15510,11 @@
                     if (kpPulseDot) kpPulseDot.style.display = 'none';
                     if (kpStaticDot) kpStaticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
                 }
+            }
+
+            // 同步更新缠论页面中的实时/休市指示器
+            if (typeof updateChanlunLiveIndicatorUI === 'function') {
+                updateChanlunLiveIndicatorUI();
             }
         }
 
@@ -21418,9 +21442,10 @@
             // 2. 加载选定标的多周期缠论数据
             await loadChanlunData(false);
 
-            // 3. 页面实时更新周期设为当前区间套最小周期 (默认 5F)
+            // 3. 页面实时/休市与自选按钮更新
+            updateChanlunLiveIndicatorUI();
+            updateChanlunWatchlistButton();
             if (_clAutoRefresh) {
-                toggleChanlunAutoRefreshState(true);
                 startChanlunAutoRefresh();
             }
         }
@@ -21730,6 +21755,10 @@
             const nameEl = document.getElementById('cl-stock-name');
             if (fullSymEl) fullSymEl.innerText = fullSym;
             if (nameEl) nameEl.innerText = sName;
+            window._clCurrentName = sName;
+            if (typeof updateChanlunWatchlistButton === 'function') {
+                updateChanlunWatchlistButton();
+            }
 
             // 3. 价格与涨跌
             const pVal = Number(sum.latest_price || 0);
@@ -22955,8 +22984,19 @@
             const indicator = document.getElementById('cl-live-indicator');
             const lowestPeriod = getChanlunLowestPeriod();
             const sec = getChanlunLowestPeriodSeconds();
+            const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
 
-            if (_clAutoRefresh) {
+            if (!inSession) {
+                // 非交易时段：休市
+                if (pulseDot) pulseDot.style.display = 'none';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
+                if (liveText) liveText.innerText = '休市';
+                if (indicator) {
+                    indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                    indicator.title = 'A股非交易时段 自动更新已休眠 (休市中，点击可立即手动刷新最新盘后数据)';
+                }
+            } else if (_clAutoRefresh) {
+                // 交易时段且开启自动刷新：实时
                 if (pulseDot) pulseDot.style.display = 'inline-flex';
                 if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
                 if (liveText) liveText.innerText = `实时: ${lowestPeriod} (${sec}s)`;
@@ -22965,6 +23005,7 @@
                     indicator.title = `点击暂停实时自动更新 (当前区间套最小周期: ${lowestPeriod}，每 ${sec} 秒自动刷新一次，支持手动立即刷新)`;
                 }
             } else {
+                // 交易时段但用户手动暂停：关
                 if (pulseDot) pulseDot.style.display = 'none';
                 if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
                 if (liveText) liveText.innerText = '实时: 关';
@@ -22973,6 +23014,50 @@
                     indicator.title = `点击开启实时自动更新 (当前区间套最小周期: ${lowestPeriod}，每 ${sec} 秒自动刷新一次)`;
                 }
             }
+        }
+
+        function updateChanlunWatchlistButton() {
+            const btn = document.getElementById('cl-watchlist-btn');
+            const icon = document.getElementById('cl-watchlist-icon');
+            const text = document.getElementById('cl-watchlist-text');
+            if (!btn) return;
+
+            const code = String(_clCurrentCode || '').replace(/[^0-9a-zA-Z]/g, '');
+            const symbols = (typeof getWatchlistSymbols === 'function') ? getWatchlistSymbols() : [];
+            const inWatchlist = symbols.includes(code);
+
+            btn.classList.remove('is-in-watchlist', 'not-in-watchlist');
+            if (inWatchlist) {
+                btn.classList.add('is-in-watchlist');
+                btn.title = `【${code}】已在自选监控池中，点击从 watchlist.json 移出`;
+                if (text) text.innerText = '删除';
+                if (icon) {
+                    icon.className = 'w-3.5 h-3.5 fill-current text-current';
+                }
+            } else {
+                btn.classList.add('not-in-watchlist');
+                btn.title = `点击将【${code}】加入自选监控池 (保存到 watchlist.json)`;
+                if (text) text.innerText = '加入';
+                if (icon) {
+                    icon.className = 'w-3.5 h-3.5 text-current';
+                }
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function toggleChanlunWatchlist() {
+            const code = String(_clCurrentCode || '').replace(/[^0-9a-zA-Z]/g, '');
+            if (!code) return;
+            const symbols = (typeof getWatchlistSymbols === 'function') ? getWatchlistSymbols() : [];
+            const inWatchlist = symbols.includes(code);
+            const sName = window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || code;
+
+            if (inWatchlist) {
+                removeWatchlistStock(code, sName);
+            } else {
+                addWatchlistStock(code, sName);
+            }
+            updateChanlunWatchlistButton();
         }
 
         function onChanlunCustomPeriodChange(changed = 'low') {
@@ -23020,6 +23105,12 @@
         }
 
         function toggleChanlunAutoRefresh() {
+            const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
+            if (!inSession) {
+                // 非交易时段休市：点击可立即手动刷新
+                refreshChanlunAll(true);
+                return;
+            }
             _clAutoRefresh = !_clAutoRefresh;
             updateChanlunLiveIndicatorUI();
 
@@ -23036,8 +23127,11 @@
             _clRefreshInterval = getChanlunLowestPeriodSeconds();
             _clRefreshTimer = setInterval(() => {
                 if (!_clIsBacktracking && window.currentTab === 'chanlun') {
-                    loadChanlunData(true);
-                    loadChanlunHotStocks(); // 热门股票也随之实时更新
+                    const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
+                    if (inSession && _clAutoRefresh) {
+                        loadChanlunData(true);
+                        loadChanlunHotStocks(); // 热门股票也随之实时更新
+                    }
                 }
             }, _clRefreshInterval * 1000);
         }
