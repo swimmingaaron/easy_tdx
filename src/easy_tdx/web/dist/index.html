@@ -511,18 +511,24 @@
             background: #ffffff !important;
         }
 
-        /* ==================== 缠论页面顶部间距消除：将 header 与缠论卡片间 gap 缩小至 0 ==================== */
-        body:has(#view-chanlun:not(.hidden)) main,
-        main.chanlun-active {
+        /* ==================== 全局页面顶部间距消除：将 header 与所有界面卡片间 gap 缩小至 0 ==================== */
+        body > main,
+        main.flex-1 {
             padding-top: 0 !important;
         }
 
-        #view-chanlun {
+        body > main > section,
+        main.flex-1 > section,
+        body > main > section[id^="view-"],
+        main.flex-1 > section[id^="view-"] {
             margin-top: 0 !important;
             padding-top: 0 !important;
         }
 
-        #view-chanlun > .glass-card:first-child {
+        body > main > section > :first-child,
+        main.flex-1 > section > :first-child,
+        body > main > section[id^="view-"] > :first-child,
+        main.flex-1 > section[id^="view-"] > :first-child {
             margin-top: 0 !important;
         }
 
@@ -1699,7 +1705,7 @@
     </header>
 
     <!-- Main Content Area -->
-    <main class="flex-1 p-4 md:p-6 max-w-full w-full mx-auto space-y-6">
+    <main class="flex-1 !pt-0 p-4 md:p-6 max-w-full w-full mx-auto space-y-6">
 
         <!-- 1. Backtest View (Original easy_tdx 单标的回测 UI layout) -->
         <section id="view-backtest" class="space-y-6 hidden">
