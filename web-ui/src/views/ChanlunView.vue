@@ -10,7 +10,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { fetchChanlunResonance, fetchStockSuggestions } from '../api'
+import { fetchChanlunHotStocks, fetchChanlunResonance, fetchStockSuggestions, type ChanlunHotStockItem } from '../api'
 import echarts from '../echarts-setup'
 import type {
   ChanlunResonanceResponse,
@@ -25,15 +25,15 @@ const searchKeyword = ref('')
 const suggestList = ref<StockSuggestItem[]>([])
 const isSearching = ref(false)
 
-// 常用热门标的快捷标签
-const popularStocks = [
+// 常用热门标的快捷标签（支持实时随最小周期自动更新）
+const popularStocks = ref<ChanlunHotStockItem[]>([
   { code: '000001', name: '平安银行' },
   { code: '600519', name: '贵州茅台' },
   { code: '300750', name: '宁德时代' },
   { code: '002594', name: '比亚迪' },
   { code: '300308', name: '中际旭创' },
   { code: '601127', name: '赛力斯' },
-]
+])
 
 // ── 多周期设置 ───────────────────────────────────────────────────────────────
 const periodPresets = [
@@ -71,11 +71,48 @@ const showMmdMarks = ref(true)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
 
+const PERIOD_SECONDS: Record<string, number> = {
+  '1F': 60,
+  '5F': 300,
+  '15F': 900,
+  '30F': 1800,
+  '60F': 3600,
+  '120F': 7200,
+  DAY: 86400,
+  WEEK: 7 * 86400,
+  MONTH: 30 * 86400,
+}
+
 // ── 实时刷新 ─────────────────────────────────────────────────────────────────
-const autoRefresh = ref(false)
-const refreshIntervalSec = ref(5)
+const autoRefresh = ref(true)
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 const lastRefreshTime = ref('')
+
+const periodLowLabel = computed(() => {
+  const map: Record<string, string> = {
+    MONTH: '日线',
+    WEEK: '周线',
+    DAY: '日线',
+  }
+  return map[periodLow.value] || periodLow.value
+})
+
+const periodLowSeconds = computed(() => {
+  return PERIOD_SECONDS[periodLow.value] || 300
+})
+
+async function loadHotStocks() {
+  try {
+    const list = await fetchChanlunHotStocks(8)
+    if (list && list.length > 0) {
+      popularStocks.value = list
+      return list
+    }
+  } catch {
+    // keep default
+  }
+  return popularStocks.value
+}
 
 // ── 回溯时光机状态 ───────────────────────────────────────────────────────────
 const isBacktrackingMode = ref(false)
@@ -116,6 +153,9 @@ function applyPreset(pStr: string) {
     periodLow.value = parts[2]
   }
   clearClientBacktrackCache()
+  if (autoRefresh.value) {
+    startAutoRefresh()
+  }
   loadData()
 }
 
@@ -145,6 +185,9 @@ function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
   periodMid.value = PERIOD_ORDER[mIdx]
   periodLow.value = PERIOD_ORDER[lIdx]
   clearClientBacktrackCache()
+  if (autoRefresh.value) {
+    startAutoRefresh()
+  }
   loadData()
 }
 
@@ -285,8 +328,9 @@ function startAutoRefresh() {
   refreshTimer = setInterval(() => {
     if (!isBacktrackingMode.value && !loading.value) {
       loadData(true)
+      loadHotStocks() // 热门股票也随之实时更新
     }
-  }, refreshIntervalSec.value * 1000)
+  }, periodLowSeconds.value * 1000)
 }
 
 function stopAutoRefresh() {
@@ -921,12 +965,26 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
   const qCode = (route.query.code || route.query.symbol) as string | undefined
   if (qCode) {
     code.value = qCode
+    loadHotStocks()
+  } else {
+    // 默认 K 线显示热门股票 (优先请求最新热门股票池第一名龙头)
+    try {
+      const hots = await loadHotStocks()
+      if (hots && hots.length > 0) {
+        code.value = hots[0].code
+      }
+    } catch {
+      // keep default code
+    }
   }
-  loadData(true)
+  await loadData(true)
+  if (autoRefresh.value) {
+    startAutoRefresh()
+  }
   window.addEventListener('keydown', handleKeyDown)
 })
 
@@ -994,28 +1052,18 @@ onBeforeUnmount(() => {
 
       <!-- 右侧：实时与回溯切换控制器 -->
       <div class="toolbar-right">
-        <!-- 实时刷新开关 -->
+        <!-- 实时刷新开关 (实时更新周期设为当前选择的区间套最小周期) -->
         <div class="refresh-box">
           <button
             class="tool-btn"
             :class="{ active: autoRefresh, pulsing: autoRefresh }"
             @click="toggleAutoRefresh"
-            :title="autoRefresh ? '点击暂停实时轮询' : '点击开启实时自动刷新'"
+            :title="autoRefresh ? `点击暂停实时轮询 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次，支持手动立即刷新)` : `点击开启实时自动刷新 (当前周期: ${periodLowLabel}，每 ${periodLowSeconds} 秒自动刷新一次)`"
           >
             <span class="dot" :class="{ live: autoRefresh }"></span>
-            {{ autoRefresh ? '实时更新中' : '实时刷新已暂停' }}
+            {{ autoRefresh ? `实时: ${periodLowLabel} (${periodLowSeconds}s)` : '实时: 关' }}
           </button>
-          <select
-            v-if="autoRefresh"
-            v-model="refreshIntervalSec"
-            class="interval-select"
-            @change="startAutoRefresh"
-          >
-            <option :value="3">3秒</option>
-            <option :value="5">5秒</option>
-            <option :value="10">10秒</option>
-          </select>
-          <button class="icon-btn" @click="loadData(true)" title="立即刷新最新K线数据">
+          <button class="icon-btn" @click="loadData(true)" :title="`立即刷新最新${periodLowLabel}K线数据`">
             🔄
           </button>
         </div>

@@ -4339,18 +4339,18 @@
 
                     <!-- 操作按钮与快速搜索栏 -->
                     <div class="flex items-center space-x-1.5 text-xs flex-wrap gap-y-1">
-                        <!-- 实时自动刷新指示器 (参考K线弹窗 kp-live-indicator) -->
+                        <!-- 实时自动刷新指示器 (随当前选择区间套的最小周期联动，5F=300秒, 15F=900秒, 30F=1800秒, 日线=86400秒) -->
                         <div id="cl-live-indicator" onclick="toggleChanlunAutoRefresh()"
-                            class="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer"
-                            title="点击开启/关闭每5秒自动实时刷新">
+                            class="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer"
+                            title="点击暂停实时自动更新 (当前区间套最小周期: 5F，每 300 秒/5分钟 自动刷新一次，支持手动立即刷新)">
                             <span class="relative flex h-2 w-2">
-                                <span id="cl-pulse-dot" style="display: none;" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span id="cl-static-dot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                                <span id="cl-pulse-dot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span id="cl-static-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                             </span>
-                            <span id="cl-live-text">实时: 关</span>
+                            <span id="cl-live-text">实时: 5F (300s)</span>
                         </div>
 
-                        <button onclick="loadChanlunData(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新数据">
+                        <button onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
                             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         </button>
 
@@ -4376,14 +4376,9 @@
                             </div>
                         </div>
 
-                        <!-- 热门标的快速标签 -->
-                        <div class="flex items-center space-x-1 text-[11px] overflow-x-auto no-scrollbar pl-1">
-                            <span class="text-slate-400 mr-0.5">热门:</span>
-                            <button onclick="selectChanlunStock('000001')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">平安银行</button>
-                            <button onclick="selectChanlunStock('600519')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">贵州茅台</button>
-                            <button onclick="selectChanlunStock('300750')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">宁德时代</button>
-                            <button onclick="selectChanlunStock('002594')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">比亚迪</button>
-                            <button onclick="selectChanlunStock('300308')" class="px-2 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-800 hover:text-purple-400 hover:border-purple-500 font-mono cursor-pointer transition">中际旭创</button>
+                        <!-- 热门标的快速标签 (实时随最小周期自动更新) -->
+                        <div id="cl-popular-tags" class="flex items-center space-x-1 text-[11px] overflow-x-auto no-scrollbar pl-1">
+                            <span class="text-slate-400 mr-0.5 shrink-0">热门:</span>
                         </div>
                     </div>
                 </div>
@@ -21237,27 +21232,97 @@
         // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
         // ==============================================================================
         let _clCurrentCode = '000001';
+        let _clCurrentCodeChangedByUser = false;
         let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
         let _clIsBacktracking = false;
         let _clBacktrackDate = null;
         let _clBacktrackIndex = 0;
-        let _clAutoRefresh = false;
-        let _clRefreshInterval = 5;
+        let _clAutoRefresh = true;
+        let _clRefreshInterval = 3; // 页面实时更新周期设为最小周期 3 秒
         let _clRefreshTimer = null;
         let _clIsPlayingReplay = false;
         let _clReplayTimer = null;
         let _clHasInitialized = false;
+        let _clPopularStocks = [
+            { code: '000001', name: '平安银行' },
+            { code: '600519', name: '贵州茅台' },
+            { code: '300750', name: '宁德时代' },
+            { code: '002594', name: '比亚迪' },
+            { code: '300308', name: '中际旭创' }
+        ];
 
-        function initChanlun() {
+        function renderChanlunPopularStocks() {
+            const container = document.getElementById('cl-popular-tags');
+            if (!container) return;
+            const itemsHtml = _clPopularStocks.map(stk => {
+                const isActive = stk.code === _clCurrentCode;
+                const activeCls = 'bg-purple-950/90 text-purple-300 border-purple-600 font-bold shadow-sm';
+                const normalCls = 'bg-slate-900/80 text-slate-300 border-slate-800 hover:text-purple-400 hover:border-purple-500';
+                const title = `${stk.name} (${stk.code}) ${stk.chg || ''} ${stk.tag || ''}`.trim();
+                return `<button onclick="selectChanlunStock('${stk.code}')" class="px-2 py-0.5 rounded ${isActive ? activeCls : normalCls} border font-mono cursor-pointer transition text-[11px] shrink-0" title="${title}">${stk.name}</button>`;
+            }).join('');
+            container.innerHTML = `<span class="text-slate-400 mr-0.5 shrink-0">热门:</span>${itemsHtml}`;
+        }
+
+        async function loadChanlunHotStocks() {
+            try {
+                const resp = await fetch('/api/v1/chanlun/hot_stocks?limit=8');
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+                        _clPopularStocks = json.data;
+                        renderChanlunPopularStocks();
+                        return json.data;
+                    }
+                }
+            } catch (e) {
+                console.debug('Load hot stocks failed:', e);
+            }
+            renderChanlunPopularStocks();
+            return _clPopularStocks;
+        }
+
+        async function refreshChanlunAll(force = true) {
+            await Promise.allSettled([
+                loadChanlunData(force),
+                loadChanlunHotStocks()
+            ]);
+        }
+
+        async function initChanlun() {
             initChanlunStockSearch();
+            renderChanlunPopularStocks();
             if (!_clHasInitialized) {
                 _clHasInitialized = true;
                 window.addEventListener('resize', () => {
                     if (window.chanlunChart) window.chanlunChart.resize();
                 });
             }
-            loadChanlunData(false);
+
+            // 1. 默认 K 线显示热门股票 (优先请求最新热门股票池第一名)
+            if (!_clCurrentCodeChangedByUser) {
+                try {
+                    const hots = await loadChanlunHotStocks();
+                    if (hots && hots.length > 0 && !_clCurrentCodeChangedByUser) {
+                        _clCurrentCode = hots[0].code;
+                        const input = document.getElementById('cl-stock-input');
+                        if (input) input.value = _clCurrentCode;
+                        renderChanlunPopularStocks();
+                    }
+                } catch (_) {}
+            } else {
+                loadChanlunHotStocks();
+            }
+
+            // 2. 加载选定标的多周期缠论数据
+            await loadChanlunData(false);
+
+            // 3. 页面实时更新周期设为当前区间套最小周期 (默认 5F)
+            if (_clAutoRefresh) {
+                toggleChanlunAutoRefreshState(true);
+                startChanlunAutoRefresh();
+            }
         }
 
         let _clIsDataLoading = false;
@@ -22710,8 +22775,10 @@
 
         function selectChanlunStock(codeVal) {
             _clCurrentCode = codeVal;
+            _clCurrentCodeChangedByUser = true;
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
+            renderChanlunPopularStocks();
             clearClBacktrackCache();
             exitChanlunBacktrack();
             loadChanlunData(true);
@@ -22737,11 +22804,73 @@
                 activeBtn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0';
             }
 
+            updateChanlunLiveIndicatorUI();
+            if (_clAutoRefresh) startChanlunAutoRefresh();
             clearClBacktrackCache();
             loadChanlunData(false);
         }
 
         const _CL_PERIOD_ORDER = ['MONTH', 'WEEK', 'DAY', '120F', '60F', '30F', '15F', '5F', '1F'];
+
+        const _CL_PERIOD_SECONDS = {
+            '1F': 60,
+            '5F': 300,
+            '15F': 900,
+            '30F': 1800,
+            '60F': 3600,
+            '120F': 7200,
+            'DAY': 86400,
+            'WEEK': 7 * 86400,
+            'MONTH': 30 * 86400,
+        };
+
+        function getChanlunLowestPeriodCode() {
+            if (!_clPeriods) return '5F';
+            const parts = _clPeriods.split(',');
+            return (parts[2] || parts[parts.length - 1] || '5F').trim();
+        }
+
+        function getChanlunLowestPeriodSeconds() {
+            const code = getChanlunLowestPeriodCode();
+            return _CL_PERIOD_SECONDS[code] || 300;
+        }
+
+        function getChanlunLowestPeriod() {
+            const low = getChanlunLowestPeriodCode();
+            const labelMap = {
+                'MONTH': '日线', // 长线基准
+                'WEEK': '周线',
+                'DAY': '日线'
+            };
+            return labelMap[low] || low;
+        }
+
+        function updateChanlunLiveIndicatorUI() {
+            const pulseDot = document.getElementById('cl-pulse-dot');
+            const staticDot = document.getElementById('cl-static-dot');
+            const liveText = document.getElementById('cl-live-text');
+            const indicator = document.getElementById('cl-live-indicator');
+            const lowestPeriod = getChanlunLowestPeriod();
+            const sec = getChanlunLowestPeriodSeconds();
+
+            if (_clAutoRefresh) {
+                if (pulseDot) pulseDot.style.display = 'inline-flex';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                if (liveText) liveText.innerText = `实时: ${lowestPeriod} (${sec}s)`;
+                if (indicator) {
+                    indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                    indicator.title = `点击暂停实时自动更新 (当前区间套最小周期: ${lowestPeriod}，每 ${sec} 秒自动刷新一次，支持手动立即刷新)`;
+                }
+            } else {
+                if (pulseDot) pulseDot.style.display = 'none';
+                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
+                if (liveText) liveText.innerText = '实时: 关';
+                if (indicator) {
+                    indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
+                    indicator.title = `点击开启实时自动更新 (当前区间套最小周期: ${lowestPeriod}，每 ${sec} 秒自动刷新一次)`;
+                }
+            }
+        }
 
         function onChanlunCustomPeriodChange(changed = 'low') {
             let hEl = document.getElementById('cl-select-high');
@@ -22781,38 +22910,31 @@
                 btn.className = 'cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
             });
 
+            updateChanlunLiveIndicatorUI();
+            if (_clAutoRefresh) startChanlunAutoRefresh();
             clearClBacktrackCache();
             loadChanlunData(false);
         }
 
         function toggleChanlunAutoRefresh() {
             _clAutoRefresh = !_clAutoRefresh;
-            const pulseDot = document.getElementById('cl-pulse-dot');
-            const staticDot = document.getElementById('cl-static-dot');
-            const liveText = document.getElementById('cl-live-text');
-            const indicator = document.getElementById('cl-live-indicator');
+            updateChanlunLiveIndicatorUI();
 
             if (_clAutoRefresh) {
                 if (_clIsBacktracking) exitChanlunBacktrack();
-                if (pulseDot) pulseDot.style.display = 'inline-flex';
-                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
-                if (liveText) liveText.innerText = '实时: 5s';
-                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
                 startChanlunAutoRefresh();
             } else {
-                if (pulseDot) pulseDot.style.display = 'none';
-                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
-                if (liveText) liveText.innerText = '实时: 关';
-                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
                 stopChanlunAutoRefresh();
             }
         }
 
         function startChanlunAutoRefresh() {
             stopChanlunAutoRefresh();
+            _clRefreshInterval = getChanlunLowestPeriodSeconds();
             _clRefreshTimer = setInterval(() => {
                 if (!_clIsBacktracking && window.currentTab === 'chanlun') {
                     loadChanlunData(true);
+                    loadChanlunHotStocks(); // 热门股票也随之实时更新
                 }
             }, _clRefreshInterval * 1000);
         }
@@ -22838,21 +22960,8 @@
         }
 
         function toggleChanlunAutoRefreshState(on) {
-            const pulseDot = document.getElementById('cl-pulse-dot');
-            const staticDot = document.getElementById('cl-static-dot');
-            const liveText = document.getElementById('cl-live-text');
-            const indicator = document.getElementById('cl-live-indicator');
-            if (on) {
-                if (pulseDot) pulseDot.style.display = 'inline-flex';
-                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
-                if (liveText) liveText.innerText = '实时: 5s';
-                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
-            } else {
-                if (pulseDot) pulseDot.style.display = 'none';
-                if (staticDot) staticDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-slate-500';
-                if (liveText) liveText.innerText = '实时: 关';
-                if (indicator) indicator.className = 'flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer';
-            }
+            _clAutoRefresh = !!on;
+            updateChanlunLiveIndicatorUI();
         }
 
         function exitChanlunBacktrack() {

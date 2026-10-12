@@ -122,3 +122,96 @@ async def chanlun_resonance_post(
         cutoff_date=req.cutoff_date,
         force_refresh=req.force_refresh,
     )
+
+
+DEFAULT_HOT_STOCKS: list[dict[str, Any]] = [
+    {"code": "000001", "name": "平安银行", "price": 12.5, "chg": "+0.00%", "tag": "金融核心"},
+    {"code": "600519", "name": "贵州茅台", "price": 1700.0, "chg": "+0.00%", "tag": "白酒中军"},
+    {"code": "300750", "name": "宁德时代", "price": 250.0, "chg": "+0.00%", "tag": "创业板中军"},
+    {"code": "002594", "name": "比亚迪", "price": 280.0, "chg": "+0.00%", "tag": "新能源领军"},
+    {"code": "300308", "name": "中际旭创", "price": 150.0, "chg": "+0.00%", "tag": "光模块龙头"},
+    {"code": "601127", "name": "赛力斯", "price": 90.0, "chg": "+0.00%", "tag": "智驾总龙"},
+]
+
+
+def get_chanlun_hot_stocks(limit: int = 8) -> list[dict[str, Any]]:
+    """获取当前市场最新热门股票（优先连板高度龙、板块先锋龙，兜底使用核心标的）。"""
+    hot_stocks: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    # 1. 优先获取全市场连板天梯与空间高度龙 / 突破先锋
+    try:
+        from easy_tdx.market_ladder import get_market_ladder_and_matrix
+
+        result = get_market_ladder_and_matrix()
+        for tier in result.get("ladder", []):
+            for s in tier.get("stocks", []):
+                code = str(s.get("code", "")).strip()
+                name = str(s.get("name", "")).strip()
+                if code and name and code not in seen:
+                    seen.add(code)
+                    hot_stocks.append({
+                        "code": code,
+                        "name": name,
+                        "price": s.get("price", 0.0),
+                        "chg": str(s.get("chg", "")),
+                        "tag": s.get("role_tag") or f"{s.get('lbc', 1)}连板",
+                    })
+                if len(hot_stocks) >= limit:
+                    break
+            if len(hot_stocks) >= limit:
+                break
+    except Exception:
+        pass
+
+    # 2. 若连板天梯标的不足，补充行业板块龙头先锋
+    if len(hot_stocks) < limit:
+        try:
+            from easy_tdx.sector_leaders import get_sector_leaders
+
+            res = get_sector_leaders(top_boards=4, top_stocks=2)
+            for b in res.get("boards", []):
+                p = b.get("leader_pioneer")
+                if p and p.get("code") and p.get("name"):
+                    c = str(p["code"]).strip()
+                    if c not in seen:
+                        seen.add(c)
+                        chg_pct = float(p.get("change_pct", 0.0))
+                        hot_stocks.append({
+                            "code": c,
+                            "name": str(p["name"]).strip(),
+                            "price": p.get("price", 0.0),
+                            "chg": f"+{chg_pct:.2f}%" if chg_pct > 0 else f"{chg_pct:.2f}%",
+                            "tag": f"{b.get('board_name', '板块')}先锋",
+                        })
+                if len(hot_stocks) >= limit:
+                    break
+        except Exception:
+            pass
+
+    # 3. 兜底补足常用知名标的
+    if not hot_stocks:
+        hot_stocks = [dict(d) for d in DEFAULT_HOT_STOCKS[:limit]]
+    elif len(hot_stocks) < 5:
+        for d in DEFAULT_HOT_STOCKS:
+            if d["code"] not in seen:
+                seen.add(d["code"])
+                hot_stocks.append(dict(d))
+            if len(hot_stocks) >= limit:
+                break
+
+    return hot_stocks[:limit]
+
+
+@router.get("/chanlun/hot_stocks")
+async def chanlun_hot_stocks_get(limit: int = 8) -> dict[str, Any]:
+    """获取实时全市场热门标的（连板龙头、板块先锋与市场主线）。"""
+    import asyncio
+
+    stocks = await asyncio.to_thread(get_chanlun_hot_stocks, limit=limit)
+    return {
+        "status": "success",
+        "count": len(stocks),
+        "data": stocks,
+    }
+

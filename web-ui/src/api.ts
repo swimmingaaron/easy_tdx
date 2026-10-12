@@ -431,3 +431,23 @@ export async function fetchChanlunResonance(params: {
   if (!resp.ok) await throwError(resp)
   return (await resp.json()) as ChanlunResonanceResponse
 }
+
+export interface ChanlunHotStockItem {
+  code: string
+  name: string
+  price?: number
+  chg?: string
+  tag?: string
+}
+
+export async function fetchChanlunHotStocks(limit = 8): Promise<ChanlunHotStockItem[]> {
+  try {
+    const resp = await fetch(`${BASE}/chanlun/hot_stocks?limit=${limit}`)
+    if (!resp.ok) return []
+    const json = await resp.json()
+    return (json.data || []) as ChanlunHotStockItem[]
+  } catch {
+    return []
+  }
+}
+
