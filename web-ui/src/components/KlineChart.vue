@@ -328,7 +328,9 @@ function buildOption(): echarts.EChartsCoreOption {
         const bar = props.bars[dataIndex]
         if (!bar) return ''
         const dateStr = dates[dataIndex]
-        const chg = bar.open > 0 ? ((bar.close - bar.open) / bar.open) * 100 : 0
+        const prevBar = dataIndex > 0 ? props.bars[dataIndex - 1] : null
+        const prevClose = (prevBar && prevBar.close > 0) ? prevBar.close : bar.open
+        const chg = prevClose > 0 ? ((bar.close - prevClose) / prevClose) * 100 : 0
         const chgSign = chg > 0 ? '+' : ''
         const chgColor = chg >= 0 ? UP_COLOR : DOWN_COLOR
 

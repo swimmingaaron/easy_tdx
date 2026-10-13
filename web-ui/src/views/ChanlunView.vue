@@ -828,9 +828,26 @@ function renderChart() {
         const kParam = params.find((p: any) => p.seriesType === 'candlestick')
         let html = `<div style="font-weight:bold; margin-bottom:4px; color:#ffffff;">📅 ${dateStr}</div>`
         if (kParam && kParam.value) {
-          const [, open, close, low, high] = kParam.value
-          const isUp = close >= open
+          let open = 0, close = 0, low = 0, high = 0
+          if (Array.isArray(kParam.value)) {
+            if (kParam.value.length >= 5) {
+              [, open, close, low, high] = kParam.value
+            } else {
+              [open, close, low, high] = kParam.value
+            }
+          } else if (Array.isArray(kParam.data)) {
+            [open, close, low, high] = kParam.data
+          } else if (uc.candles && uc.candles[idx]) {
+            [open, close, low, high] = uc.candles[idx]
+          }
+
+          const prevC = (idx > 0 && uc.candles && uc.candles[idx - 1]) ? uc.candles[idx - 1][1] : open
+          const chg = close - prevC
+          const chgPct = prevC > 0 ? (chg / prevC * 100) : 0
+          const chgSign = chg > 0 ? '+' : ''
+          const isUp = close >= prevC
           const color = isUp ? '#ef4146' : '#089981'
+          const ampVal = prevC > 0 ? (Math.abs(high - low) / prevC * 100) : 0
           const curAmt = (uc.amounts && uc.amounts[idx]) ? uc.amounts[idx][1] : ((uc.volumes && uc.volumes[idx]) ? uc.volumes[idx][1] * close : 0)
           let amtStr = '--'
           if (curAmt >= 1e8) amtStr = `¥${(curAmt / 1e8).toFixed(2)}亿`
@@ -839,6 +856,8 @@ function renderChart() {
 
           html += `<div style="color:${color}; margin-bottom:4px;">
             开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
+            <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
+            <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
             <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
           </div>`
         }

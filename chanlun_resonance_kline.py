@@ -1296,8 +1296,20 @@ def export_interactive_html(
                     var k = params.find(p => p.seriesType === 'candlestick');
                     var html = '<b>' + dt + '</b><br/>';
                     if (k && k.value) {{
-                        var op = k.value[1], cl = k.value[2], lo = k.value[3], hi = k.value[4];
-                        html += '开: ' + op.toFixed(2) + ' 收: ' + cl.toFixed(2) + ' 高: ' + hi.toFixed(2) + ' 低: ' + lo.toFixed(2) + '<br/>';
+                        var op = 0, cl = 0, lo = 0, hi = 0;
+                        if (k.value.length >= 5) {{
+                            op = k.value[1]; cl = k.value[2]; lo = k.value[3]; hi = k.value[4];
+                        }} else {{
+                            op = k.value[0]; cl = k.value[1]; lo = k.value[2]; hi = k.value[3];
+                        }}
+                        var prevC = (idx > 0 && D.candles && D.candles[idx - 1]) ? D.candles[idx - 1][1] : op;
+                        var chg = cl - prevC;
+                        var chgPct = prevC > 0 ? (chg / prevC * 100) : 0;
+                        var chgSign = chg > 0 ? '+' : '';
+                        var cColor = cl >= prevC ? '#f23645' : '#089981';
+                        var ampVal = prevC > 0 ? (Math.abs(hi - lo) / prevC * 100) : 0;
+                        html += '<span style="color:' + cColor + ';">开: ' + op.toFixed(2) + ' 收: ' + cl.toFixed(2) + ' 高: ' + hi.toFixed(2) + ' 低: ' + lo.toFixed(2) + '</span><br/>';
+                        html += '<span style="color:' + cColor + ';">涨跌: ' + chgSign + chg.toFixed(2) + ' (' + chgSign + chgPct.toFixed(2) + '%) 振幅: ' + ampVal.toFixed(2) + '%</span><br/>';
                     }}
                     if (D.amounts && D.amounts[idx]) {{
                         var a = D.amounts[idx][1];
