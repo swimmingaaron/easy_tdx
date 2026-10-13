@@ -9,6 +9,7 @@ import numpy as np
 from easy_tdx.client import TdxClient
 from easy_tdx.models import Market, KlineCategory
 from easy_tdx.mac.enums import Adjust
+from easy_tdx.kline_cache import get_global_kline_disk_cache
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +325,59 @@ def fetch_security_kline(
                     return res
 
 
+    # 1. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB）
+    disk_cache = get_global_kline_disk_cache()
+    cached_df = disk_cache.read_cached(clean_sym, cache_suffix, adj_val.name)
+
+    # 1.1 若已有本地缓存，且数量已满足需求，且非强制刷新
+    if cached_df is not None and not cached_df.empty and len(cached_df) >= count and not force_refresh:
+        # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
+        if disk_cache.is_up_to_date(cached_df, cache_suffix):
+            res = cached_df.iloc[-count:].copy().reset_index(drop=True)
+            _CACHE[cache_key] = (now, res)
+            return res
+
+        # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
+        try:
+            delta_cnt = min(80, count)
+            delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
+            if delta_df is not None and not delta_df.empty:
+                merged_df = disk_cache.merge_and_update(clean_sym, cache_suffix, cached_df, delta_df, adj_val.name)
+                res = merged_df.iloc[-count:].copy().reset_index(drop=True)
+                _CACHE[cache_key] = (now, res)
+                return res
+        except Exception as e:
+            logger.debug(f"增量同步异常，使用磁盘缓存: {e}")
+            res = cached_df.iloc[-count:].copy().reset_index(drop=True)
+            _CACHE[cache_key] = (now, res)
+            return res
+
+    # 2. 磁盘无缓存或数量不足或 force_refresh：全量拉取 max(count, 800) 根填补磁盘
+    pull_count = max(count, 800)
+    raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
+    if raw_df is not None and not raw_df.empty:
+        disk_cache.write_cached(clean_sym, cache_suffix, raw_df, adj_val.name)
+        res = raw_df.iloc[-count:].copy().reset_index(drop=True)
+        _CACHE[cache_key] = (now, res)
+        return res
+
+    # Fallback to realistic bars if TDX connection fails (only for offline demo, never for quantitative live scanning)
+    if force_refresh:
+        logger.warning(f"Failed to fetch live K-lines for {clean_sym}, returning empty DataFrame.")
+        return pd.DataFrame()
+    return _generate_fallback_bars(clean_sym, n_bars=count)
+
+
+def _fetch_raw_tdx_kline(
+    symbol: str,
+    category: Any,
+    clean_sym: str,
+    is_120m: bool,
+    adj_val: Any,
+    fetch_count: int,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    """向 TDX 服务器拉取纯裸 K 线数据的内部底层方法。"""
     from easy_tdx.mac.enums import Period as MacPeriod
 
     # 1. Fetch real K-lines via high-speed MacClient (covers all A-shares, indices, boards, and 120M)
@@ -345,9 +399,9 @@ def fetch_security_kline(
             mac = _get_or_create_mac_client()
             mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88") or clean_sym.startswith("9")) else 0
             if is_120m:
-                bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=count, adjust=adj_val)
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=fetch_count, adjust=adj_val)
             else:
-                bdf = mac.get_stock_kline(mkt_id, clean_sym, mac_p, count=count, adjust=adj_val)
+                bdf = mac.get_stock_kline(mkt_id, clean_sym, mac_p, count=fetch_count, adjust=adj_val)
         if bdf is not None and not bdf.empty and len(bdf) > 0:
             res_df = pd.DataFrame()
             is_intraday = is_120m or category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30, KlineCategory.MIN_60)
@@ -363,9 +417,7 @@ def fetch_security_kline(
             res_df["close"] = pd.to_numeric(bdf["close"], errors="coerce").fillna(0.0).round(2)
             res_df["volume"] = pd.to_numeric(bdf["vol"] if "vol" in bdf.columns else bdf.get("volume", 0), errors="coerce").fillna(0).astype(int)
             res_df["amount"] = pd.to_numeric(bdf["amount"], errors="coerce").fillna(0.0).round(2)
-            res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
-            _CACHE[cache_key] = (now, res_df)
-            return res_df.copy()
+            return res_df.sort_values(by="datetime").reset_index(drop=True)
     except Exception as e:
         logger.debug(f"Failed to fetch K-line via MacClient for {clean_sym}: {e}, trying standard TDX client")
         with _MAC_LOCK:
@@ -382,11 +434,11 @@ def fetch_security_kline(
         with _CLIENT_LOCK:
             client = _get_or_create_client()
             market = _get_market(symbol)
-            fetch_cnt = count * 2 if is_120m else count
+            pull_cnt = fetch_count * 2 if is_120m else fetch_count
             if _is_index_symbol(clean_sym, market):
-                df = client.get_index_bars(market, clean_sym, category, 0, fetch_cnt)
+                df = client.get_index_bars(market, clean_sym, category, 0, pull_cnt)
             else:
-                df = client.get_security_bars(market, clean_sym, category, 0, fetch_cnt)
+                df = client.get_security_bars(market, clean_sym, category, 0, pull_cnt)
                 if adj_val == Adjust.QFQ and df is not None and not df.empty:
                     try:
                         xdxr_df = client.get_xdxr_info(market, clean_sym)
@@ -395,7 +447,7 @@ def fetch_security_kline(
                             df = apply_forward_adjust(df, xdxr_df)
                     except Exception as ex:
                         logger.debug(f"Failed to apply fallback forward adjust for {clean_sym}: {ex}")
-        
+
         if df is not None and not df.empty and len(df) > 0:
             res_df = pd.DataFrame()
             is_intraday = category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30, KlineCategory.MIN_60)
@@ -405,17 +457,15 @@ def fetch_security_kline(
                 res_df["datetime"] = df[date_col].astype(str).str.slice(0, slice_len)
             else:
                 res_df["datetime"] = [d.strftime("%Y-%m-%d") for d in pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq="B")]
-                
+
             res_df["open"] = pd.to_numeric(df["open"], errors="coerce").fillna(0.0).round(2)
             res_df["high"] = pd.to_numeric(df["high"], errors="coerce").fillna(0.0).round(2)
             res_df["low"] = pd.to_numeric(df["low"], errors="coerce").fillna(0.0).round(2)
             res_df["close"] = pd.to_numeric(df["close"], errors="coerce").fillna(0.0).round(2)
             res_df["volume"] = pd.to_numeric(df["vol"] if "vol" in df.columns else df["volume"], errors="coerce").fillna(0).astype(int)
             res_df["amount"] = pd.to_numeric(df["amount"] if "amount" in df.columns else (res_df["volume"] * res_df["close"]), errors="coerce").fillna(0.0).round(2)
-            
-            # If 120M was requested but MacClient wasn't used, resample pairs of 60M bars
+
             if is_120m and len(res_df) >= 2:
-                # Group every 2 bars
                 groups = np.arange(len(res_df)) // 2
                 res_df = res_df.groupby(groups).agg({
                     "datetime": "last",
@@ -426,14 +476,12 @@ def fetch_security_kline(
                     "volume": "sum",
                     "amount": "sum"
                 }).reset_index(drop=True)
-                if len(res_df) > count:
-                    res_df = res_df.tail(count).reset_index(drop=True)
+                if len(res_df) > fetch_count:
+                    res_df = res_df.tail(fetch_count).reset_index(drop=True)
 
-            res_df = res_df.sort_values(by="datetime").reset_index(drop=True)
-            _CACHE[cache_key] = (now, res_df)
-            return res_df.copy()
+            return res_df.sort_values(by="datetime").reset_index(drop=True)
     except Exception as e:
-        logger.warning(f"Failed to fetch live TDX bars for {clean_sym}: {e}, falling back to generator.")
+        logger.warning(f"Failed to fetch live TDX bars for {clean_sym}: {e}")
         with _CLIENT_LOCK:
             global _TDX_CLIENT
             if _TDX_CLIENT is not None:
@@ -442,11 +490,8 @@ def fetch_security_kline(
                 except Exception:
                     pass
                 _TDX_CLIENT = None
-    # Fallback to realistic bars if TDX connection fails (only for offline demo, never for quantitative live scanning)
-    if force_refresh:
-        logger.warning(f"Failed to fetch live K-lines for {clean_sym}, returning empty DataFrame.")
-        return pd.DataFrame()
-    return _generate_fallback_bars(clean_sym, n_bars=count)
+
+    return pd.DataFrame()
 
 
 def fetch_kline_with_pool(

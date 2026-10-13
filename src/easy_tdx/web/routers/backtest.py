@@ -412,6 +412,107 @@ def _ohlcv_to_df(records: list[dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
+async def _fetch_single_symbol_bars_cached(
+    symbol: str,
+    category: str,
+    count: int = 800,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    mac_client: Any = None,
+    client: Any = None,
+    adjust: str = "QFQ",
+) -> pd.DataFrame:
+    """带本地持久化缓存与微量增量策略的标的 K 线获取函数。"""
+    from easy_tdx.web.convert import category_from_str, market_from_str, adjust_from_str, period_times_from_category
+    from easy_tdx.kline_cache import get_global_kline_disk_cache
+
+    market_str, code = symbol.split(":", 1)
+    cat = category_from_str(category)
+    disk_cache = get_global_kline_disk_cache()
+    cached_df = disk_cache.read_cached(symbol, category, adjust)
+
+    # 1. 检查本地缓存是否已有且需要增量更新
+    if cached_df is not None and not cached_df.empty:
+        if not disk_cache.is_up_to_date(cached_df, category):
+            try:
+                # 仅向 TDX 请求 60 根微量增量
+                if mac_client is not None:
+                    period, times = period_times_from_category(cat)
+                    mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
+                    delta_df = await mac_client.get_stock_kline(
+                        mkt_val, code, period, 0, 60, times, adjust=adjust_from_str(adjust)
+                    )
+                else:
+                    delta_df = await client.get_security_bars(
+                        market_from_str(market_str), code, cat, 0, 60, adjust=adjust_from_str(adjust)
+                    )
+                if delta_df is not None and not delta_df.empty:
+                    cached_df = disk_cache.merge_and_update(symbol, category, cached_df, delta_df, adjust)
+            except Exception as e:
+                logger.debug("回测获取微量增量异常: %s", e)
+    else:
+        # 本地完全无缓存：拉取第一页 (800 根) 并存盘
+        try:
+            if mac_client is not None:
+                period, times = period_times_from_category(cat)
+                mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
+                first_df = await mac_client.get_stock_kline(
+                    mkt_val, code, period, 0, 800, times, adjust=adjust_from_str(adjust)
+                )
+            else:
+                first_df = await client.get_security_bars(
+                    market_from_str(market_str), code, cat, 0, 800, adjust=adjust_from_str(adjust)
+                )
+            if first_df is not None and not first_df.empty:
+                disk_cache.write_cached(symbol, category, first_df, adjust)
+                cached_df = first_df
+        except Exception as e:
+            logger.debug("回测获取初始 K 线异常: %s", e)
+
+    # 2. 如果指定了 start_date，且本地历史数据尚未覆盖到 start_date，向 TDX 补拉更早历史并合并存盘
+    if start_date and cached_df is not None and not cached_df.empty:
+        dt_col = "datetime" if "datetime" in cached_df.columns else "date"
+        oldest = str(cached_df[dt_col].iloc[0])[:10]
+        page = 1
+        while oldest > start_date and page < 10:
+            try:
+                if mac_client is not None:
+                    period, times = period_times_from_category(cat)
+                    mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
+                    hist_df = await mac_client.get_stock_kline(
+                        mkt_val, code, period, page * 800, 800, times, adjust=adjust_from_str(adjust)
+                    )
+                else:
+                    hist_df = await client.get_security_bars(
+                        market_from_str(market_str), code, cat, page * 800, 800, adjust=adjust_from_str(adjust)
+                    )
+                if hist_df is None or hist_df.empty:
+                    break
+                cached_df = disk_cache.merge_and_update(symbol, category, cached_df, hist_df, adjust)
+                oldest = str(cached_df[dt_col].iloc[0])[:10]
+                if len(hist_df) < 800:
+                    break
+                page += 1
+            except Exception:
+                break
+
+    if cached_df is None or cached_df.empty:
+        return pd.DataFrame()
+
+    df = cached_df.copy()
+    if "datetime" not in df.columns and "date" in df.columns:
+        df["datetime"] = df["date"]
+    df = df.sort_values("datetime").reset_index(drop=True)
+
+    # 3. 日期范围或条数截取
+    if start_date or end_date:
+        df = _filter_df_by_date(df, start_date, end_date)
+    elif count and len(df) > count:
+        df = df.iloc[-count:].reset_index(drop=True)
+
+    return df
+
+
 async def _fetch_bars(
     client: Any,
     symbol: str,
@@ -420,32 +521,15 @@ async def _fetch_bars(
     mac_client: Any = None,
     adjust: str = "QFQ",
 ) -> pd.DataFrame:
-    """按标的取 K 线（async，必须在 event loop 内调用，默认前复权）。"""
-    from easy_tdx.web.convert import category_from_str, market_from_str, adjust_from_str, period_times_from_category
-
-    market_str, code = symbol.split(":", 1)
-    cat = category_from_str(category)
-    if mac_client is not None:
-        period, times = period_times_from_category(cat)
-        mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
-        df = await mac_client.get_stock_kline(
-            mkt_val,
-            code,
-            period,
-            0,
-            count,
-            times,
-            adjust=adjust_from_str(adjust),
-        )
-    else:
-        df = await client.get_security_bars(
-            market_from_str(market_str),
-            code,
-            cat,
-            0,
-            count,
-            adjust=adjust_from_str(adjust),
-        )
+    """按标的取 K 线（支持本地持久化缓存与微量增量）。"""
+    df = await _fetch_single_symbol_bars_cached(
+        symbol=symbol,
+        category=category,
+        count=count,
+        mac_client=mac_client,
+        client=client,
+        adjust=adjust,
+    )
     if len(df) == 0:
         raise ValueError(f"标的 {symbol} 未取到任何 K 线数据")
     return df
@@ -487,75 +571,21 @@ async def _fetch_portfolio_bars(
     mac_client: Any = None,
     adjust: str = "QFQ",
 ) -> list[Any]:
-    """逐个标的取 K 线并组装 StockData 列表（async，必须在 event loop 内调用，默认前复权）。
-
-    当 start_date 超出单次 800 根覆盖范围时，自动翻页拉取（与前端 fetchBars
-    同逻辑）。单个标的取数失败时跳过（不中断整个组合），全部失败返回空列表。
-    """
+    """逐个标的取 K 线并组装 StockData 列表（支持本地持久化缓存与微量增量）。"""
     from easy_tdx.backtest.portfolio_engine import StockData
-    from easy_tdx.web.convert import category_from_str, market_from_str, adjust_from_str, period_times_from_category
 
-    max_pages = 10  # 翻页上限：10 × 800 = 8000 根
     stock_data_list: list[StockData] = []
-    cat = category_from_str(category)
     for symbol in stocks:
         market_str, code = symbol.split(":", 1)
-        frames: list[pd.DataFrame] = []
-        for page in range(max_pages):
-            try:
-                if mac_client is not None:
-                    period, times = period_times_from_category(cat)
-                    mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
-                    page_df = await mac_client.get_stock_kline(
-                        mkt_val,
-                        code,
-                        period,
-                        page * 800,
-                        800,
-                        times,
-                        adjust=adjust_from_str(adjust),
-                    )
-                else:
-                    page_df = await client.get_security_bars(
-                        market_from_str(market_str),
-                        code,
-                        cat,
-                        page * 800,
-                        800,
-                        adjust=adjust_from_str(adjust),
-                    )
-            except Exception:
-                break  # 单页失败则停止该标的的翻页
-            if len(page_df) == 0:
-                break
-            frames.append(page_df)
-            # 已覆盖到 start_date（本页最早一根 ≤ start_date）则停止
-            if start_date and len(page_df) > 0:
-                dt_col = "datetime" if "datetime" in page_df.columns else "date"
-                oldest = str(page_df[dt_col].iloc[-1])[:10]
-                if oldest <= start_date:
-                    break
-            if len(page_df) < 800:
-                break  # 数据起点
-
-        if not frames:
-            continue
-        df = pd.concat(frames, ignore_index=True)
-        # 列名归一化：日线返回 date，分钟线返回 datetime
-        if "datetime" not in df.columns and "date" in df.columns:
-            df = df.copy()
-            df["datetime"] = df["date"]
-        # 翻页拼接后按时间正序排序（页间逆序）
-        df = df.sort_values("datetime").reset_index(drop=True)
-        # 日期范围过滤
-        if start_date or end_date:
-            dt_str = df["datetime"].astype(str).str.slice(0, 10)
-            mask = pd.Series(True, index=df.index)
-            if start_date:
-                mask &= dt_str >= start_date
-            if end_date:
-                mask &= dt_str <= end_date
-            df = df[mask]
+        df = await _fetch_single_symbol_bars_cached(
+            symbol=symbol,
+            category=category,
+            start_date=start_date,
+            end_date=end_date,
+            mac_client=mac_client,
+            client=client,
+            adjust=adjust,
+        )
         if len(df) < 2:
             continue
         stock_data_list.append(
@@ -569,15 +599,9 @@ async def _fetch_multi_strategy_bars(
     items: list[Any],
     mac_client: Any = None,
 ) -> list[Any]:
-    """逐个策略槽位取行情 + 构造策略实例，组装 StrategySlot 列表（async，默认前复权）。
-
-    每条 item 自带 symbol（如 "SH:601088"）、category、start/end_date、strategy+params。
-    单条取数或策略构造失败则跳过（不中断整组）。返回的 StrategySlot 已绑定好策略
-    实例与 df，可直接交给后台线程跑引擎（避免把 async client 带进线程）。
-    """
+    """逐个策略槽位取行情 + 构造策略实例，组装 StrategySlot 列表（支持本地持久化缓存与微量增量）。"""
     from easy_tdx.backtest.multi_strategy_engine import StrategySlot
     from easy_tdx.backtest.strategies import get_registry
-    from easy_tdx.web.convert import category_from_str, market_from_str, adjust_from_str, period_times_from_category
 
     registry = get_registry()
     slots: list[StrategySlot] = []
@@ -587,56 +611,16 @@ async def _fetch_multi_strategy_bars(
             entry = registry.get(item.strategy)
         except KeyError:
             continue
-        # 2. 逐页取行情（覆盖 start_date，最多 10 页 = 8000 根）
-        market_str, code = item.symbol.split(":", 1)
-        frames: list[pd.DataFrame] = []
-        cat = category_from_str(item.category)
         adj_str = getattr(item, "adjust", "QFQ")
-        for page in range(10):
-            try:
-                if mac_client is not None:
-                    period, times = period_times_from_category(cat)
-                    mkt_val = 1 if market_str == "SH" else (2 if market_str == "BJ" else 0)
-                    page_df = await mac_client.get_stock_kline(
-                        mkt_val,
-                        code,
-                        period,
-                        page * 800,
-                        800,
-                        times,
-                        adjust=adjust_from_str(adj_str),
-                    )
-                else:
-                    page_df = await client.get_security_bars(
-                        market_from_str(market_str),
-                        code,
-                        cat,
-                        page * 800,
-                        800,
-                        adjust=adjust_from_str(adj_str),
-                    )
-            except Exception:
-                break
-            if len(page_df) == 0:
-                break
-            frames.append(page_df)
-            if item.start_date and len(page_df) > 0:
-                dt_col = "datetime" if "datetime" in page_df.columns else "date"
-                oldest = str(page_df[dt_col].iloc[-1])[:10]
-                if oldest <= item.start_date:
-                    break
-            if len(page_df) < 800:
-                break
-        if not frames:
-            continue
-        df = pd.concat(frames, ignore_index=True)
-        if "datetime" not in df.columns and "date" in df.columns:
-            df = df.copy()
-            df["datetime"] = df["date"]
-        df = df.sort_values("datetime").reset_index(drop=True)
-        # 日期范围过滤
-        if item.start_date or item.end_date:
-            df = _filter_df_by_date(df, item.start_date, item.end_date)
+        df = await _fetch_single_symbol_bars_cached(
+            symbol=item.symbol,
+            category=item.category,
+            start_date=item.start_date,
+            end_date=item.end_date,
+            mac_client=mac_client,
+            client=client,
+            adjust=adj_str,
+        )
         if len(df) < 2:
             continue
         # 3. 构造策略实例（参数非法跳过该条）

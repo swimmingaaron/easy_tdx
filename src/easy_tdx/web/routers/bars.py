@@ -71,6 +71,50 @@ def _normalize_mac_df(df: pd.DataFrame, daily_plus: bool) -> pd.DataFrame:
     return out[cols]
 
 
+from easy_tdx.kline_cache import get_global_kline_disk_cache
+
+
+async def _fetch_raw_tdx_bars(
+    mac_client: Any,
+    client: Any,
+    market: str,
+    code: str,
+    cat: Any,
+    start: int,
+    count: int,
+    bar_time: str,
+    adjust: str,
+) -> pd.DataFrame:
+    """从底层的 TDX / MAC 客户端拉取单次 K 线并规整化。"""
+    if mac_client is not None:
+        period, times = period_times_from_category(cat)
+        df = await mac_client.get_stock_kline(
+            market_value_from_str(market),
+            code,
+            period,
+            start,
+            count,
+            times,
+            adjust=adjust_from_str(adjust),
+            bar_time=bar_time,
+        )
+        return _normalize_mac_df(df, daily_plus=_is_daily_plus(cat))
+    else:
+        _logger.info(
+            "/bars MAC 客户端未连接，回退标准 TdxClient（adjust=%s）",
+            adjust,
+        )
+        return await client.get_security_bars(
+            market_from_str(market),
+            code,
+            cat,
+            start,
+            count,
+            bar_time=bar_time,
+            adjust=adjust_from_str(adjust),
+        )
+
+
 @router.get("/bars", response_model=DataFrameResponse)
 async def security_bars(
     market: str = Query(..., description="市场: SZ, SH, BJ"),
@@ -90,43 +134,65 @@ async def security_bars(
     mac_client: Any = Depends(get_mac_client_optional),
     client: Any = Depends(get_client),
 ) -> DataFrameResponse:
-    """获取股票K线数据（MAC 协议，支持复权）。
+    """获取股票K线数据（支持缠论同款磁盘持久化与最新微量增量策略）。
 
-    优先走 AsyncMacClient.get_stock_kline（支持 NONE/QFQ/HFQ 复权 + QFQ 负价兜底）；
-    MAC 主机未连接时自动回退 AsyncTdxClient.get_security_bars（无复权，adjust 参数忽略）。
-    输出契约与旧版一致：日线返回 ``date`` 列，分钟线返回 ``datetime`` 列。
+    1. 若本地磁盘已有有效缓存且当前非交易时间/最新bar已收盘，0网络请求瞬时返回；
+    2. 若需最新行情，仅向 TDX 发送微量增量（60根以内），本地增量合并并异步持久化；
+    3. start > 0 翻页时，若本地历史深度覆盖则直接本地切片返回，避免慢速网络往返。
     """
     cat = category_from_str(category)
-    if mac_client is not None:
-        period, times = period_times_from_category(cat)
-        df = await mac_client.get_stock_kline(
-            market_value_from_str(market),
-            code,
-            period,
-            start,
-            count,
-            times,
-            adjust=adjust_from_str(adjust),
-            bar_time=bar_time,
+    disk_cache = get_global_kline_disk_cache()
+    symbol_key = f"{market}:{code}"
+
+    # 1. 尝试从本地持久化缓存加载
+    cached_df = disk_cache.read_cached(symbol_key, category, adjust)
+
+    if start == 0:
+        # 客户端请求最新数据段
+        if cached_df is not None and not cached_df.empty:
+            # 检查是否已是最新（闭市/最新bar闭合）且条数充足
+            if disk_cache.is_up_to_date(cached_df, category) and len(cached_df) >= count:
+                return _df_resp(cached_df.iloc[-count:])
+
+            # 交易时段或需更新：仅请求微量增量（60 根）
+            try:
+                delta_n = min(count, 60)
+                delta_df = await _fetch_raw_tdx_bars(
+                    mac_client, client, market, code, cat, 0, delta_n, bar_time, adjust
+                )
+                if delta_df is not None and not delta_df.empty:
+                    merged = disk_cache.merge_and_update(symbol_key, category, cached_df, delta_df, adjust)
+                    return _df_resp(merged.iloc[-count:])
+            except Exception as e:
+                _logger.warning("获取微量增量异常，回退本地缓存: %s", e)
+            return _df_resp(cached_df.iloc[-count:])
+
+        # 本地无缓存：首次全量拉取（至少 800 根以充实本地库）
+        fetch_n = max(count, 800)
+        df = await _fetch_raw_tdx_bars(
+            mac_client, client, market, code, cat, 0, fetch_n, bar_time, adjust
         )
-        # daily_plus：日线及以上周期 datetime→date（枚举值无序，显式查表判定）
-        df = _normalize_mac_df(df, daily_plus=_is_daily_plus(cat))
+        if df is not None and not df.empty:
+            disk_cache.write_cached(symbol_key, category, df, adjust)
+            return _df_resp(df.iloc[-count:])
+        return _df_resp(df)
+
     else:
-        # MAC 不可用：回退标准 TdxClient（支持本地 XDXR 前复权）
-        _logger.info(
-            "/bars MAC 客户端未连接，回退标准 TdxClient（adjust=%s）",
-            adjust,
+        # 客户端请求历史分页 (start > 0)
+        if cached_df is not None and len(cached_df) >= start + count:
+            # 本地历史深度充足，直接从本地切片（按时间倒数切片）
+            start_idx = len(cached_df) - start - count
+            end_idx = len(cached_df) - start
+            return _df_resp(cached_df.iloc[start_idx:end_idx])
+
+        # 本地历史深度不足，向 TDX 补拉该页
+        page_df = await _fetch_raw_tdx_bars(
+            mac_client, client, market, code, cat, start, count, bar_time, adjust
         )
-        df = await client.get_security_bars(
-            market_from_str(market),
-            code,
-            cat,
-            start,
-            count,
-            bar_time=bar_time,
-            adjust=adjust_from_str(adjust),
-        )
-    return _df_resp(df)
+        if page_df is not None and not page_df.empty:
+            # 增量合并扩充本地库
+            disk_cache.merge_and_update(symbol_key, category, cached_df, page_df, adjust)
+        return _df_resp(page_df)
 
 
 @router.get("/bars/index", response_model=DataFrameResponse)
