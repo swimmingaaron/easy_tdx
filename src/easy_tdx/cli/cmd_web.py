@@ -43,8 +43,18 @@ def serve(
         # 0.0.0.0 / 127.0.0.1 在浏览器里用 localhost 打开（更友好）。
         display_host = "localhost" if host in ("0.0.0.0", "127.0.0.1") else host
         url = f"http://{display_host}:{port}"
-        # 1.5 秒通常足够本地端口就绪；uvicorn 启动慢的机器可适当延长。
-        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+        def _safe_open(target_url: str) -> None:
+            import sys
+            import subprocess
+            try:
+                if sys.platform == "darwin":
+                    subprocess.Popen(["open", target_url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    webbrowser.open(target_url)
+            except Exception:
+                pass
+
+        threading.Timer(1.5, lambda: _safe_open(url)).start()
 
     if reload:
         uvicorn.run(

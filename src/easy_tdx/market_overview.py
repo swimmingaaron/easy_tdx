@@ -356,7 +356,7 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     )
     if needs_sina:
         try:
-            s_url = "http://hq.sinajs.cn/list=s_sh000001,s_sz399001,s_sz399006,s_sh000688,s_sh000300"
+            s_url = "https://hq.sinajs.cn/list=s_sh000001,s_sz399001,s_sz399006,s_sh000688,s_sh000300"
             req = urllib.request.Request(s_url, headers={
                 "User-Agent": _DEFAULT_USER_AGENT,
                 "Referer": "https://finance.sina.com.cn",

@@ -48,6 +48,15 @@ def ensure_port_free(port: int = 8000):
                         subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
             except Exception:
                 pass
+        elif sys.platform in ("darwin", "linux"):
+            try:
+                out = subprocess.check_output(f"lsof -ti :{port}", shell=True).decode()
+                for pid_str in out.strip().split():
+                    pid = pid_str.strip()
+                    if pid and pid.isdigit() and int(pid) != os.getpid():
+                        subprocess.run(f"kill -9 {pid}", shell=True, capture_output=True)
+            except Exception:
+                pass
 
 
 def get_lan_ips() -> list[str]:
@@ -103,7 +112,16 @@ def get_listen_sockets(host: str, port: int) -> list[socket.socket]:
 def _open_browser(url: str):
     """Open default web browser after server starts."""
     try:
-        webbrowser.open(url)
+        if sys.platform == "darwin":
+            # On macOS, use /usr/bin/open to launch URL directly with the default browser,
+            # avoiding python webbrowser's osascript execution errors (-10810, -1728).
+            subprocess.Popen(
+                ["open", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            webbrowser.open(url)
     except Exception as e:
         print(f"Could not open browser automatically: {e}")
 
@@ -129,7 +147,14 @@ def parse_args():
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="启动后不自动打开浏览器"
+        default=False,
+        help="启动后不自动打开浏览器 (亦可通过环境变量 EASY_TDX_NO_BROWSER=1 禁用)"
+    )
+    parser.add_argument(
+        "--browser",
+        action="store_true",
+        default=False,
+        help="强制启动后自动打开浏览器 (覆盖 --no-browser 与环境默认设置)"
     )
     parser.add_argument(
         "--reload",
@@ -164,6 +189,19 @@ if __name__ == "__main__":
 
     url = f"http://localhost:{port}"
 
+    # Determine whether to auto-open browser:
+    # 1. Explicit CLI flags: --browser forces True; --no-browser forces False
+    # 2. Environment variable: EASY_TDX_NO_BROWSER=1 forces False
+    # 3. Headless/SSH environment detection: SSH_CLIENT / SSH_TTY / SSH_CONNECTION defaults to False
+    env_no_browser = os.environ.get("EASY_TDX_NO_BROWSER", "").strip().lower() in ("1", "true", "yes", "y")
+    is_ssh = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY") or os.environ.get("SSH_CONNECTION"))
+
+    auto_open = True
+    if args.browser:
+        auto_open = True
+    elif args.no_browser or env_no_browser or is_ssh:
+        auto_open = False
+
     print("=" * 68)
     print(">>> easy_tdx 量化投研与多智能体监控工作台正在启动...")
     print(f">>> 本地访问入口: {url} (http://127.0.0.1:{port})")
@@ -179,12 +217,17 @@ if __name__ == "__main__":
     if args.tdx_host:
         print(f">>> 指定通达信行情节点: {args.tdx_host}:{args.tdx_port}")
     print(">>> 通达信原生 TCP 直连 + daily_stock_analysis 战法 + tickflow 监控")
-    if not args.no_browser:
-        print(">>> 正在自动为您打开浏览器...")
+    if auto_open:
+        print(">>> 正在自动为您打开浏览器 (若无需弹出请加 --no-browser 或配置 EASY_TDX_NO_BROWSER=1)...")
+    else:
+        if is_ssh:
+            print(">>> 检测到远程/SSH 终端环境，已为您自动跳过打开本地浏览器。")
+        else:
+            print(">>> 已跳过自动打开浏览器 (--no-browser / EASY_TDX_NO_BROWSER)。")
     print("=" * 68)
 
     # Open browser automatically after 1.2s delay if not disabled
-    if not args.no_browser:
+    if auto_open:
         threading.Timer(1.2, _open_browser, args=[url]).start()
 
     import uvicorn

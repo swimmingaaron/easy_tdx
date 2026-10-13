@@ -378,81 +378,133 @@ def get_market_ladder_and_matrix() -> dict[str, Any]:
     return data
 
 
+def _evaluate_candidate(code: str, name: str, chg: float, trade: float, settlement: float, amount: float, turnover: float) -> dict[str, Any] | None:
+    """Helper to check if a stock is at/near limit-up and construct candidate record."""
+    if not code or code.startswith(("88", "99", "399")):
+        return None
+
+    # Limit-up determination by board
+    is_zt = False
+    if code.startswith(("60", "00")):
+        # Main board: 10% (ST 5%)
+        if name.startswith("ST") or "*ST" in name:
+            is_zt = (chg >= 4.85) or (trade >= round(settlement * 1.05, 2) - 0.01)
+        else:
+            is_zt = (chg >= 9.75) or (trade >= round(settlement * 1.10, 2) - 0.01)
+    elif code.startswith(("30", "68")):
+        # ChiNext / STAR: 20%
+        is_zt = (chg >= 19.75) or (trade >= round(settlement * 1.20, 2) - 0.01)
+    elif code.startswith(("92", "8", "4")):
+        # BSE: 30%
+        is_zt = (chg >= 29.5) or (trade >= round(settlement * 1.30, 2) - 0.01)
+
+    if is_zt and trade > 0:
+        amt_yi = round(amount / 100000000.0, 2)
+        return {
+            "sym": code,
+            "code": code,
+            "name": name,
+            "price": f"{trade:.2f}",
+            "chg": f"+{chg:.2f}%" if chg > 0 else f"{chg:.2f}%",
+            "concept": "主线题材 / 涨停突破",
+            "board_name": "主线板块",
+            "amt_yi": amt_yi,
+            "turnover": turnover if turnover > 0 else 8.5,
+            "seal_ratio": round(min(45.0, max(5.0, 25.0 - turnover * 0.4)), 1),
+            "fbt": "09:35:00",
+            "zb_count": 0,
+        }
+    return None
+
+
 def _fetch_all_limit_up_candidates() -> list[dict[str, Any]]:
     """Discover all real-time limit-up candidate stocks across all A-share markets (SH, SZ, ChiNext, STAR, BSE)."""
     candidates_map: dict[str, dict[str, Any]] = {}
 
-    # 1. Primary engine: Sina Real-Time Full-Market A-share Leaderboard (sorted by changepercent desc)
+    # 1. Primary engine: EastMoney Real-Time Full-Market A-share Leaderboard (HTTPS, high reliability)
     try:
-        page = 1
-        headers = {
+        em_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://finance.sina.com.cn/",
+            "Referer": "https://quote.eastmoney.com/",
         }
-        while page <= 5:
-            url = f"http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page={page}&num=100&sort=changepercent&asc=0&node=hs_a"
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=4.0) as resp:
-                content = resp.read().decode("gb18030", errors="ignore")
-                items = json.loads(content)
+        page = 1
+        while page <= 3:
+            url = (
+                f"https://push2.eastmoney.com/api/qt/clist/get?"
+                f"pn={page}&pz=100&po=1&np=1&fltt=2&invt=2&fid=f3&"
+                f"fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&"
+                f"fields=f12,f14,f2,f3,f5,f6,f8,f18"
+            )
+            req = urllib.request.Request(url, headers=em_headers)
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                content = resp.read().decode("utf-8", errors="ignore")
+                data = json.loads(content)
+                items = data.get("data", {}).get("diff", [])
                 if not items:
                     break
-
-                min_chg_on_page = 999.0
-                for item in items:
-                    code = str(item.get("code", "")).strip().zfill(6)
-                    if not code or code.startswith(("88", "99", "399")):
-                        continue
+                min_chg = 999.0
+                for it in items:
+                    code = str(it.get("f12", "")).strip().zfill(6)
                     try:
-                        chg = float(item.get("changepercent") or 0.0)
-                        trade = float(item.get("trade") or 0.0)
-                        settlement = float(item.get("settlement") or trade)
-                        amount = float(item.get("amount") or 0.0)
-                        turnover = float(item.get("turnoverratio") or 0.0)
+                        trade = float(it.get("f2") or 0.0)
+                        chg = float(it.get("f3") or 0.0)
+                        settlement = float(it.get("f18") or trade)
+                        amount = float(it.get("f6") or 0.0)
+                        turnover = float(it.get("f8") or 0.0)
                     except (ValueError, TypeError):
                         continue
-
-                    min_chg_on_page = min(min_chg_on_page, chg)
-                    name = str(item.get("name", "")).strip() or get_stock_name(code)
-
-                    # Limit-up determination by board
-                    is_zt = False
-                    if code.startswith(("60", "00")):
-                        # Main board: 10% (ST 5%)
-                        if name.startswith("ST") or "*ST" in name:
-                            is_zt = (chg >= 4.85) or (trade >= round(settlement * 1.05, 2) - 0.01)
-                        else:
-                            is_zt = (chg >= 9.75) or (trade >= round(settlement * 1.10, 2) - 0.01)
-                    elif code.startswith(("30", "68")):
-                        # ChiNext / STAR: 20%
-                        is_zt = (chg >= 19.75) or (trade >= round(settlement * 1.20, 2) - 0.01)
-                    elif code.startswith(("92", "8", "4")):
-                        # BSE: 30%
-                        is_zt = (chg >= 29.5) or (trade >= round(settlement * 1.30, 2) - 0.01)
-
-                    if is_zt and trade > 0:
-                        amt_yi = round(amount / 100000000.0, 2)
-                        candidates_map[code] = {
-                            "sym": code,
-                            "code": code,
-                            "name": name,
-                            "price": f"{trade:.2f}",
-                            "chg": f"+{chg:.2f}%" if chg > 0 else f"{chg:.2f}%",
-                            "concept": "主线题材 / 涨停突破",
-                            "board_name": "主线板块",
-                            "amt_yi": amt_yi,
-                            "turnover": turnover if turnover > 0 else 8.5,
-                            "seal_ratio": round(min(45.0, max(5.0, 25.0 - turnover * 0.4)), 1),
-                            "fbt": "09:35:00",
-                            "zb_count": 0,
-                        }
-
-                # Stop paging if change percent drops below standard limit-up threshold
-                if min_chg_on_page < 9.5:
+                    min_chg = min(min_chg, chg)
+                    name = str(it.get("f14", "")).strip() or get_stock_name(code)
+                    cand = _evaluate_candidate(code, name, chg, trade, settlement, amount, turnover)
+                    if cand:
+                        candidates_map[code] = cand
+                if min_chg < 9.5:
                     break
             page += 1
     except Exception as e:
-        logger.warning(f"Sina real-time limit-up leaderboard fetch failed: {e}")
+        logger.debug(f"EastMoney real-time limit-up leaderboard fetch note: {e}")
+
+    # 2. Secondary engine: Sina Real-Time Full-Market A-share Leaderboard (HTTPS fallback)
+    if len(candidates_map) < 5:
+        try:
+            page = 1
+            sina_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://finance.sina.com.cn/",
+            }
+            while page <= 5:
+                # Use https:// to prevent connection refused / HTTP proxy issues
+                url = f"https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page={page}&num=100&sort=changepercent&asc=0&node=hs_a"
+                req = urllib.request.Request(url, headers=sina_headers)
+                with urllib.request.urlopen(req, timeout=4.0) as resp:
+                    content = resp.read().decode("gb18030", errors="ignore")
+                    items = json.loads(content)
+                    if not items:
+                        break
+                    min_chg_on_page = 999.0
+                    for item in items:
+                        code = str(item.get("code", "")).strip().zfill(6)
+                        try:
+                            chg = float(item.get("changepercent") or 0.0)
+                            trade = float(item.get("trade") or 0.0)
+                            settlement = float(item.get("settlement") or trade)
+                            amount = float(item.get("amount") or 0.0)
+                            turnover = float(item.get("turnoverratio") or 0.0)
+                        except (ValueError, TypeError):
+                            continue
+                        min_chg_on_page = min(min_chg_on_page, chg)
+                        name = str(item.get("name", "")).strip() or get_stock_name(code)
+                        cand = _evaluate_candidate(code, name, chg, trade, settlement, amount, turnover)
+                        if cand:
+                            candidates_map[code] = cand
+                    if min_chg_on_page < 9.5:
+                        break
+                page += 1
+        except Exception as e:
+            if not candidates_map:
+                logger.warning(f"Sina real-time limit-up leaderboard fetch note: {e}")
+            else:
+                logger.debug(f"Sina real-time limit-up leaderboard fetch note: {e}")
 
     # 2. Secondary fallback: TDX MAC unusual events with multi-offset pagination
     if len(candidates_map) < 5:
