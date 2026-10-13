@@ -67,7 +67,7 @@ const showMidBi = ref(true)
 const showMidZs = ref(true)
 const showLowBi = ref(true)
 const showLowZs = ref(true)
-const showMmdMarks = ref(true)
+const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
 
