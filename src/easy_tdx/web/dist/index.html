@@ -4787,7 +4787,7 @@
                         <i data-lucide="play" class="w-3 h-3"></i>
                         <span>回测</span>
                     </button>
-                    <a href="javascript:void(0)" onclick="window.open('/#chanlun?code=' + (window._kpCurrentStock || window._lastKlineSymbol || ''), '_blank')"
+                    <a id="kp-chanlun-link" href="/#chanlun" target="_blank" rel="noopener noreferrer" onclick="openKpChanlunKline(event)"
                         class="flex items-center space-x-1 px-2 py-1 rounded bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900 transition text-xs cursor-pointer no-underline"
                         title="在新的标签页中打开缠论K线">
                         <i data-lucide="activity" class="w-3 h-3 text-purple-400"></i>
@@ -6904,6 +6904,12 @@
             }
             document.getElementById('kp-full-symbol').innerText = currentKpSymbol;
             document.getElementById('kp-full-symbol-inline').innerText = currentKpSymbol;
+            const cleanCode = String(currentKpSymbol || '').replace(/[^0-9]/g, '');
+            const clLink = document.getElementById('kp-chanlun-link');
+            if (clLink) {
+                clLink.href = cleanCode ? `/#chanlun?code=${cleanCode}` : '/#chanlun';
+                clLink.title = `在新的标签页中打开【${currentKpStockName || cleanCode}】(${cleanCode}) 缠论K线`;
+            }
             updateKlineNavButtons();
 
             // 若切换为不同个股，立即重置历史柱线并展示平滑 Loading，避免旧标的残影
@@ -9387,6 +9393,18 @@
             switchTab('aireview');
             runDiagnosis();
         }
+
+        function openKpChanlunKline(event) {
+            const raw = String(currentKpSymbol || '').trim();
+            const cleanCode = raw.replace(/[^0-9]/g, '');
+            if (!cleanCode) return;
+            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+            window.open(targetUrl, '_blank');
+            if (event) {
+                try { event.preventDefault(); } catch (e) { }
+            }
+        }
+        window.openKpChanlunKline = openKpChanlunKline;
 
         window._klineCache = window._klineCache || new Map();
         let _klineFetchSeq = 0;

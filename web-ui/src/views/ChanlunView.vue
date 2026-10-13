@@ -1061,9 +1061,14 @@ function handleKeyDown(e: KeyboardEvent) {
 
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  const qCode = (route.query.code || route.query.symbol) as string | undefined
+  let qCode = (route.query.code || route.query.symbol) as string | undefined
+  if (!qCode && typeof window !== 'undefined' && window.location.hash.includes('code=')) {
+    const m = window.location.hash.match(/[?&]code=([^&]+)/)
+    if (m) qCode = decodeURIComponent(m[1])
+  }
   if (qCode) {
-    code.value = qCode
+    const clean = qCode.replace(/[^0-9]/g, '')
+    code.value = clean || qCode
     loadHotStocks()
   } else {
     // 默认 K 线显示热门股票 (优先请求最新热门股票池第一名龙头)

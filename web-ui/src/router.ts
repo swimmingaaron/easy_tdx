@@ -27,12 +27,16 @@ export const router = createRouter({
   routes,
 })
 
-// 支持用户通过 http://localhost:8000/#chanlun 或 #/chanlun 直接打开缠论页面
+// 支持用户通过 http://localhost:8000/#chanlun 或 #chanlun?code=xxxx 直接打开缠论页面
 router.beforeEach((to, _from, next) => {
   const hash = window.location.hash.toLowerCase()
-  if (hash === '#chanlun' || hash === '#/chanlun') {
+  if (hash.startsWith('#chanlun') || hash.startsWith('#/chanlun')) {
     if (to.path !== '/chanlun') {
-      return next('/chanlun')
+      const qStr = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''
+      const params = new URLSearchParams(qStr)
+      const queryObj: Record<string, string> = {}
+      params.forEach((v, k) => { queryObj[k] = v })
+      return next({ path: '/chanlun', query: queryObj })
     }
   }
   next()
@@ -41,7 +45,11 @@ router.beforeEach((to, _from, next) => {
 // 初次加载时检测并自动纠偏 hash 路由
 if (typeof window !== 'undefined') {
   const initHash = window.location.hash.toLowerCase()
-  if (initHash === '#chanlun' || initHash === '#/chanlun') {
-    router.replace('/chanlun').catch(() => {})
+  if (initHash.startsWith('#chanlun') || initHash.startsWith('#/chanlun')) {
+    const qStr = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''
+    const params = new URLSearchParams(qStr)
+    const queryObj: Record<string, string> = {}
+    params.forEach((v, k) => { queryObj[k] = v })
+    router.replace({ path: '/chanlun', query: queryObj }).catch(() => {})
   }
 }
