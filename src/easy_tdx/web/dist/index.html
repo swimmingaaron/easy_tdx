@@ -1675,14 +1675,145 @@
             color: var(--text-primary) !important;
             font-weight: 700;
         }
+
+        /* 移动端 / 手机导航栏自动隐藏与紧凑折叠样式 */
+        @media (max-width: 768px) {
+            #main-app-header {
+                padding: 6px 12px !important;
+                gap: 6px !important;
+                transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease !important;
+            }
+
+            #main-app-header.mobile-header-hidden {
+                transform: translateY(-100%) !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+
+            #main-nav-bar {
+                display: none;
+                width: 100% !important;
+            }
+
+            #main-nav-bar.mobile-open {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 6px !important;
+                width: 100% !important;
+                margin-top: 6px !important;
+                padding: 8px !important;
+                background: rgba(15, 23, 42, 0.96) !important;
+                backdrop-filter: blur(16px) !important;
+                border-radius: 12px !important;
+                border: 1px solid rgba(56, 189, 248, 0.3) !important;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8) !important;
+                animation: mobileNavFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            }
+
+            html.light #main-nav-bar.mobile-open {
+                background: rgba(255, 255, 255, 0.98) !important;
+                border: 1px solid rgba(203, 213, 225, 0.9) !important;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+            }
+
+            #main-nav-bar.mobile-open .tab-btn {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 8px 4px !important;
+                font-size: 11px !important;
+                border-radius: 8px !important;
+                white-space: nowrap !important;
+                text-align: center !important;
+            }
+
+            #main-nav-bar.mobile-open .tab-btn i {
+                margin-right: 3px !important;
+                width: 12px !important;
+                height: 12px !important;
+            }
+
+            #mobile-floating-nav-btn {
+                position: fixed;
+                bottom: 24px;
+                right: 16px;
+                z-index: 50;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                padding: 8px 14px;
+                border-radius: 9999px;
+                background: rgba(15, 23, 42, 0.9);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(56, 189, 248, 0.4);
+                color: #38bdf8;
+                font-size: 12px;
+                font-weight: 600;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+                transition: all 0.25s ease;
+                cursor: pointer;
+            }
+
+            html.light #mobile-floating-nav-btn {
+                background: rgba(255, 255, 255, 0.94);
+                border: 1px solid rgba(14, 165, 233, 0.4);
+                color: #0284c7;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            }
+
+            #mobile-floating-nav-btn.hidden {
+                display: none !important;
+            }
+        }
+
+        @keyframes mobileNavFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-6px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
     </style>
 </head>
 
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
     <!-- Header -->
-    <header
-        class="sticky top-0 z-40 glass-card border-b border-slate-800/80 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4">
-        <nav class="flex flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+    <header id="main-app-header"
+        class="sticky top-0 z-40 glass-card border-b border-slate-800/80 px-4 md:px-6 py-2 md:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+        
+        <!-- Mobile Compact Bar (Visible on mobile <= 768px) -->
+        <div class="flex md:hidden items-center justify-between w-full">
+            <button onclick="toggleMobileNav()" id="mobile-nav-toggle-btn"
+                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs text-white border border-slate-700/80 shadow-sm transition cursor-pointer select-none">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span id="mobile-active-tab-name" class="font-bold text-cyan-300">大盘全景</span>
+                <i data-lucide="chevron-down" id="mobile-nav-arrow" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200"></i>
+            </button>
+
+            <div class="flex items-center space-x-1.5">
+                <button onclick="toggleTheme()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700/60 cursor-pointer" title="切换暗色/亮色">
+                    <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
+                </button>
+                <button onclick="toggleTTS()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700/60 cursor-pointer" title="语音播报开关">
+                    <i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i>
+                </button>
+                <button onclick="openServerModal()" class="flex items-center space-x-1 text-[11px] bg-emerald-950/80 text-emerald-400 border border-emerald-800 px-2 py-1.5 rounded-lg font-mono cursor-pointer" title="服务器状态">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="hidden sm:inline">直连</span>
+                </button>
+                <button onclick="toggleMobileNav()" id="mobile-menu-btn"
+                    class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-xs text-cyan-300 border border-cyan-500/40 font-medium transition cursor-pointer select-none">
+                    <i data-lucide="menu" id="mobile-menu-icon" class="w-3.5 h-3.5"></i>
+                    <span id="mobile-menu-text">导航</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Desktop Navigation Bar & Mobile Dropdown Drawer -->
+        <nav id="main-nav-bar" class="hidden md:flex flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
             <button onclick="switchTab('dashboard')" id="tab-dashboard"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i
                     data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
@@ -1721,7 +1852,8 @@
                     class="w-3.5 h-3.5 inline mr-1 text-purple-400"></i>缠论</button>
         </nav>
 
-        <div class="flex items-center space-x-2.5">
+        <!-- Desktop Action Buttons -->
+        <div id="desktop-header-actions" class="hidden md:flex items-center space-x-2.5">
             <!-- Theme Toggle Button (TickFlow Stock Panel Style) -->
             <button onclick="toggleTheme()" id="theme-toggle-btn"
                 class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white transition cursor-pointer border border-slate-700/60 shadow-sm"
@@ -1746,6 +1878,12 @@
             </button>
         </div>
     </header>
+
+    <!-- Mobile Floating Quick-Nav Capsule (Auto-shown when scrolled down on mobile) -->
+    <button id="mobile-floating-nav-btn" onclick="revealMobileHeaderAndToggleNav()" class="hidden md:!hidden" title="唤出导航栏">
+        <i data-lucide="compass" class="w-3.5 h-3.5"></i>
+        <span>导航</span>
+    </button>
 
     <!-- Main Content Area -->
     <main class="flex-1 !pt-0 p-4 md:p-6 max-w-full w-full mx-auto space-y-6">
@@ -6000,8 +6138,112 @@
                 }
             } catch (e) { }
 
+            // 移动端活动模块名称联动更新
+            const mobileActiveName = document.getElementById('mobile-active-tab-name');
+            if (mobileActiveName && TAB_NAME_MAP[tId]) {
+                mobileActiveName.textContent = TAB_NAME_MAP[tId];
+            }
+            // 移动设备上选中任意功能后，自动收起隐藏导航栏，避免遮挡图表
+            if (window.innerWidth <= 768) {
+                closeMobileNav();
+            }
+
             lucide.createIcons();
         }
+
+        const TAB_NAME_MAP = {
+            dashboard: '大盘全景',
+            backtest: '单标的回测',
+            optimize: '参数寻优',
+            screener: '48大策略选股',
+            ladder: '连板天梯',
+            abnormal: '异动雷达',
+            aireview: 'AI 4D诊股与复盘',
+            aichat: 'AI 量化投研助手',
+            tradingsystem: '交易系统',
+            finaanalysis: '财报分析',
+            sectorleaders: '板块龙头',
+            chanlun: '缠论'
+        };
+
+        function toggleMobileNav(forceState) {
+            const navBar = document.getElementById('main-nav-bar');
+            const arrow = document.getElementById('mobile-nav-arrow');
+            const menuBtn = document.getElementById('mobile-menu-btn');
+            if (!navBar) return;
+
+            const isOpen = typeof forceState === 'boolean' ? forceState : !navBar.classList.contains('mobile-open');
+            if (isOpen) {
+                navBar.classList.add('mobile-open');
+                if (arrow) arrow.style.transform = 'rotate(180deg)';
+                if (menuBtn) {
+                    menuBtn.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i><span id="mobile-menu-text">收起</span>';
+                }
+            } else {
+                navBar.classList.remove('mobile-open');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+                if (menuBtn) {
+                    menuBtn.innerHTML = '<i data-lucide="menu" class="w-3.5 h-3.5"></i><span id="mobile-menu-text">导航</span>';
+                }
+            }
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+
+        function closeMobileNav() {
+            toggleMobileNav(false);
+        }
+
+        function revealMobileHeaderAndToggleNav() {
+            const header = document.getElementById('main-app-header');
+            if (header) {
+                header.classList.remove('mobile-header-hidden');
+            }
+            const floatBtn = document.getElementById('mobile-floating-nav-btn');
+            if (floatBtn) {
+                floatBtn.classList.add('hidden');
+            }
+            toggleMobileNav(true);
+        }
+
+        // 移动端 / 手机端向下滚动自动隐藏导航栏，向上轻滑自动显示
+        (function initMobileScrollAutoHide() {
+            let lastScrollY = window.scrollY || 0;
+            let ticking = false;
+
+            window.addEventListener('scroll', function () {
+                if (!ticking) {
+                    window.requestAnimationFrame(function () {
+                        const currentScrollY = window.scrollY || 0;
+                        const isMobile = window.innerWidth <= 768;
+                        const header = document.getElementById('main-app-header');
+                        const floatBtn = document.getElementById('mobile-floating-nav-btn');
+
+                        if (isMobile && header) {
+                            // 向下滚动超过 35px 且增量明显：自动隐藏整个导航栏
+                            if (currentScrollY > lastScrollY && currentScrollY > 40) {
+                                header.classList.add('mobile-header-hidden');
+                                closeMobileNav();
+                                if (floatBtn) floatBtn.classList.remove('hidden');
+                            }
+                            // 向上轻滑或接近顶部：平滑滑出显示
+                            else if (currentScrollY < lastScrollY - 6 || currentScrollY <= 15) {
+                                header.classList.remove('mobile-header-hidden');
+                                if (floatBtn) floatBtn.classList.add('hidden');
+                            }
+                        } else if (header) {
+                            header.classList.remove('mobile-header-hidden');
+                            if (floatBtn) floatBtn.classList.add('hidden');
+                        }
+
+                        lastScrollY = Math.max(0, currentScrollY);
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            }, { passive: true });
+        })();
 
         function restoreInitialTab() {
             let targetTab = 'dashboard';
