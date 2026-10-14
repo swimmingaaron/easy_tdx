@@ -1,7 +1,7 @@
 {
   "status": "success",
   "date": "2026-10-14",
-  "update_time": "16:38:27.442",
+  "update_time": "16:43:38.836",
   "refresh_interval_ms": 5000,
   "is_trading_time": false,
   "major_indices": [
@@ -1275,14 +1275,14 @@
     "status": "震荡整理"
   },
   "sentiment": {
-    "score": 28.4,
+    "score": 28.3,
     "phase": "冰点期 · 左侧潜伏",
     "advice": "市场恐慌杀跌，耐心等待企稳反转"
   },
   "breadth": {
-    "up_count": 945,
+    "up_count": 937,
     "down_count": 4262,
-    "flat_count": 84,
+    "flat_count": 92,
     "ratio": 0.22,
     "distribution": [
       16,
@@ -1290,9 +1290,9 @@
       511,
       1619,
       1903,
-      369,
-      330,
-      132,
+      365,
+      327,
+      131,
       56,
       58
     ],

@@ -4612,10 +4612,10 @@
                     </div>
                 </div>
 
-                <!-- 缠论操作控制台: 窗口模式 + 主副图图层 + 缩放回溯控制 (单行高集成排版) -->
-                <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 flex-wrap sm:flex-nowrap">
+                <!-- 缠论操作控制台: 窗口模式 + 主副图图层 + 时间轴推演滑块 + 缩放回溯控制 (全功能单行贯通排版) -->
+                <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 overflow-x-auto no-scrollbar select-none">
                     <!-- 左侧: 窗口模式 + 主副图图层控制 -->
-                    <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
+                    <div class="flex items-center space-x-1 shrink-0">
                         <!-- 左右双窗口 / 单窗口 切换按钮 -->
                         <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
                             <button onclick="setChanlunWindowMode('dual')" id="cl-btn-win-dual"
@@ -4627,7 +4627,7 @@
                         <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
 
                         <!-- 主图图层开关 -->
-                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
+                        <div class="flex items-center space-x-0.5 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
                             <button onclick="toggleChanlunLayer('highBi')" id="cl-btn-layer-high-bi"
                                 class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔(紫)</button>
@@ -4659,68 +4659,70 @@
                         </div>
                     </div>
 
-                    <!-- 1点钟方向: 缩放与历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->
-                    <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0 ml-auto">
-                        <!-- 缩放K线控制器 (通达信快捷键: ↑ 放大 / ↓ 缩小) -->
-                        <div class="flex items-center space-x-0.5 border-r border-slate-700/60 pr-1 mr-0.5">
-                            <button type="button" onclick="zoomChanlunChart(0.8)" id="cl-btn-zoom-in"
-                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
-                                title="放大K线 (快捷键: ↑ 方向键)">
-                                <span>放大</span>
+                    <!-- 中间: 时间轴滑块 (弹性撑满中间区域，完美利用空当) -->
+                    <div id="cl-backtrack-slider-wrap" class="flex-1 min-w-[120px] max-w-sm flex items-center space-x-1.5 px-2 font-mono text-[10px] text-slate-500 shrink">
+                        <span id="cl-slider-min" class="text-slate-400 whitespace-nowrap text-[9px]">--</span>
+                        <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderInput(this.value)" onchange="onChanlunSliderChange(this.value)"
+                            class="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-cyan-400 transition">
+                        <span id="cl-slider-max" class="text-slate-400 whitespace-nowrap text-[9px]">--</span>
+                        <span id="cl-backtrack-cutoff-text" class="px-1 py-0.2 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap hidden 2xl:inline text-[9px]">截断: 最新</span>
+                    </div>
+
+                    <!-- 右侧: 缩放与历史回溯推演控制器 + 键盘提示 -->
+                    <div class="flex items-center space-x-1 shrink-0">
+                        <div class="flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded border border-slate-700/80 shadow-inner shrink-0">
+                            <!-- 缩放K线控制器 -->
+                            <div class="flex items-center space-x-0.5 border-r border-slate-700/60 pr-1 mr-0.5">
+                                <button type="button" onclick="zoomChanlunChart(0.8)" id="cl-btn-zoom-in"
+                                    class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                    title="放大K线 (快捷键: ↑ 方向键)">
+                                    <span>放大</span>
+                                </button>
+                                <button type="button" onclick="zoomChanlunChart(1.25)" id="cl-btn-zoom-out"
+                                    class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
+                                    title="缩小K线 (快捷键: ↓ 方向键)">
+                                    <span>缩小</span>
+                                </button>
+                            </div>
+
+                            <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0"
+                                title="前移 1 根K线 (快捷键: ← 方向键)">
+                                <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button type="button" onclick="zoomChanlunChart(1.25)" id="cl-btn-zoom-out"
-                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
-                                title="缩小K线 (快捷键: ↓ 方向键)">
-                                <span>缩小</span>
+
+                            <div class="relative flex items-center shrink-0">
+                                <input type="date" id="cl-cutoff-date" onchange="onChanlunCutoffDateChange(this.value)"
+                                    class="h-6 bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded px-1 py-0.5 text-[10.5px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition cursor-pointer text-center"
+                                    title="选择回溯截止日期模拟历史当时当下">
+                            </div>
+
+                            <button type="button" onclick="stepChanlunBacktrack(1)" id="cl-btn-next-bar"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0"
+                                title="后移 1 根K线 (快捷键: → 方向键)">
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                            </button>
+
+                            <button type="button" onclick="exitChanlunBacktrack()" id="cl-btn-latest-bar"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer shrink-0"
+                                title="恢复至最新交易日 (快捷键: End)">
+                                <span>今</span>
+                            </button>
+
+                            <button type="button" onclick="toggleChanlunReplay()" id="cl-btn-play-replay"
+                                class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0"
+                                title="逐根自动推演播放 / 暂停 (快捷键: 空格键)">
+                                <i id="cl-replay-play-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
 
-                        <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
-                            class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
-                            title="前移 1 根K线 (快捷键: ← 方向键)">
-                            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
-                        </button>
-
-                        <div class="relative flex items-center shrink-0">
-                            <input type="date" id="cl-cutoff-date" onchange="onChanlunCutoffDateChange(this.value)"
-                                class="h-6 bg-slate-950/90 border border-slate-700 hover:border-cyan-500 rounded px-1.5 py-0.5 text-[11px] font-mono text-cyan-300 focus:outline-none focus:border-cyan-400 transition cursor-pointer text-center"
-                                title="选择回溯截止日期模拟历史当时当下">
+                        <!-- 键盘快捷键提示 (大屏展示) -->
+                        <div class="hidden 2xl:flex items-center space-x-1.5 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
+                            <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">↑↓</kbd> 缩放</span>
+                            <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←→</kbd> 推演</span>
+                            <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">空格</kbd> 播放</span>
                         </div>
-
-                        <button type="button" onclick="stepChanlunBacktrack(1)" id="cl-btn-next-bar"
-                            class="h-6 px-2 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center space-x-0.5 cursor-pointer text-[11px] shrink-0"
-                            title="后移 1 根K线 (快捷键: → 方向键)">
-                            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-                        </button>
-
-                        <button type="button" onclick="exitChanlunBacktrack()" id="cl-btn-latest-bar"
-                            class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-amber-400 hover:bg-amber-950/60 border border-transparent hover:border-amber-800 transition cursor-pointer shrink-0"
-                            title="恢复至最新交易日 (快捷键: End)">
-                            <span>今</span>
-                        </button>
-
-                        <button type="button" onclick="toggleChanlunReplay()" id="cl-btn-play-replay"
-                            class="h-6 w-6 rounded text-slate-400 hover:text-emerald-400 hover:bg-emerald-950/60 border border-transparent hover:border-emerald-800 transition cursor-pointer flex items-center justify-center shrink-0"
-                            title="逐根自动推演播放 / 暂停 (快捷键: 空格键)">
-                            <i id="cl-replay-play-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
-                        </button>
                     </div>
-
-                    <!-- 键盘快捷键提示 (参考K线弹窗) -->
-                    <div class="hidden xl:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
-                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">↑</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">↓</kbd> 缩放</span>
-                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">→</kbd> 逐日推演</span>
-                        <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">空格</kbd> 播放</span>
-                    </div>
-                </div>
-
-                <!-- 时间轴滑块 (回溯模式下显示或始终优雅呈现) -->
-                <div class="flex items-center space-x-2 pt-0.5 text-[10px] text-slate-500 font-mono">
-                    <span id="cl-slider-min" class="text-slate-400 whitespace-nowrap">--</span>
-                    <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderInput(this.value)" onchange="onChanlunSliderChange(this.value)"
-                        class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-cyan-400 transition">
-                    <span id="cl-slider-max" class="text-slate-400 whitespace-nowrap">--</span>
-                    <span id="cl-backtrack-cutoff-text" class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap hidden sm:inline">截断: 最新</span>
                 </div>
             </div>
 
