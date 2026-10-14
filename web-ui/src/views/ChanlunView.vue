@@ -907,7 +907,7 @@ function renderChart() {
     },
     grid: [
       { left: '3.5%', right: '3.5%', top: '7%', height: hasSub ? '63%' : '82%' },
-      { left: '3.5%', right: '3.5%', top: '74%', height: hasSub ? '18%' : '0%' },
+      { left: '3.5%', right: '3.5%', top: '74%', height: hasSub ? '9%' : '0%' },
     ],
     xAxis: [
       {
@@ -971,7 +971,7 @@ function renderChart() {
       {
         type: 'slider',
         xAxisIndex: [0, 1],
-        top: '94%',
+        top: hasSub ? '85%' : '94%',
         height: 18,
         minValueSpan: 20,
         borderColor: '#2a2e39',
