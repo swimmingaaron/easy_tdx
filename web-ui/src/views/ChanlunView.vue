@@ -43,10 +43,40 @@ const periodPresets = [
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
   { label: '超短 (60F·30F·5F)', value: '60F,30F,5F' },
 ]
-const activePreset = ref('DAY,30F,5F')
-const periodHigh = ref('DAY')
-const periodMid = ref('30F')
-const periodLow = ref('5F')
+// 窗口分屏模式：'dual' (默认双窗口: 左右分屏对比) | 'single' (单窗口全屏)
+const splitMode = ref<'dual' | 'single'>('dual')
+
+// 左窗口周期 (默认: 日·30F·5F)
+const leftPeriods = ref('DAY,30F,5F')
+const leftActivePreset = ref('DAY,30F,5F')
+const leftPeriodHigh = ref('DAY')
+const leftPeriodMid = ref('30F')
+const leftPeriodLow = ref('5F')
+
+// 右窗口周期 (默认: 周·日·30F)
+const rightPeriods = ref('WEEK,DAY,30F')
+const rightActivePreset = ref('WEEK,DAY,30F')
+const rightPeriodHigh = ref('WEEK')
+const rightPeriodMid = ref('DAY')
+const rightPeriodLow = ref('30F')
+
+// 兼容单窗口时的主周期双向绑定 (代理到左窗)
+const activePreset = computed({
+  get: () => leftActivePreset.value,
+  set: (v) => { leftActivePreset.value = v }
+})
+const periodHigh = computed({
+  get: () => leftPeriodHigh.value,
+  set: (v) => { leftPeriodHigh.value = v }
+})
+const periodMid = computed({
+  get: () => leftPeriodMid.value,
+  set: (v) => { leftPeriodMid.value = v }
+})
+const periodLow = computed({
+  get: () => leftPeriodLow.value,
+  set: (v) => { leftPeriodLow.value = v }
+})
 
 const allPeriodOptions = [
   { key: 'MONTH', label: '月线 (MONTH)' },
@@ -177,18 +207,34 @@ let replayTimer: ReturnType<typeof setInterval> | null = null
 // ── 数据与图表 ───────────────────────────────────────────────────────────────
 const loading = ref(false)
 const errorMsg = ref('')
-const chanData = ref<ChanlunResonanceResponse | null>(null)
+const chanDataLeft = ref<ChanlunResonanceResponse | null>(null)
+const chanDataRight = ref<ChanlunResonanceResponse | null>(null)
+const chanData = computed(() => chanDataLeft.value)
 
-const chartContainer = ref<HTMLDivElement | null>(null)
-let chartInstance: echarts.ECharts | null = null
+const chartContainerLeft = ref<HTMLDivElement | null>(null)
+const chartContainerRight = ref<HTMLDivElement | null>(null)
+let chartInstanceLeft: echarts.ECharts | null = null
+let chartInstanceRight: echarts.ECharts | null = null
+
+function setSplitMode(mode: 'dual' | 'single') {
+  splitMode.value = mode
+  nextTick(() => {
+    handleResize()
+    if (mode === 'dual' && !chanDataRight.value) {
+      loadData()
+    } else {
+      renderChart()
+    }
+  })
+}
 
 // ── 计算属性 ─────────────────────────────────────────────────────────────────
 const currentPeriodsStr = computed(() => {
-  return `${periodHigh.value},${periodMid.value},${periodLow.value}`
+  return leftPeriods.value
 })
 
 const availableDates = computed(() => {
-  return chanData.value?.backtrack_timeline?.available_dates || []
+  return chanDataLeft.value?.backtrack_timeline?.available_dates || []
 })
 
 const maxBacktrackIndex = computed(() => {
@@ -197,12 +243,27 @@ const maxBacktrackIndex = computed(() => {
 
 // ── 周期切换处理 ─────────────────────────────────────────────────────────────
 function applyPreset(pStr: string) {
-  activePreset.value = pStr
+  applyWindowPreset('left', pStr)
+}
+
+function applyWindowPreset(target: 'left' | 'right', pStr: string) {
   const parts = pStr.split(',')
-  if (parts.length === 3) {
-    periodHigh.value = parts[0]
-    periodMid.value = parts[1]
-    periodLow.value = parts[2]
+  if (target === 'left') {
+    leftActivePreset.value = pStr
+    leftPeriods.value = pStr
+    if (parts.length === 3) {
+      leftPeriodHigh.value = parts[0]
+      leftPeriodMid.value = parts[1]
+      leftPeriodLow.value = parts[2]
+    }
+  } else {
+    rightActivePreset.value = pStr
+    rightPeriods.value = pStr
+    if (parts.length === 3) {
+      rightPeriodHigh.value = parts[0]
+      rightPeriodMid.value = parts[1]
+      rightPeriodLow.value = parts[2]
+    }
   }
   clearClientBacktrackCache()
   if (autoRefresh.value) {
@@ -214,10 +275,10 @@ function applyPreset(pStr: string) {
 const PERIOD_ORDER = ['MONTH', 'WEEK', 'DAY', '120F', '60F', '30F', '15F', '5F', '1F']
 
 function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
-  activePreset.value = ''
-  let hIdx = PERIOD_ORDER.indexOf(periodHigh.value)
-  let mIdx = PERIOD_ORDER.indexOf(periodMid.value)
-  let lIdx = PERIOD_ORDER.indexOf(periodLow.value)
+  leftActivePreset.value = ''
+  let hIdx = PERIOD_ORDER.indexOf(leftPeriodHigh.value)
+  let mIdx = PERIOD_ORDER.indexOf(leftPeriodMid.value)
+  let lIdx = PERIOD_ORDER.indexOf(leftPeriodLow.value)
   if (hIdx < 0) hIdx = 2
   if (mIdx < 0) mIdx = 5
   if (lIdx < 0) lIdx = 7
@@ -233,9 +294,10 @@ function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
     if (lIdx <= mIdx) lIdx = Math.min(mIdx + 1, PERIOD_ORDER.length - 1)
   }
 
-  periodHigh.value = PERIOD_ORDER[hIdx]
-  periodMid.value = PERIOD_ORDER[mIdx]
-  periodLow.value = PERIOD_ORDER[lIdx]
+  leftPeriodHigh.value = PERIOD_ORDER[hIdx]
+  leftPeriodMid.value = PERIOD_ORDER[mIdx]
+  leftPeriodLow.value = PERIOD_ORDER[lIdx]
+  leftPeriods.value = `${leftPeriodHigh.value},${leftPeriodMid.value},${leftPeriodLow.value}`
   clearClientBacktrackCache()
   if (autoRefresh.value) {
     startAutoRefresh()
@@ -275,12 +337,12 @@ async function triggerBacktrackLoad() {
 async function loadData(forceRefresh = false) {
   if (!code.value) return
 
-  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+  const cacheKey = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
 
   // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
   if (isBacktrackingMode.value && backtrackDate.value && !forceRefresh && backtrackCache.has(cacheKey)) {
     const cached = backtrackCache.get(cacheKey)!
-    chanData.value = cached
+    chanDataLeft.value = cached
     const idx = cached.backtrack_timeline.available_dates.indexOf(cached.summary.latest_date)
     if (idx >= 0) backtrackIndex.value = idx
     nextTick(() => {
@@ -297,29 +359,49 @@ async function loadData(forceRefresh = false) {
 
   try {
     // 借鉴 chanlun-pro：实时模式下使用 800 根 (单网络包最优上限，~17个交易日，微秒级加载)；回溯时光机模式使用 2500 根全量母数据
-    const reqCount = isBacktrackingMode.value ? 2500 : ((currentPeriodsStr.value.includes('5F') || currentPeriodsStr.value.includes('1F')) ? 800 : 300)
-    const res = await fetchChanlunResonance({
+    const reqCount = isBacktrackingMode.value ? 2500 : ((leftPeriods.value.includes('5F') || leftPeriods.value.includes('1F')) ? 800 : 300)
+    const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
+    const force = isBacktrackingMode.value ? false : forceRefresh
+
+    const pLeft = fetchChanlunResonance({
       code: code.value,
-      periods: currentPeriodsStr.value,
+      periods: leftPeriods.value,
       count: reqCount,
-      cutoff_date: isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined,
-      force_refresh: isBacktrackingMode.value ? false : forceRefresh,
+      cutoff_date: cutoff,
+      force_refresh: force,
     })
-    chanData.value = res
+    const promises: Promise<ChanlunResonanceResponse>[] = [pLeft]
+
+    if (splitMode.value === 'dual') {
+      const pRight = fetchChanlunResonance({
+        code: code.value,
+        periods: rightPeriods.value,
+        count: reqCount,
+        cutoff_date: cutoff,
+        force_refresh: force,
+      })
+      promises.push(pRight)
+    }
+
+    const results = await Promise.all(promises)
+    chanDataLeft.value = results[0]
+    if (results[1]) {
+      chanDataRight.value = results[1]
+    }
     lastRefreshTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
 
     // 存入客户端回溯缓存池
-    backtrackCache.set(cacheKey, res)
-    if (!isBacktrackingMode.value && res.summary.latest_date) {
-      backtrackCache.set(getBacktrackCacheKey(code.value, currentPeriodsStr.value, res.summary.latest_date), res)
+    backtrackCache.set(cacheKey, results[0])
+    if (!isBacktrackingMode.value && results[0].summary.latest_date) {
+      backtrackCache.set(getBacktrackCacheKey(code.value, leftPeriods.value, results[0].summary.latest_date), results[0])
     }
 
     // 初始化回溯滑块索引
     if (!isBacktrackingMode.value) {
-      backtrackIndex.value = res.backtrack_timeline.total_bars - 1
-      backtrackDate.value = res.summary.latest_date
+      backtrackIndex.value = results[0].backtrack_timeline.total_bars - 1
+      backtrackDate.value = results[0].summary.latest_date
     } else {
-      const idx = res.backtrack_timeline.available_dates.indexOf(res.summary.latest_date)
+      const idx = results[0].backtrack_timeline.available_dates.indexOf(results[0].summary.latest_date)
       if (idx >= 0) backtrackIndex.value = idx
     }
 
@@ -431,7 +513,7 @@ function onSliderInput(e: Event) {
   const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
   if (backtrackCache.has(cacheKey)) {
     const cached = backtrackCache.get(cacheKey)!
-    chanData.value = cached
+    chanDataLeft.value = cached
     renderChart()
     return
   }
@@ -455,7 +537,7 @@ function onSliderChange(e: Event) {
   }
   const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
   if (backtrackCache.has(cacheKey)) {
-    chanData.value = backtrackCache.get(cacheKey)!
+    chanDataLeft.value = backtrackCache.get(cacheKey)!
     nextTick(() => {
       renderChart()
     })
@@ -471,7 +553,7 @@ function stepBacktrack(step: number) {
     backtrackDate.value = availableDates.value[nextIdx]
     const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
     if (backtrackCache.has(cacheKey)) {
-      chanData.value = backtrackCache.get(cacheKey)!
+      chanDataLeft.value = backtrackCache.get(cacheKey)!
       nextTick(() => {
         renderChart()
       })
@@ -515,21 +597,12 @@ function stopReplay() {
   }
 }
 
-// ── ECharts 绘制逻辑 ─────────────────────────────────────────────────────────
-function renderChart() {
-  if (!chartContainer.value || !chanData.value) return
-
-  if (!chartInstance) {
-    chartInstance = echarts.init(chartContainer.value, 'dark')
-    window.addEventListener('resize', handleResize)
-  }
-
-  const d = chanData.value
+// ── ECharts 配置生成 ─────────────────────────────────────────────────────────
+function buildChanlunOption(d: ChanlunResonanceResponse): any {
   const uc = d.unified_chart
 
   if (!uc || !uc.dates || uc.dates.length === 0) {
-    chartInstance.clear()
-    return
+    return {}
   }
 
   // 大级别笔 MarkLines (大周期：紫色粗线，置顶主导)
@@ -1038,33 +1111,56 @@ function renderChart() {
     ],
   }
 
-  chartInstance.setOption(option, { notMerge: true, lazyUpdate: true })
+  return option
+}
+
+// ── ECharts 绘制逻辑 ─────────────────────────────────────────────────────────
+function renderChart() {
+  if (chartContainerLeft.value && chanDataLeft.value) {
+    if (!chartInstanceLeft) {
+      chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
+      window.addEventListener('resize', handleResize)
+    }
+    const optionLeft = buildChanlunOption(chanDataLeft.value)
+    chartInstanceLeft.setOption(optionLeft, { notMerge: true, lazyUpdate: true })
+  }
+
+  if (splitMode.value === 'dual' && chartContainerRight.value && chanDataRight.value) {
+    if (!chartInstanceRight) {
+      chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+    }
+    const optionRight = buildChanlunOption(chanDataRight.value)
+    chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
+  }
 }
 
 function handleResize() {
-  chartInstance?.resize()
+  if (chartInstanceLeft) chartInstanceLeft.resize()
+  if (chartInstanceRight && splitMode.value === 'dual') chartInstanceRight.resize()
 }
 
 function zoomChart(factor: number) {
-  if (!chartInstance) return
-  const opt = chartInstance.getOption() as any
-  if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return
-  let start = opt.dataZoom[0].start ?? 40
-  let end = opt.dataZoom[0].end ?? 100
-  const span = end - start
-  const totalBars = chanData.value?.unified_chart?.dates?.length || 100
-  const minSpan = Math.min(100, (20 / totalBars) * 100)
-  const newSpan = Math.max(minSpan, Math.min(100, span * factor))
-  const delta = (newSpan - span) / 2
-  let newStart = Math.max(0, start - delta)
-  let newEnd = Math.min(100, end + delta)
-  if (newStart === 0) newEnd = Math.min(100, newStart + newSpan)
-  if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan)
-  chartInstance.dispatchAction({
-    type: 'dataZoom',
-    start: newStart,
-    end: newEnd,
-  })
+  const instances = [chartInstanceLeft, splitMode.value === 'dual' ? chartInstanceRight : null].filter(Boolean)
+  for (const inst of instances) {
+    const opt = inst!.getOption() as any
+    if (!opt || !opt.dataZoom || !opt.dataZoom[0]) continue
+    let start = opt.dataZoom[0].start ?? 40
+    let end = opt.dataZoom[0].end ?? 100
+    const span = end - start
+    const totalBars = chanDataLeft.value?.unified_chart?.dates?.length || 100
+    const minSpan = Math.min(100, (20 / totalBars) * 100)
+    const newSpan = Math.max(minSpan, Math.min(100, span * factor))
+    const delta = (newSpan - span) / 2
+    let newStart = Math.max(0, start - delta)
+    let newEnd = Math.min(100, end + delta)
+    if (newStart === 0) newEnd = Math.min(100, newStart + newSpan)
+    if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan)
+    inst!.dispatchAction({
+      type: 'dataZoom',
+      start: newStart,
+      end: newEnd,
+    })
+  }
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -1119,10 +1215,14 @@ onBeforeUnmount(() => {
   }
   stopAutoRefresh()
   stopReplay()
-  if (chartInstance) {
-    window.removeEventListener('resize', handleResize)
-    chartInstance.dispose()
-    chartInstance = null
+  window.removeEventListener('resize', handleResize)
+  if (chartInstanceLeft) {
+    chartInstanceLeft.dispose()
+    chartInstanceLeft = null
+  }
+  if (chartInstanceRight) {
+    chartInstanceRight.dispose()
+    chartInstanceRight = null
   }
 })
 </script>
@@ -1200,6 +1300,26 @@ onBeforeUnmount(() => {
           </button>
           <button class="icon-btn" @click="loadData(true)" :title="`立即刷新最新${periodLowLabel}K线数据`">
             🔄
+          </button>
+        </div>
+
+        <!-- 双窗口 / 单窗口 切换按钮 -->
+        <div class="mode-switch-box">
+          <button
+            class="mode-btn"
+            :class="{ active: splitMode === 'dual' }"
+            @click="setSplitMode('dual')"
+            title="左右双窗口对比 (左: 日·30F·5F，右: 周·日·30F)"
+          >
+            ◫ 双窗口
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: splitMode === 'single' }"
+            @click="setSplitMode('single')"
+            title="单窗口全屏显示"
+          >
+            ⬜ 单窗口
           </button>
         </div>
 
@@ -1386,17 +1506,62 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 主图表区 -->
-    <div class="chart-wrapper">
-      <div v-if="loading" class="chart-loading-overlay">
-        <div class="spinner"></div>
-        <span>正在运行三周期缠论立体共振计算管道...</span>
-      </div>
-      <div v-if="errorMsg" class="chart-error-banner">
-        ⚠️ {{ errorMsg }}
+    <!-- 主图表区 (支持单窗口 / 左右双窗口) -->
+    <div class="charts-split-container" :class="{ 'is-dual': splitMode === 'dual' }">
+      <!-- 左窗口卡片 (默认: 日·30F·5F) -->
+      <div class="chart-window-card left-card">
+        <div class="window-card-header">
+          <div class="win-tag-box">
+            <span class="win-pill left-pill">左窗: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
+            <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }} · 大中小周期立体共振</span>
+          </div>
+          <div class="win-tools-box">
+            <select
+              :value="leftPeriods"
+              class="win-preset-select"
+              @change="applyWindowPreset('left', ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="p in periodPresets" :key="p.value" :value="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="loading && !chanDataLeft" class="chart-loading-overlay">
+          <div class="spinner"></div>
+          <span>正在运行左窗三周期缠论计算...</span>
+        </div>
+        <div v-if="errorMsg" class="chart-error-banner">
+          ⚠️ {{ errorMsg }}
+        </div>
+
+        <div ref="chartContainerLeft" class="main-echart"></div>
       </div>
 
-      <div ref="chartContainer" class="main-echart"></div>
+      <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
+      <div v-if="splitMode === 'dual'" class="chart-window-card right-card">
+        <div class="window-card-header">
+          <div class="win-tag-box">
+            <span class="win-pill right-pill">右窗: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
+            <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }} · 大中小周期立体共振</span>
+          </div>
+          <div class="win-tools-box">
+            <select
+              :value="rightPeriods"
+              class="win-preset-select"
+              @change="applyWindowPreset('right', ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="p in periodPresets" :key="p.value" :value="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="loading && !chanDataRight" class="chart-loading-overlay">
+          <div class="spinner"></div>
+          <span>正在运行右窗三周期缠论计算...</span>
+        </div>
+
+        <div ref="chartContainerRight" class="main-echart"></div>
+      </div>
     </div>
   </div>
 </template>
@@ -1823,7 +1988,76 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-/* 主图表 */
+/* 主图表容器与分屏卡片 */
+.charts-split-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  flex-shrink: 0;
+}
+@media (min-width: 1200px) {
+  .charts-split-container.is-dual {
+    flex-direction: row;
+  }
+}
+.chart-window-card {
+  position: relative;
+  background: #181b27;
+  border: 1px solid #2a2e39;
+  border-radius: 8px;
+  height: 754px;
+  min-height: 624px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.window-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: #1e222d;
+  border-bottom: 1px solid #2a2e39;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.win-tag-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.win-pill {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 11px;
+}
+.left-pill {
+  background: rgba(147, 51, 234, 0.25);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+}
+.right-pill {
+  background: rgba(6, 182, 212, 0.25);
+  color: #67e8f9;
+  border: 1px solid rgba(103, 232, 249, 0.4);
+}
+.win-stock-title {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.win-preset-select {
+  background: #131722;
+  border: 1px solid #363c4e;
+  color: #e2e8f0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
 .chart-wrapper {
   position: relative;
   background: #181b27;

@@ -507,7 +507,8 @@
         html.light #view-chanlun select {
             color: #475569 !important;
         }
-        html.light #view-chanlun #chanlun-echart-main {
+        html.light #view-chanlun #chanlun-echart-main,
+        html.light #view-chanlun #chanlun-echart-right {
             background: #ffffff !important;
         }
 
@@ -4597,6 +4598,14 @@
                 <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 flex-wrap sm:flex-nowrap">
                     <!-- 周期组合滚动区 -->
                     <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
+                        <!-- 左右双窗口 / 单窗口 切换按钮 -->
+                        <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
+                            <button onclick="setChanlunWindowMode('dual')" id="cl-btn-win-dual"
+                                class="cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0" title="左右双窗口对比 (左: 日·30F·5F，右: 周·日·30F)">◫ 双窗口</button>
+                            <button onclick="setChanlunWindowMode('single')" id="cl-btn-win-single"
+                                class="cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="单窗口全宽显示">⬜ 单窗口</button>
+                        </div>
+
                         <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
                             <button onclick="applyChanlunPreset('DAY,30F,5F')" id="cl-preset-DAY-30F-5F"
                                 class="cl-preset-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0">标准 (日·30F·5F)</button>
@@ -4744,25 +4753,71 @@
 
 
 
-            <!-- ECharts 主图呈现卡片 (参考K线弹窗) -->
-            <div class="glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
-                <!-- 加载中遮罩 -->
-                <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex-col items-center justify-center space-y-2 text-purple-400">
-                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
-                    <span class="text-xs font-mono font-medium">正在拉取三周期数据并执行缠论立体共振计算...</span>
+            <!-- ECharts 主图呈现区 (支持单窗口 / 左右双窗口分屏) -->
+            <div id="cl-charts-split-container" class="flex flex-col xl:flex-row gap-3 w-full">
+                <!-- 左窗口卡片 (默认: 日·30F·5F) -->
+                <div id="cl-chart-card-left" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
+                    <!-- 加载中遮罩 -->
+                    <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                        <span class="text-xs font-mono font-medium">正在拉取左窗三周期数据并执行缠论立体共振计算...</span>
+                    </div>
+
+                    <!-- 顶部条：左窗标识 + 预设切换 + 形态胶囊 -->
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1">
+                        <div class="flex items-center space-x-2">
+                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950 text-purple-300 border border-purple-800 shrink-0">左窗: 日·30F·5F</span>
+                            <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-sky-600 dark:text-sky-400 tracking-wide flex items-center">
+                                <span id="cl-chart-title-text">--</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-purple-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                                <option value="DAY,30F,5F" selected>标准 (日·30F·5F)</option>
+                                <option value="WEEK,DAY,30F">波段 (周·日·30F)</option>
+                                <option value="MONTH,WEEK,DAY">长线 (月·周·日)</option>
+                                <option value="DAY,60F,15F">日内 (日·60F·15F)</option>
+                                <option value="60F,30F,5F">超短 (60F·30F·5F)</option>
+                            </select>
+                            <div id="cl-pattern-overlay" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
+                        </div>
+                    </div>
+
+                    <!-- ECharts 画布容器 -->
+                    <div id="chanlun-echart-main" style="width: 100%; height: 806px;"></div>
                 </div>
 
-                <!-- 蜡烛图左上角：蓝色标题 (上移至顶部独立区域) 与形态胶囊 (分层排布，避开重叠) -->
-                <div class="absolute top-2.5 left-14 z-10 flex flex-col space-y-1 pointer-events-none select-none">
-                    <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-sky-600 dark:text-sky-400 tracking-wide flex items-center">
-                        <span id="cl-chart-title-text">--</span>
+                <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
+                <div id="cl-chart-card-right" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
+                    <!-- 加载中遮罩 -->
+                    <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                        <span class="text-xs font-mono font-medium">正在拉取右窗三周期数据并执行缠论立体共振计算...</span>
                     </div>
-                    <div id="cl-pattern-overlay" class="flex items-center space-x-1.5 text-[11px] font-sans font-medium">
-                    </div>
-                </div>
 
-                <!-- ECharts 画布容器 -->
-                <div id="chanlun-echart-main" style="width: 100%; height: 806px;"></div>
+                    <!-- 顶部条：右窗标识 + 预设切换 + 形态胶囊 -->
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1">
+                        <div class="flex items-center space-x-2">
+                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">右窗: 周·日·30F</span>
+                            <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-cyan-600 dark:text-cyan-400 tracking-wide flex items-center">
+                                <span id="cl-chart-title-text-right">--</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                                <option value="DAY,30F,5F">标准 (日·30F·5F)</option>
+                                <option value="WEEK,DAY,30F" selected>波段 (周·日·30F)</option>
+                                <option value="MONTH,WEEK,DAY">长线 (月·周·日)</option>
+                                <option value="DAY,60F,15F">日内 (日·60F·15F)</option>
+                                <option value="60F,30F,5F">超短 (60F·30F·5F)</option>
+                            </select>
+                            <div id="cl-pattern-overlay-right" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
+                        </div>
+                    </div>
+
+                    <!-- ECharts 画布容器 -->
+                    <div id="chanlun-echart-right" style="width: 100%; height: 806px;"></div>
+                </div>
             </div>
         </section>
 
@@ -6118,6 +6173,7 @@
                             setTimeout(() => {
                                 if (typeof initChanlun === 'function') initChanlun();
                                 if (window.chanlunChart) window.chanlunChart.resize();
+                                if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -21752,8 +21808,13 @@
         // ==============================================================================
         let _clCurrentCode = window._clCurrentCode || '000001';
         let _clCurrentCodeChangedByUser = window._clCurrentCodeChangedByUser || false;
+        let _clWindowMode = 'dual'; // 'dual' (默认双窗口) | 'single' (单窗口全屏)
+        let _clLeftPeriods = 'DAY,30F,5F';
+        let _clRightPeriods = 'WEEK,DAY,30F';
         let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
+        let _clLeftCachedData = null;
+        let _clRightCachedData = null;
         let _clIsBacktracking = false;
         let _clBacktrackDate = null;
         let _clBacktrackIndex = 0;
@@ -21763,6 +21824,67 @@
         let _clIsPlayingReplay = false;
         let _clReplayTimer = null;
         let _clHasInitialized = false;
+
+        window.setChanlunWindowMode = function(mode) {
+            _clWindowMode = mode;
+            const btnDual = document.getElementById('cl-btn-win-dual');
+            const btnSingle = document.getElementById('cl-btn-win-single');
+            const cardRight = document.getElementById('cl-chart-card-right');
+            const cardLeft = document.getElementById('cl-chart-card-left');
+
+            const activeCls = 'cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0';
+            const inactiveCls = 'cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+
+            if (mode === 'dual') {
+                if (btnDual) btnDual.className = activeCls;
+                if (btnSingle) btnSingle.className = inactiveCls;
+                if (cardRight) cardRight.style.display = '';
+                if (cardLeft) cardLeft.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl';
+                setTimeout(() => {
+                    if (window.chanlunChart) window.chanlunChart.resize();
+                    if (window.chanlunChartRight) window.chanlunChartRight.resize();
+                    if (!_clRightCachedData) {
+                        loadChanlunData(false);
+                    }
+                }, 50);
+            } else {
+                if (btnDual) btnDual.className = inactiveCls;
+                if (btnSingle) btnSingle.className = activeCls;
+                if (cardRight) cardRight.style.display = 'none';
+                if (cardLeft) cardLeft.className = 'w-full glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl';
+                setTimeout(() => {
+                    if (window.chanlunChart) window.chanlunChart.resize();
+                }, 50);
+            }
+        };
+
+        window.applyChanlunWindowPreset = function(target, presetStr) {
+            if (target === 'left') {
+                _clLeftPeriods = presetStr;
+                _clPeriods = presetStr;
+                const pEl = document.getElementById('cl-pill-left');
+                if (pEl) pEl.innerText = `左窗: ${presetStr.replace(/,/g, '·')}`;
+                const sPreset = document.getElementById('cl-select-preset-left');
+                if (sPreset) sPreset.value = presetStr;
+                const parts = presetStr.split(',');
+                if (parts.length === 3) {
+                    const sH = document.getElementById('cl-select-high');
+                    const sM = document.getElementById('cl-select-mid');
+                    const sL = document.getElementById('cl-select-low');
+                    if (sH) sH.value = parts[0];
+                    if (sM) sM.value = parts[1];
+                    if (sL) sL.value = parts[2];
+                }
+            } else {
+                _clRightPeriods = presetStr;
+                const pEl = document.getElementById('cl-pill-right');
+                if (pEl) pEl.innerText = `右窗: ${presetStr.replace(/,/g, '·')}`;
+                const sPreset = document.getElementById('cl-select-preset-right');
+                if (sPreset) sPreset.value = presetStr;
+            }
+            clearClBacktrackCache();
+            loadChanlunData(false);
+        };
         let _clPopularStocks = [
             { code: '000001', name: '平安银行' },
             { code: '600519', name: '贵州茅台' },
@@ -21816,6 +21938,7 @@
                 _clHasInitialized = true;
                 window.addEventListener('resize', () => {
                     if (window.chanlunChart) window.chanlunChart.resize();
+                    if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
                 });
             }
 
@@ -21863,56 +21986,84 @@
 
         async function loadChanlunData(forceRefresh = false) {
             if (_clIsDataLoading && !forceRefresh) return;
-            const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+            const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+            const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
 
             // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
-            if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKey)) {
-                const cached = _clBacktrackCache.get(cacheKey);
-                _clCachedData = cached;
-                updateChanlunOverview(cached);
-                updateChanlunTimeline(cached);
-                renderChanlunSignalsTable(cached);
-                renderChanlunChart(cached);
+            if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKeyLeft)) {
+                _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                _clCachedData = _clLeftCachedData;
+                updateChanlunOverview(_clLeftCachedData);
+                updateChanlunTimeline(_clLeftCachedData);
+                renderChanlunSignalsTable(_clLeftCachedData);
+                renderSingleChanlunChart('left', _clLeftCachedData);
+
+                if (_clWindowMode === 'dual' && _clBacktrackCache.has(cacheKeyRight)) {
+                    _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                    renderSingleChanlunChart('right', _clRightCachedData);
+                }
                 return;
             }
 
             _clIsDataLoading = true;
-            const chartDom = document.getElementById('chanlun-echart-main');
             const loadingOverlay = document.getElementById('cl-loading-overlay');
+            const loadingOverlayRight = document.getElementById('cl-loading-overlay-right');
             // 回溯切片时不显示全屏强遮罩，避免画面闪烁，保持沉浸推演
             if (loadingOverlay && !_clIsBacktracking) loadingOverlay.style.display = 'flex';
+            if (loadingOverlayRight && _clWindowMode === 'dual' && !_clIsBacktracking) loadingOverlayRight.style.display = 'flex';
 
             try {
-                const query = new URLSearchParams();
-                query.set('code', _clCurrentCode);
-                query.set('periods', _clPeriods);
-                const reqCount = (_clPeriods.includes('5F') || _clPeriods.includes('1F')) ? '3000' : '300';
-                query.set('count', reqCount);
-                if (_clIsBacktracking && _clBacktrackDate) {
-                    query.set('cutoff_date', _clBacktrackDate);
-                }
-                if (forceRefresh && !_clIsBacktracking) {
-                    query.set('force_refresh', 'true');
+                async function fetchResonance(periods) {
+                    const query = new URLSearchParams();
+                    query.set('code', _clCurrentCode);
+                    query.set('periods', periods);
+                    const reqCount = (periods.includes('5F') || periods.includes('1F')) ? '3000' : '300';
+                    query.set('count', reqCount);
+                    if (_clIsBacktracking && _clBacktrackDate) {
+                        query.set('cutoff_date', _clBacktrackDate);
+                    }
+                    if (forceRefresh && !_clIsBacktracking) {
+                        query.set('force_refresh', 'true');
+                    }
+                    const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`);
+                    if (!resp.ok) {
+                        throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+                    }
+                    return await resp.json();
                 }
 
-                const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`);
-                if (!resp.ok) {
-                    throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+                const promises = [fetchResonance(_clLeftPeriods)];
+                if (_clWindowMode === 'dual') {
+                    promises.push(fetchResonance(_clRightPeriods));
                 }
-                const data = await resp.json();
-                _clCachedData = data;
+
+                const results = await Promise.all(promises);
+                _clLeftCachedData = results[0];
+                _clCachedData = results[0];
 
                 // 写入客户端本地内存回溯缓存池
-                _clBacktrackCache.set(cacheKey, data);
-                if (!_clIsBacktracking && data.summary && data.summary.latest_date) {
-                    _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clPeriods, data.summary.latest_date), data);
+                _clBacktrackCache.set(cacheKeyLeft, results[0]);
+                if (!_clIsBacktracking && results[0].summary && results[0].summary.latest_date) {
+                    _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, results[0].summary.latest_date), results[0]);
+                }
+
+                if (_clWindowMode === 'dual' && results[1]) {
+                    _clRightCachedData = results[1];
+                    _clBacktrackCache.set(cacheKeyRight, results[1]);
+                    if (!_clIsBacktracking && results[1].summary && results[1].summary.latest_date) {
+                        _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, results[1].summary.latest_date), results[1]);
+                    }
                 }
 
                 // 更新概览卡片、时间轴与表格
-                updateChanlunOverview(data);
-                updateChanlunTimeline(data);
-                renderChanlunSignalsTable(data);
-                renderChanlunChart(data);
+                updateChanlunOverview(_clLeftCachedData);
+                updateChanlunTimeline(_clLeftCachedData);
+                renderChanlunSignalsTable(_clLeftCachedData);
+                renderSingleChanlunChart('left', _clLeftCachedData);
+
+                if (_clWindowMode === 'dual' && _clRightCachedData) {
+                    renderSingleChanlunChart('right', _clRightCachedData);
+                }
 
             } catch (err) {
                 console.error("Chanlun data fetch failed:", err);
@@ -21922,6 +22073,7 @@
             } finally {
                 _clIsDataLoading = false;
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
+                if (loadingOverlayRight) loadingOverlayRight.style.display = 'none';
             }
         }
 
@@ -21973,14 +22125,14 @@
             if (_clLayers[key] !== undefined) {
                 _clLayers[key] = !_clLayers[key];
                 updateChanlunLayerButtons();
-                if (_clCachedData) renderChanlunChart(_clCachedData);
+                renderChanlunChart();
             }
         }
 
         function setChanlunSubIndicator(sub) {
             _clSubIndicator = sub;
             updateChanlunLayerButtons();
-            if (_clCachedData) renderChanlunChart(_clCachedData);
+            renderChanlunChart();
         }
 
         // ==================== 缠论标的快速搜索与自动补全 ==================== //
@@ -22467,27 +22619,8 @@
             }
         }
 
-        function renderChanlunChart(d) {
-            const chartDom = document.getElementById('chanlun-echart-main');
-            if (!chartDom || !d || !d.unified_chart) return;
-
-            const isDark = document.documentElement.classList.contains('dark');
-            if (window.chanlunChart) {
-                // If theme switched, recreate
-                const currentTheme = window.chanlunChart._clThemeMode;
-                if ((isDark && currentTheme !== 'dark') || (!isDark && currentTheme === 'dark')) {
-                    window.chanlunChart.dispose();
-                    window.chanlunChart = null;
-                }
-            }
-            if (!window.chanlunChart) {
-                window.chanlunChart = echarts.init(chartDom, isDark ? 'dark' : null);
-                window.chanlunChart._clThemeMode = isDark ? 'dark' : 'light';
-                window.chanlunChart.on('dataZoom', () => {
-                    updateChanlunVisibleExtrema();
-                });
-            }
-
+        function buildChanlunEchartOption(d, isDark, prevDataZoom) {
+            if (!d || !d.unified_chart) return null;
             const uc = d.unified_chart;
             const dates = uc.dates || [];
             const candles = uc.candles || []; // [open, close, low, high]
@@ -22495,32 +22628,7 @@
             const n_bars = dates.length;
 
             if (n_bars === 0) {
-                window.chanlunChart.clear();
-                return;
-            }
-
-            // 更新左上角独立蓝色标题 (上移至顶部安全区) 与 HTML 形态胶囊
-            const titleEl = document.getElementById('cl-chart-title-text');
-            if (titleEl) {
-                titleEl.textContent = `${d.code} | ${d.name} · 缠论多周期立体共振系统`;
-            }
-            const patternOverlay = document.getElementById('cl-pattern-overlay');
-            if (patternOverlay && d.summary) {
-                const s = d.summary;
-                const hDir = s.high_state?.bi_direction === 'up';
-                const mDir = s.mid_state?.bi_direction === 'up';
-                const lMmd = s.low_state?.recent_mmd;
-                patternOverlay.innerHTML = `
-                    <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
-                        ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
-                    </span>
-                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
-                        ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
-                    </span>
-                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-blue-950/80 text-blue-300 border-blue-800'} border shadow-sm font-bold">
-                        ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
-                    </span>
-                `;
+                return null;
             }
 
             // 1. 笔线段 MarkLines (标准：大紫·中黄·小蓝，重合时大周期最顶层为主)
@@ -23048,14 +23156,7 @@
             // 蓝色标题已通过 HTML 元素在主图左上角顶部分离呈现，此处不再在画布内重叠绘制
             const watermarkGraphic = [];
 
-            // 保持当前 dataZoom
-            let prevDataZoom = null;
-            try {
-                const curOpt = window.chanlunChart.getOption();
-                if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
-                    prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
-                }
-            } catch (e) { }
+            // 保持当前 dataZoom (由入参 prevDataZoom 传入)
 
             const option = {
                 backgroundColor: 'transparent',
@@ -23290,8 +23391,94 @@
                 ]
             };
 
-            window.chanlunChart.setOption(option, true);
-            setTimeout(updateChanlunVisibleExtrema, 100);
+            return option;
+        }
+
+        function renderSingleChanlunChart(side, d) {
+            const isRight = side === 'right';
+            const domId = isRight ? 'chanlun-echart-right' : 'chanlun-echart-main';
+            const chartDom = document.getElementById(domId);
+            if (!chartDom || !d || !d.unified_chart) return;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            let instance = isRight ? window.chanlunChartRight : window.chanlunChart;
+            if (instance) {
+                // If theme switched, recreate
+                const currentTheme = instance._clThemeMode;
+                if ((isDark && currentTheme !== 'dark') || (!isDark && currentTheme === 'dark')) {
+                    instance.dispose();
+                    instance = null;
+                    if (isRight) window.chanlunChartRight = null;
+                    else window.chanlunChart = null;
+                }
+            }
+            if (!instance) {
+                instance = echarts.init(chartDom, isDark ? 'dark' : null);
+                instance._clThemeMode = isDark ? 'dark' : 'light';
+                if (!isRight) {
+                    instance.on('dataZoom', () => {
+                        updateChanlunVisibleExtrema();
+                    });
+                }
+                if (isRight) window.chanlunChartRight = instance;
+                else window.chanlunChart = instance;
+            }
+
+            const uc = d.unified_chart;
+            const dates = uc.dates || [];
+            if (dates.length === 0) {
+                instance.clear();
+                return;
+            }
+
+            // 更新窗口标题与形态胶囊
+            const titleEl = document.getElementById(isRight ? 'cl-chart-title-text-right' : 'cl-chart-title-text');
+            if (titleEl) {
+                const periodLabel = isRight ? (_clRightPeriods || '周·日·30F') : (_clLeftPeriods || '日·30F·5F');
+                titleEl.textContent = `${d.code} | ${d.name} · [${periodLabel}] 缠论共振`;
+            }
+            const patternOverlay = document.getElementById(isRight ? 'cl-pattern-overlay-right' : 'cl-pattern-overlay');
+            if (patternOverlay && d.summary) {
+                const s = d.summary;
+                const hDir = s.high_state?.bi_direction === 'up';
+                const mDir = s.mid_state?.bi_direction === 'up';
+                const lMmd = s.low_state?.recent_mmd;
+                patternOverlay.innerHTML = `
+                    <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                        ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
+                    </span>
+                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                        ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
+                    </span>
+                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-blue-950/80 text-blue-300 border-blue-800'} border shadow-sm font-bold">
+                        ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
+                    </span>
+                `;
+            }
+
+            let prevDataZoom = null;
+            try {
+                const curOpt = instance.getOption();
+                if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
+                    prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+                }
+            } catch (e) { }
+
+            const opt = buildChanlunEchartOption(d, isDark, prevDataZoom);
+            if (opt) {
+                instance.setOption(opt, true);
+            }
+            if (!isRight) {
+                setTimeout(updateChanlunVisibleExtrema, 100);
+            }
+        }
+
+        function renderChanlunChart(d) {
+            const leftData = d || _clLeftCachedData || _clCachedData;
+            if (leftData) renderSingleChanlunChart('left', leftData);
+            if (_clWindowMode === 'dual' && _clRightCachedData) {
+                renderSingleChanlunChart('right', _clRightCachedData);
+            }
         }
 
         function focusChanlunSignal(idx) {
@@ -23782,24 +23969,30 @@
 
         // ==================== 缠论 K 线缩放 (通达信快捷键: ↑ 放大 / ↓ 缩小) ==================== //
         function zoomChanlunChart(factor) {
-            if (!window.chanlunChart) return;
-            const opt = window.chanlunChart.getOption();
-            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
-            let start = opt.dataZoom[0].start;
-            let end = opt.dataZoom[0].end;
-            if (start === undefined || start === null) start = 40;
-            if (end === undefined || end === null) end = 100;
-            const span = end - start;
-            const newSpan = Math.max(2, Math.min(100, span * factor));
-            const delta = (newSpan - span) / 2;
-            let newStart = Math.max(0, start - delta);
-            let newEnd = Math.min(100, end + delta);
-            if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
-            if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
-            window.chanlunChart.dispatchAction({
-                type: 'dataZoom',
-                start: newStart,
-                end: newEnd
+            const charts = [window.chanlunChart];
+            if (_clWindowMode === 'dual' && window.chanlunChartRight) {
+                charts.push(window.chanlunChartRight);
+            }
+            charts.forEach(chart => {
+                if (!chart) return;
+                const opt = chart.getOption();
+                if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+                let start = opt.dataZoom[0].start;
+                let end = opt.dataZoom[0].end;
+                if (start === undefined || start === null) start = 40;
+                if (end === undefined || end === null) end = 100;
+                const span = end - start;
+                const newSpan = Math.max(2, Math.min(100, span * factor));
+                const delta = (newSpan - span) / 2;
+                let newStart = Math.max(0, start - delta);
+                let newEnd = Math.min(100, end + delta);
+                if (newStart === 0) newEnd = Math.min(100, newStart + newSpan);
+                if (newEnd === 100) newStart = Math.max(0, newEnd - newSpan);
+                chart.dispatchAction({
+                    type: 'dataZoom',
+                    start: newStart,
+                    end: newEnd
+                });
             });
         }
 
