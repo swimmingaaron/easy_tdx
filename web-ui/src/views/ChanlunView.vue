@@ -1914,7 +1914,11 @@ onBeforeUnmount(() => {
 }
 .time-slider {
   flex: 1;
-  accent-color: #ff9800;
+  height: 6px;
+  border-radius: 9999px;
+  background: #2a2e39;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  accent-color: #a855f7;
   cursor: pointer;
 }
 

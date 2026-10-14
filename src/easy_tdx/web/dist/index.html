@@ -530,6 +530,61 @@
             height: 100% !important;
         }
 
+        /* 缠论回溯时间轴进度条样式 (亮色/暗色全适配，进度条轨迹与滑块清晰醒目) */
+        #cl-backtrack-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 9999px;
+            background: #cbd5e1;
+            outline: none;
+            cursor: pointer;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        html.dark #cl-backtrack-slider {
+            background: #1e293b;
+            border-color: rgba(51, 65, 85, 0.8);
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        #cl-backtrack-slider::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 9999px;
+            background: transparent;
+        }
+        #cl-backtrack-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #9333ea;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            cursor: pointer;
+            margin-top: -5px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        #cl-backtrack-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.35);
+        }
+        #cl-backtrack-slider::-moz-range-track {
+            height: 6px;
+            border-radius: 9999px;
+            background: transparent;
+        }
+        #cl-backtrack-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #9333ea;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            cursor: pointer;
+        }
+
         /* ==================== 全局页面顶部间距消除：将 header 与所有界面卡片间 gap 缩小至 0 ==================== */
         body > main,
         main.flex-1 {
@@ -4660,12 +4715,11 @@
                     </div>
 
                     <!-- 中间: 时间轴滑块 (弹性撑满中间区域，完美利用空当) -->
-                    <div id="cl-backtrack-slider-wrap" class="flex-1 min-w-[120px] max-w-sm flex items-center space-x-1.5 px-2 font-mono text-[10px] text-slate-500 shrink">
-                        <span id="cl-slider-min" class="text-slate-400 whitespace-nowrap text-[9px]">--</span>
-                        <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderInput(this.value)" onchange="onChanlunSliderChange(this.value)"
-                            class="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-cyan-400 transition">
-                        <span id="cl-slider-max" class="text-slate-400 whitespace-nowrap text-[9px]">--</span>
-                        <span id="cl-backtrack-cutoff-text" class="px-1 py-0.2 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap hidden 2xl:inline text-[9px]">截断: 最新</span>
+                    <div id="cl-backtrack-slider-wrap" class="flex-1 min-w-[140px] max-w-md flex items-center space-x-1.5 px-2 font-mono text-[10px] text-slate-500 shrink">
+                        <span id="cl-slider-min" class="text-slate-500 dark:text-slate-400 whitespace-nowrap text-[9.5px]">--</span>
+                        <input id="cl-backtrack-slider" type="range" min="0" max="100" value="100" oninput="onChanlunSliderInput(this.value)" onchange="onChanlunSliderChange(this.value)">
+                        <span id="cl-slider-max" class="text-slate-500 dark:text-slate-400 whitespace-nowrap text-[9.5px]">--</span>
+                        <span id="cl-backtrack-cutoff-text" class="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 whitespace-nowrap hidden 2xl:inline text-[9.5px] font-medium">截断: 最新</span>
                     </div>
 
                     <!-- 右侧: 缩放与历史回溯推演控制器 + 键盘提示 -->
@@ -22483,6 +22537,17 @@
             }
         }
 
+        function updateChanlunSliderTrack(val, max) {
+            const slider = document.getElementById('cl-backtrack-slider');
+            if (!slider) return;
+            const v = Number(val !== undefined ? val : slider.value) || 0;
+            const m = Number(max !== undefined ? max : slider.max) || 1;
+            const pct = m > 0 ? Math.min(100, Math.max(0, (v / m) * 100)) : 100;
+            const isDark = !document.documentElement.classList.contains('light');
+            const remainingColor = isDark ? '#334155' : '#cbd5e1';
+            slider.style.background = `linear-gradient(to right, #9333ea 0%, #a855f7 ${pct}%, ${remainingColor} ${pct}%, ${remainingColor} 100%)`;
+        }
+
         function updateChanlunTimeline(d) {
             if (!d || !d.backtrack_timeline) return;
             const tl = d.backtrack_timeline;
@@ -22512,6 +22577,7 @@
                         slider.value = String(foundIdx);
                     }
                 }
+                updateChanlunSliderTrack(slider.value, slider.max);
             }
 
             if (cutoffText) {
@@ -23799,6 +23865,11 @@
             }
             const latestBtn = document.getElementById('cl-btn-latest-bar');
             if (latestBtn) latestBtn.classList.add('hidden');
+            const slider = document.getElementById('cl-backtrack-slider');
+            if (slider) {
+                slider.value = slider.max;
+                updateChanlunSliderTrack(slider.max, slider.max);
+            }
             loadChanlunData(false);
         }
 
@@ -23822,6 +23893,7 @@
             toggleChanlunAutoRefreshState(false);
 
             _clBacktrackIndex = Number(val);
+            updateChanlunSliderTrack(val);
             if (_clCachedData && _clCachedData.backtrack_timeline) {
                 const dates = _clCachedData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
@@ -23863,6 +23935,7 @@
             toggleChanlunAutoRefreshState(false);
 
             _clBacktrackIndex = Number(val);
+            updateChanlunSliderTrack(val);
             if (_clCachedData && _clCachedData.backtrack_timeline) {
                 const dates = _clCachedData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
@@ -23901,7 +23974,10 @@
 
                 // 同步滑块与文本
                 const slider = document.getElementById('cl-backtrack-slider');
-                if (slider) slider.value = String(_clBacktrackIndex);
+                if (slider) {
+                    slider.value = String(_clBacktrackIndex);
+                    updateChanlunSliderTrack(slider.value, slider.max);
+                }
                 const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
                 if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
                 const cutoffInput = document.getElementById('cl-cutoff-date');
