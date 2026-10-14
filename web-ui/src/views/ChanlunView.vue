@@ -1420,42 +1420,82 @@ onBeforeUnmount(() => {
               <!-- 1. 大笔(紫) -->
               <div class="popover-item" :class="{ disabled: !showHighBi }" @click="showHighBi = !showHighBi; renderChart()">
                 <span class="item-name"><span class="dot purple-dot"></span>大笔(紫)</span>
-                <span class="item-tick">{{ showHighBi ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showHighBi ? '√' : '' }}</span>
+                  <div class="switch-pill purple" :class="{ active: showHighBi }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 2. 大中枢 -->
               <div class="popover-item" :class="{ disabled: !showHighZs }" @click="showHighZs = !showHighZs; renderChart()">
                 <span class="item-name"><span class="dot purple-dot"></span>大中枢</span>
-                <span class="item-tick">{{ showHighZs ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showHighZs ? '√' : '' }}</span>
+                  <div class="switch-pill purple" :class="{ active: showHighZs }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 3. 中笔(黄) -->
               <div class="popover-item sep-top" :class="{ disabled: !showMidBi }" @click="showMidBi = !showMidBi; renderChart()">
                 <span class="item-name"><span class="dot amber-dot"></span>中笔(黄)</span>
-                <span class="item-tick">{{ showMidBi ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showMidBi ? '√' : '' }}</span>
+                  <div class="switch-pill amber" :class="{ active: showMidBi }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 4. 中中枢 -->
               <div class="popover-item" :class="{ disabled: !showMidZs }" @click="showMidZs = !showMidZs; renderChart()">
                 <span class="item-name"><span class="dot amber-dot"></span>中中枢</span>
-                <span class="item-tick">{{ showMidZs ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showMidZs ? '√' : '' }}</span>
+                  <div class="switch-pill amber" :class="{ active: showMidZs }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 5. 小笔(蓝) -->
               <div class="popover-item sep-top" :class="{ disabled: !showLowBi }" @click="showLowBi = !showLowBi; renderChart()">
                 <span class="item-name"><span class="dot blue-dot"></span>小笔(蓝)</span>
-                <span class="item-tick">{{ showLowBi ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showLowBi ? '√' : '' }}</span>
+                  <div class="switch-pill blue" :class="{ active: showLowBi }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 6. 小中枢 -->
               <div class="popover-item" :class="{ disabled: !showLowZs }" @click="showLowZs = !showLowZs; renderChart()">
                 <span class="item-name"><span class="dot blue-dot"></span>小中枢</span>
-                <span class="item-tick">{{ showLowZs ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showLowZs ? '√' : '' }}</span>
+                  <div class="switch-pill blue" :class="{ active: showLowZs }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 7. 买卖点 -->
               <div class="popover-item sep-top" :class="{ disabled: !showMmdMarks }" @click="showMmdMarks = !showMmdMarks; renderChart()">
                 <span class="item-name"><span class="dot rose-dot"></span>买卖点</span>
-                <span class="item-tick">{{ showMmdMarks ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showMmdMarks ? '√' : '' }}</span>
+                  <div class="switch-pill rose" :class="{ active: showMmdMarks }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
               <!-- 8. ★共振信号 -->
               <div class="popover-item" :class="{ disabled: !showResonanceMarks }" @click="showResonanceMarks = !showResonanceMarks; renderChart()">
                 <span class="item-name"><span class="dot yellow-dot"></span>★共振信号</span>
-                <span class="item-tick">{{ showResonanceMarks ? '√' : '' }}</span>
+                <div class="item-switch-box">
+                  <span class="item-tick">{{ showResonanceMarks ? '√' : '' }}</span>
+                  <div class="switch-pill yellow" :class="{ active: showResonanceMarks }">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1984,7 +2024,7 @@ onBeforeUnmount(() => {
   top: 100%;
   left: 0;
   margin-top: 6px;
-  width: 190px;
+  width: 215px;
   background: #181b27;
   border: 1px solid #2a2e39;
   border-radius: 10px;
@@ -2042,7 +2082,7 @@ onBeforeUnmount(() => {
   background: rgba(168, 85, 247, 0.12);
 }
 .popover-item.disabled {
-  opacity: 0.4;
+  opacity: 0.45;
 }
 .popover-item.sep-top {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -2054,10 +2094,43 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
 }
+.item-switch-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .item-tick {
   font-weight: bold;
-  font-size: 13px;
+  font-size: 12px;
   color: #a855f7;
+  width: 12px;
+  text-align: center;
+}
+.switch-pill {
+  width: 28px;
+  height: 15px;
+  border-radius: 9999px;
+  background: #363c4e;
+  padding: 1.5px;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+.switch-knob {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease;
+}
+.switch-pill.active.purple { background: #9333ea; }
+.switch-pill.active.amber { background: #d97706; }
+.switch-pill.active.blue { background: #2563eb; }
+.switch-pill.active.rose { background: #e11d48; }
+.switch-pill.active.yellow { background: #ca8a04; }
+.switch-pill.active .switch-knob {
+  transform: translateX(13px);
 }
 .dot {
   width: 7px;
