@@ -508,7 +508,9 @@
             color: #475569 !important;
         }
         html.light #view-chanlun #chanlun-echart-main,
-        html.light #view-chanlun #chanlun-echart-right {
+        html.light #view-chanlun #chanlun-echart-w2,
+        html.light #view-chanlun #chanlun-echart-right,
+        html.light #view-chanlun #chanlun-echart-w4 {
             background: #ffffff !important;
         }
 
@@ -516,14 +518,18 @@
             min-height: 380px;
         }
         #cl-chart-card-left,
-        #cl-chart-card-right {
+        #cl-chart-card-w2,
+        #cl-chart-card-right,
+        #cl-chart-card-w4 {
             height: calc(100vh - 240px);
             min-height: 380px;
             display: flex;
             flex-direction: column;
         }
         #chanlun-echart-main,
-        #chanlun-echart-right {
+        #chanlun-echart-w2,
+        #chanlun-echart-right,
+        #chanlun-echart-w4 {
             width: 100%;
             flex: 1;
             min-height: 0;
@@ -4676,6 +4682,7 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">窗口:</span>
                             <select id="cl-select-win-mode" onchange="setChanlunWindowMode(this.value)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
+                                <option value="quad">⊞ 四窗口 (日·60F·周·月)</option>
                                 <option value="dual" selected>◫ 双窗口 (左日·右周)</option>
                                 <option value="single">⬜ 单窗口 (全宽显示)</option>
                             </select>
@@ -4780,31 +4787,31 @@
 
 
 
-            <!-- ECharts 主图呈现区 (支持单窗口 / 左右双窗口分屏) -->
+            <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏) -->
             <div id="cl-charts-split-container" class="flex flex-col xl:flex-row gap-3 w-full">
-                <!-- 左窗口卡片 (默认: 日·30F·5F) -->
+                <!-- 窗口 1: 日·30F·5F (左窗/第1窗) -->
                 <div id="cl-chart-card-left" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
-                        <span class="text-xs font-mono font-medium">正在拉取左窗三周期数据并执行缠论立体共振计算...</span>
+                        <span class="text-xs font-mono font-medium">正在拉取窗口1数据并执行缠论立体共振计算...</span>
                     </div>
 
-                    <!-- 顶部条：左窗标识 + 预设切换 + 形态胶囊 -->
+                    <!-- 顶部条：第1窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950 text-purple-300 border border-purple-800 shrink-0">左窗: 日·30F·5F</span>
-                            <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-sky-600 dark:text-sky-400 tracking-wide flex items-center">
+                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950 text-purple-300 border border-purple-800 shrink-0">窗1: 日·30F·5F</span>
+                            <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-purple-600 dark:text-purple-400 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-purple-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F" selected>标准 (日·30F·5F)</option>
-                                <option value="WEEK,DAY,30F">波段 (周·日·30F)</option>
-                                <option value="MONTH,WEEK,DAY">长线 (月·周·日)</option>
-                                <option value="DAY,60F,15F">日内 (日·60F·15F)</option>
-                                <option value="60F,30F,5F">超短 (60F·30F·5F)</option>
+                                <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
                             </select>
                             <div id="cl-pattern-overlay" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4814,29 +4821,61 @@
                     <div id="chanlun-echart-main" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
+                <!-- 窗口 2: 60F·30F·5F (四窗口激活时显示) -->
+                <div id="cl-chart-card-w2" style="display: none;" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                    <!-- 加载中遮罩 -->
+                    <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                        <span class="text-xs font-mono font-medium">正在拉取窗口2数据并执行缠论立体共振计算...</span>
+                    </div>
+
+                    <!-- 顶部条：第2窗标识 + 预设切换 + 形态胶囊 -->
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">窗2: 60F·30F·5F</span>
+                            <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-wide flex items-center">
+                                <span id="cl-chart-title-text-w2">--</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-emerald-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                <option value="60F,30F,5F" selected>60F·30F·5F (超短)</option>
+                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                            </select>
+                            <div id="cl-pattern-overlay-w2" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
+                        </div>
+                    </div>
+
+                    <!-- ECharts 画布容器 (自适应屏幕高宽) -->
+                    <div id="chanlun-echart-w2" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
+                </div>
+
+                <!-- 窗口 3: 周·日·30F (右窗/第3窗，双窗口或四窗口激活时显示) -->
                 <div id="cl-chart-card-right" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
-                        <span class="text-xs font-mono font-medium">正在拉取右窗三周期数据并执行缠论立体共振计算...</span>
+                        <span class="text-xs font-mono font-medium">正在拉取窗口3数据并执行缠论立体共振计算...</span>
                     </div>
 
-                    <!-- 顶部条：右窗标识 + 预设切换 + 形态胶囊 -->
+                    <!-- 顶部条：第3窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">右窗: 周·日·30F</span>
+                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">窗3: 周·日·30F</span>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-cyan-600 dark:text-cyan-400 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-right">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F">标准 (日·30F·5F)</option>
-                                <option value="WEEK,DAY,30F" selected>波段 (周·日·30F)</option>
-                                <option value="MONTH,WEEK,DAY">长线 (月·周·日)</option>
-                                <option value="DAY,60F,15F">日内 (日·60F·15F)</option>
-                                <option value="60F,30F,5F">超短 (60F·30F·5F)</option>
+                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
+                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
                             </select>
                             <div id="cl-pattern-overlay-right" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4844,6 +4883,38 @@
 
                     <!-- ECharts 画布容器 (自适应屏幕高宽) -->
                     <div id="chanlun-echart-right" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
+                </div>
+
+                <!-- 窗口 4: 月·周·日 (四窗口激活时显示) -->
+                <div id="cl-chart-card-w4" style="display: none;" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                    <!-- 加载中遮罩 -->
+                    <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                        <span class="text-xs font-mono font-medium">正在拉取窗口4数据并执行缠论立体共振计算...</span>
+                    </div>
+
+                    <!-- 顶部条：第4窗标识 + 预设切换 + 形态胶囊 -->
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-800 shrink-0">窗4: 月·周·日</span>
+                            <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-amber-600 dark:text-amber-400 tracking-wide flex items-center">
+                                <span id="cl-chart-title-text-w4">--</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-amber-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                <option value="MONTH,WEEK,DAY" selected>月·周·日 (长线)</option>
+                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                            </select>
+                            <div id="cl-pattern-overlay-w4" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
+                        </div>
+                    </div>
+
+                    <!-- ECharts 画布容器 (自适应屏幕高宽) -->
+                    <div id="chanlun-echart-w4" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
             </div>
         </section>
@@ -21836,13 +21907,17 @@
         // ==============================================================================
         let _clCurrentCode = window._clCurrentCode || '000001';
         let _clCurrentCodeChangedByUser = window._clCurrentCodeChangedByUser || false;
-        let _clWindowMode = 'dual'; // 'dual' (默认双窗口) | 'single' (单窗口全屏)
-        let _clLeftPeriods = 'DAY,30F,5F';
-        let _clRightPeriods = 'WEEK,DAY,30F';
+        let _clWindowMode = 'quad'; // 'quad' (四窗口) | 'dual' (双窗口) | 'single' (单窗口全屏)
+        let _clLeftPeriods = 'DAY,30F,5F';   // 窗口 1: 日·30F·5F
+        let _clW2Periods = '60F,30F,5F';     // 窗口 2: 60F·30F·5F
+        let _clRightPeriods = 'WEEK,DAY,30F'; // 窗口 3: 周·日·30F
+        let _clW4Periods = 'MONTH,WEEK,DAY'; // 窗口 4: 月·周·日
         let _clPeriods = 'DAY,30F,5F';
         let _clCachedData = null;
         let _clLeftCachedData = null;
+        let _clW2CachedData = null;
         let _clRightCachedData = null;
+        let _clW4CachedData = null;
         let _clIsBacktracking = false;
         let _clBacktrackDate = null;
         let _clBacktrackIndex = 0;
@@ -21870,70 +21945,127 @@
             targetH = Math.max(360, Math.floor(targetH));
 
             const cardLeft = document.getElementById('cl-chart-card-left');
+            const cardW2 = document.getElementById('cl-chart-card-w2');
             const cardRight = document.getElementById('cl-chart-card-right');
-            if (cardLeft) cardLeft.style.height = `${targetH}px`;
-            if (cardRight) cardRight.style.height = `${targetH}px`;
+            const cardW4 = document.getElementById('cl-chart-card-w4');
+
+            if (_clWindowMode === 'quad') {
+                const quadH = Math.max(330, Math.floor((targetH - 12) / 2));
+                if (cardLeft) cardLeft.style.height = `${quadH}px`;
+                if (cardW2) cardW2.style.height = `${quadH}px`;
+                if (cardRight) cardRight.style.height = `${quadH}px`;
+                if (cardW4) cardW4.style.height = `${quadH}px`;
+            } else {
+                if (cardLeft) cardLeft.style.height = `${targetH}px`;
+                if (cardW2) cardW2.style.height = `${targetH}px`;
+                if (cardRight) cardRight.style.height = `${targetH}px`;
+                if (cardW4) cardW4.style.height = `${targetH}px`;
+            }
 
             if (window.chanlunChart) window.chanlunChart.resize();
-            if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
+            if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
+            if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
+            if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
         }
 
         window.setChanlunWindowMode = function(mode) {
             _clWindowMode = mode;
             const selectWin = document.getElementById('cl-select-win-mode');
             if (selectWin) selectWin.value = mode;
-            const btnDual = document.getElementById('cl-btn-win-dual');
-            const btnSingle = document.getElementById('cl-btn-win-single');
-            const cardRight = document.getElementById('cl-chart-card-right');
+
+            const splitContainer = document.getElementById('cl-charts-split-container');
             const cardLeft = document.getElementById('cl-chart-card-left');
+            const cardW2 = document.getElementById('cl-chart-card-w2');
+            const cardRight = document.getElementById('cl-chart-card-right');
+            const cardW4 = document.getElementById('cl-chart-card-w4');
 
-            const activeCls = 'cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0';
-            const inactiveCls = 'cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
-
-            if (mode === 'dual') {
-                if (btnDual) btnDual.className = activeCls;
-                if (btnSingle) btnSingle.className = inactiveCls;
-                if (cardRight) cardRight.style.display = '';
-                if (cardLeft) cardLeft.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+            if (mode === 'quad') {
+                if (splitContainer) splitContainer.className = 'grid grid-cols-1 xl:grid-cols-2 gap-3 w-full';
+                if (cardLeft) {
+                    cardLeft.style.display = '';
+                    cardLeft.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW2) {
+                    cardW2.style.display = '';
+                    cardW2.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardRight) {
+                    cardRight.style.display = '';
+                    cardRight.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW4) {
+                    cardW4.style.display = '';
+                    cardW4.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                setTimeout(() => {
+                    adjustChanlunLayoutHeight();
+                    if (!_clW2CachedData || !_clRightCachedData || !_clW4CachedData) {
+                        loadChanlunData(false);
+                    } else {
+                        renderChanlunChart();
+                    }
+                }, 50);
+            } else if (mode === 'dual') {
+                if (splitContainer) splitContainer.className = 'flex flex-col xl:flex-row gap-3 w-full';
+                if (cardLeft) {
+                    cardLeft.style.display = '';
+                    cardLeft.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW2) cardW2.style.display = 'none';
+                if (cardRight) {
+                    cardRight.style.display = '';
+                    cardRight.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW4) cardW4.style.display = 'none';
                 setTimeout(() => {
                     adjustChanlunLayoutHeight();
                     if (!_clRightCachedData) {
                         loadChanlunData(false);
+                    } else {
+                        renderChanlunChart();
                     }
                 }, 50);
             } else {
-                if (btnDual) btnDual.className = inactiveCls;
-                if (btnSingle) btnSingle.className = activeCls;
+                if (splitContainer) splitContainer.className = 'flex flex-col gap-3 w-full';
+                if (cardLeft) {
+                    cardLeft.style.display = '';
+                    cardLeft.className = 'w-full glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW2) cardW2.style.display = 'none';
                 if (cardRight) cardRight.style.display = 'none';
-                if (cardLeft) cardLeft.className = 'w-full glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                if (cardW4) cardW4.style.display = 'none';
                 setTimeout(() => {
                     adjustChanlunLayoutHeight();
+                    renderChanlunChart();
                 }, 50);
             }
         };
 
         window.applyChanlunWindowPreset = function(target, presetStr) {
-            if (target === 'left') {
+            if (target === 'left' || target === 'w1') {
                 _clLeftPeriods = presetStr;
                 _clPeriods = presetStr;
                 const pEl = document.getElementById('cl-pill-left');
-                if (pEl) pEl.innerText = `左窗: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = `窗1: ${presetStr.replace(/,/g, '·')}`;
                 const sPreset = document.getElementById('cl-select-preset-left');
                 if (sPreset) sPreset.value = presetStr;
-                const parts = presetStr.split(',');
-                if (parts.length === 3) {
-                    const sH = document.getElementById('cl-select-high');
-                    const sM = document.getElementById('cl-select-mid');
-                    const sL = document.getElementById('cl-select-low');
-                    if (sH) sH.value = parts[0];
-                    if (sM) sM.value = parts[1];
-                    if (sL) sL.value = parts[2];
-                }
-            } else {
+            } else if (target === 'w2') {
+                _clW2Periods = presetStr;
+                const pEl = document.getElementById('cl-pill-w2');
+                if (pEl) pEl.innerText = `窗2: ${presetStr.replace(/,/g, '·')}`;
+                const sPreset = document.getElementById('cl-select-preset-w2');
+                if (sPreset) sPreset.value = presetStr;
+            } else if (target === 'right' || target === 'w3') {
                 _clRightPeriods = presetStr;
                 const pEl = document.getElementById('cl-pill-right');
-                if (pEl) pEl.innerText = `右窗: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = `窗3: ${presetStr.replace(/,/g, '·')}`;
                 const sPreset = document.getElementById('cl-select-preset-right');
+                if (sPreset) sPreset.value = presetStr;
+            } else if (target === 'w4') {
+                _clW4Periods = presetStr;
+                const pEl = document.getElementById('cl-pill-w4');
+                if (pEl) pEl.innerText = `窗4: ${presetStr.replace(/,/g, '·')}`;
+                const sPreset = document.getElementById('cl-select-preset-w4');
                 if (sPreset) sPreset.value = presetStr;
             }
             clearClBacktrackCache();
@@ -22041,7 +22173,9 @@
         async function loadChanlunData(forceRefresh = false) {
             if (_clIsDataLoading && !forceRefresh) return;
             const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+            const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
             const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
+            const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
 
             // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
             if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKeyLeft)) {
@@ -22052,7 +22186,20 @@
                 renderChanlunSignalsTable(_clLeftCachedData);
                 renderSingleChanlunChart('left', _clLeftCachedData);
 
-                if (_clWindowMode === 'dual' && _clBacktrackCache.has(cacheKeyRight)) {
+                if (_clWindowMode === 'quad') {
+                    if (_clBacktrackCache.has(cacheKeyW2)) {
+                        _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                        renderSingleChanlunChart('w2', _clW2CachedData);
+                    }
+                    if (_clBacktrackCache.has(cacheKeyRight)) {
+                        _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                        renderSingleChanlunChart('right', _clRightCachedData);
+                    }
+                    if (_clBacktrackCache.has(cacheKeyW4)) {
+                        _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                        renderSingleChanlunChart('w4', _clW4CachedData);
+                    }
+                } else if (_clWindowMode === 'dual' && _clBacktrackCache.has(cacheKeyRight)) {
                     _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
@@ -22061,10 +22208,14 @@
 
             _clIsDataLoading = true;
             const loadingOverlay = document.getElementById('cl-loading-overlay');
+            const loadingOverlayW2 = document.getElementById('cl-loading-overlay-w2');
             const loadingOverlayRight = document.getElementById('cl-loading-overlay-right');
+            const loadingOverlayW4 = document.getElementById('cl-loading-overlay-w4');
             // 回溯切片时不显示全屏强遮罩，避免画面闪烁，保持沉浸推演
             if (loadingOverlay && !_clIsBacktracking) loadingOverlay.style.display = 'flex';
-            if (loadingOverlayRight && _clWindowMode === 'dual' && !_clIsBacktracking) loadingOverlayRight.style.display = 'flex';
+            if (loadingOverlayW2 && _clWindowMode === 'quad' && !_clIsBacktracking) loadingOverlayW2.style.display = 'flex';
+            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad') && !_clIsBacktracking) loadingOverlayRight.style.display = 'flex';
+            if (loadingOverlayW4 && _clWindowMode === 'quad' && !_clIsBacktracking) loadingOverlayW4.style.display = 'flex';
 
             try {
                 async function fetchResonance(periods) {
@@ -22087,7 +22238,11 @@
                 }
 
                 const promises = [fetchResonance(_clLeftPeriods)];
-                if (_clWindowMode === 'dual') {
+                if (_clWindowMode === 'quad') {
+                    promises.push(fetchResonance(_clW2Periods));
+                    promises.push(fetchResonance(_clRightPeriods));
+                    promises.push(fetchResonance(_clW4Periods));
+                } else if (_clWindowMode === 'dual') {
                     promises.push(fetchResonance(_clRightPeriods));
                 }
 
@@ -22101,7 +22256,29 @@
                     _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, results[0].summary.latest_date), results[0]);
                 }
 
-                if (_clWindowMode === 'dual' && results[1]) {
+                if (_clWindowMode === 'quad') {
+                    if (results[1]) {
+                        _clW2CachedData = results[1];
+                        _clBacktrackCache.set(cacheKeyW2, results[1]);
+                        if (!_clIsBacktracking && results[1].summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW2Periods, results[1].summary.latest_date), results[1]);
+                        }
+                    }
+                    if (results[2]) {
+                        _clRightCachedData = results[2];
+                        _clBacktrackCache.set(cacheKeyRight, results[2]);
+                        if (!_clIsBacktracking && results[2].summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, results[2].summary.latest_date), results[2]);
+                        }
+                    }
+                    if (results[3]) {
+                        _clW4CachedData = results[3];
+                        _clBacktrackCache.set(cacheKeyW4, results[3]);
+                        if (!_clIsBacktracking && results[3].summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW4Periods, results[3].summary.latest_date), results[3]);
+                        }
+                    }
+                } else if (_clWindowMode === 'dual' && results[1]) {
                     _clRightCachedData = results[1];
                     _clBacktrackCache.set(cacheKeyRight, results[1]);
                     if (!_clIsBacktracking && results[1].summary && results[1].summary.latest_date) {
@@ -22115,7 +22292,11 @@
                 renderChanlunSignalsTable(_clLeftCachedData);
                 renderSingleChanlunChart('left', _clLeftCachedData);
 
-                if (_clWindowMode === 'dual' && _clRightCachedData) {
+                if (_clWindowMode === 'quad') {
+                    if (_clW2CachedData) renderSingleChanlunChart('w2', _clW2CachedData);
+                    if (_clRightCachedData) renderSingleChanlunChart('right', _clRightCachedData);
+                    if (_clW4CachedData) renderSingleChanlunChart('w4', _clW4CachedData);
+                } else if (_clWindowMode === 'dual' && _clRightCachedData) {
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
                 setTimeout(adjustChanlunLayoutHeight, 50);
@@ -23506,33 +23687,55 @@
         }
 
         function renderSingleChanlunChart(side, d) {
-            const isRight = side === 'right';
-            const domId = isRight ? 'chanlun-echart-right' : 'chanlun-echart-main';
+            let domId = 'chanlun-echart-main';
+            let titleElId = 'cl-chart-title-text';
+            let patternElId = 'cl-pattern-overlay';
+            let periodLabel = _clLeftPeriods || '日·30F·5F';
+            let instanceProp = 'chanlunChart';
+
+            if (side === 'w2') {
+                domId = 'chanlun-echart-w2';
+                titleElId = 'cl-chart-title-text-w2';
+                patternElId = 'cl-pattern-overlay-w2';
+                periodLabel = _clW2Periods || '60F·30F·5F';
+                instanceProp = 'chanlunChartW2';
+            } else if (side === 'right' || side === 'w3') {
+                domId = 'chanlun-echart-right';
+                titleElId = 'cl-chart-title-text-right';
+                patternElId = 'cl-pattern-overlay-right';
+                periodLabel = _clRightPeriods || '周·日·30F';
+                instanceProp = 'chanlunChartRight';
+            } else if (side === 'w4') {
+                domId = 'chanlun-echart-w4';
+                titleElId = 'cl-chart-title-text-w4';
+                patternElId = 'cl-pattern-overlay-w4';
+                periodLabel = _clW4Periods || '月·周·日';
+                instanceProp = 'chanlunChartW4';
+            }
+
             const chartDom = document.getElementById(domId);
             if (!chartDom || !d || !d.unified_chart) return;
 
             const isDark = document.documentElement.classList.contains('dark');
-            let instance = isRight ? window.chanlunChartRight : window.chanlunChart;
+            let instance = window[instanceProp];
             if (instance) {
                 // If theme switched, recreate
                 const currentTheme = instance._clThemeMode;
                 if ((isDark && currentTheme !== 'dark') || (!isDark && currentTheme === 'dark')) {
                     instance.dispose();
                     instance = null;
-                    if (isRight) window.chanlunChartRight = null;
-                    else window.chanlunChart = null;
+                    window[instanceProp] = null;
                 }
             }
             if (!instance) {
                 instance = echarts.init(chartDom, isDark ? 'dark' : null);
                 instance._clThemeMode = isDark ? 'dark' : 'light';
-                if (!isRight) {
+                if (side === 'left' || side === 'w1') {
                     instance.on('dataZoom', () => {
                         updateChanlunVisibleExtrema();
                     });
                 }
-                if (isRight) window.chanlunChartRight = instance;
-                else window.chanlunChart = instance;
+                window[instanceProp] = instance;
             }
 
             const uc = d.unified_chart;
@@ -23543,12 +23746,11 @@
             }
 
             // 更新窗口标题与形态胶囊
-            const titleEl = document.getElementById(isRight ? 'cl-chart-title-text-right' : 'cl-chart-title-text');
+            const titleEl = document.getElementById(titleElId);
             if (titleEl) {
-                const periodLabel = isRight ? (_clRightPeriods || '周·日·30F') : (_clLeftPeriods || '日·30F·5F');
                 titleEl.textContent = `${d.code} | ${d.name} · [${periodLabel}] 缠论共振`;
             }
-            const patternOverlay = document.getElementById(isRight ? 'cl-pattern-overlay-right' : 'cl-pattern-overlay');
+            const patternOverlay = document.getElementById(patternElId);
             if (patternOverlay && d.summary) {
                 const s = d.summary;
                 const hDir = s.high_state?.bi_direction === 'up';
@@ -23579,7 +23781,7 @@
             if (opt) {
                 instance.setOption(opt, true);
             }
-            if (!isRight) {
+            if (side === 'left' || side === 'w1') {
                 setTimeout(updateChanlunVisibleExtrema, 100);
             }
         }
@@ -23587,7 +23789,11 @@
         function renderChanlunChart(d) {
             const leftData = d || _clLeftCachedData || _clCachedData;
             if (leftData) renderSingleChanlunChart('left', leftData);
-            if (_clWindowMode === 'dual' && _clRightCachedData) {
+            if (_clWindowMode === 'quad') {
+                if (_clW2CachedData) renderSingleChanlunChart('w2', _clW2CachedData);
+                if (_clRightCachedData) renderSingleChanlunChart('right', _clRightCachedData);
+                if (_clW4CachedData) renderSingleChanlunChart('w4', _clW4CachedData);
+            } else if (_clWindowMode === 'dual' && _clRightCachedData) {
                 renderSingleChanlunChart('right', _clRightCachedData);
             }
         }
@@ -24091,7 +24297,11 @@
         // ==================== 缠论 K 线缩放 (通达信快捷键: ↑ 放大 / ↓ 缩小) ==================== //
         function zoomChanlunChart(factor) {
             const charts = [window.chanlunChart];
-            if (_clWindowMode === 'dual' && window.chanlunChartRight) {
+            if (_clWindowMode === 'quad') {
+                if (window.chanlunChartW2) charts.push(window.chanlunChartW2);
+                if (window.chanlunChartRight) charts.push(window.chanlunChartRight);
+                if (window.chanlunChartW4) charts.push(window.chanlunChartW4);
+            } else if (_clWindowMode === 'dual' && window.chanlunChartRight) {
                 charts.push(window.chanlunChartRight);
             }
             charts.forEach(chart => {

@@ -43,22 +43,36 @@ const periodPresets = [
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
   { label: '超短 (60F·30F·5F)', value: '60F,30F,5F' },
 ]
-// 窗口分屏模式：'dual' (默认双窗口: 左右分屏对比) | 'single' (单窗口全屏)
-const splitMode = ref<'dual' | 'single'>('dual')
+// 窗口分屏模式：'quad' (四窗口: 2x2网格) | 'dual' (默认双窗口: 左右分屏对比) | 'single' (单窗口全屏)
+const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
 
-// 左窗口周期 (默认: 日·30F·5F)
+// 窗口 1 周期 (默认: 日·30F·5F)
 const leftPeriods = ref('DAY,30F,5F')
 const leftActivePreset = ref('DAY,30F,5F')
 const leftPeriodHigh = ref('DAY')
 const leftPeriodMid = ref('30F')
 const leftPeriodLow = ref('5F')
 
-// 右窗口周期 (默认: 周·日·30F)
+// 窗口 2 周期 (默认: 60F·30F·5F)
+const w2Periods = ref('60F,30F,5F')
+const w2ActivePreset = ref('60F,30F,5F')
+const w2PeriodHigh = ref('60F')
+const w2PeriodMid = ref('30F')
+const w2PeriodLow = ref('5F')
+
+// 窗口 3 周期 (默认: 周·日·30F)
 const rightPeriods = ref('WEEK,DAY,30F')
 const rightActivePreset = ref('WEEK,DAY,30F')
 const rightPeriodHigh = ref('WEEK')
 const rightPeriodMid = ref('DAY')
 const rightPeriodLow = ref('30F')
+
+// 窗口 4 周期 (默认: 月·周·日)
+const w4Periods = ref('MONTH,WEEK,DAY')
+const w4ActivePreset = ref('MONTH,WEEK,DAY')
+const w4PeriodHigh = ref('MONTH')
+const w4PeriodMid = ref('WEEK')
+const w4PeriodLow = ref('DAY')
 
 // 兼容单窗口时的主周期双向绑定 (代理到左窗)
 const periodLow = computed({
@@ -251,19 +265,27 @@ let replayTimer: ReturnType<typeof setInterval> | null = null
 const loading = ref(false)
 const errorMsg = ref('')
 const chanDataLeft = ref<ChanlunResonanceResponse | null>(null)
+const chanDataW2 = ref<ChanlunResonanceResponse | null>(null)
 const chanDataRight = ref<ChanlunResonanceResponse | null>(null)
+const chanDataW4 = ref<ChanlunResonanceResponse | null>(null)
 const chanData = computed(() => chanDataLeft.value)
 
 const chartContainerLeft = ref<HTMLDivElement | null>(null)
+const chartContainerW2 = ref<HTMLDivElement | null>(null)
 const chartContainerRight = ref<HTMLDivElement | null>(null)
+const chartContainerW4 = ref<HTMLDivElement | null>(null)
 let chartInstanceLeft: echarts.ECharts | null = null
+let chartInstanceW2: echarts.ECharts | null = null
 let chartInstanceRight: echarts.ECharts | null = null
+let chartInstanceW4: echarts.ECharts | null = null
 
-function setSplitMode(mode: 'dual' | 'single') {
+function setSplitMode(mode: 'quad' | 'dual' | 'single') {
   splitMode.value = mode
   nextTick(() => {
     handleResize()
-    if (mode === 'dual' && !chanDataRight.value) {
+    if (mode === 'quad' && (!chanDataW2.value || !chanDataRight.value || !chanDataW4.value)) {
+      loadData()
+    } else if (mode === 'dual' && !chanDataRight.value) {
       loadData()
     } else {
       renderChart()
@@ -285,7 +307,7 @@ const maxBacktrackIndex = computed(() => {
 })
 
 // ── 周期切换处理 ─────────────────────────────────────────────────────────────
-function applyWindowPreset(target: 'left' | 'right', pStr: string) {
+function applyWindowPreset(target: 'left' | 'w2' | 'right' | 'w4', pStr: string) {
   const parts = pStr.split(',')
   if (target === 'left') {
     leftActivePreset.value = pStr
@@ -295,13 +317,29 @@ function applyWindowPreset(target: 'left' | 'right', pStr: string) {
       leftPeriodMid.value = parts[1]
       leftPeriodLow.value = parts[2]
     }
-  } else {
+  } else if (target === 'w2') {
+    w2ActivePreset.value = pStr
+    w2Periods.value = pStr
+    if (parts.length === 3) {
+      w2PeriodHigh.value = parts[0]
+      w2PeriodMid.value = parts[1]
+      w2PeriodLow.value = parts[2]
+    }
+  } else if (target === 'right') {
     rightActivePreset.value = pStr
     rightPeriods.value = pStr
     if (parts.length === 3) {
       rightPeriodHigh.value = parts[0]
       rightPeriodMid.value = parts[1]
       rightPeriodLow.value = parts[2]
+    }
+  } else if (target === 'w4') {
+    w4ActivePreset.value = pStr
+    w4Periods.value = pStr
+    if (parts.length === 3) {
+      w4PeriodHigh.value = parts[0]
+      w4PeriodMid.value = parts[1]
+      w4PeriodLow.value = parts[2]
     }
   }
   clearClientBacktrackCache()
@@ -379,7 +417,30 @@ async function loadData(forceRefresh = false) {
     })
     const promises: Promise<ChanlunResonanceResponse>[] = [pLeft]
 
-    if (splitMode.value === 'dual') {
+    if (splitMode.value === 'quad') {
+      const pW2 = fetchChanlunResonance({
+        code: code.value,
+        periods: w2Periods.value,
+        count: reqCount,
+        cutoff_date: cutoff,
+        force_refresh: force,
+      })
+      const pRight = fetchChanlunResonance({
+        code: code.value,
+        periods: rightPeriods.value,
+        count: reqCount,
+        cutoff_date: cutoff,
+        force_refresh: force,
+      })
+      const pW4 = fetchChanlunResonance({
+        code: code.value,
+        periods: w4Periods.value,
+        count: reqCount,
+        cutoff_date: cutoff,
+        force_refresh: force,
+      })
+      promises.push(pW2, pRight, pW4)
+    } else if (splitMode.value === 'dual') {
       const pRight = fetchChanlunResonance({
         code: code.value,
         periods: rightPeriods.value,
@@ -392,8 +453,14 @@ async function loadData(forceRefresh = false) {
 
     const results = await Promise.all(promises)
     chanDataLeft.value = results[0]
-    if (results[1]) {
-      chanDataRight.value = results[1]
+    if (splitMode.value === 'quad') {
+      chanDataW2.value = results[1] || null
+      chanDataRight.value = results[2] || null
+      chanDataW4.value = results[3] || null
+    } else if (splitMode.value === 'dual') {
+      if (results[1]) {
+        chanDataRight.value = results[1]
+      }
     }
     lastRefreshTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
 
@@ -1132,10 +1199,21 @@ function adjustLayoutHeight() {
   if (targetH < 350 || topOffset <= 0) {
     targetH = Math.max(380, window.innerHeight - 230)
   }
-  cardHeight.value = Math.max(360, Math.floor(targetH))
+  const baseH = Math.max(360, Math.floor(targetH))
+  if (splitMode.value === 'quad') {
+    cardHeight.value = Math.max(330, Math.floor((baseH - 12) / 2))
+  } else {
+    cardHeight.value = baseH
+  }
   nextTick(() => {
     if (chartInstanceLeft) chartInstanceLeft.resize()
-    if (chartInstanceRight && splitMode.value === 'dual') chartInstanceRight.resize()
+    if (splitMode.value === 'quad') {
+      if (chartInstanceW2) chartInstanceW2.resize()
+      if (chartInstanceRight) chartInstanceRight.resize()
+      if (chartInstanceW4) chartInstanceW4.resize()
+    } else if (splitMode.value === 'dual') {
+      if (chartInstanceRight) chartInstanceRight.resize()
+    }
   })
 }
 
@@ -1153,19 +1231,48 @@ function renderChart() {
     chartInstanceLeft.setOption(optionLeft, { notMerge: true, lazyUpdate: true })
   }
 
-  if (splitMode.value === 'dual' && chartContainerRight.value && chanDataRight.value) {
-    if (!chartInstanceRight) {
-      chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+  if (splitMode.value === 'quad') {
+    if (chartContainerW2.value && chanDataW2.value) {
+      if (!chartInstanceW2) {
+        chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
+      }
+      const optionW2 = buildChanlunOption(chanDataW2.value)
+      chartInstanceW2.setOption(optionW2, { notMerge: true, lazyUpdate: true })
     }
-    const optionRight = buildChanlunOption(chanDataRight.value)
-    chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
+    if (chartContainerRight.value && chanDataRight.value) {
+      if (!chartInstanceRight) {
+        chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+      }
+      const optionRight = buildChanlunOption(chanDataRight.value)
+      chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
+    }
+    if (chartContainerW4.value && chanDataW4.value) {
+      if (!chartInstanceW4) {
+        chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
+      }
+      const optionW4 = buildChanlunOption(chanDataW4.value)
+      chartInstanceW4.setOption(optionW4, { notMerge: true, lazyUpdate: true })
+    }
+  } else if (splitMode.value === 'dual') {
+    if (chartContainerRight.value && chanDataRight.value) {
+      if (!chartInstanceRight) {
+        chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+      }
+      const optionRight = buildChanlunOption(chanDataRight.value)
+      chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
+    }
   }
 
   adjustLayoutHeight()
 }
 
 function zoomChart(factor: number) {
-  const instances = [chartInstanceLeft, splitMode.value === 'dual' ? chartInstanceRight : null].filter(Boolean)
+  const instances = [
+    chartInstanceLeft,
+    splitMode.value === 'quad' ? chartInstanceW2 : null,
+    splitMode.value === 'dual' || splitMode.value === 'quad' ? chartInstanceRight : null,
+    splitMode.value === 'quad' ? chartInstanceW4 : null,
+  ].filter(Boolean)
   for (const inst of instances) {
     const opt = inst!.getOption() as any
     if (!opt || !opt.dataZoom || !opt.dataZoom[0]) continue
@@ -1247,9 +1354,17 @@ onBeforeUnmount(() => {
     chartInstanceLeft.dispose()
     chartInstanceLeft = null
   }
+  if (chartInstanceW2) {
+    chartInstanceW2.dispose()
+    chartInstanceW2 = null
+  }
   if (chartInstanceRight) {
     chartInstanceRight.dispose()
     chartInstanceRight = null
+  }
+  if (chartInstanceW4) {
+    chartInstanceW4.dispose()
+    chartInstanceW4 = null
   }
 })
 </script>
@@ -1330,8 +1445,16 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- 双窗口 / 单窗口 切换按钮 -->
+        <!-- 四窗口 / 双窗口 / 单窗口 切换按钮 -->
         <div class="mode-switch-box">
+          <button
+            class="mode-btn"
+            :class="{ active: splitMode === 'quad' }"
+            @click="setSplitMode('quad')"
+            title="四窗口布局 (日·60F·周·月)"
+          >
+            ⊞ 四窗口
+          </button>
           <button
             class="mode-btn"
             :class="{ active: splitMode === 'dual' }"
@@ -1418,6 +1541,7 @@ onBeforeUnmount(() => {
         <div class="control-group">
           <span class="label">窗口:</span>
           <select v-model="splitMode" class="cascading-select" @change="setSplitMode(splitMode)">
+            <option value="quad">⊞ 四窗口 (日·60F·周·月)</option>
             <option value="dual">◫ 双窗口 (左日·右周)</option>
             <option value="single">⬜ 单窗口 (全宽显示)</option>
           </select>
@@ -1495,13 +1619,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 主图表区 (支持单窗口 / 左右双窗口) -->
-    <div class="charts-split-container" :class="{ 'is-dual': splitMode === 'dual' }">
-      <!-- 左窗口卡片 (默认: 日·30F·5F) -->
+    <!-- 主图表区 (支持单窗口 / 双窗口 / 四窗口) -->
+    <div class="charts-split-container" :class="{ 'is-quad': splitMode === 'quad', 'is-dual': splitMode === 'dual' }">
+      <!-- 窗口 1: 日·30F·5F (左窗/第1窗) -->
       <div class="chart-window-card left-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill left-pill">左窗: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
+            <span class="win-pill left-pill">窗1: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
             <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }} · 大中小周期立体共振</span>
           </div>
           <div class="win-tools-box">
@@ -1517,7 +1641,7 @@ onBeforeUnmount(() => {
 
         <div v-if="loading && !chanDataLeft" class="chart-loading-overlay">
           <div class="spinner"></div>
-          <span>正在运行左窗三周期缠论计算...</span>
+          <span>正在运行窗口1缠论立体共振计算...</span>
         </div>
         <div v-if="errorMsg" class="chart-error-banner">
           ⚠️ {{ errorMsg }}
@@ -1526,12 +1650,38 @@ onBeforeUnmount(() => {
         <div ref="chartContainerLeft" class="main-echart"></div>
       </div>
 
-      <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
-      <div v-if="splitMode === 'dual'" class="chart-window-card right-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+      <!-- 窗口 2: 60F·30F·5F (四窗口模式激活时显示) -->
+      <div v-if="splitMode === 'quad'" class="chart-window-card w2-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill right-pill">右窗: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
-            <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }} · 大中小周期立体共振</span>
+            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '60F' }}·{{ chanDataW2?.periods.mid.name || '30F' }}·{{ chanDataW2?.periods.low.name || '5F' }}</span>
+            <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }} · 超短立体共振</span>
+          </div>
+          <div class="win-tools-box">
+            <select
+              :value="w2Periods"
+              class="win-preset-select"
+              @change="applyWindowPreset('w2', ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="p in periodPresets" :key="p.value" :value="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="loading && !chanDataW2" class="chart-loading-overlay">
+          <div class="spinner"></div>
+          <span>正在运行窗口2缠论立体共振计算...</span>
+        </div>
+
+        <div ref="chartContainerW2" class="main-echart"></div>
+      </div>
+
+      <!-- 窗口 3: 周·日·30F (双窗口或四窗口激活时显示) -->
+      <div v-if="splitMode === 'dual' || splitMode === 'quad'" class="chart-window-card right-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+        <div class="window-card-header">
+          <div class="win-tag-box">
+            <span class="win-pill right-pill">窗3: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
+            <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }} · 波段立体共振</span>
           </div>
           <div class="win-tools-box">
             <select
@@ -1546,10 +1696,36 @@ onBeforeUnmount(() => {
 
         <div v-if="loading && !chanDataRight" class="chart-loading-overlay">
           <div class="spinner"></div>
-          <span>正在运行右窗三周期缠论计算...</span>
+          <span>正在运行窗口3缠论立体共振计算...</span>
         </div>
 
         <div ref="chartContainerRight" class="main-echart"></div>
+      </div>
+
+      <!-- 窗口 4: 月·周·日 (四窗口模式激活时显示) -->
+      <div v-if="splitMode === 'quad'" class="chart-window-card w4-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+        <div class="window-card-header">
+          <div class="win-tag-box">
+            <span class="win-pill w4-pill">窗4: {{ chanDataW4?.periods.high.name || '月' }}·{{ chanDataW4?.periods.mid.name || '周' }}·{{ chanDataW4?.periods.low.name || '日' }}</span>
+            <span class="win-stock-title">{{ chanDataW4?.code }} {{ chanDataW4?.name }} · 长线立体共振</span>
+          </div>
+          <div class="win-tools-box">
+            <select
+              :value="w4Periods"
+              class="win-preset-select"
+              @change="applyWindowPreset('w4', ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="p in periodPresets" :key="p.value" :value="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="loading && !chanDataW4" class="chart-loading-overlay">
+          <div class="spinner"></div>
+          <span>正在运行窗口4缠论立体共振计算...</span>
+        </div>
+
+        <div ref="chartContainerW4" class="main-echart"></div>
       </div>
     </div>
   </div>
@@ -2170,6 +2346,11 @@ onBeforeUnmount(() => {
   .charts-split-container.is-dual {
     flex-direction: row;
   }
+  .charts-split-container.is-quad {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
 }
 .chart-window-card {
   position: relative;
@@ -2210,10 +2391,20 @@ onBeforeUnmount(() => {
   color: #c084fc;
   border: 1px solid rgba(192, 132, 252, 0.4);
 }
+.w2-pill {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border: 1px solid rgba(110, 231, 183, 0.4);
+}
 .right-pill {
   background: rgba(6, 182, 212, 0.25);
   color: #67e8f9;
   border: 1px solid rgba(103, 232, 249, 0.4);
+}
+.w4-pill {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fcd34d;
+  border: 1px solid rgba(252, 211, 77, 0.4);
 }
 .win-stock-title {
   color: #94a3b8;
