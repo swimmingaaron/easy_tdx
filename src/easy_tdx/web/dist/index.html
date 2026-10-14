@@ -22203,6 +22203,14 @@
                     _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
+                const l1 = document.getElementById('cl-loading-overlay');
+                const l2 = document.getElementById('cl-loading-overlay-w2');
+                const lr = document.getElementById('cl-loading-overlay-right');
+                const l4 = document.getElementById('cl-loading-overlay-w4');
+                if (l1) l1.style.display = 'none';
+                if (l2) l2.style.display = 'none';
+                if (lr) lr.style.display = 'none';
+                if (l4) l4.style.display = 'none';
                 return;
             }
 
@@ -22309,7 +22317,9 @@
             } finally {
                 _clIsDataLoading = false;
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
+                if (loadingOverlayW2) loadingOverlayW2.style.display = 'none';
                 if (loadingOverlayRight) loadingOverlayRight.style.display = 'none';
+                if (loadingOverlayW4) loadingOverlayW4.style.display = 'none';
             }
         }
 
@@ -23780,6 +23790,17 @@
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom);
             if (opt) {
                 instance.setOption(opt, true);
+                try { instance.resize(); } catch (_) {}
+            }
+            // 确保渲染完成后当前窗口加载遮罩被隐藏
+            let overlayId = null;
+            if (side === 'left' || side === 'w1') overlayId = 'cl-loading-overlay';
+            else if (side === 'w2') overlayId = 'cl-loading-overlay-w2';
+            else if (side === 'right' || side === 'w3') overlayId = 'cl-loading-overlay-right';
+            else if (side === 'w4') overlayId = 'cl-loading-overlay-w4';
+            if (overlayId) {
+                const ov = document.getElementById(overlayId);
+                if (ov) ov.style.display = 'none';
             }
             if (side === 'left' || side === 'w1') {
                 setTimeout(updateChanlunVisibleExtrema, 100);
