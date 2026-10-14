@@ -4612,9 +4612,9 @@
                     </div>
                 </div>
 
-                <!-- Row 2A: 周期组合、自定义大中小周期与历史回溯推演控制器 (参考K线弹窗 Row 2A) -->
+                <!-- 缠论操作控制台: 窗口模式 + 主副图图层 + 缩放回溯控制 (单行高集成排版) -->
                 <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 flex-wrap sm:flex-nowrap">
-                    <!-- 周期组合滚动区 -->
+                    <!-- 左侧: 窗口模式 + 主副图图层控制 -->
                     <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
                         <!-- 左右双窗口 / 单窗口 切换按钮 -->
                         <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
@@ -4622,6 +4622,40 @@
                                 class="cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-purple-300 bg-purple-950 border border-purple-800 transition cursor-pointer shrink-0" title="左右双窗口对比 (左: 日·30F·5F，右: 周·日·30F)">◫ 双窗口</button>
                             <button onclick="setChanlunWindowMode('single')" id="cl-btn-win-single"
                                 class="cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="单窗口全宽显示">⬜ 单窗口</button>
+                        </div>
+
+                        <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
+
+                        <!-- 主图图层开关 -->
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
+                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
+                            <button onclick="toggleChanlunLayer('highBi')" id="cl-btn-layer-high-bi"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔(紫)</button>
+                            <button onclick="toggleChanlunLayer('highZs')" id="cl-btn-layer-high-zs"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大中枢</button>
+                            <button onclick="toggleChanlunLayer('midBi')" id="cl-btn-layer-mid-bi"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">中笔(黄)</button>
+                            <button onclick="toggleChanlunLayer('midZs')" id="cl-btn-layer-mid-zs"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">中中枢</button>
+                            <button onclick="toggleChanlunLayer('lowBi')" id="cl-btn-layer-low-bi"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小笔(蓝)</button>
+                            <button onclick="toggleChanlunLayer('lowZs')" id="cl-btn-layer-low-zs"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小中枢</button>
+
+                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
+
+                            <button onclick="toggleChanlunLayer('mmd')" id="cl-btn-layer-mmd"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-rose-950 text-rose-300 border border-rose-800 transition cursor-pointer shrink-0">买卖点</button>
+                            <button onclick="toggleChanlunLayer('res')" id="cl-btn-layer-res"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">★共振信号</button>
+
+                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
+
+                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
+                            <button onclick="setChanlunSubIndicator('amount')" id="cl-btn-sub-amount"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">成交额</button>
+                            <button onclick="setChanlunSubIndicator('macd')" id="cl-btn-sub-macd"
+                                class="h-6 px-1.5 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">MACD</button>
                         </div>
                     </div>
 
@@ -4671,45 +4705,9 @@
                             <i id="cl-replay-play-icon" data-lucide="play" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>
-                </div>
-
-                <!-- Row 2B: 缠论图层与指标控制栏 (参考K线弹窗 Row 2B) -->
-                <div class="flex items-center justify-between gap-1.5 text-xs py-0.5 shrink-0 flex-wrap sm:flex-nowrap">
-                    <div class="flex-1 min-w-0 flex items-center space-x-1 py-0.5 overflow-x-auto no-scrollbar select-none">
-                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
-                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
-                            <button onclick="toggleChanlunLayer('highBi')" id="cl-btn-layer-high-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大笔(紫)</button>
-                            <button onclick="toggleChanlunLayer('highZs')" id="cl-btn-layer-high-zs"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-purple-950 text-purple-300 border border-purple-800 transition cursor-pointer shrink-0">大中枢</button>
-                            <button onclick="toggleChanlunLayer('midBi')" id="cl-btn-layer-mid-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">中笔(黄)</button>
-                            <button onclick="toggleChanlunLayer('midZs')" id="cl-btn-layer-mid-zs"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-amber-950 text-amber-300 border border-amber-800 transition cursor-pointer shrink-0">中中枢</button>
-                            <button onclick="toggleChanlunLayer('lowBi')" id="cl-btn-layer-low-bi"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小笔(蓝)</button>
-                            <button onclick="toggleChanlunLayer('lowZs')" id="cl-btn-layer-low-zs"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-blue-950 text-blue-300 border border-blue-800 transition cursor-pointer shrink-0">小中枢</button>
-
-                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
-
-                            <button onclick="toggleChanlunLayer('mmd')" id="cl-btn-layer-mmd"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-rose-950 text-rose-300 border border-rose-800 transition cursor-pointer shrink-0">买卖点</button>
-                            <button onclick="toggleChanlunLayer('res')" id="cl-btn-layer-res"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">★共振信号</button>
-
-                            <span class="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-800 mx-0.5 shrink-0"></span>
-
-                            <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
-                            <button onclick="setChanlunSubIndicator('amount')" id="cl-btn-sub-amount"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-cyan-950 text-cyan-300 border border-cyan-800 transition cursor-pointer shrink-0">成交额</button>
-                            <button onclick="setChanlunSubIndicator('macd')" id="cl-btn-sub-macd"
-                                class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0">MACD</button>
-                        </div>
-                    </div>
 
                     <!-- 键盘快捷键提示 (参考K线弹窗) -->
-                    <div class="hidden md:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
+                    <div class="hidden xl:flex items-center space-x-2 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
                         <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">↑</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">↓</kbd> 缩放</span>
                         <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">←</kbd><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px] ml-0.5">→</kbd> 逐日推演</span>
                         <span><kbd class="px-1 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded text-slate-400 font-mono text-[9px]">空格</kbd> 播放</span>
