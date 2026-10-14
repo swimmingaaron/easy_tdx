@@ -197,10 +197,10 @@ def save_persistent_holders_data(code: str, data: Dict[str, Any]):
 
 def _normalize_period(period: Optional[str]) -> str:
     p_map = {"日": "day", "周": "week", "月": "month", "30": "30m", "60": "60m", "120": "120m", "30分": "30m", "60分": "60m", "120分": "120m", "日线": "day", "周线": "week", "月线": "month"}
-    p_clean = str(period or "30m").lower().strip()
+    p_clean = str(period or "day").lower().strip()
     p_clean = p_map.get(p_clean, p_clean)
     if p_clean not in ("30m", "60m", "120m", "day", "week", "month"):
-        p_clean = "30m"
+        p_clean = "day"
     return p_clean
 
 
@@ -300,7 +300,7 @@ def ensure_realtime_30m_kline(
     return df
 
 
-def get_universe_eval_progress(universe_type: str = "core", period: str = "30m") -> Dict[str, Any]:
+def get_universe_eval_progress(universe_type: str = "core", period: str = "day") -> Dict[str, Any]:
     """获取指定股票池与周期的实时计算进度。"""
     p_clean = _normalize_period(period)
     key = f"{universe_type}_{p_clean}"
@@ -315,7 +315,7 @@ def get_universe_eval_progress(universe_type: str = "core", period: str = "30m")
     })
 
 
-def has_universe_cache(universe_type: str = "core", period: str = "30m") -> bool:
+def has_universe_cache(universe_type: str = "core", period: str = "day") -> bool:
     """检查指定股票池与周期是否已存在可用内存或磁盘缓存。"""
     p_clean = _normalize_period(period)
     mem_key = f"univ_{universe_type}_{p_clean}"
@@ -327,7 +327,7 @@ def has_universe_cache(universe_type: str = "core", period: str = "30m") -> bool
     return bool(cand_files)
 
 
-def is_universe_evaluating(universe_type: str = "core", period: str = "30m") -> bool:
+def is_universe_evaluating(universe_type: str = "core", period: str = "day") -> bool:
     """检查指定股票池与周期是否正在后台计算中。"""
     p_clean = _normalize_period(period)
     key = f"{universe_type}_{p_clean}"
@@ -335,7 +335,7 @@ def is_universe_evaluating(universe_type: str = "core", period: str = "30m") -> 
         return key in _ACTIVE_EVAL_EVENTS or universe_type in _ACTIVE_EVAL_EVENTS
 
 
-def start_background_universe_eval(universe_type: str = "core", period: str = "30m", force_refresh: bool = True) -> bool:
+def start_background_universe_eval(universe_type: str = "core", period: str = "day", force_refresh: bool = True) -> bool:
     """如果未在运行，则启动后台守护线程异步执行 evaluate_universe。"""
     p_clean = _normalize_period(period)
     key = f"{universe_type}_{p_clean}"
@@ -1819,7 +1819,7 @@ def evaluate_universe(
     symbols: Optional[List[str]] = None,
     max_workers: int = 24,
     universe_type: str = "core",
-    period: str = "30m",
+    period: str = "day",
     force_refresh: bool = False,
 ) -> List[Dict[str, Any]]:
     """

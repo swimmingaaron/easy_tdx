@@ -103,7 +103,7 @@ def toggle_watchlist_stock(req: WatchlistToggleReq) -> Dict[str, Any]:
 @router.get("/progress")
 def get_evaluation_progress(
     universe: str = Query("core"),
-    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
+    period: str = Query("day", description="K线周期: 30m, 60m, 120m, day, week, month"),
 ) -> Dict[str, Any]:
     """获取股票池量化计算实时进度与当前正在处理的股票"""
     from easy_tdx.trading_system.engine import get_universe_eval_progress
@@ -118,7 +118,7 @@ def get_signal_dashboard(
     search_stock: str = Query("", description="搜索代码或名称"),
     my_optional: bool = Query(False, description="仅看我的自选"),
     universe: str = Query("core", description="股票池: core, hs300, zz500, all"),
-    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
+    period: str = Query("day", description="K线周期: 30m, 60m, 120m, day, week, month"),
     sort_col: str = Query("buy_score", description="排序字段"),
     sort_dir: str = Query("desc", description="排序方向: asc, desc"),
     selected_date: str = Query("", description="选定日期"),
@@ -304,7 +304,7 @@ def get_resonance_screener(
     search_stock: str = Query("", description="搜索代码或名称"),
     my_optional: bool = Query(False, description="仅看我的自选"),
     universe: str = Query("core", description="股票池: core, hs300, zz500, all"),
-    period: str = Query("30m", description="K线周期: 30m, 60m, 120m, day, week, month"),
+    period: str = Query("day", description="K线周期: 30m, 60m, 120m, day, week, month"),
     sort_col: str = Query("matched_count", description="排序字段"),
     sort_dir: str = Query("desc", description="排序方向: asc, desc"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),

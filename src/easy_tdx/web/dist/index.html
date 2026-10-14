@@ -3847,13 +3847,16 @@
                             </select>
                         </div>
 
-                        <!-- K线周期选择 (日 周 月 30 60 120分, 默认30分) -->
+                        <!-- K线周期选择 (日 周 月 30 60 120分, 默认日线) -->
                         <div
                             class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm">
                             <span class="text-xs text-slate-600 dark:text-slate-400 select-none">周期:</span>
                             <select id="ts-period-select" onchange="onTsPeriodChange(this.value)"
                                 class="bg-transparent text-xs text-cyan-600 dark:text-cyan-400 font-bold focus:outline-none cursor-pointer">
-                                <option value="30m" selected
+                                <option value="day" selected
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">日线
+                                </option>
+                                <option value="30m"
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">30分钟
                                 </option>
                                 <option value="60m"
@@ -3861,9 +3864,6 @@
                                 </option>
                                 <option value="120m"
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">120分钟
-                                </option>
-                                <option value="day"
-                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">日线
                                 </option>
                                 <option value="week"
                                     class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">周线
@@ -19191,9 +19191,9 @@
         } catch (_) { }
 
 
-        let tsCurrentPeriod = '30m';
+        let tsCurrentPeriod = 'day';
         function onTsPeriodChange(val) {
-            tsCurrentPeriod = val || '30m';
+            tsCurrentPeriod = val || 'day';
             const force = document.getElementById('ts-force-refresh')?.checked || false;
             loadTradingSystemData(force);
         }
@@ -19419,7 +19419,7 @@
             const uniSelect = document.getElementById('ts-universe-select') || document.getElementById('ts-filter-universe');
             const uniLabel = uniSelect ? (uniSelect.options[uniSelect.selectedIndex]?.text || uniSelect.value) : '标的池';
             const periodSelect = document.getElementById('ts-period-select');
-            const activePeriod = periodSelect ? periodSelect.value : (tsCurrentPeriod || '30m');
+            const activePeriod = periodSelect ? periodSelect.value : (tsCurrentPeriod || 'day');
             tsCurrentPeriod = activePeriod;
             const periodLabelsMap = {
                 '30m': '30分钟',
@@ -19684,7 +19684,7 @@
                 'week': '周线',
                 'month': '月线'
             };
-            const zigPeriodTag = periodLabelsShort[tsCurrentPeriod] || '30分';
+            const zigPeriodTag = periodLabelsShort[tsCurrentPeriod] || '日线';
 
             if (mode === 'dashboard') {
                 thead.innerHTML = `
