@@ -4681,152 +4681,23 @@
                             </select>
                         </div>
 
-                        <!-- 2. 主图图层 级联菜单 (各元素带开关与 √ 状态) -->
-                        <div class="relative flex items-center bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0" id="cl-layers-dropdown-wrap">
+                        <!-- 2. 主图图层 级联菜单 (显示全部元素，带 √ 表示 enable显示，否则 disable不显示) -->
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
-                            <button type="button" onclick="toggleChanlunLayersDropdown(event)" id="cl-btn-layers-dropdown"
-                                class="h-6 px-1.5 rounded flex items-center space-x-1 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 font-sans font-medium text-[11px] cursor-pointer outline-none transition">
-                                <span id="cl-layers-btn-text">图层开关 (7项)</span>
-                                <span class="text-[9px] text-slate-400 ml-0.5">▾</span>
-                            </button>
-
-                            <!-- 主图级联下拉菜单 (各元素可开关控制，带 √ 状态) -->
-                            <div id="cl-layers-dropdown-menu" style="display: none;"
-                                class="absolute left-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-2 z-50 text-xs backdrop-blur-md select-none">
-                                
-                                <div class="flex items-center justify-between px-1.5 pb-1.5 mb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10.5px]">
-                                    <span class="font-bold text-slate-700 dark:text-slate-300">图层级联开关</span>
-                                    <div class="space-x-1.5 text-purple-600 dark:text-purple-400">
-                                        <button type="button" onclick="setAllChanlunLayers(true, event)" class="hover:underline cursor-pointer">全开</button>
-                                        <span>|</span>
-                                        <button type="button" onclick="setAllChanlunLayers(false, event)" class="hover:underline cursor-pointer">全关</button>
-                                        <span>|</span>
-                                        <button type="button" onclick="setChanlunBiOnly(event)" class="hover:underline cursor-pointer">仅笔</button>
-                                    </div>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <!-- 1. 大笔(紫) -->
-                                    <div onclick="toggleChanlunLayer('highBi', event)" id="cl-item-highBi"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                                            <span>大笔(紫)</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-highBi" class="font-bold text-purple-600 dark:text-purple-400 text-xs">√</span>
-                                            <div id="cl-sw-highBi" class="w-7 h-4 rounded-full bg-purple-600 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 2. 大中枢 -->
-                                    <div onclick="toggleChanlunLayer('highZs', event)" id="cl-item-highZs"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-sm bg-purple-400"></span>
-                                            <span>大中枢</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-highZs" class="font-bold text-purple-600 dark:text-purple-400 text-xs">√</span>
-                                            <div id="cl-sw-highZs" class="w-7 h-4 rounded-full bg-purple-600 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 3. 中笔(黄) -->
-                                    <div onclick="toggleChanlunLayer('midBi', event)" id="cl-item-midBi"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80 pt-1">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                                            <span>中笔(黄)</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-midBi" class="font-bold text-amber-600 dark:text-amber-400 text-xs">√</span>
-                                            <div id="cl-sw-midBi" class="w-7 h-4 rounded-full bg-amber-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 4. 中中枢 -->
-                                    <div onclick="toggleChanlunLayer('midZs', event)" id="cl-item-midZs"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-sm bg-amber-400"></span>
-                                            <span>中中枢</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-midZs" class="font-bold text-amber-600 dark:text-amber-400 text-xs">√</span>
-                                            <div id="cl-sw-midZs" class="w-7 h-4 rounded-full bg-amber-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 5. 小笔(蓝) -->
-                                    <div onclick="toggleChanlunLayer('lowBi', event)" id="cl-item-lowBi"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80 pt-1">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                                            <span>小笔(蓝)</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-lowBi" class="font-bold text-blue-600 dark:text-blue-400 text-xs">√</span>
-                                            <div id="cl-sw-lowBi" class="w-7 h-4 rounded-full bg-blue-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 6. 小中枢 -->
-                                    <div onclick="toggleChanlunLayer('lowZs', event)" id="cl-item-lowZs"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-sm bg-blue-400"></span>
-                                            <span>小中枢</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-lowZs" class="font-bold text-blue-600 dark:text-blue-400 text-xs">√</span>
-                                            <div id="cl-sw-lowZs" class="w-7 h-4 rounded-full bg-blue-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 7. 买卖点 -->
-                                    <div onclick="toggleChanlunLayer('mmd', event)" id="cl-item-mmd"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80 pt-1">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-                                            <span>买卖点</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-mmd" class="font-bold text-rose-600 dark:text-rose-400 text-xs">√</span>
-                                            <div id="cl-sw-mmd" class="w-7 h-4 rounded-full bg-rose-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- 8. ★共振信号 -->
-                                    <div onclick="toggleChanlunLayer('res', event)" id="cl-item-res"
-                                        class="flex items-center justify-between px-2 py-1 rounded-lg cursor-pointer hover:bg-yellow-50 dark:hover:bg-yellow-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
-                                        <span class="flex items-center space-x-1.5">
-                                            <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
-                                            <span>★共振信号</span>
-                                        </span>
-                                        <div class="flex items-center space-x-1.5">
-                                            <span id="cl-tick-res" class="font-bold text-yellow-600 dark:text-yellow-400 text-xs">√</span>
-                                            <div id="cl-sw-res" class="w-7 h-4 rounded-full bg-yellow-500 p-0.5 transition-colors flex items-center justify-end">
-                                                <div class="w-3 h-3 rounded-full bg-white shadow-sm"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <select id="cl-select-main-layers" onchange="toggleChanlunLayerFromSelect(this)"
+                                class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
+                                <option value="" disabled selected id="cl-opt-summary">图层开关 (7/8)</option>
+                                <option value="highBi" id="cl-opt-highBi">大笔(紫) √</option>
+                                <option value="highZs" id="cl-opt-highZs">大中枢 √</option>
+                                <option value="midBi" id="cl-opt-midBi">中笔(黄) √</option>
+                                <option value="midZs" id="cl-opt-midZs">中中枢 √</option>
+                                <option value="lowBi" id="cl-opt-lowBi">小笔(蓝) √</option>
+                                <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
+                                <option value="mmd" id="cl-opt-mmd">买卖点 √</option>
+                                <option value="res" id="cl-opt-res">★共振信号</option>
+                                <option value="__ALL_ON__">── 全部开启 √ ──</option>
+                                <option value="__ALL_OFF__">── 全部关闭 ──</option>
+                            </select>
                         </div>
 
                         <!-- 3. 副图级联选择 -->
@@ -22278,77 +22149,57 @@
             const selectSub = document.getElementById('cl-select-sub-indicator');
             if (selectSub) selectSub.value = _clSubIndicator;
 
-            // 8个元素状态同步: 开关与 √ 状态
-            const keyConfig = {
-                highBi: { activeBg: 'bg-purple-600' },
-                highZs: { activeBg: 'bg-purple-600' },
-                midBi: { activeBg: 'bg-amber-500' },
-                midZs: { activeBg: 'bg-amber-500' },
-                lowBi: { activeBg: 'bg-blue-500' },
-                lowZs: { activeBg: 'bg-blue-500' },
-                mmd: { activeBg: 'bg-rose-500' },
-                res: { activeBg: 'bg-yellow-500' },
+            // 8个元素名称映射: 带 √ 表示 enable显示，否则 disable不显示
+            const layerNames = {
+                highBi: '大笔(紫)',
+                highZs: '大中枢',
+                midBi: '中笔(黄)',
+                midZs: '中中枢',
+                lowBi: '小笔(蓝)',
+                lowZs: '小中枢',
+                mmd: '买卖点',
+                res: '★共振信号'
             };
 
-            const keys = Object.keys(keyConfig);
             let enabledCount = 0;
-            keys.forEach(k => {
+            Object.keys(layerNames).forEach(k => {
                 const isEnabled = !!_clLayers[k];
                 if (isEnabled) enabledCount++;
-                const tickEl = document.getElementById('cl-tick-' + k);
-                const swEl = document.getElementById('cl-sw-' + k);
-                const itemEl = document.getElementById('cl-item-' + k);
-                const cfg = keyConfig[k];
-
-                if (tickEl) {
-                    tickEl.innerText = isEnabled ? '√' : '';
-                }
-                if (swEl) {
-                    if (isEnabled) {
-                        swEl.className = `w-7 h-4 rounded-full ${cfg.activeBg} p-0.5 transition-colors flex items-center justify-end`;
-                    } else {
-                        swEl.className = 'w-7 h-4 rounded-full bg-slate-300 dark:bg-slate-700 p-0.5 transition-colors flex items-center justify-start';
-                    }
-                }
-                if (itemEl) {
-                    if (isEnabled) {
-                        itemEl.classList.remove('opacity-40');
-                        itemEl.classList.add('opacity-100');
-                    } else {
-                        itemEl.classList.add('opacity-40');
-                        itemEl.classList.remove('opacity-100');
-                    }
+                const opt = document.getElementById('cl-opt-' + k);
+                if (opt) {
+                    opt.innerText = isEnabled ? `${layerNames[k]} √` : layerNames[k];
                 }
             });
 
-            // 更新主图下拉菜单按钮文本
-            const btnText = document.getElementById('cl-layers-btn-text');
-            if (btnText) {
-                btnText.innerText = `图层开关 (${enabledCount}/8)`;
+            // 更新主图下拉菜单摘要文本
+            const optSummary = document.getElementById('cl-opt-summary');
+            if (optSummary) {
+                optSummary.innerText = `图层开关 (${enabledCount}/8)`;
+            }
+            const selMain = document.getElementById('cl-select-main-layers');
+            if (selMain) {
+                selMain.value = "";
             }
         }
 
-        window.toggleChanlunLayersDropdown = function(e) {
-            if (e) e.stopPropagation();
-            const menu = document.getElementById('cl-layers-dropdown-menu');
-            if (!menu) return;
-            const isHidden = menu.style.display === 'none';
-            menu.style.display = isHidden ? 'block' : 'none';
-            if (isHidden) {
-                updateChanlunLayerButtons();
+        window.toggleChanlunLayerFromSelect = function(sel) {
+            const val = sel.value;
+            if (!val) return;
+            if (val === '__ALL_ON__') {
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+                keys.forEach(k => { _clLayers[k] = true; });
+            } else if (val === '__ALL_OFF__') {
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+                keys.forEach(k => { _clLayers[k] = false; });
+            } else if (_clLayers[val] !== undefined) {
+                _clLayers[val] = !_clLayers[val];
             }
+            updateChanlunLayerButtons();
+            renderChanlunChart();
+            sel.value = "";
         };
 
-        document.addEventListener('click', (e) => {
-            const wrap = document.getElementById('cl-layers-dropdown-wrap');
-            const menu = document.getElementById('cl-layers-dropdown-menu');
-            if (wrap && menu && !wrap.contains(e.target)) {
-                menu.style.display = 'none';
-            }
-        });
-
-        function toggleChanlunLayer(key, e) {
-            if (e) e.stopPropagation();
+        function toggleChanlunLayer(key) {
             if (_clLayers[key] !== undefined) {
                 _clLayers[key] = !_clLayers[key];
                 updateChanlunLayerButtons();
@@ -22356,16 +22207,14 @@
             }
         }
 
-        window.setAllChanlunLayers = function(enabled, e) {
-            if (e) e.stopPropagation();
+        window.setAllChanlunLayers = function(enabled) {
             const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
             keys.forEach(k => { _clLayers[k] = !!enabled; });
             updateChanlunLayerButtons();
             renderChanlunChart();
         };
 
-        window.setChanlunBiOnly = function(e) {
-            if (e) e.stopPropagation();
+        window.setChanlunBiOnly = function() {
             _clLayers.highBi = true;
             _clLayers.highZs = false;
             _clLayers.midBi = true;

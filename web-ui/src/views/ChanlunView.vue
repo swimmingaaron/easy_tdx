@@ -76,7 +76,6 @@ const showLowZs = ref(true)
 const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
-const isLayersMenuOpen = ref(false)
 const activeLayersCount = computed(() => {
   let c = 0
   if (showHighBi.value) c++
@@ -112,6 +111,37 @@ function setBiOnly() {
   showMmdMarks.value = false
   showResonanceMarks.value = false
   renderChart()
+}
+
+function onMainLayersSelect(e: Event) {
+  const target = e.target as HTMLSelectElement
+  const val = target.value
+  if (!val) return
+  if (val === '__ALL_ON__') {
+    setAllLayers(true)
+  } else if (val === '__ALL_OFF__') {
+    setAllLayers(false)
+  } else if (val === '__BI_ONLY__') {
+    setBiOnly()
+  } else if (val === 'highBi') {
+    showHighBi.value = !showHighBi.value
+  } else if (val === 'highZs') {
+    showHighZs.value = !showHighZs.value
+  } else if (val === 'midBi') {
+    showMidBi.value = !showMidBi.value
+  } else if (val === 'midZs') {
+    showMidZs.value = !showMidZs.value
+  } else if (val === 'lowBi') {
+    showLowBi.value = !showLowBi.value
+  } else if (val === 'lowZs') {
+    showLowZs.value = !showLowZs.value
+  } else if (val === 'mmd') {
+    showMmdMarks.value = !showMmdMarks.value
+  } else if (val === 'res') {
+    showResonanceMarks.value = !showResonanceMarks.value
+  }
+  renderChart()
+  target.value = ''
 }
 
 const PERIOD_SECONDS: Record<string, number> = {
@@ -1395,110 +1425,22 @@ onBeforeUnmount(() => {
 
         <span class="sub-sep">|</span>
 
-        <!-- 2. 主图图层 级联菜单 (各元素带 √ 状态) -->
-        <div class="control-group relative" ref="layersDropdownWrap">
+        <!-- 2. 主图图层 级联菜单 (显示全部元素，带 √ 表示 enable显示，否则 disable不显示) -->
+        <div class="control-group">
           <span class="label">主图:</span>
-          <button type="button" class="cascading-select flex-btn" @click.stop="isLayersMenuOpen = !isLayersMenuOpen">
-            <span>图层开关 ({{ activeLayersCount }}/8)</span>
-            <span class="caret">▾</span>
-          </button>
-
-          <!-- 主图级联下拉菜单 (各元素后带 √ 表示 enable，否则 disable) -->
-          <div v-if="isLayersMenuOpen" class="layers-dropdown-popover select-none" @click.stop>
-            <div class="popover-header">
-              <span class="popover-title">图层开关 (√ 启用)</span>
-              <div class="popover-actions">
-                <button type="button" @click="setAllLayers(true)">全开</button>
-                <span>|</span>
-                <button type="button" @click="setAllLayers(false)">全关</button>
-                <span>|</span>
-                <button type="button" @click="setBiOnly()">仅笔</button>
-              </div>
-            </div>
-
-            <div class="popover-items-list">
-              <!-- 1. 大笔(紫) -->
-              <div class="popover-item" :class="{ disabled: !showHighBi }" @click="showHighBi = !showHighBi; renderChart()">
-                <span class="item-name"><span class="dot purple-dot"></span>大笔(紫)</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showHighBi ? '√' : '' }}</span>
-                  <div class="switch-pill purple" :class="{ active: showHighBi }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 2. 大中枢 -->
-              <div class="popover-item" :class="{ disabled: !showHighZs }" @click="showHighZs = !showHighZs; renderChart()">
-                <span class="item-name"><span class="dot purple-dot"></span>大中枢</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showHighZs ? '√' : '' }}</span>
-                  <div class="switch-pill purple" :class="{ active: showHighZs }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 3. 中笔(黄) -->
-              <div class="popover-item sep-top" :class="{ disabled: !showMidBi }" @click="showMidBi = !showMidBi; renderChart()">
-                <span class="item-name"><span class="dot amber-dot"></span>中笔(黄)</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showMidBi ? '√' : '' }}</span>
-                  <div class="switch-pill amber" :class="{ active: showMidBi }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 4. 中中枢 -->
-              <div class="popover-item" :class="{ disabled: !showMidZs }" @click="showMidZs = !showMidZs; renderChart()">
-                <span class="item-name"><span class="dot amber-dot"></span>中中枢</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showMidZs ? '√' : '' }}</span>
-                  <div class="switch-pill amber" :class="{ active: showMidZs }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 5. 小笔(蓝) -->
-              <div class="popover-item sep-top" :class="{ disabled: !showLowBi }" @click="showLowBi = !showLowBi; renderChart()">
-                <span class="item-name"><span class="dot blue-dot"></span>小笔(蓝)</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showLowBi ? '√' : '' }}</span>
-                  <div class="switch-pill blue" :class="{ active: showLowBi }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 6. 小中枢 -->
-              <div class="popover-item" :class="{ disabled: !showLowZs }" @click="showLowZs = !showLowZs; renderChart()">
-                <span class="item-name"><span class="dot blue-dot"></span>小中枢</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showLowZs ? '√' : '' }}</span>
-                  <div class="switch-pill blue" :class="{ active: showLowZs }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 7. 买卖点 -->
-              <div class="popover-item sep-top" :class="{ disabled: !showMmdMarks }" @click="showMmdMarks = !showMmdMarks; renderChart()">
-                <span class="item-name"><span class="dot rose-dot"></span>买卖点</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showMmdMarks ? '√' : '' }}</span>
-                  <div class="switch-pill rose" :class="{ active: showMmdMarks }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-              <!-- 8. ★共振信号 -->
-              <div class="popover-item" :class="{ disabled: !showResonanceMarks }" @click="showResonanceMarks = !showResonanceMarks; renderChart()">
-                <span class="item-name"><span class="dot yellow-dot"></span>★共振信号</span>
-                <div class="item-switch-box">
-                  <span class="item-tick">{{ showResonanceMarks ? '√' : '' }}</span>
-                  <div class="switch-pill yellow" :class="{ active: showResonanceMarks }">
-                    <div class="switch-knob"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <select class="cascading-select" @change="onMainLayersSelect($event)">
+            <option value="" disabled selected>图层开关 ({{ activeLayersCount }}/8)</option>
+            <option value="highBi">大笔(紫) {{ showHighBi ? '√' : '' }}</option>
+            <option value="highZs">大中枢 {{ showHighZs ? '√' : '' }}</option>
+            <option value="midBi">中笔(黄) {{ showMidBi ? '√' : '' }}</option>
+            <option value="midZs">中中枢 {{ showMidZs ? '√' : '' }}</option>
+            <option value="lowBi">小笔(蓝) {{ showLowBi ? '√' : '' }}</option>
+            <option value="lowZs">小中枢 {{ showLowZs ? '√' : '' }}</option>
+            <option value="mmd">买卖点 {{ showMmdMarks ? '√' : '' }}</option>
+            <option value="res">★共振信号 {{ showResonanceMarks ? '√' : '' }}</option>
+            <option value="__ALL_ON__">── 全部开启 √ ──</option>
+            <option value="__ALL_OFF__">── 全部关闭 ──</option>
+          </select>
         </div>
 
         <span class="sub-sep">|</span>
