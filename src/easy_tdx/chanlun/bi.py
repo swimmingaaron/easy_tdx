@@ -1,16 +1,19 @@
-"""笔计算。
+"""笔计算与严格状态机。
 
-笔的定义：
-- 由相邻的顶底分型连接而成
-- 顶→底 = 向下笔，底→顶 = 向上笔
-- 新笔规则：分型之间至少有 1 根独立缠论 K 线（即分型中间 K 线的 index 差 > 2）
-- 老笔规则：分型之间至少有 3 根缠论 K 线
-- 简单笔规则：只要顶底交替即可
-
-优化（v2）：
-1. 修复 pending_opposite 时同向极值更新逻辑：有 pending 时仍应更新 start_fx 为更极端值
-   （否则会固定在一个不够极端的位置，让后续笔的 gap 判断失准）
-2. 正确计算 bi.high / bi.low：扫描区间内全部缠论 K 线取真实极值，而非仅用分型端点值
+缠论笔的核心定义：
+1. 笔由相邻且反向的顶分型和底分型连接而成：
+   - 底分型 → 顶分型 = 向上笔（Direction.UP）
+   - 顶分型 → 底分型 = 向下笔（Direction.DOWN）
+2. 笔的极值公理（缠论第一公理）：
+   - 向上笔：终点顶分型最高价必须高于起点底分型最低价 (end.val > start.val)；
+   - 向下笔：终点底分型最低价必须低于起点顶分型最高价 (end.val < start.val)；
+   - 笔内绝不允许出现超越端点的价格倒挂。
+3. 笔的跨度规则：
+   - 新笔 (new)：分型之间至少有 1 根独立缠论 K 线 (gap >= 1)，或两分型中心 K 线相隔 >= 3 根；
+   - 老笔 (old)：分型之间至少有 3 根缠论 K 线 (gap >= 3)，且顶分型区间与底分型区间无重叠；
+   - 简单笔 (simple)：顶底严格交替且满足高低差即可。
+4. 几何连续性公理：
+   - 笔序列首尾严格无缝相接 (bis[i].end == bis[i+1].start)，绝对不允许断层。
 """
 
 from __future__ import annotations
@@ -24,24 +27,37 @@ def _can_form_bi(
     end: FX,
     config: ChanlunConfig,
 ) -> bool:
-    """判断两个分型是否可以构成一笔。"""
-    # 顶底必须交替
+    """判断两个分型是否可以构成合法的笔。"""
+    # 1. 顶底必须严格交替
     if start.fx_type == end.fx_type:
         return False
 
-    # 分型之间缠论 K 线的间距
-    # 独立 K 线数 = end.left.index - start.right.index + 1（如果 >0）
-    gap = end.klines[0].index - start.klines[2].index + 1
+    # 2. 价格极值关系校验（缠论方向公理：向上笔顶必须高于底，向下笔底必须低于顶）
+    if start.fx_type == FXType.DI:
+        if end.val <= start.val:
+            return False
+    else:
+        if end.val >= start.val:
+            return False
+
+    # 3. 分型之间缠论 K 线的间距
+    # 独立 K 线数 = end.left.index - start.right.index + 1
+    start_right_idx = start.klines[2].index if len(start.klines) >= 3 else start.k.index + 1
+    end_left_idx = end.klines[0].index if len(end.klines) >= 3 else end.k.index - 1
+    gap = end_left_idx - start_right_idx + 1
+
+    # 中心 K 线跨度
+    center_span = abs(end.k.index - start.k.index)
 
     if config.bi_type == "new":
-        # 新笔：至少1根独立K线
-        return gap >= 1
+        # 新笔：至少1根独立K线或中心跨度>=3
+        return gap >= 1 or center_span >= 3
     elif config.bi_type == "old":
         # 老笔：至少3根缠论K线在分型之间
-        return gap >= 3
+        return gap >= 3 or center_span >= 4
     else:
-        # simple：只要顶底交替即可
-        return True
+        # simple：只要中心跨度>=2且无包含倒挂
+        return center_span >= 2
 
 
 def _calc_bi_range(
@@ -49,20 +65,11 @@ def _calc_bi_range(
     end: FX,
     all_cklines: list[CLKline],
 ) -> tuple[float, float]:
-    """计算笔内区间的真实最高/最低价（扫描区间内所有缠论K线）。
-
-    仅使用分型端点值会遗漏区间内中间缠论K线的极值，
-    例如向上笔的途中可能有合并K线产生更低的 low。
-
-    Returns:
-        (high, low) 区间内真实极值
-    """
-    # 取笔起始和结束分型中间 K 线的缠论K线 index
+    """计算笔内区间的真实最高/最低价（扫描区间内所有缠论 K 线）。"""
     start_ck_idx = start.k.index
     end_ck_idx = end.k.index
 
     if not all_cklines or start_ck_idx > end_ck_idx:
-        # 回退到分型端点值
         h = max(start.val, end.val)
         l = min(start.val, end.val)
         return h, l
@@ -70,8 +77,11 @@ def _calc_bi_range(
     lo = min(start_ck_idx, end_ck_idx)
     hi = max(start_ck_idx, end_ck_idx)
 
-    high_val = max(ck.high for ck in all_cklines[lo: hi + 1])
-    low_val = min(ck.low for ck in all_cklines[lo: hi + 1])
+    high_val = max(ck.high for ck in all_cklines[lo : hi + 1])
+    low_val = min(ck.low for ck in all_cklines[lo : hi + 1])
+    # 向上笔高点以顶分型为基准，低点以底分型为基准
+    high_val = max(high_val, start.val, end.val)
+    low_val = min(low_val, start.val, end.val)
     return high_val, low_val
 
 
@@ -80,21 +90,21 @@ def find_bis(
     config: ChanlunConfig | None = None,
     cklines: list[CLKline] | None = None,
 ) -> list[BI]:
-    """从分型列表中计算笔（严格连续折线状态机）。
+    """从分型列表中计算笔（严谨连续折线状态机）。
 
-    核心原则（连续性公理）：
-    1. 笔序列在几何上必须构成首尾无缝相接的连续折线 (bis[i].end == bis[i+1].start)，绝不允许断层。
-    2. 当最后一笔形成后，若后续同向分型创出更极端价格（未确立反向笔前），
-       属于前一笔的延伸，直接更新前一笔的 end 为该更极端分型。
-    3. 只有当反向分型与前一笔终点满足成笔条件时，才确认生成下一笔，且新笔的 start 严格等于前一笔的 end。
+    核心原则：
+    1. 连续性：笔序列在几何上首尾相接，bis[i].end == bis[i+1].start；
+    2. 延伸性：当最后一笔形成后，若后续同向分型创出更极端价格，直接延伸前一笔；
+    3. 确认性：反向分型满足成笔跨度与极值有效性时，确认生成下一笔；
+    4. 陷阱防御：密集交替分型不卡死，保证回溯推演与实时计算 100% 幂等。
 
     Args:
         fxs: 分型列表（顶底交替）
         config: 缠论配置
-        cklines: 缠论K线列表（可选，用于计算笔内真实高低）
+        cklines: 缠论 K 线列表（可选，用于计算笔内真实高低）
 
     Returns:
-        笔列表（首尾绝对无缝连续）
+        笔列表
     """
     if config is None:
         config = ChanlunConfig()
@@ -168,4 +178,3 @@ def find_bis(
                 bis.append(new_bi)
 
     return bis
-

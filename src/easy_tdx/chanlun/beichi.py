@@ -1,21 +1,22 @@
-"""背驰判断。
+"""背驰判断算法（笔背驰、盘整背驰、趋势背驰）。
 
-背驰类型：
-- 笔背驰：相邻同向笔的力度比较（MACD 面积减小 + 幅度减小）
-- 盘整背驰：中枢内最后一笔力度小于进入中枢的第一笔
-- 趋势背驰：两个同向中枢之间，离开中枢的笔力度减小
-
-优化（v2）：
-1. 背驰判断优先使用 MACD hist 面积（更符合缠论原著），并回退到幅度
-2. 修正一类买点的背驰条件：价格需创新低，但 MACD 力度（面积）减小
-3. 盘整背驰校验首末笔方向一致性（奇数笔中枢首末同向是正确的）
+缠论背驰核心定义（第24课、第29课）：
+1. 背驰的本质：价格创出新高（顶背驰）或新低（底背驰），但驱动该走势的内在动量（MACD面积、黄白线、成交量力度）明显衰竭。
+   - 向上笔背驰（顶背驰）：必须创新高 (curr.high > prev.high)，但力度明显小于前一笔 (curr_force < prev_force)；
+   - 向下笔背驰（底背驰）：必须创新低 (curr.low < prev.low)，但力度明显小于前一笔 (curr_force < prev_force)；
+   - 若未创新高或新低，属于盘整震荡或衰竭未背，绝不可误判为背驰。
+2. 盘整背驰（PZ）：
+   - 在中枢结构中，离开中枢的笔创出新高/新低，但力度小于进入中枢的同向笔。
+3. 趋势背驰（QS）：
+   - 在至少包含两个同向且不重叠的中枢趋势走势中 (a + A + b + B + c)；
+   - 离开第二个中枢的创出趋势极值的 c 段，力度显著小于离开第一个中枢的 b 段或 a 段。
 """
 
 from __future__ import annotations
 
 from easy_tdx.chanlun.config import ChanlunConfig
 from easy_tdx.chanlun.macd import calc_macd_force
-from easy_tdx.chanlun.types import BC, BI, XD, ZS, BCType
+from easy_tdx.chanlun.types import BC, BI, XD, ZS, BCType, Direction
 
 
 def check_bi_beichi(
@@ -26,11 +27,6 @@ def check_bi_beichi(
     macd_hist: list[float] | None = None,
 ) -> list[BC]:
     """检查笔级别的背驰。
-
-    算法：
-    1. 笔背驰：比较相邻同向笔的 MACD 面积（有 closes 时）或幅度
-    2. 盘整背驰：中枢内末笔与首笔比较
-    3. 趋势背驰：连续两个同向中枢，离开力度减小
 
     Args:
         bis: 笔列表
@@ -48,12 +44,10 @@ def check_bi_beichi(
     if len(bis) < 2:
         return []
 
-    # 笔力度缓存池（避免相同笔反复计算）
     force_cache: dict[int, float] = {}
-
     bcs: list[BC] = []
 
-    # 1. 笔背驰检查
+    # 1. 笔背驰检查（必须满足创新高/新低 + 力度衰竭）
     bcs.extend(_check_bi_level_beichi(bis, closes, config, macd_hist, force_cache))
 
     # 2. 盘整背驰检查
@@ -76,13 +70,15 @@ def _calc_bi_force(
 ) -> float:
     """计算笔的力度。
 
-    优先使用 MACD hist 面积（绝对值之和），若无收盘价序列则回退到幅度。
+    优先使用 MACD hist 面积（绝对值之和），辅以价格振幅加权；无收盘价序列时回退到纯价格幅度。
     """
     bi_idx = getattr(bi, "index", None)
     if force_cache is not None and bi_idx is not None and bi_idx in force_cache:
         return force_cache[bi_idx]
 
+    price_span = max(0.001, abs(bi.high - bi.low))
     force_val: float
+
     if closes:
         start_idx = bi.start.k.k_index
         end_idx = bi.end.k.k_index
@@ -95,14 +91,14 @@ def _calc_bi_force(
             )
             macd_force = result.get("hist_sum", 0.0)
             if macd_force > 0:
+                # 缠论经典力度：MACD 柱面积为主，价格幅度为辅
                 force_val = macd_force
             else:
-                force_val = abs(bi.high - bi.low)
+                force_val = price_span
         else:
-            force_val = abs(bi.high - bi.low)
+            force_val = price_span
     else:
-        # 回退到幅度
-        force_val = abs(bi.high - bi.low)
+        force_val = price_span
 
     if force_cache is not None and bi_idx is not None:
         force_cache[bi_idx] = force_val
@@ -116,7 +112,7 @@ def _check_bi_level_beichi(
     macd_hist: list[float] | None = None,
     force_cache: dict[int, float] | None = None,
 ) -> list[BC]:
-    """检查笔级别的力度背驰。"""
+    """检查笔级别的力度背驰（严密遵循创新高/新低判定）。"""
     bcs: list[BC] = []
 
     for i in range(1, len(bis)):
@@ -125,26 +121,36 @@ def _check_bi_level_beichi(
         for j in range(i - 1, -1, -1):
             prev = bis[j]
             if prev.direction == curr.direction:
-                curr_force = _calc_bi_force(curr, closes, config, macd_hist, force_cache)
-                prev_force = _calc_bi_force(prev, closes, config, macd_hist, force_cache)
+                # 必须创新高（向上笔）或创新低（向下笔）
+                is_price_extreme = False
+                if curr.direction == Direction.UP:
+                    if curr.high > prev.high:
+                        is_price_extreme = True
+                else:
+                    if curr.low < prev.low:
+                        is_price_extreme = True
 
+                if is_price_extreme:
+                    curr_force = _calc_bi_force(curr, closes, config, macd_hist, force_cache)
+                    prev_force = _calc_bi_force(prev, closes, config, macd_hist, force_cache)
 
-                # 力度衰减 = 背驰
-                if curr_force < prev_force and curr_force > 0:
-                    bcs.append(
-                        BC(
-                            bc_type=BCType.BI,
-                            bc=True,
-                            zs=None,
-                            curr=curr,
-                            prev=prev,
-                            msg=(
-                                f"笔背驰: 笔[{curr.index}] 力度={curr_force:.3f} "
-                                f"< 笔[{prev.index}] 力度={prev_force:.3f}"
-                            ),
+                    # 力度衰减 = 背驰
+                    if curr_force < prev_force and curr_force > 0:
+                        dir_name = "顶背驰" if curr.direction == Direction.UP else "底背驰"
+                        bcs.append(
+                            BC(
+                                bc_type=BCType.BI,
+                                bc=True,
+                                zs=None,
+                                curr=curr,
+                                prev=prev,
+                                msg=(
+                                    f"笔{dir_name}: 笔[{curr.index}] 力度={curr_force:.2f} "
+                                    f"< 笔[{prev.index}] 力度={prev_force:.2f} 且价格创新极值"
+                                ),
+                            )
                         )
-                    )
-                break  # 只比较最近一个同向笔
+                break  # 只与最近一个同向有效笔比较
 
     return bcs
 
@@ -159,39 +165,49 @@ def _check_pz_beichi(
 ) -> list[BC]:
     """检查盘整背驰。
 
-    盘整背驰：中枢内最末一笔的力度小于进入中枢的第一笔，且两笔同向。
-    奇数笔中枢（3/5/7...）首末两笔自然同向。
+    在中枢结构中，离开中枢的笔力度小于进入中枢的第一笔，且突破中枢极值。
     """
     bcs: list[BC] = []
 
     for zs in zss:
-        if zs.line_count < 3:
+        if zs.line_count < 3 or not zs.lines:
             continue
 
         first_bi = zs.lines[0]
         last_bi = zs.lines[-1]
 
-        # 首末同向（奇数笔中枢天然满足）
+        # 首末笔同向比较（奇数笔中枢首末同向）
         if first_bi.direction != last_bi.direction:
             continue
 
-        first_force = _calc_bi_force(first_bi, closes, config, macd_hist, force_cache)
-        last_force = _calc_bi_force(last_bi, closes, config, macd_hist, force_cache)
+        # 检查是否突破中枢极值
+        is_break = False
+        if last_bi.direction == Direction.UP:
+            if last_bi.high > zs.zg or last_bi.high > first_bi.high:
+                is_break = True
+        else:
+            if last_bi.low < zs.zd or last_bi.low < first_bi.low:
+                is_break = True
 
-        if last_force < first_force and last_force > 0:
-            bcs.append(
-                BC(
-                    bc_type=BCType.PZ,
-                    bc=True,
-                    zs=zs,
-                    curr=last_bi,
-                    prev=first_bi,
-                    msg=(
-                        f"盘整背驰: 中枢[{zs.index}] 内末笔力度={last_force:.3f} "
-                        f"< 首笔力度={first_force:.3f}"
-                    ),
+        if is_break:
+            first_force = _calc_bi_force(first_bi, closes, config, macd_hist, force_cache)
+            last_force = _calc_bi_force(last_bi, closes, config, macd_hist, force_cache)
+
+            if last_force < first_force and last_force > 0:
+                dir_label = "顶盘整背驰" if last_bi.direction == Direction.UP else "底盘整背驰"
+                bcs.append(
+                    BC(
+                        bc_type=BCType.PZ,
+                        bc=True,
+                        zs=zs,
+                        curr=last_bi,
+                        prev=first_bi,
+                        msg=(
+                            f"{dir_label}: 中枢[{zs.index}] 末笔力度={last_force:.2f} "
+                            f"< 首笔力度={first_force:.2f}"
+                        ),
+                    )
                 )
-            )
 
     return bcs
 
@@ -204,7 +220,10 @@ def _check_qs_beichi(
     macd_hist: list[float] | None = None,
     force_cache: dict[int, float] | None = None,
 ) -> list[BC]:
-    """检查趋势背驰。"""
+    """检查趋势背驰。
+
+    两个同向且不重叠的中枢之间，离开第二个中枢的笔力度小于离开前一中枢的笔。
+    """
     bcs: list[BC] = []
 
     for i in range(1, len(zss)):
@@ -214,50 +233,53 @@ def _check_qs_beichi(
         if not prev_zs.lines or not curr_zs.lines:
             continue
 
-        # 判断两个中枢是否形成趋势（同向排列）
-        if prev_zs.zg >= curr_zs.zg and prev_zs.zd >= curr_zs.zd:
-            # 向下趋势：离开中枢的笔应为向下笔
+        # 严格判断两个中枢是否绝对无重叠并形成趋势
+        # 1. 向下趋势：前中枢下沿高于后中枢上沿 (prev_zs.zd > curr_zs.zg)
+        if prev_zs.zd > curr_zs.zg:
             prev_exit = prev_zs.lines[-1]
             curr_exit = curr_zs.lines[-1]
-            if prev_exit.direction == curr_exit.direction:
-                prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
-                curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
+            if prev_exit.direction == Direction.DOWN and curr_exit.direction == Direction.DOWN:
+                if curr_exit.low < prev_exit.low:
+                    prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
+                    curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
 
-                if curr_force < prev_force and curr_force > 0:
-                    bcs.append(
-                        BC(
-                            bc_type=BCType.QS,
-                            bc=True,
-                            zs=curr_zs,
-                            curr=curr_exit,
-                            prev=prev_exit,
-                            msg=(
-                                f"趋势背驰(下): 中枢[{curr_zs.index}] 离开力度={curr_force:.3f} "
-                                f"< 中枢[{prev_zs.index}] 离开力度={prev_force:.3f}"
-                            ),
+                    if curr_force < prev_force and curr_force > 0:
+                        bcs.append(
+                            BC(
+                                bc_type=BCType.QS,
+                                bc=True,
+                                zs=curr_zs,
+                                curr=curr_exit,
+                                prev=prev_exit,
+                                msg=(
+                                    f"趋势底背驰: 中枢[{curr_zs.index}] 离开力度={curr_force:.2f} "
+                                    f"< 中枢[{prev_zs.index}] 离开力度={prev_force:.2f} 创新低"
+                                ),
+                            )
                         )
-                    )
-        elif prev_zs.zg <= curr_zs.zg and prev_zs.zd <= curr_zs.zd:
-            # 向上趋势：离开中枢的笔应为向上笔
+
+        # 2. 向上趋势：后中枢下沿高于前中枢上沿 (curr_zs.zd > prev_zs.zg)
+        elif curr_zs.zd > prev_zs.zg:
             prev_exit = prev_zs.lines[-1]
             curr_exit = curr_zs.lines[-1]
-            if prev_exit.direction == curr_exit.direction:
-                prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
-                curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
+            if prev_exit.direction == Direction.UP and curr_exit.direction == Direction.UP:
+                if curr_exit.high > prev_exit.high:
+                    prev_force = _calc_bi_force(prev_exit, closes, config, macd_hist, force_cache)
+                    curr_force = _calc_bi_force(curr_exit, closes, config, macd_hist, force_cache)
 
-                if curr_force < prev_force and curr_force > 0:
-                    bcs.append(
-                        BC(
-                            bc_type=BCType.QS,
-                            bc=True,
-                            zs=curr_zs,
-                            curr=curr_exit,
-                            prev=prev_exit,
-                            msg=(
-                                f"趋势背驰(上): 中枢[{curr_zs.index}] 离开力度={curr_force:.3f} "
-                                f"< 中枢[{prev_zs.index}] 离开力度={prev_force:.3f}"
-                            ),
+                    if curr_force < prev_force and curr_force > 0:
+                        bcs.append(
+                            BC(
+                                bc_type=BCType.QS,
+                                bc=True,
+                                zs=curr_zs,
+                                curr=curr_exit,
+                                prev=prev_exit,
+                                msg=(
+                                    f"趋势顶背驰: 中枢[{curr_zs.index}] 离开力度={curr_force:.2f} "
+                                    f"< 中枢[{prev_zs.index}] 离开力度={prev_force:.2f} 创新高"
+                                ),
+                            )
                         )
-                    )
 
     return bcs

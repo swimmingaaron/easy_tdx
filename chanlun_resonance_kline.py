@@ -360,7 +360,7 @@ class ChanlunUnifiedResonancePlotter:
             logger.warning("基准最小周期数据为空，无法绘图")
             return None
 
-        base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+        base_dts = pd.to_datetime(base_df["datetime"], format="mixed", errors="coerce")
 
         # 画布尺寸：宽 18 吋，高 15.6 吋 (高度增加 30%)
         fig = plt.figure(figsize=(18, 15.6), facecolor="#131722")
@@ -985,7 +985,7 @@ def export_interactive_html(
     base_p = periods[-1]
     base_df = dfs[base_p]
     base_res = results[base_p]
-    base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+    base_dts = pd.to_datetime(base_df["datetime"], format="mixed", errors="coerce")
     dates = base_df["datetime"].astype(str).tolist()
     candles = base_df[["open", "close", "low", "high"]].values.tolist()
 
