@@ -4623,37 +4623,6 @@
                             <button onclick="setChanlunWindowMode('single')" id="cl-btn-win-single"
                                 class="cl-win-mode-btn h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0" title="单窗口全宽显示">⬜ 单窗口</button>
                         </div>
-
-
-                        <!-- 自定义3周期下拉 -->
-                        <div class="flex items-center space-x-1 bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0 text-[11px]">
-                            <span class="text-slate-500 font-sans px-1">大:</span>
-                            <select id="cl-select-high" onchange="onChanlunCustomPeriodChange('high')" class="h-5 bg-transparent text-purple-400 font-mono outline-none">
-                                <option value="MONTH">月线</option>
-                                <option value="WEEK">周线</option>
-                                <option value="DAY" selected>日线</option>
-                                <option value="120F">120F</option>
-                                <option value="60F">60F</option>
-                            </select>
-                            <span class="text-slate-500 font-sans px-1">中:</span>
-                            <select id="cl-select-mid" onchange="onChanlunCustomPeriodChange('mid')" class="h-5 bg-transparent text-cyan-400 font-mono outline-none">
-                                <option value="WEEK">周线</option>
-                                <option value="DAY">日线</option>
-                                <option value="120F">120F</option>
-                                <option value="60F">60F</option>
-                                <option value="30F" selected>30F</option>
-                                <option value="15F">15F</option>
-                            </select>
-                            <span class="text-slate-500 font-sans px-1">基准底图:</span>
-                            <select id="cl-select-low" onchange="onChanlunCustomPeriodChange('low')" class="h-5 bg-transparent text-amber-400 font-mono outline-none">
-                                <option value="DAY">日线</option>
-                                <option value="120F">120F</option>
-                                <option value="60F">60F</option>
-                                <option value="30F">30F</option>
-                                <option value="15F">15F</option>
-                                <option value="5F" selected>5F</option>
-                                <option value="1F">1F</option>
-                            </select>
                     </div>
 
                     <!-- 1点钟方向: 缩放与历史回溯推演控制器 (参考K线弹窗独立控制器卡片) -->

@@ -61,30 +61,10 @@ const rightPeriodMid = ref('DAY')
 const rightPeriodLow = ref('30F')
 
 // 兼容单窗口时的主周期双向绑定 (代理到左窗)
-const periodHigh = computed({
-  get: () => leftPeriodHigh.value,
-  set: (v) => { leftPeriodHigh.value = v }
-})
-const periodMid = computed({
-  get: () => leftPeriodMid.value,
-  set: (v) => { leftPeriodMid.value = v }
-})
 const periodLow = computed({
   get: () => leftPeriodLow.value,
   set: (v) => { leftPeriodLow.value = v }
 })
-
-const allPeriodOptions = [
-  { key: 'MONTH', label: '月线 (MONTH)' },
-  { key: 'WEEK', label: '周线 (WEEK)' },
-  { key: 'DAY', label: '日线 (DAY)' },
-  { key: '120F', label: '120分钟 (120F)' },
-  { key: '60F', label: '60分钟 (60F)' },
-  { key: '30F', label: '30分钟 (30F)' },
-  { key: '15F', label: '15分钟 (15F)' },
-  { key: '5F', label: '5分钟 (5F)' },
-  { key: '1F', label: '1分钟 (1F)' },
-]
 
 // ── 图层控制 ───────────────────────────────────────────────────────────
 const showHighBi = ref(true)
@@ -264,38 +244,6 @@ function applyWindowPreset(target: 'left' | 'right', pStr: string) {
   loadData()
 }
 
-const PERIOD_ORDER = ['MONTH', 'WEEK', 'DAY', '120F', '60F', '30F', '15F', '5F', '1F']
-
-function onCustomPeriodChange(changed: 'high' | 'mid' | 'low' = 'low') {
-  leftActivePreset.value = ''
-  let hIdx = PERIOD_ORDER.indexOf(leftPeriodHigh.value)
-  let mIdx = PERIOD_ORDER.indexOf(leftPeriodMid.value)
-  let lIdx = PERIOD_ORDER.indexOf(leftPeriodLow.value)
-  if (hIdx < 0) hIdx = 2
-  if (mIdx < 0) mIdx = 5
-  if (lIdx < 0) lIdx = 7
-
-  if (changed === 'low') {
-    if (mIdx >= lIdx) mIdx = Math.max(lIdx - 1, 1)
-    if (hIdx >= mIdx) hIdx = Math.max(mIdx - 1, 0)
-  } else if (changed === 'mid') {
-    if (hIdx >= mIdx) hIdx = Math.max(mIdx - 1, 0)
-    if (lIdx <= mIdx) lIdx = Math.min(mIdx + 1, PERIOD_ORDER.length - 1)
-  } else {
-    if (mIdx <= hIdx) mIdx = Math.min(hIdx + 1, PERIOD_ORDER.length - 2)
-    if (lIdx <= mIdx) lIdx = Math.min(mIdx + 1, PERIOD_ORDER.length - 1)
-  }
-
-  leftPeriodHigh.value = PERIOD_ORDER[hIdx]
-  leftPeriodMid.value = PERIOD_ORDER[mIdx]
-  leftPeriodLow.value = PERIOD_ORDER[lIdx]
-  leftPeriods.value = `${leftPeriodHigh.value},${leftPeriodMid.value},${leftPeriodLow.value}`
-  clearClientBacktrackCache()
-  if (autoRefresh.value) {
-    startAutoRefresh()
-  }
-  loadData()
-}
 
 // ── 客户端本地回溯分析结果内存缓存（同股票相同截断点 100% 内存瞬时渲染，免除向后端请求）──
 const backtrackCache = new Map<string, ChanlunResonanceResponse>()
@@ -1396,26 +1344,8 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <!-- 周期配置与图层过滤器 -->
+    <!-- 图层开关与过滤器 -->
     <div class="controls-bar">
-      <!-- 自定义周期选择器 -->
-      <div class="presets-row">
-        <div class="custom-periods">
-          <span>大:</span>
-          <select v-model="periodHigh" @change="onCustomPeriodChange('high')">
-            <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
-          </select>
-          <span>中:</span>
-          <select v-model="periodMid" @change="onCustomPeriodChange('mid')">
-            <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
-          </select>
-          <span>基准小:</span>
-          <select v-model="periodLow" @change="onCustomPeriodChange('low')">
-            <option v-for="opt in allPeriodOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</option>
-          </select>
-        </div>
-      </div>
-
       <!-- 图层开关 -->
       <div class="toggles-row">
         <span class="label">图层控制:</span>
