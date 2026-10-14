@@ -76,6 +76,43 @@ const showLowZs = ref(true)
 const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
+const isLayersMenuOpen = ref(false)
+const mainLayersPreset = ref('all')
+
+function applyMainLayersPreset(preset: string) {
+  if (preset === 'all') {
+    showHighBi.value = true; showHighZs.value = true
+    showMidBi.value = true; showMidZs.value = true
+    showLowBi.value = true; showLowZs.value = true
+    showMmdMarks.value = true; showResonanceMarks.value = true
+  } else if (preset === 'bi_only') {
+    showHighBi.value = true; showHighZs.value = false
+    showMidBi.value = true; showMidZs.value = false
+    showLowBi.value = true; showLowZs.value = false
+    showMmdMarks.value = false; showResonanceMarks.value = false
+  } else if (preset === 'zs_only') {
+    showHighBi.value = false; showHighZs.value = true
+    showMidBi.value = false; showMidZs.value = true
+    showLowBi.value = false; showLowZs.value = true
+    showMmdMarks.value = false; showResonanceMarks.value = false
+  } else if (preset === 'signals_only') {
+    showHighBi.value = false; showHighZs.value = false
+    showMidBi.value = false; showMidZs.value = false
+    showLowBi.value = false; showLowZs.value = false
+    showMmdMarks.value = true; showResonanceMarks.value = true
+  } else if (preset === 'clean') {
+    showHighBi.value = false; showHighZs.value = false
+    showMidBi.value = false; showMidZs.value = false
+    showLowBi.value = false; showLowZs.value = false
+    showMmdMarks.value = false; showResonanceMarks.value = false
+  } else if (preset === 'high_only') {
+    showHighBi.value = true; showHighZs.value = true
+    showMidBi.value = false; showMidZs.value = false
+    showLowBi.value = false; showLowZs.value = false
+    showMmdMarks.value = true; showResonanceMarks.value = true
+  }
+  renderChart()
+}
 
 const PERIOD_SECONDS: Record<string, number> = {
   '1F': 60,
@@ -1344,57 +1381,96 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <!-- 图层开关与过滤器 -->
+    <!-- 紧凑级联菜单控制栏 (窗口 + 主图图层 + 副图) -->
     <div class="controls-bar">
-      <!-- 图层开关 -->
-      <div class="toggles-row">
-        <span class="label">图层控制:</span>
-        <label class="toggle-item high-layer">
-          <input type="checkbox" v-model="showHighBi" @change="renderChart" />
-          <span class="color-dot high-dot"></span> 大笔(紫)
-        </label>
-        <label class="toggle-item high-layer">
-          <input type="checkbox" v-model="showHighZs" @change="renderChart" />
-          大中枢
-        </label>
-        <label class="toggle-item mid-layer">
-          <input type="checkbox" v-model="showMidBi" @change="renderChart" />
-          <span class="color-dot mid-dot"></span> 中笔(黄)
-        </label>
-        <label class="toggle-item mid-layer">
-          <input type="checkbox" v-model="showMidZs" @change="renderChart" />
-          中中枢
-        </label>
-        <label class="toggle-item low-layer">
-          <input type="checkbox" v-model="showLowBi" @change="renderChart" />
-          <span class="color-dot low-dot"></span> 小笔(蓝)
-        </label>
-        <label class="toggle-item low-layer">
-          <input type="checkbox" v-model="showLowZs" @change="renderChart" />
-          小中枢
-        </label>
-        <label class="toggle-item mmd-layer">
-          <input type="checkbox" v-model="showMmdMarks" @change="renderChart" />
-          买卖点
-        </label>
-        <label class="toggle-item res-layer">
-          <input type="checkbox" v-model="showResonanceMarks" @change="renderChart" />
-          ★共振信号
-        </label>
+      <div class="cascading-controls-row">
+        <!-- 1. 窗口级联选择 -->
+        <div class="control-group">
+          <span class="label">窗口:</span>
+          <select v-model="splitMode" class="cascading-select" @change="setSplitMode(splitMode)">
+            <option value="dual">◫ 双窗口 (左日·右周)</option>
+            <option value="single">⬜ 单窗口 (全宽显示)</option>
+          </select>
+        </div>
+
         <span class="sub-sep">|</span>
-        <span class="label">副图:</span>
-        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'amount' }">
-          <input type="radio" value="amount" v-model="subIndicator" @change="renderChart" />
-          成交额
-        </label>
-        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'macd' }">
-          <input type="radio" value="macd" v-model="subIndicator" @change="renderChart" />
-          MACD
-        </label>
-        <label class="toggle-item sub-layer" :class="{ active: subIndicator === 'none' }">
-          <input type="radio" value="none" v-model="subIndicator" @change="renderChart" />
-          关闭
-        </label>
+
+        <!-- 2. 主图图层 级联/组合选择 + 细选弹层 -->
+        <div class="control-group relative">
+          <span class="label">主图:</span>
+          <select v-model="mainLayersPreset" class="cascading-select" @change="applyMainLayersPreset(mainLayersPreset)">
+            <optgroup label="── 常用组合 ──">
+              <option value="all">全要素 (笔+中枢+信号)</option>
+              <option value="bi_only">纯净笔 (大/中/基笔)</option>
+              <option value="zs_only">中枢结构 (大/中/基中枢)</option>
+              <option value="signals_only">核心信号 (买卖点+共振)</option>
+              <option value="clean">极简K线 (无图层)</option>
+            </optgroup>
+            <optgroup label="── 级别聚焦 ──">
+              <option value="high_only">仅大级别 (紫笔+紫中枢)</option>
+            </optgroup>
+            <optgroup label="── 细分定制 ──">
+              <option value="custom">⚙ 自定义细选...</option>
+            </optgroup>
+          </select>
+          <button type="button" class="tune-btn" @click.stop="isLayersMenuOpen = !isLayersMenuOpen" title="展开详细级联图层">⚙</button>
+
+          <!-- 级联细选弹窗 -->
+          <div v-if="isLayersMenuOpen" class="layers-dropdown-popover">
+            <div class="popover-header">
+              <span class="popover-title">图层开关与过滤</span>
+              <div class="popover-actions">
+                <button @click="applyMainLayersPreset('all')">全开</button>
+                <span>|</span>
+                <button @click="applyMainLayersPreset('clean')">全关</button>
+                <span>|</span>
+                <button @click="applyMainLayersPreset('bi_only')">仅笔</button>
+              </div>
+            </div>
+            <div class="popover-body">
+              <div class="popover-row high-row">
+                <span class="row-cat high-text">🟣 大级别</span>
+                <div class="row-items">
+                  <label><input type="checkbox" v-model="showHighBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 大笔</label>
+                  <label><input type="checkbox" v-model="showHighZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 大中枢</label>
+                </div>
+              </div>
+              <div class="popover-row mid-row">
+                <span class="row-cat mid-text">🟡 中级别</span>
+                <div class="row-items">
+                  <label><input type="checkbox" v-model="showMidBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 中笔</label>
+                  <label><input type="checkbox" v-model="showMidZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 中中枢</label>
+                </div>
+              </div>
+              <div class="popover-row low-row">
+                <span class="row-cat low-text">🔵 小级别</span>
+                <div class="row-items">
+                  <label><input type="checkbox" v-model="showLowBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 小笔</label>
+                  <label><input type="checkbox" v-model="showLowZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 小中枢</label>
+                </div>
+              </div>
+              <div class="popover-row signal-row">
+                <span class="row-cat signal-text">🔴 缠论信号</span>
+                <div class="row-items">
+                  <label><input type="checkbox" v-model="showMmdMarks" @change="renderChart(); mainLayersPreset = 'custom'" /> 买卖点</label>
+                  <label><input type="checkbox" v-model="showResonanceMarks" @change="renderChart(); mainLayersPreset = 'custom'" /> ★共振</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <span class="sub-sep">|</span>
+
+        <!-- 3. 副图级联选择 -->
+        <div class="control-group">
+          <span class="label">副图:</span>
+          <select v-model="subIndicator" class="cascading-select" @change="renderChart">
+            <option value="amount">成交额</option>
+            <option value="macd">MACD</option>
+            <option value="none">关闭副图</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1848,6 +1924,117 @@ onBeforeUnmount(() => {
 .sub-layer.active {
   color: #38bdf8;
   font-weight: 600;
+}
+
+/* 级联菜单紧凑样式 */
+.cascading-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+.cascading-select {
+  height: 26px;
+  background: #181b27;
+  border: 1px solid #2a2e39;
+  border-radius: 6px;
+  color: #c792ea;
+  font-size: 11px;
+  padding: 0 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.cascading-select:hover {
+  border-color: #a855f7;
+}
+.tune-btn {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #1e2230;
+  border: 1px solid #2a2e39;
+  color: #787b86;
+  font-size: 11px;
+  cursor: pointer;
+}
+.tune-btn:hover {
+  color: #c792ea;
+  border-color: #a855f7;
+}
+.layers-dropdown-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  width: 250px;
+  background: #181b27;
+  border: 1px solid #2a2e39;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #2a2e39;
+  font-size: 11px;
+}
+.popover-title {
+  font-weight: 600;
+  color: #d1d4dc;
+}
+.popover-actions {
+  display: flex;
+  gap: 4px;
+  color: #c792ea;
+  font-size: 10px;
+}
+.popover-actions button {
+  background: none;
+  border: none;
+  color: #c792ea;
+  cursor: pointer;
+}
+.popover-actions button:hover {
+  text-decoration: underline;
+}
+.popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.popover-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.popover-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.row-items {
+  display: flex;
+  gap: 8px;
+}
+.row-items label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #d1d4dc;
 }
 
 /* 回溯控制面板 */
