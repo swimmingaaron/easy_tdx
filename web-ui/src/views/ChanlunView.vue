@@ -979,8 +979,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
       textStyle: { color: '#a0a6b5', fontSize: 12 },
     },
     grid: [
-      { left: '3.5%', right: '3.5%', top: '7%', height: hasSub ? '63%' : '82%' },
-      { left: '3.5%', right: '3.5%', top: '74%', height: hasSub ? '9%' : '0%' },
+      { left: '3.5%', right: '3.5%', top: 38, bottom: hasSub ? '24%' : 26 },
+      { left: '3.5%', right: '3.5%', height: hasSub ? '14%' : '0%', bottom: 25 },
     ],
     xAxis: [
       {
@@ -1044,8 +1044,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
       {
         type: 'slider',
         xAxisIndex: [0, 1],
-        top: hasSub ? '85%' : '94%',
-        height: 18,
+        bottom: 4,
+        height: 14,
         minValueSpan: 20,
         borderColor: '#2a2e39',
         backgroundColor: '#181b27',
@@ -1114,7 +1114,28 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
   return option
 }
 
-// ── ECharts 绘制逻辑 ─────────────────────────────────────────────────────────
+// ── ECharts 绘制与多分辨率窗口自适应逻辑 ───────────────────────────────────────
+const cardHeight = ref<number>(0)
+
+function adjustLayoutHeight() {
+  const container = chartContainerLeft.value?.closest('.charts-split-container') as HTMLElement | null
+  const topOffset = container ? container.getBoundingClientRect().top : 0
+  const bottomMargin = 14
+  let targetH = window.innerHeight - topOffset - bottomMargin
+  if (targetH < 350 || topOffset <= 0) {
+    targetH = Math.max(380, window.innerHeight - 230)
+  }
+  cardHeight.value = Math.max(360, Math.floor(targetH))
+  nextTick(() => {
+    if (chartInstanceLeft) chartInstanceLeft.resize()
+    if (chartInstanceRight && splitMode.value === 'dual') chartInstanceRight.resize()
+  })
+}
+
+function handleResize() {
+  adjustLayoutHeight()
+}
+
 function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
@@ -1132,11 +1153,8 @@ function renderChart() {
     const optionRight = buildChanlunOption(chanDataRight.value)
     chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
   }
-}
 
-function handleResize() {
-  if (chartInstanceLeft) chartInstanceLeft.resize()
-  if (chartInstanceRight && splitMode.value === 'dual') chartInstanceRight.resize()
+  adjustLayoutHeight()
 }
 
 function zoomChart(factor: number) {
@@ -1205,6 +1223,8 @@ onMounted(async () => {
     startAutoRefresh()
   }
   window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('resize', handleResize)
+  adjustLayoutHeight()
 })
 
 onBeforeUnmount(() => {
@@ -1509,7 +1529,7 @@ onBeforeUnmount(() => {
     <!-- 主图表区 (支持单窗口 / 左右双窗口) -->
     <div class="charts-split-container" :class="{ 'is-dual': splitMode === 'dual' }">
       <!-- 左窗口卡片 (默认: 日·30F·5F) -->
-      <div class="chart-window-card left-card">
+      <div class="chart-window-card left-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill left-pill">左窗: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
@@ -1538,7 +1558,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
-      <div v-if="splitMode === 'dual'" class="chart-window-card right-card">
+      <div v-if="splitMode === 'dual'" class="chart-window-card right-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill right-pill">右窗: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
@@ -2006,8 +2026,8 @@ onBeforeUnmount(() => {
   background: #181b27;
   border: 1px solid #2a2e39;
   border-radius: 8px;
-  height: 754px;
-  min-height: 624px;
+  height: calc(100vh - 240px);
+  min-height: 380px;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -2063,12 +2083,14 @@ onBeforeUnmount(() => {
   background: #181b27;
   border: 1px solid #2a2e39;
   border-radius: 8px;
-  height: 754px;
-  min-height: 624px;
+  height: calc(100vh - 240px);
+  min-height: 380px;
   flex-shrink: 0;
 }
 .main-echart {
   width: 100%;
+  flex: 1;
+  min-height: 0;
   height: 100%;
 }
 .chart-loading-overlay {

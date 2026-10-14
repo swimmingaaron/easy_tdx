@@ -512,6 +512,24 @@
             background: #ffffff !important;
         }
 
+        #cl-charts-split-container {
+            min-height: 380px;
+        }
+        #cl-chart-card-left,
+        #cl-chart-card-right {
+            height: calc(100vh - 240px);
+            min-height: 380px;
+            display: flex;
+            flex-direction: column;
+        }
+        #chanlun-echart-main,
+        #chanlun-echart-right {
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            height: 100% !important;
+        }
+
         /* ==================== 全局页面顶部间距消除：将 header 与所有界面卡片间 gap 缩小至 0 ==================== */
         body > main,
         main.flex-1 {
@@ -4756,7 +4774,7 @@
             <!-- ECharts 主图呈现区 (支持单窗口 / 左右双窗口分屏) -->
             <div id="cl-charts-split-container" class="flex flex-col xl:flex-row gap-3 w-full">
                 <!-- 左窗口卡片 (默认: 日·30F·5F) -->
-                <div id="cl-chart-card-left" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
+                <div id="cl-chart-card-left" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -4764,7 +4782,7 @@
                     </div>
 
                     <!-- 顶部条：左窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950 text-purple-300 border border-purple-800 shrink-0">左窗: 日·30F·5F</span>
                             <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-sky-600 dark:text-sky-400 tracking-wide flex items-center">
@@ -4783,12 +4801,12 @@
                         </div>
                     </div>
 
-                    <!-- ECharts 画布容器 -->
-                    <div id="chanlun-echart-main" style="width: 100%; height: 806px;"></div>
+                    <!-- ECharts 画布容器 (自适应屏幕高宽) -->
+                    <div id="chanlun-echart-main" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
                 <!-- 右窗口卡片 (默认: 周·日·30F，双窗口激活时显示) -->
-                <div id="cl-chart-card-right" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl">
+                <div id="cl-chart-card-right" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -4796,7 +4814,7 @@
                     </div>
 
                     <!-- 顶部条：右窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">右窗: 周·日·30F</span>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-cyan-600 dark:text-cyan-400 tracking-wide flex items-center">
@@ -4815,8 +4833,8 @@
                         </div>
                     </div>
 
-                    <!-- ECharts 画布容器 -->
-                    <div id="chanlun-echart-right" style="width: 100%; height: 806px;"></div>
+                    <!-- ECharts 画布容器 (自适应屏幕高宽) -->
+                    <div id="chanlun-echart-right" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
             </div>
         </section>
@@ -6172,6 +6190,7 @@
                         } else if (t === 'chanlun') {
                             setTimeout(() => {
                                 if (typeof initChanlun === 'function') initChanlun();
+                                if (typeof adjustChanlunLayoutHeight === 'function') adjustChanlunLayoutHeight();
                                 if (window.chanlunChart) window.chanlunChart.resize();
                                 if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
                             }, 50);
@@ -21825,6 +21844,31 @@
         let _clReplayTimer = null;
         let _clHasInitialized = false;
 
+        function adjustChanlunLayoutHeight() {
+            const splitContainer = document.getElementById('cl-charts-split-container');
+            if (!splitContainer) return;
+            const chanlunView = document.getElementById('view-chanlun');
+            if (chanlunView && chanlunView.classList.contains('hidden')) return;
+
+            const rect = splitContainer.getBoundingClientRect();
+            const topOffset = rect.top;
+            const bottomMargin = 12;
+            let targetH = window.innerHeight - topOffset - bottomMargin;
+
+            if (targetH < 350 || topOffset <= 0) {
+                targetH = Math.max(380, window.innerHeight - 230);
+            }
+            targetH = Math.max(360, Math.floor(targetH));
+
+            const cardLeft = document.getElementById('cl-chart-card-left');
+            const cardRight = document.getElementById('cl-chart-card-right');
+            if (cardLeft) cardLeft.style.height = `${targetH}px`;
+            if (cardRight) cardRight.style.height = `${targetH}px`;
+
+            if (window.chanlunChart) window.chanlunChart.resize();
+            if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
+        }
+
         window.setChanlunWindowMode = function(mode) {
             _clWindowMode = mode;
             const btnDual = document.getElementById('cl-btn-win-dual');
@@ -21839,10 +21883,9 @@
                 if (btnDual) btnDual.className = activeCls;
                 if (btnSingle) btnSingle.className = inactiveCls;
                 if (cardRight) cardRight.style.display = '';
-                if (cardLeft) cardLeft.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl';
+                if (cardLeft) cardLeft.className = 'flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
                 setTimeout(() => {
-                    if (window.chanlunChart) window.chanlunChart.resize();
-                    if (window.chanlunChartRight) window.chanlunChartRight.resize();
+                    adjustChanlunLayoutHeight();
                     if (!_clRightCachedData) {
                         loadChanlunData(false);
                     }
@@ -21851,9 +21894,9 @@
                 if (btnDual) btnDual.className = inactiveCls;
                 if (btnSingle) btnSingle.className = activeCls;
                 if (cardRight) cardRight.style.display = 'none';
-                if (cardLeft) cardLeft.className = 'w-full glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-3 relative shadow-2xl backdrop-blur-xl';
+                if (cardLeft) cardLeft.className = 'w-full glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
                 setTimeout(() => {
-                    if (window.chanlunChart) window.chanlunChart.resize();
+                    adjustChanlunLayoutHeight();
                 }, 50);
             }
         };
@@ -21934,11 +21977,11 @@
         async function initChanlun() {
             initChanlunStockSearch();
             renderChanlunPopularStocks();
+            adjustChanlunLayoutHeight();
             if (!_clHasInitialized) {
                 _clHasInitialized = true;
                 window.addEventListener('resize', () => {
-                    if (window.chanlunChart) window.chanlunChart.resize();
-                    if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
+                    adjustChanlunLayoutHeight();
                 });
             }
 
@@ -22064,6 +22107,7 @@
                 if (_clWindowMode === 'dual' && _clRightCachedData) {
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
+                setTimeout(adjustChanlunLayoutHeight, 50);
 
             } catch (err) {
                 console.error("Chanlun data fetch failed:", err);
@@ -23277,8 +23321,8 @@
                     }
                 },
                 grid: [
-                    { left: 52, right: 32, top: 52, height: '58%' },
-                    { left: 52, right: 32, top: '75%', height: '9%' }
+                    { left: 52, right: 32, top: 38, bottom: '24%' },
+                    { left: 52, right: 32, height: '14%', bottom: 25 }
                 ],
                 xAxis: [
                     {
@@ -23329,7 +23373,7 @@
                     {
                         type: 'slider',
                         xAxisIndex: [0, 1],
-                        top: '85%',
+                        bottom: 4,
                         height: 14,
                         minValueSpan: 20,
                         borderColor: axisColor,
