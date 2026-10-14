@@ -77,40 +77,40 @@ const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
 const isLayersMenuOpen = ref(false)
-const mainLayersPreset = ref('all')
+const activeLayersCount = computed(() => {
+  let c = 0
+  if (showHighBi.value) c++
+  if (showHighZs.value) c++
+  if (showMidBi.value) c++
+  if (showMidZs.value) c++
+  if (showLowBi.value) c++
+  if (showLowZs.value) c++
+  if (showMmdMarks.value) c++
+  if (showResonanceMarks.value) c++
+  return c
+})
 
-function applyMainLayersPreset(preset: string) {
-  if (preset === 'all') {
-    showHighBi.value = true; showHighZs.value = true
-    showMidBi.value = true; showMidZs.value = true
-    showLowBi.value = true; showLowZs.value = true
-    showMmdMarks.value = true; showResonanceMarks.value = true
-  } else if (preset === 'bi_only') {
-    showHighBi.value = true; showHighZs.value = false
-    showMidBi.value = true; showMidZs.value = false
-    showLowBi.value = true; showLowZs.value = false
-    showMmdMarks.value = false; showResonanceMarks.value = false
-  } else if (preset === 'zs_only') {
-    showHighBi.value = false; showHighZs.value = true
-    showMidBi.value = false; showMidZs.value = true
-    showLowBi.value = false; showLowZs.value = true
-    showMmdMarks.value = false; showResonanceMarks.value = false
-  } else if (preset === 'signals_only') {
-    showHighBi.value = false; showHighZs.value = false
-    showMidBi.value = false; showMidZs.value = false
-    showLowBi.value = false; showLowZs.value = false
-    showMmdMarks.value = true; showResonanceMarks.value = true
-  } else if (preset === 'clean') {
-    showHighBi.value = false; showHighZs.value = false
-    showMidBi.value = false; showMidZs.value = false
-    showLowBi.value = false; showLowZs.value = false
-    showMmdMarks.value = false; showResonanceMarks.value = false
-  } else if (preset === 'high_only') {
-    showHighBi.value = true; showHighZs.value = true
-    showMidBi.value = false; showMidZs.value = false
-    showLowBi.value = false; showLowZs.value = false
-    showMmdMarks.value = true; showResonanceMarks.value = true
-  }
+function setAllLayers(enabled: boolean) {
+  showHighBi.value = enabled
+  showHighZs.value = enabled
+  showMidBi.value = enabled
+  showMidZs.value = enabled
+  showLowBi.value = enabled
+  showLowZs.value = enabled
+  showMmdMarks.value = enabled
+  showResonanceMarks.value = enabled
+  renderChart()
+}
+
+function setBiOnly() {
+  showHighBi.value = true
+  showHighZs.value = false
+  showMidBi.value = true
+  showMidZs.value = false
+  showLowBi.value = true
+  showLowZs.value = false
+  showMmdMarks.value = false
+  showResonanceMarks.value = false
   renderChart()
 }
 
@@ -1395,66 +1395,67 @@ onBeforeUnmount(() => {
 
         <span class="sub-sep">|</span>
 
-        <!-- 2. 主图图层 级联/组合选择 + 细选弹层 -->
-        <div class="control-group relative">
+        <!-- 2. 主图图层 级联菜单 (各元素带 √ 状态) -->
+        <div class="control-group relative" ref="layersDropdownWrap">
           <span class="label">主图:</span>
-          <select v-model="mainLayersPreset" class="cascading-select" @change="applyMainLayersPreset(mainLayersPreset)">
-            <optgroup label="── 常用组合 ──">
-              <option value="all">全要素 (笔+中枢+信号)</option>
-              <option value="bi_only">纯净笔 (大/中/基笔)</option>
-              <option value="zs_only">中枢结构 (大/中/基中枢)</option>
-              <option value="signals_only">核心信号 (买卖点+共振)</option>
-              <option value="clean">极简K线 (无图层)</option>
-            </optgroup>
-            <optgroup label="── 级别聚焦 ──">
-              <option value="high_only">仅大级别 (紫笔+紫中枢)</option>
-            </optgroup>
-            <optgroup label="── 细分定制 ──">
-              <option value="custom">⚙ 自定义细选...</option>
-            </optgroup>
-          </select>
-          <button type="button" class="tune-btn" @click.stop="isLayersMenuOpen = !isLayersMenuOpen" title="展开详细级联图层">⚙</button>
+          <button type="button" class="cascading-select flex-btn" @click.stop="isLayersMenuOpen = !isLayersMenuOpen">
+            <span>图层开关 ({{ activeLayersCount }}/8)</span>
+            <span class="caret">▾</span>
+          </button>
 
-          <!-- 级联细选弹窗 -->
-          <div v-if="isLayersMenuOpen" class="layers-dropdown-popover">
+          <!-- 主图级联下拉菜单 (各元素后带 √ 表示 enable，否则 disable) -->
+          <div v-if="isLayersMenuOpen" class="layers-dropdown-popover select-none" @click.stop>
             <div class="popover-header">
-              <span class="popover-title">图层开关与过滤</span>
+              <span class="popover-title">图层开关 (√ 启用)</span>
               <div class="popover-actions">
-                <button @click="applyMainLayersPreset('all')">全开</button>
+                <button type="button" @click="setAllLayers(true)">全开</button>
                 <span>|</span>
-                <button @click="applyMainLayersPreset('clean')">全关</button>
+                <button type="button" @click="setAllLayers(false)">全关</button>
                 <span>|</span>
-                <button @click="applyMainLayersPreset('bi_only')">仅笔</button>
+                <button type="button" @click="setBiOnly()">仅笔</button>
               </div>
             </div>
-            <div class="popover-body">
-              <div class="popover-row high-row">
-                <span class="row-cat high-text">🟣 大级别</span>
-                <div class="row-items">
-                  <label><input type="checkbox" v-model="showHighBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 大笔</label>
-                  <label><input type="checkbox" v-model="showHighZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 大中枢</label>
-                </div>
+
+            <div class="popover-items-list">
+              <!-- 1. 大笔(紫) -->
+              <div class="popover-item" :class="{ disabled: !showHighBi }" @click="showHighBi = !showHighBi; renderChart()">
+                <span class="item-name"><span class="dot purple-dot"></span>大笔(紫)</span>
+                <span class="item-tick">{{ showHighBi ? '√' : '' }}</span>
               </div>
-              <div class="popover-row mid-row">
-                <span class="row-cat mid-text">🟡 中级别</span>
-                <div class="row-items">
-                  <label><input type="checkbox" v-model="showMidBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 中笔</label>
-                  <label><input type="checkbox" v-model="showMidZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 中中枢</label>
-                </div>
+              <!-- 2. 大中枢 -->
+              <div class="popover-item" :class="{ disabled: !showHighZs }" @click="showHighZs = !showHighZs; renderChart()">
+                <span class="item-name"><span class="dot purple-dot"></span>大中枢</span>
+                <span class="item-tick">{{ showHighZs ? '√' : '' }}</span>
               </div>
-              <div class="popover-row low-row">
-                <span class="row-cat low-text">🔵 小级别</span>
-                <div class="row-items">
-                  <label><input type="checkbox" v-model="showLowBi" @change="renderChart(); mainLayersPreset = 'custom'" /> 小笔</label>
-                  <label><input type="checkbox" v-model="showLowZs" @change="renderChart(); mainLayersPreset = 'custom'" /> 小中枢</label>
-                </div>
+              <!-- 3. 中笔(黄) -->
+              <div class="popover-item sep-top" :class="{ disabled: !showMidBi }" @click="showMidBi = !showMidBi; renderChart()">
+                <span class="item-name"><span class="dot amber-dot"></span>中笔(黄)</span>
+                <span class="item-tick">{{ showMidBi ? '√' : '' }}</span>
               </div>
-              <div class="popover-row signal-row">
-                <span class="row-cat signal-text">🔴 缠论信号</span>
-                <div class="row-items">
-                  <label><input type="checkbox" v-model="showMmdMarks" @change="renderChart(); mainLayersPreset = 'custom'" /> 买卖点</label>
-                  <label><input type="checkbox" v-model="showResonanceMarks" @change="renderChart(); mainLayersPreset = 'custom'" /> ★共振</label>
-                </div>
+              <!-- 4. 中中枢 -->
+              <div class="popover-item" :class="{ disabled: !showMidZs }" @click="showMidZs = !showMidZs; renderChart()">
+                <span class="item-name"><span class="dot amber-dot"></span>中中枢</span>
+                <span class="item-tick">{{ showMidZs ? '√' : '' }}</span>
+              </div>
+              <!-- 5. 小笔(蓝) -->
+              <div class="popover-item sep-top" :class="{ disabled: !showLowBi }" @click="showLowBi = !showLowBi; renderChart()">
+                <span class="item-name"><span class="dot blue-dot"></span>小笔(蓝)</span>
+                <span class="item-tick">{{ showLowBi ? '√' : '' }}</span>
+              </div>
+              <!-- 6. 小中枢 -->
+              <div class="popover-item" :class="{ disabled: !showLowZs }" @click="showLowZs = !showLowZs; renderChart()">
+                <span class="item-name"><span class="dot blue-dot"></span>小中枢</span>
+                <span class="item-tick">{{ showLowZs ? '√' : '' }}</span>
+              </div>
+              <!-- 7. 买卖点 -->
+              <div class="popover-item sep-top" :class="{ disabled: !showMmdMarks }" @click="showMmdMarks = !showMmdMarks; renderChart()">
+                <span class="item-name"><span class="dot rose-dot"></span>买卖点</span>
+                <span class="item-tick">{{ showMmdMarks ? '√' : '' }}</span>
+              </div>
+              <!-- 8. ★共振信号 -->
+              <div class="popover-item" :class="{ disabled: !showResonanceMarks }" @click="showResonanceMarks = !showResonanceMarks; renderChart()">
+                <span class="item-name"><span class="dot yellow-dot"></span>★共振信号</span>
+                <span class="item-tick">{{ showResonanceMarks ? '√' : '' }}</span>
               </div>
             </div>
           </div>
@@ -1968,16 +1969,26 @@ onBeforeUnmount(() => {
   color: #c792ea;
   border-color: #a855f7;
 }
+.flex-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.caret {
+  font-size: 9px;
+  color: #787b86;
+}
 .layers-dropdown-popover {
   position: absolute;
   top: 100%;
   left: 0;
   margin-top: 6px;
-  width: 250px;
+  width: 190px;
   background: #181b27;
   border: 1px solid #2a2e39;
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   z-index: 100;
 }
@@ -1986,7 +1997,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   padding-bottom: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   border-bottom: 1px solid #2a2e39;
   font-size: 11px;
 }
@@ -2005,37 +2016,60 @@ onBeforeUnmount(() => {
   border: none;
   color: #c792ea;
   cursor: pointer;
+  padding: 0;
 }
 .popover-actions button:hover {
   text-decoration: underline;
 }
-.popover-body {
+.popover-items-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
-.popover-row {
+.popover-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
-.popover-row:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-.row-items {
-  display: flex;
-  gap: 8px;
-}
-.row-items label {
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
   cursor: pointer;
+  color: #d1d4dc;
+  transition: background 0.15s, opacity 0.15s;
+}
+.popover-item:hover {
+  background: rgba(168, 85, 247, 0.12);
+}
+.popover-item.disabled {
+  opacity: 0.4;
+}
+.popover-item.sep-top {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+.item-name {
   display: flex;
   align-items: center;
-  gap: 3px;
-  color: #d1d4dc;
+  gap: 6px;
 }
+.item-tick {
+  font-weight: bold;
+  font-size: 13px;
+  color: #a855f7;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.purple-dot { background: #c084fc; }
+.amber-dot { background: #facc15; }
+.blue-dot { background: #3b82f6; }
+.rose-dot { background: #f43f5e; }
+.yellow-dot { background: #eab308; }
 
 /* 回溯控制面板 */
 .backtrack-panel {

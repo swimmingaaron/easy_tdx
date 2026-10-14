@@ -4681,72 +4681,109 @@
                             </select>
                         </div>
 
-                        <!-- 2. 主图图层 级联/组合选择 + 细选弹层 -->
+                        <!-- 2. 主图图层 级联菜单 (各元素带 √ 状态) -->
                         <div class="relative flex items-center bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0" id="cl-layers-dropdown-wrap">
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
-                            <select id="cl-select-main-layers" onchange="applyChanlunMainLayersPreset(this.value)"
-                                class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <optgroup label="── 常用组合 ──">
-                                    <option value="all" selected>全要素 (笔+中枢+信号)</option>
-                                    <option value="bi_only">纯净笔 (大/中/基笔)</option>
-                                    <option value="zs_only">中枢结构 (大/中/基中枢)</option>
-                                    <option value="signals_only">核心信号 (买卖点+共振)</option>
-                                    <option value="clean">极简K线 (无图层)</option>
-                                </optgroup>
-                                <optgroup label="── 级别聚焦 ──">
-                                    <option value="high_only">仅大级别 (紫笔+紫中枢)</option>
-                                    <option value="mid_only">仅中级别 (黄笔+黄中枢)</option>
-                                    <option value="low_only">仅小级别 (蓝笔+蓝中枢)</option>
-                                </optgroup>
-                                <optgroup label="── 高级定制 ──">
-                                    <option value="custom">⚙ 自定义细选...</option>
-                                </optgroup>
-                            </select>
-                            <button type="button" onclick="toggleChanlunLayersDropdown(event)"
-                                class="h-5 px-1 ml-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-purple-500 text-[10px] cursor-pointer"
-                                title="点击展开详细级联多选面板">⚙</button>
+                            <button type="button" onclick="toggleChanlunLayersDropdown(event)" id="cl-btn-layers-dropdown"
+                                class="h-6 px-1.5 rounded flex items-center space-x-1 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 font-sans font-medium text-[11px] cursor-pointer outline-none transition">
+                                <span id="cl-layers-btn-text">图层开关 (7项)</span>
+                                <span class="text-[9px] text-slate-400 ml-0.5">▾</span>
+                            </button>
 
-                            <!-- 级联细选弹窗 -->
+                            <!-- 主图级联下拉菜单 (各元素后带 √ 表示 enable，否则 disable) -->
                             <div id="cl-layers-dropdown-menu" style="display: none;"
-                                class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-2.5 z-50 text-xs backdrop-blur-md">
-                                <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 dark:border-slate-800 text-[10.5px]">
-                                    <span class="font-bold text-slate-700 dark:text-slate-300">图层开关与过滤</span>
+                                class="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 text-xs backdrop-blur-md select-none">
+                                
+                                <div class="flex items-center justify-between px-2 pb-1.5 mb-1 border-b border-slate-100 dark:border-slate-800 text-[10.5px]">
+                                    <span class="font-bold text-slate-700 dark:text-slate-300">图层开关 (√ 启用)</span>
                                     <div class="space-x-1.5 text-purple-600 dark:text-purple-400">
-                                        <button type="button" onclick="applyChanlunMainLayersPreset('all')" class="hover:underline cursor-pointer">全开</button>
+                                        <button type="button" onclick="setAllChanlunLayers(true, event)" class="hover:underline cursor-pointer">全开</button>
                                         <span>|</span>
-                                        <button type="button" onclick="applyChanlunMainLayersPreset('clean')" class="hover:underline cursor-pointer">全关</button>
+                                        <button type="button" onclick="setAllChanlunLayers(false, event)" class="hover:underline cursor-pointer">全关</button>
                                         <span>|</span>
-                                        <button type="button" onclick="applyChanlunMainLayersPreset('bi_only')" class="hover:underline cursor-pointer">仅笔</button>
+                                        <button type="button" onclick="setChanlunBiOnly(event)" class="hover:underline cursor-pointer">仅笔</button>
                                     </div>
                                 </div>
-                                <div class="space-y-1">
-                                    <div class="py-0.5 px-1 rounded flex items-center justify-between hover:bg-purple-50 dark:hover:bg-purple-950/40">
-                                        <span class="text-[11px] text-purple-600 dark:text-purple-400 font-medium">🟣 大级别</span>
-                                        <div class="space-x-2">
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-high-bi" onchange="toggleChanlunLayer('highBi')" class="accent-purple-500 mr-0.5">大笔</label>
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-high-zs" onchange="toggleChanlunLayer('highZs')" class="accent-purple-500 mr-0.5">大中枢</label>
-                                        </div>
+
+                                <div class="space-y-0.5">
+                                    <!-- 1. 大笔(紫) -->
+                                    <div onclick="toggleChanlunLayer('highBi', event)" id="cl-item-highBi"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                                            <span>大笔(紫)</span>
+                                        </span>
+                                        <span id="cl-tick-highBi" class="font-bold text-purple-600 dark:text-purple-400 text-sm">√</span>
                                     </div>
-                                    <div class="py-0.5 px-1 rounded flex items-center justify-between hover:bg-amber-50 dark:hover:bg-amber-950/40">
-                                        <span class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">🟡 中级别</span>
-                                        <div class="space-x-2">
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-mid-bi" onchange="toggleChanlunLayer('midBi')" class="accent-amber-500 mr-0.5">中笔</label>
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-mid-zs" onchange="toggleChanlunLayer('midZs')" class="accent-amber-500 mr-0.5">中中枢</label>
-                                        </div>
+
+                                    <!-- 2. 大中枢 -->
+                                    <div onclick="toggleChanlunLayer('highZs', event)" id="cl-item-highZs"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-sm bg-purple-400"></span>
+                                            <span>大中枢</span>
+                                        </span>
+                                        <span id="cl-tick-highZs" class="font-bold text-purple-600 dark:text-purple-400 text-sm">√</span>
                                     </div>
-                                    <div class="py-0.5 px-1 rounded flex items-center justify-between hover:bg-blue-50 dark:hover:bg-blue-950/40">
-                                        <span class="text-[11px] text-blue-600 dark:text-blue-400 font-medium">🔵 小级别</span>
-                                        <div class="space-x-2">
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-low-bi" onchange="toggleChanlunLayer('lowBi')" class="accent-blue-500 mr-0.5">小笔</label>
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-low-zs" onchange="toggleChanlunLayer('lowZs')" class="accent-blue-500 mr-0.5">小中枢</label>
-                                        </div>
+
+                                    <!-- 3. 中笔(黄) -->
+                                    <div onclick="toggleChanlunLayer('midBi', event)" id="cl-item-midBi"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                            <span>中笔(黄)</span>
+                                        </span>
+                                        <span id="cl-tick-midBi" class="font-bold text-amber-600 dark:text-amber-400 text-sm">√</span>
                                     </div>
-                                    <div class="py-0.5 px-1 rounded flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-1 hover:bg-rose-50 dark:hover:bg-rose-950/40">
-                                        <span class="text-[11px] text-rose-600 dark:text-rose-400 font-medium">🔴 缠论信号</span>
-                                        <div class="space-x-2">
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-mmd" onchange="toggleChanlunLayer('mmd')" class="accent-rose-500 mr-0.5">买卖点</label>
-                                            <label class="cursor-pointer text-[10.5px] text-slate-600 dark:text-slate-300"><input type="checkbox" id="cl-chk-res" onchange="toggleChanlunLayer('res')" class="accent-rose-500 mr-0.5">★共振</label>
-                                        </div>
+
+                                    <!-- 4. 中中枢 -->
+                                    <div onclick="toggleChanlunLayer('midZs', event)" id="cl-item-midZs"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-sm bg-amber-400"></span>
+                                            <span>中中枢</span>
+                                        </span>
+                                        <span id="cl-tick-midZs" class="font-bold text-amber-600 dark:text-amber-400 text-sm">√</span>
+                                    </div>
+
+                                    <!-- 5. 小笔(蓝) -->
+                                    <div onclick="toggleChanlunLayer('lowBi', event)" id="cl-item-lowBi"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                            <span>小笔(蓝)</span>
+                                        </span>
+                                        <span id="cl-tick-lowBi" class="font-bold text-blue-600 dark:text-blue-400 text-sm">√</span>
+                                    </div>
+
+                                    <!-- 6. 小中枢 -->
+                                    <div onclick="toggleChanlunLayer('lowZs', event)" id="cl-item-lowZs"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-sm bg-blue-400"></span>
+                                            <span>小中枢</span>
+                                        </span>
+                                        <span id="cl-tick-lowZs" class="font-bold text-blue-600 dark:text-blue-400 text-sm">√</span>
+                                    </div>
+
+                                    <!-- 7. 买卖点 -->
+                                    <div onclick="toggleChanlunLayer('mmd', event)" id="cl-item-mmd"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800/80">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                            <span>买卖点</span>
+                                        </span>
+                                        <span id="cl-tick-mmd" class="font-bold text-rose-600 dark:text-rose-400 text-sm">√</span>
+                                    </div>
+
+                                    <!-- 8. ★共振信号 -->
+                                    <div onclick="toggleChanlunLayer('res', event)" id="cl-item-res"
+                                        class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-yellow-50 dark:hover:bg-yellow-950/50 transition text-[11.5px] font-medium text-slate-700 dark:text-slate-200">
+                                        <span class="flex items-center space-x-1.5">
+                                            <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                                            <span>★共振信号</span>
+                                        </span>
+                                        <span id="cl-tick-res" class="font-bold text-yellow-600 dark:text-yellow-400 text-sm">√</span>
                                     </div>
                                 </div>
                             </div>
@@ -22197,77 +22234,38 @@
         let _clSubIndicator = 'amount'; // 'amount' | 'macd'
 
         function updateChanlunLayerButtons() {
-            // 同步副图下拉菜单与按钮
+            // 同步副图下拉菜单
             const selectSub = document.getElementById('cl-select-sub-indicator');
             if (selectSub) selectSub.value = _clSubIndicator;
 
-            // 同步主图细选弹层里的全部复选框
-            syncChanlunLayersCheckboxes();
-
-            const inactiveClass = 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/60';
-            const layerDefs = [
-                { key: 'highBi', id: 'cl-btn-layer-high-bi', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
-                { key: 'highZs', id: 'cl-btn-layer-high-zs', activeClass: 'bg-purple-950 text-purple-300 border-purple-800' },
-                { key: 'midBi', id: 'cl-btn-layer-mid-bi', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
-                { key: 'midZs', id: 'cl-btn-layer-mid-zs', activeClass: 'bg-amber-950 text-amber-300 border-amber-800' },
-                { key: 'lowBi', id: 'cl-btn-layer-low-bi', activeClass: 'bg-blue-950 text-blue-300 border-blue-800' },
-                { key: 'lowZs', id: 'cl-btn-layer-low-zs', activeClass: 'bg-blue-950 text-blue-300 border-blue-800' },
-                { key: 'mmd', id: 'cl-btn-layer-mmd', activeClass: 'bg-rose-950 text-rose-300 border-rose-800' },
-                { key: 'res', id: 'cl-btn-layer-res', activeClass: 'bg-yellow-950 text-yellow-300 border-yellow-800' },
-            ];
-            layerDefs.forEach(item => {
-                const el = document.getElementById(item.id);
-                if (el) {
-                    const isActive = !!_clLayers[item.key];
-                    el.className = `h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium transition cursor-pointer shrink-0 border ${isActive ? item.activeClass : inactiveClass}`;
+            // 8个元素状态同步: 后面带 √ 表示 enable，否则 disable
+            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+            let enabledCount = 0;
+            keys.forEach(k => {
+                const isEnabled = !!_clLayers[k];
+                if (isEnabled) enabledCount++;
+                const tickEl = document.getElementById('cl-tick-' + k);
+                const itemEl = document.getElementById('cl-item-' + k);
+                if (tickEl) {
+                    tickEl.innerText = isEnabled ? '√' : '';
+                }
+                if (itemEl) {
+                    if (isEnabled) {
+                        itemEl.classList.remove('opacity-40');
+                        itemEl.classList.add('opacity-100');
+                    } else {
+                        itemEl.classList.add('opacity-40');
+                        itemEl.classList.remove('opacity-100');
+                    }
                 }
             });
+
+            // 更新主图下拉菜单按钮文本
+            const btnText = document.getElementById('cl-layers-btn-text');
+            if (btnText) {
+                btnText.innerText = `图层 (${enabledCount}/8)`;
+            }
         }
-
-        window.syncChanlunLayersCheckboxes = function() {
-            const keys = [
-                { k: 'highBi', id: 'cl-chk-high-bi' },
-                { k: 'highZs', id: 'cl-chk-high-zs' },
-                { k: 'midBi', id: 'cl-chk-mid-bi' },
-                { k: 'midZs', id: 'cl-chk-mid-zs' },
-                { k: 'lowBi', id: 'cl-chk-low-bi' },
-                { k: 'lowZs', id: 'cl-chk-low-zs' },
-                { k: 'mmd', id: 'cl-chk-mmd' },
-                { k: 'res', id: 'cl-chk-res' },
-            ];
-            keys.forEach(item => {
-                const chk = document.getElementById(item.id);
-                if (chk) chk.checked = !!_clLayers[item.k];
-            });
-        };
-
-        window.applyChanlunMainLayersPreset = function(preset) {
-            if (preset === 'custom') {
-                toggleChanlunLayersDropdown();
-                return;
-            }
-            if (preset === 'all') {
-                _clLayers = { highBi: true, highZs: true, midBi: true, midZs: true, lowBi: true, lowZs: true, mmd: true, res: true };
-            } else if (preset === 'bi_only') {
-                _clLayers = { highBi: true, highZs: false, midBi: true, midZs: false, lowBi: true, lowZs: false, mmd: false, res: false };
-            } else if (preset === 'zs_only') {
-                _clLayers = { highBi: false, highZs: true, midBi: false, midZs: true, lowBi: false, lowZs: true, mmd: false, res: false };
-            } else if (preset === 'signals_only') {
-                _clLayers = { highBi: false, highZs: false, midBi: false, midZs: false, lowBi: false, lowZs: false, mmd: true, res: true };
-            } else if (preset === 'clean') {
-                _clLayers = { highBi: false, highZs: false, midBi: false, midZs: false, lowBi: false, lowZs: false, mmd: false, res: false };
-            } else if (preset === 'high_only') {
-                _clLayers = { highBi: true, highZs: true, midBi: false, midZs: false, lowBi: false, lowZs: false, mmd: true, res: true };
-            } else if (preset === 'mid_only') {
-                _clLayers = { highBi: false, highZs: false, midBi: true, midZs: true, lowBi: false, lowZs: false, mmd: true, res: true };
-            } else if (preset === 'low_only') {
-                _clLayers = { highBi: false, highZs: false, midBi: false, midZs: false, lowBi: true, lowZs: true, mmd: true, res: true };
-            }
-            const sel = document.getElementById('cl-select-main-layers');
-            if (sel) sel.value = preset;
-            updateChanlunLayerButtons();
-            renderChanlunChart();
-        };
 
         window.toggleChanlunLayersDropdown = function(e) {
             if (e) e.stopPropagation();
@@ -22276,7 +22274,7 @@
             const isHidden = menu.style.display === 'none';
             menu.style.display = isHidden ? 'block' : 'none';
             if (isHidden) {
-                syncChanlunLayersCheckboxes();
+                updateChanlunLayerButtons();
             }
         };
 
@@ -22288,21 +22286,41 @@
             }
         });
 
-        function toggleChanlunLayer(key) {
+        function toggleChanlunLayer(key, e) {
+            if (e) e.stopPropagation();
             if (_clLayers[key] !== undefined) {
                 _clLayers[key] = !_clLayers[key];
-                const sel = document.getElementById('cl-select-main-layers');
-                if (sel) sel.value = 'custom';
                 updateChanlunLayerButtons();
                 renderChanlunChart();
             }
         }
 
+        window.setAllChanlunLayers = function(enabled, e) {
+            if (e) e.stopPropagation();
+            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+            keys.forEach(k => { _clLayers[k] = !!enabled; });
+            updateChanlunLayerButtons();
+            renderChanlunChart();
+        };
+
+        window.setChanlunBiOnly = function(e) {
+            if (e) e.stopPropagation();
+            _clLayers.highBi = true;
+            _clLayers.highZs = false;
+            _clLayers.midBi = true;
+            _clLayers.midZs = false;
+            _clLayers.lowBi = true;
+            _clLayers.lowZs = false;
+            _clLayers.mmd = false;
+            _clLayers.res = false;
+            updateChanlunLayerButtons();
+            renderChanlunChart();
+        };
+
         function setChanlunSubIndicator(sub) {
             _clSubIndicator = sub;
             const selectSub = document.getElementById('cl-select-sub-indicator');
             if (selectSub) selectSub.value = sub;
-            updateChanlunLayerButtons();
             renderChanlunChart();
         }
 
