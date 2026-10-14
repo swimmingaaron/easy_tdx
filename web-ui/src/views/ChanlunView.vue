@@ -61,10 +61,6 @@ const rightPeriodMid = ref('DAY')
 const rightPeriodLow = ref('30F')
 
 // 兼容单窗口时的主周期双向绑定 (代理到左窗)
-const activePreset = computed({
-  get: () => leftActivePreset.value,
-  set: (v) => { leftActivePreset.value = v }
-})
 const periodHigh = computed({
   get: () => leftPeriodHigh.value,
   set: (v) => { leftPeriodHigh.value = v }
@@ -242,10 +238,6 @@ const maxBacktrackIndex = computed(() => {
 })
 
 // ── 周期切换处理 ─────────────────────────────────────────────────────────────
-function applyPreset(pStr: string) {
-  applyWindowPreset('left', pStr)
-}
-
 function applyWindowPreset(target: 'left' | 'right', pStr: string) {
   const parts = pStr.split(',')
   if (target === 'left') {
@@ -1406,20 +1398,8 @@ onBeforeUnmount(() => {
 
     <!-- 周期配置与图层过滤器 -->
     <div class="controls-bar">
-      <!-- 快捷预设周期 -->
+      <!-- 自定义周期选择器 -->
       <div class="presets-row">
-        <span class="label">周期组合:</span>
-        <button
-          v-for="p in periodPresets"
-          :key="p.value"
-          class="preset-btn"
-          :class="{ active: activePreset === p.value }"
-          @click="applyPreset(p.value)"
-        >
-          {{ p.label }}
-        </button>
-
-        <!-- 自定义选择器 -->
         <div class="custom-periods">
           <span>大:</span>
           <select v-model="periodHigh" @change="onCustomPeriodChange('high')">
