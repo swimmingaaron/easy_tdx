@@ -30,6 +30,7 @@ from easy_tdx.sina import SinaClient
 from easy_tdx.stock_lookup import get_stock_name, COMMON_STOCKS
 from easy_tdx.screener.universe import get_universe_symbols, CORE_UNIVERSE
 from easy_tdx.pattern_recognition import detect_patterns
+from easy_tdx._http_utils import urlopen_safe
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,42 @@ def save_persistent_fina_score(code: str, score: int):
     try:
         with open(_FINA_SCORES_FILE, "w", encoding="utf-8") as _f:
             json.dump(_PERSISTENT_FINA_SCORES, _f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+_FINA_DATA_FILE = os.path.join(_CACHE_DIR, "fina_persistent_data.json")
+_PERSISTENT_FINA_DATA: Dict[str, Dict[str, Any]] = {}
+if os.path.exists(_FINA_DATA_FILE):
+    try:
+        with open(_FINA_DATA_FILE, "r", encoding="utf-8") as _f:
+            _PERSISTENT_FINA_DATA = json.load(_f)
+    except Exception:
+        _PERSISTENT_FINA_DATA = {}
+
+
+def save_persistent_fina_data(code: str, fina_item: Dict[str, Any]):
+    """持久化记录个股最新有效财务指标（营业同比与净利润同比），防灾防掉线。"""
+    if not code or not isinstance(fina_item, dict):
+        return
+    clean_code = str(code).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    ystz = float(fina_item.get("ystz") or 0.0)
+    sjltz = float(fina_item.get("sjltz") or 0.0)
+    if ystz == 0.0 and sjltz == 0.0:
+        return
+    _PERSISTENT_FINA_DATA[clean_code] = {
+        "ystz": round(ystz, 2),
+        "sjltz": round(sjltz, 2),
+        "weightavg_roe": round(float(fina_item.get("weightavg_roe") or 0.0), 2),
+        "basic_eps": round(float(fina_item.get("basic_eps") or 0.0), 3),
+        "xsmll": round(float(fina_item.get("xsmll") or 0.0), 2),
+        "total_operate_income": float(fina_item.get("total_operate_income") or 0.0),
+        "parent_netprofit": float(fina_item.get("parent_netprofit") or 0.0),
+        "record_date": str(fina_item.get("record_date") or ""),
+    }
+    try:
+        with open(_FINA_DATA_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_PERSISTENT_FINA_DATA, _f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
@@ -392,7 +429,7 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     try:
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
+        with urlopen_safe(req, timeout=3.5) as resp:
             raw_bytes = resp.read()
             if raw_bytes[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
@@ -1029,102 +1066,125 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     peers_list = []
     industry = "通用行业"
 
-    # 1. 第一获取接口：easy_tdx 原生接口 (优先调用 TDX get_finance_info 及 SinaClient 报表)
-    tdx_fin = {}
-    nav = 0.0
+    # 1. 尝试从东方财富高并发接口优先获取（直接包含权威营业与净利同比）
     try:
-        cli = _TDX_POOL.acquire()
-        try:
-            df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
-            _TDX_POOL.release(cli, success=True)
-            if df_tdx is not None and not df_tdx.empty:
-                tdx_fin = df_tdx.iloc[0].to_dict()
-                nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
-        except Exception as e:
-            _TDX_POOL.release(cli, success=False)
-            logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
-    except Exception as e:
-        logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
-
-    try:
-        sc = SinaClient(timeout=2.0 if quick else 3.0)
-        df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=8)
-
-        if df_sina is not None and not df_sina.empty:
-            for idx, r in df_sina.iterrows():
-                rep_date = str(r.get("报告期") or "")[:10]
-                qdate = rep_date
-                rev = float(r.get("营业总收入") or r.get("营业收入") or 0.0)
-                np_val = float(r.get("归属于母公司所有者的净利润") or r.get("净利润") or 0.0)
-                eps = float(r.get("基本每股收益") or 0.0)
-                roe = round((eps / nav) * 100.0, 2) if nav > 0 and eps != 0 else 0.0
-
-                ystz_col = r.get("营业总收入_同比") or r.get("营业收入_同比")
-                ystz = float(ystz_col) * 100.0 if ystz_col is not None else 0.0
-                if ystz == 0.0 and idx + 4 < len(df_sina):
-                    prev_y = float(df_sina.iloc[idx + 4].get("营业总收入") or df_sina.iloc[idx + 4].get("营业收入") or 0.0)
-                    if prev_y > 0:
-                        ystz = ((rev - prev_y) / prev_y) * 100.0
-
-                sjltz_col = r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比")
-                sjltz = float(sjltz_col) * 100.0 if sjltz_col is not None else 0.0
-                if sjltz == 0.0 and idx + 4 < len(df_sina):
-                    prev_np = float(df_sina.iloc[idx + 4].get("归属于母公司所有者的净利润") or df_sina.iloc[idx + 4].get("净利润") or 0.0)
-                    if prev_np != 0.0:
-                        sjltz = ((np_val - prev_np) / abs(prev_np)) * 100.0
+        url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
+        req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
+        with urlopen_safe(req, timeout=3.5 if quick else 5.0) as resp:
+            raw_bytes = resp.read()
+            if raw_bytes[:2] == b"\x1f\x8b":
+                raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
+            else:
+                raw = raw_bytes.decode("utf-8", errors="replace")
+            data_json = json.loads(raw).get("data", [])
+            for item in data_json[:8]:
+                rep_date = str(item.get("REPORT_DATE", ""))[:10]
+                qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
+                rev = float(item.get("TOTALOPERATEREVE") or 0.0)
+                np_val = float(item.get("PARENTNETPROFIT") or 0.0)
+                roe = float(item.get("ROEJQ") or 0.0)
+                ystz = float(item.get("TOTALOPERATEREVETZ") or 0.0)
+                sjltz = float(item.get("PARENTNETPROFITTZ") or 0.0)
+                xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
+                eps = float(item.get("EPSJB") or 0.0)
 
                 fina_list.append({
                     "record_date": str(rep_date),
                     "qdate": str(qdate),
                     "total_operate_income": float(rev),
                     "parent_netprofit": float(np_val),
-                    "weightavg_roe": float(roe),
+                    "weightavg_roe": float(round(roe, 2)),
                     "ystz": float(round(ystz, 2)),
                     "sjltz": float(round(sjltz, 2)),
-                    "xsmll": 0.0,
+                    "xsmll": float(round(xsmll, 2)),
                     "basic_eps": float(round(eps, 3)),
                 })
     except Exception as e:
-        logger.debug(f"easy_tdx financial interface failed for {clean_code}: {e}")
+        logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
 
-    # 2. 第二获取接口：若 easy_tdx 接口获取失败或为空，回退到东方财富抓取
+    # 2. 第二获取接口：若东方财富未返回或报错，回退到 SinaClient 报表 + TDX 每股净资产
     if not fina_list:
+        tdx_fin = {}
+        nav = 0.0
         try:
-            url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
-            req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, timeout=2.0 if quick else 4.0) as resp:
-                raw_bytes = resp.read()
-                if raw_bytes[:2] == b"\x1f\x8b":
-                    raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
-                else:
-                    raw = raw_bytes.decode("utf-8", errors="replace")
-                data_json = json.loads(raw).get("data", [])
-                for item in data_json[:8]:
-                    rep_date = str(item.get("REPORT_DATE", ""))[:10]
-                    qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
-                    rev = float(item.get("TOTALOPERATEREVE") or 0.0)
-                    np_val = float(item.get("PARENTNETPROFIT") or 0.0)
-                    roe = float(item.get("ROEJQ") or 0.0)
-                    ystz = float(item.get("TOTALOPERATEREVETZ") or 0.0)
-                    sjltz = float(item.get("PARENTNETPROFITTZ") or 0.0)
-                    xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
-                    eps = float(item.get("EPSJB") or 0.0)
+            cli = _TDX_POOL.acquire()
+            try:
+                df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+                _TDX_POOL.release(cli, success=True)
+                if df_tdx is not None and not df_tdx.empty:
+                    tdx_fin = df_tdx.iloc[0].to_dict()
+                    nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
+            except Exception as e:
+                _TDX_POOL.release(cli, success=False)
+                logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
+        except Exception as e:
+            logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+
+        try:
+            sc = SinaClient(timeout=3.0 if quick else 4.0)
+            df_sina = sc.get_financial_report(clean_code, report_type="lrb", num=8)
+
+            if df_sina is not None and not df_sina.empty:
+                for idx, r in df_sina.iterrows():
+                    rep_date = str(r.get("报告期") or "")[:10]
+                    qdate = rep_date
+                    rev = float(r.get("营业总收入") or r.get("营业收入") or 0.0)
+                    np_val = float(r.get("归属于母公司所有者的净利润") or r.get("净利润") or 0.0)
+                    eps = float(r.get("基本每股收益") or 0.0)
+                    roe = round((eps / nav) * 100.0, 2) if nav > 0 and eps != 0 else 0.0
+
+                    ystz_col = r.get("营业总收入_同比") or r.get("营业收入_同比")
+                    ystz = float(ystz_col) * 100.0 if ystz_col is not None else 0.0
+                    if ystz == 0.0 and idx + 4 < len(df_sina):
+                        prev_y = float(df_sina.iloc[idx + 4].get("营业总收入") or df_sina.iloc[idx + 4].get("营业收入") or 0.0)
+                        if prev_y > 0:
+                            ystz = ((rev - prev_y) / prev_y) * 100.0
+
+                    sjltz_col = r.get("归属于母公司所有者的净利润_同比") or r.get("净利润_同比")
+                    sjltz = float(sjltz_col) * 100.0 if sjltz_col is not None else 0.0
+                    if sjltz == 0.0 and idx + 4 < len(df_sina):
+                        prev_np = float(df_sina.iloc[idx + 4].get("归属于母公司所有者的净利润") or df_sina.iloc[idx + 4].get("净利润") or 0.0)
+                        if prev_np != 0.0:
+                            sjltz = ((np_val - prev_np) / abs(prev_np)) * 100.0
 
                     fina_list.append({
                         "record_date": str(rep_date),
                         "qdate": str(qdate),
                         "total_operate_income": float(rev),
                         "parent_netprofit": float(np_val),
-                        "weightavg_roe": float(round(roe, 2)),
+                        "weightavg_roe": float(roe),
                         "ystz": float(round(ystz, 2)),
                         "sjltz": float(round(sjltz, 2)),
-                        "xsmll": float(round(xsmll, 2)),
+                        "xsmll": 0.0,
                         "basic_eps": float(round(eps, 3)),
                     })
         except Exception as e:
-            logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
+            logger.debug(f"easy_tdx financial interface failed for {clean_code}: {e}")
 
-    # 3. 兜底保护：若上述列表皆为空，但 easy_tdx 原生 TDX 接口已成功返回财务数据，构建最新期数据
+    # 3. 持久化数据兜底：若网络请求均受阻，优先从持久化财务数据库恢复真实历史同比指标
+    if (not fina_list or (len(fina_list) > 0 and fina_list[0].get("ystz", 0.0) == 0.0 and fina_list[0].get("sjltz", 0.0) == 0.0)) and clean_code in _PERSISTENT_FINA_DATA:
+        p_fina = _PERSISTENT_FINA_DATA[clean_code]
+        if fina_list:
+            fina_list[0]["ystz"] = float(p_fina.get("ystz") or 0.0)
+            fina_list[0]["sjltz"] = float(p_fina.get("sjltz") or 0.0)
+            if not fina_list[0].get("weightavg_roe"):
+                fina_list[0]["weightavg_roe"] = float(p_fina.get("weightavg_roe") or 0.0)
+            if not fina_list[0].get("basic_eps"):
+                fina_list[0]["basic_eps"] = float(p_fina.get("basic_eps") or 0.0)
+        else:
+            fina_list.append({
+                "record_date": str(p_fina.get("record_date") or "历史期"),
+                "qdate": str(p_fina.get("record_date") or "历史期"),
+                "total_operate_income": float(p_fina.get("total_operate_income") or 0.0),
+                "parent_netprofit": float(p_fina.get("parent_netprofit") or 0.0),
+                "weightavg_roe": float(p_fina.get("weightavg_roe") or 0.0),
+                "ystz": float(p_fina.get("ystz") or 0.0),
+                "sjltz": float(p_fina.get("sjltz") or 0.0),
+                "xsmll": float(p_fina.get("xsmll") or 0.0),
+                "basic_eps": float(p_fina.get("basic_eps") or 0.0),
+            })
+
+    # 4. 极端兜底保护：若上述列表皆为空，但 easy_tdx 原生 TDX 接口已成功返回财务数据，构建最新期数据
     if not fina_list and tdx_fin and (tdx_fin.get("zhuying_shouru") or tdx_fin.get("jing_lirun")):
         up_d = str(int(tdx_fin.get("updated_date") or 0))
         q_str = f"{up_d[:4]}-{up_d[4:6]}-{up_d[6:]}" if len(up_d) == 8 else "最新期"
@@ -1145,9 +1205,15 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
             "basic_eps": t_eps,
         })
 
+    # 持久化记录最新有效财报数据
+    if fina_list and (fina_list[0].get("ystz", 0.0) != 0.0 or fina_list[0].get("sjltz", 0.0) != 0.0):
+        save_persistent_fina_data(clean_code, fina_list[0])
+
     # 计算与诊断窗口 100% 相同基准的量化体检得分，并写入持久化缓存
     diag_score = compute_fina_score(fina_list)
     save_persistent_fina_score(clean_code, diag_score)
+
+    has_valid_yoy = bool(fina_list and (fina_list[0].get("ystz", 0.0) != 0.0 or fina_list[0].get("sjltz", 0.0) != 0.0))
 
     # 若为快速模式，直接返回，避免对大量标的产生非必要的同行及历史股东外网请求
     if quick:
@@ -1164,7 +1230,8 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
             "model_name": "StockQuant 智能投研系统",
         }
         if fina_list:
-            _FINA_CACHE[cache_key] = (now, quick_result)
+            # 若包含有效同比数据缓存 3600 秒；若暂时为 0.0 兜底数据仅缓存 10 秒供快速重试
+            _FINA_CACHE[cache_key] = (now if has_valid_yoy else now - 3590, quick_result)
         return quick_result
 
     # 获取股东人数及历史集中度变动
@@ -1247,7 +1314,7 @@ def _fetch_peers_batch_quotes(stock_codes: List[str]) -> Dict[str, Dict[str, Any
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         res = {}
         try:
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            with urlopen_safe(req, timeout=3.5) as resp:
                 text = resp.read().decode("gbk", errors="ignore")
             for line in text.strip().split(";"):
                 line = line.strip()
@@ -1314,7 +1381,7 @@ def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行�
             f"&sortTypes=-1&sortColumns=REPORTDATE&pageSize=1"
         )
         req = urllib.request.Request(url_t, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, timeout=4.5) as resp:
+        with urlopen_safe(req, timeout=4.5) as resp:
             raw = resp.read()
             if raw[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw)
@@ -1345,7 +1412,7 @@ def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行�
             f"&pageNumber=1&pageSize=500"
         )
         req2 = urllib.request.Request(url_p, headers=_DEFAULT_HEADERS)
-        with urllib.request.urlopen(req2, timeout=5.0) as resp2:
+        with urlopen_safe(req2, timeout=5.0) as resp2:
             raw2 = resp2.read()
             if raw2[:2] == b"\x1f\x8b":
                 raw2 = gzip.decompress(raw2)
@@ -1854,6 +1921,21 @@ def evaluate_universe(
                                 s["fina_score"] = compute_fina_score([s])
                                 needs_rewrite = True
 
+                            # 检查财务指标（营业同比与净利润同比）：若缓存中为0/缺失，从持久化财务数据库补全
+                            if float(s.get("ystz") or 0.0) == 0.0 and float(s.get("sjltz") or 0.0) == 0.0:
+                                if code_str in _PERSISTENT_FINA_DATA:
+                                    pf = _PERSISTENT_FINA_DATA[code_str]
+                                    if float(pf.get("ystz") or 0.0) != 0.0 or float(pf.get("sjltz") or 0.0) != 0.0:
+                                        s["ystz"] = float(pf.get("ystz") or 0.0)
+                                        s["sjltz"] = float(pf.get("sjltz") or 0.0)
+                                        needs_rewrite = True
+                                elif code_str in _FINA_CACHE:
+                                    fc = _FINA_CACHE[code_str][1].get("fina_data", [])
+                                    if fc and (float(fc[0].get("ystz") or 0.0) != 0.0 or float(fc[0].get("sjltz") or 0.0) != 0.0):
+                                        s["ystz"] = float(fc[0].get("ystz") or 0.0)
+                                        s["sjltz"] = float(fc[0].get("sjltz") or 0.0)
+                                        needs_rewrite = True
+
                             # 检查股东集中度及变动：若历史缓存中集中度为空/0或缺少变动历史，从持久化股东数据库予以补全
                             if code_str in _PERSISTENT_HOLDERS_DATA:
                                 p_data = _PERSISTENT_HOLDERS_DATA[code_str]
@@ -1996,6 +2078,15 @@ def evaluate_universe(
                             res["xsmll"] = 0.0
                             res["eps"] = 0.0
                             res["fina_score"] = _PERSISTENT_FINA_SCORES.get(s, 50)
+
+                        if res["ystz"] == 0.0 and res["sjltz"] == 0.0 and s in _PERSISTENT_FINA_DATA:
+                            pf = _PERSISTENT_FINA_DATA[s]
+                            res["ystz"] = float(pf.get("ystz") or 0.0)
+                            res["sjltz"] = float(pf.get("sjltz") or 0.0)
+                            if not res["roe"]:
+                                res["roe"] = float(pf.get("weightavg_roe") or 0.0)
+                            if not res["eps"]:
+                                res["eps"] = float(pf.get("basic_eps") or 0.0)
 
                         # 3. 股东户数与集中度 (获取原生股东人数与前十大集中度)
                         try:

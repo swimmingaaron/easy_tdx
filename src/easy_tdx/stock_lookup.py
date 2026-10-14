@@ -6,6 +6,8 @@ import urllib.parse
 import logging
 from typing import Any
 
+from easy_tdx._http_utils import urlopen_safe
+
 logger = logging.getLogger(__name__)
 
 # Common baseline dictionary for offline / instant fast lookup
@@ -192,7 +194,7 @@ def get_stock_name(symbol: str) -> str:
         pfx = "sh" if clean_sym.startswith(("6", "9")) else ("bj" if clean_sym.startswith(("8", "4")) else "sz")
         url = f"https://qt.gtimg.cn/q=s_{pfx}{clean_sym}"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        with urlopen_safe(req, timeout=2.5) as resp:
             text = resp.read().decode("gbk", errors="ignore")
             if "~" in text:
                 parts = text.split("~")
@@ -265,7 +267,7 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
         try:
             url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            with urllib.request.urlopen(req, timeout=1.8) as resp:
+            with urlopen_safe(req, timeout=2.0) as resp:
                 raw_bytes = resp.read()
                 content = raw_bytes.decode("unicode_escape", errors="ignore")
                 first = content.find('"')

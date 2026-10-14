@@ -37,11 +37,21 @@ _UA = (
 _API_URL = "https://quotes.sina.cn/cn/api/openapi.php/CompanyFinanceService.getFinanceReport2022"
 
 
+from .._http_utils import urlopen_safe
+
+
 def _http_get_json(url: str, params: dict[str, str], timeout: float = 15.0) -> Any:
     """GET JSON，自动 urlencode query 参数（stdlib urllib，monkeypatch 点）。"""
     full = f"{url}?{parse.urlencode(params)}" if params else url
-    req = urlrequest.Request(full, headers={"User-Agent": _UA})
-    with urlrequest.urlopen(req, timeout=timeout) as resp:
+    req = urlrequest.Request(
+        full,
+        headers={
+            "User-Agent": _UA,
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://finance.sina.com.cn/",
+        },
+    )
+    with urlopen_safe(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 

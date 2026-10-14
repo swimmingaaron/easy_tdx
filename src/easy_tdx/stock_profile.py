@@ -36,6 +36,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .client import TdxClient
 from .models import Market
 from .sina import SinaClient
+from ._http_utils import urlopen_safe
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +210,7 @@ def _fetch_shareholder_history_datacenter(clean_code: str) -> List[Dict[str, Any
         f"&sortColumns=END_DATE&sortTypes=-1&pageNumber=1&pageSize=8"
     )
     req = urllib.request.Request(url, headers=_EASTMONEY_DATA_HEADERS)
-    with urllib.request.urlopen(req, timeout=4) as resp:
+    with urlopen_safe(req, timeout=4) as resp:
         data = json.loads(_read_response_text(resp))
         res = data.get("result") or {}
         items = res.get("data") or []
@@ -252,7 +253,7 @@ def _fetch_shareholder_history_pageajax(clean_code: str, pfx: str) -> List[Dict[
     """Tier 2: EastMoney PC_HSF10 PageAjax API (with compliant Referer)."""
     url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
     req = urllib.request.Request(url, headers=_EASTMONEY_EMWEB_HEADERS)
-    with urllib.request.urlopen(req, timeout=4) as resp:
+    with urlopen_safe(req, timeout=4) as resp:
         data = json.loads(_read_response_text(resp))
         gdrs = data.get("gdrs") or []
         records = []
@@ -294,7 +295,7 @@ def _fetch_shareholder_history_ths(clean_code: str) -> List[Dict[str, Any]]:
     """Tier 3: Tonghuashun (10jqka) F10 holder table parser."""
     url = f"http://basic.10jqka.com.cn/{clean_code}/holder.html"
     req = urllib.request.Request(url, headers=_THS_HEADERS)
-    with urllib.request.urlopen(req, timeout=4) as resp:
+    with urlopen_safe(req, timeout=4) as resp:
         html = _read_response_text(resp, default_encoding="gbk")
 
     tbody_idx = html.find('class="data_tbody"')
@@ -548,7 +549,7 @@ def _fetch_company_info(
     try:
         url_f10 = f"https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url_f10, headers=_EASTMONEY_EMWEB_HEADERS)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urlopen_safe(req, timeout=4) as resp:
             data = json.loads(_read_response_text(resp))
             jb = data.get("jbzl")
             if isinstance(jb, list) and jb:
@@ -573,7 +574,7 @@ def _fetch_company_info(
         try:
             url_ths = f"http://basic.10jqka.com.cn/{clean_code}/company.html"
             req_ths = urllib.request.Request(url_ths, headers=_THS_HEADERS)
-            with urllib.request.urlopen(req_ths, timeout=4) as resp:
+            with urlopen_safe(req_ths, timeout=4) as resp:
                 html = _read_response_text(resp, default_encoding="gbk")
 
             org_m = re.search(r"公司名称：</strong><span>([^<]+)</span>", html)
@@ -600,7 +601,7 @@ def _fetch_company_info(
         try:
             url_sina = f"https://vip.stock.finance.sina.com.cn/corp/go.php/vCI_CorpInfo/stockid/{clean_code}.phtml"
             req_s = urllib.request.Request(url_sina, headers=_SINA_HEADERS)
-            with urllib.request.urlopen(req_s, timeout=4) as resp:
+            with urlopen_safe(req_s, timeout=4) as resp:
                 html_s = _read_response_text(resp, default_encoding="gbk")
 
             def _get_sina_field(pat: str) -> str:
@@ -679,7 +680,7 @@ def _fetch_stock_sectors(
             f"&filter=(SECURITY_CODE%3D%22{clean_code}%22)"
         )
         req_b = urllib.request.Request(url_boards, headers=_EASTMONEY_DATA_HEADERS)
-        with urllib.request.urlopen(req_b, timeout=4) as resp_b:
+        with urlopen_safe(req_b, timeout=4) as resp_b:
             data_b = json.loads(_read_response_text(resp_b))
             if data_b.get("result") and data_b["result"].get("data"):
                 for b_item in data_b["result"]["data"]:
@@ -698,7 +699,7 @@ def _fetch_stock_sectors(
         try:
             url_ths_concept = f"http://basic.10jqka.com.cn/{clean_code}/concept.html"
             req_c = urllib.request.Request(url_ths_concept, headers=_THS_HEADERS)
-            with urllib.request.urlopen(req_c, timeout=4) as resp_c:
+            with urlopen_safe(req_c, timeout=4) as resp_c:
                 html_c = _read_response_text(resp_c, default_encoding="gbk")
             raw_names = re.findall(r"<td[^>]*class=[\'\"]gnName[\'\"][^>]*>(.*?)</td>", html_c, re.DOTALL)
             for x in raw_names:
@@ -755,7 +756,7 @@ def _fetch_stock_financials(
     try:
         url_fin = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
         req_fin = urllib.request.Request(url_fin, headers=_EASTMONEY_EMWEB_HEADERS)
-        with urllib.request.urlopen(req_fin, timeout=4) as resp_fin:
+        with urlopen_safe(req_fin, timeout=4) as resp_fin:
             raw_fin = _read_response_text(resp_fin)
             data_fin = json.loads(raw_fin).get("data", [])
             for d in data_fin[:4]:

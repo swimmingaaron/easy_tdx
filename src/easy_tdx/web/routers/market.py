@@ -7,6 +7,7 @@ import urllib.request
 
 from fastapi import APIRouter, Depends, Query
 
+from easy_tdx._http_utils import urlopen_safe
 from easy_tdx.web.convert import market_from_str
 from easy_tdx.web.deps import get_client
 from easy_tdx.web.schemas import (
@@ -31,7 +32,7 @@ def _fetch_stock_suggest_sync(query: str) -> list[dict[str, str]]:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     for attempt in range(2):
         try:
-            with urllib.request.urlopen(req, timeout=4.0) as resp:
+            with urlopen_safe(req, timeout=4.0) as resp:
                 content = resp.read().decode("utf-8")
                 first = content.find('"')
                 last = content.rfind('"')
