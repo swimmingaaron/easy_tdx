@@ -23928,14 +23928,13 @@
         }
 
         function getChanlunLowestPeriodSeconds() {
-            const code = getChanlunLowestPeriodCode();
-            return _CL_PERIOD_SECONDS[code] || 300;
+            return 30;
         }
 
         function getChanlunLowestPeriod() {
             const low = getChanlunLowestPeriodCode();
             const labelMap = {
-                'MONTH': '日线', // 长线基准
+                'MONTH': '月线', // 长线基准
                 'WEEK': '周线',
                 'DAY': '日线'
             };

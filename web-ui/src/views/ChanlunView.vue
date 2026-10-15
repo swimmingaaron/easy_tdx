@@ -2,7 +2,7 @@
 // 缠论理论多周期立体共振分析系统页面（ChanlunView.vue）
 // 功能：
 // 1. 以最小周期K线为基准，同图立体呈现三周期笔、中枢、买卖点与三周期共振信号；
-// 2. 实时行情与定时自动刷新（支持 3s/5s/10s 轮询，支持手动一键穿透刷新）；
+// 2. 实时行情与定时自动刷新（30秒定时轮询刷新，支持手动一键穿透刷新）；
 // 3. 支持多周期（预设波段/长线/日内/游资组合 + 自由自定义三周期）；
 // 4. 可以回溯（时间轴滑块、单步步进、自动播放推演历史当下缠论走势结构，无未来函数）；
 // 5. 支持同图立体、三屏联动分屏、单周期模式切换。
@@ -158,17 +158,8 @@ function onMainLayersSelect(e: Event) {
   target.value = ''
 }
 
-const PERIOD_SECONDS: Record<string, number> = {
-  '1F': 60,
-  '5F': 300,
-  '15F': 900,
-  '30F': 1800,
-  '60F': 3600,
-  '120F': 7200,
-  DAY: 86400,
-  WEEK: 7 * 86400,
-  MONTH: 30 * 86400,
-}
+// 统一实时刷新周期：30秒
+const REFRESH_INTERVAL_SECONDS = 30
 
 function isTradeSession(): boolean {
   const now = new Date()
@@ -229,7 +220,7 @@ async function toggleWatchlist() {
 
 const periodLowLabel = computed(() => {
   const map: Record<string, string> = {
-    MONTH: '日线',
+    MONTH: '月线',
     WEEK: '周线',
     DAY: '日线',
   }
@@ -237,7 +228,7 @@ const periodLowLabel = computed(() => {
 })
 
 const periodLowSeconds = computed(() => {
-  return PERIOD_SECONDS[periodLow.value] || 300
+  return REFRESH_INTERVAL_SECONDS
 })
 
 async function loadHotStocks() {
@@ -545,7 +536,7 @@ function startAutoRefresh() {
       loadData(false) // 允许命中后端智能增量缓存，避免击穿
       loadHotStocks() // 热门股票也随之实时更新
     }
-  }, periodLowSeconds.value * 1000)
+  }, REFRESH_INTERVAL_SECONDS * 1000)
 }
 
 function stopAutoRefresh() {
