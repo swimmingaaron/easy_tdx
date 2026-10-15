@@ -4682,8 +4682,8 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">窗口:</span>
                             <select id="cl-select-win-mode" onchange="setChanlunWindowMode(this.value)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="quad">⊞ 四窗口 (日·60F·周·月)</option>
-                                <option value="dual" selected>◫ 双窗口 (左日·右周)</option>
+                                <option value="quad" selected>⊞ 四窗口 (日·60F·周·月)</option>
+                                <option value="dual">◫ 双窗口 (左日·右周)</option>
                                 <option value="single">⬜ 单窗口 (全宽显示)</option>
                             </select>
                         </div>
@@ -4787,10 +4787,10 @@
 
 
 
-            <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏) -->
-            <div id="cl-charts-split-container" class="flex flex-col xl:flex-row gap-3 w-full">
-                <!-- 窗口 1: 日·30F·5F (左窗/第1窗) -->
-                <div id="cl-chart-card-left" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+            <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏，默认四窗口) -->
+            <div id="cl-charts-split-container" class="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
+                <!-- 窗口 1: 日·30F·5F (左上窗/第1窗) -->
+                <div id="cl-chart-card-left" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -4821,8 +4821,8 @@
                     <div id="chanlun-echart-main" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 2: 60F·30F·5F (四窗口激活时显示) -->
-                <div id="cl-chart-card-w2" style="display: none;" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <!-- 窗口 2: 60F·30F·5F (右上窗/第2窗) -->
+                <div id="cl-chart-card-w2" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -4853,8 +4853,8 @@
                     <div id="chanlun-echart-w2" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 3: 周·日·30F (右窗/第3窗，双窗口或四窗口激活时显示) -->
-                <div id="cl-chart-card-right" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
+                <div id="cl-chart-card-right" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -4885,8 +4885,8 @@
                     <div id="chanlun-echart-right" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 4: 月·周·日 (四窗口激活时显示) -->
-                <div id="cl-chart-card-w4" style="display: none;" class="flex-1 min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <!-- 窗口 4: 月·周·日 (右下窗/第4窗) -->
+                <div id="cl-chart-card-w4" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -6272,7 +6272,9 @@
                                 if (typeof initChanlun === 'function') initChanlun();
                                 if (typeof adjustChanlunLayoutHeight === 'function') adjustChanlunLayoutHeight();
                                 if (window.chanlunChart) window.chanlunChart.resize();
-                                if (window.chanlunChartRight && _clWindowMode === 'dual') window.chanlunChartRight.resize();
+                                if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
+                                if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
+                                if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
                             }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
@@ -22118,6 +22120,7 @@
         }
 
         async function initChanlun() {
+            setChanlunWindowMode('quad');
             initChanlunStockSearch();
             renderChanlunPopularStocks();
             adjustChanlunLayoutHeight();

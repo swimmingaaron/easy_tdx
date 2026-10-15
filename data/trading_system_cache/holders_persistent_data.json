@@ -547,6 +547,11 @@
     "holder_focus": "非常分散",
     "holders_changes": [
       {
+        "date": "2026-10-09",
+        "ratio": -0.21,
+        "num": 124243
+      },
+      {
         "date": "2026-09-18",
         "ratio": 1.06,
         "num": 124500
@@ -555,15 +560,10 @@
         "date": "2026-09-10",
         "ratio": -0.77,
         "num": 123189
-      },
-      {
-        "date": "2026-08-31",
-        "ratio": 1.59,
-        "num": 124146
       }
     ],
-    "holders_num": 124500,
-    "holders_str": "12.45万"
+    "holders_num": 124243,
+    "holders_str": "12.42万"
   },
   "300223": {
     "holder_ratio": 25.85,

@@ -43,7 +43,7 @@ const periodPresets = [
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
   { label: '超短 (60F·30F·5F)', value: '60F,30F,5F' },
 ]
-// 窗口分屏模式：'quad' (四窗口: 2x2网格) | 'dual' (默认双窗口: 左右分屏对比) | 'single' (单窗口全屏)
+// 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 左右分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
 
 // 窗口 1 周期 (默认: 日·30F·5F)
