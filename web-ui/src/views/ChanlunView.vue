@@ -482,8 +482,28 @@ async function loadData(forceRefresh = false) {
 }
 
 // ── 标的切换 ─────────────────────────────────────────────────────────────────
-function selectStock(c: string) {
-  code.value = c
+async function selectStock(c: string) {
+  const clean = (c || '').trim()
+  if (!clean) return
+
+  let targetCode = clean
+  // 如果输入的不是 6 位数字代码（如拼音 rssh 或中文名称），自动解析为真实 6 位代码
+  if (!/^\d{6}$/.test(clean)) {
+    if (suggestList.value.length > 0) {
+      targetCode = suggestList.value[0].code
+    } else {
+      try {
+        const items = await fetchStockSuggestions(clean)
+        if (items && items.length > 0) {
+          targetCode = items[0].code
+        }
+      } catch {
+        // fallback
+      }
+    }
+  }
+
+  code.value = targetCode
   searchKeyword.value = ''
   suggestList.value = []
   clearClientBacktrackCache()

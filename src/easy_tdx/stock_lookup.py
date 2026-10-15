@@ -69,8 +69,9 @@ import json
 import threading
 from pathlib import Path
 
-# Fast in-memory map: symbol -> name
+# Fast in-memory map: symbol -> name, symbol -> pinyin, and full stock metadata
 _SYMBOL_NAME_MAP: dict[str, str] = {s["code"]: s["name"] for s in COMMON_STOCKS + COMMON_INDICES}
+_SYMBOL_PINYIN_MAP: dict[str, str] = {s["code"]: s.get("pinyin", "") for s in COMMON_STOCKS + COMMON_INDICES}
 _ALL_STOCKS_MAP: dict[str, dict[str, Any]] = {s["code"]: s for s in COMMON_STOCKS + COMMON_INDICES}
 _STOCK_NAMES_LOADED = False
 _STOCK_NAMES_LOCK = threading.Lock()
@@ -79,15 +80,79 @@ _BOARD_MAP: dict[str, dict[str, Any]] = {}
 _BOARD_MAP_LOADED = False
 _BOARD_MAP_LOCK = threading.Lock()
 
+# GB2312 Table for algorithmic Pinyin initials conversion
+GB2312_TABLE = [
+    (0xB0A1, 0xB0C4, 'A'), (0xB0C5, 0xB2C0, 'B'), (0xB2C1, 0xB4ED, 'C'),
+    (0xB4EE, 0xB6E9, 'D'), (0xB6EA, 0xB7A1, 'E'), (0xB7A2, 0xB8C0, 'F'),
+    (0xB8C1, 0xB9FD, 'G'), (0xB9FE, 0xBBF6, 'H'), (0xBBF7, 0xBFA5, 'J'),
+    (0xBFA6, 0xC0AB, 'K'), (0xC0AC, 0xC2E7, 'L'), (0xC2E8, 0xC4C2, 'M'),
+    (0xC4C3, 0xC5B5, 'N'), (0xC5B6, 0xC5BD, 'O'), (0xC5BE, 0xC6D9, 'P'),
+    (0xC6DA, 0xC8BA, 'Q'), (0xC8BB, 0xC8F5, 'R'), (0xC8F6, 0xCBF9, 'S'),
+    (0xCBFA, 0xCDD9, 'T'), (0xCDDA, 0xCEF3, 'W'), (0xCEF4, 0xD188, 'X'),
+    (0xD189, 0xD4D0, 'Y'), (0xD4D1, 0xD7F9, 'Z')
+]
+
+CUSTOM_CHAR_MAP = {
+    '鑫': 'X', '钛': 'T', '锂': 'L', '怡': 'Y', '粤': 'Y', '睿': 'R', '恒': 'H',
+    '晟': 'S', '祺': 'Q', '泓': 'H', '恺': 'K', '珈': 'J', '珀': 'P', '玺': 'X',
+    '澜': 'L', '斐': 'F', '梵': 'F', '淼': 'M', '焱': 'Y', '璟': 'J', '珂': 'K',
+    '璞': 'P', '珩': 'H', '旻': 'M', '昊': 'H', '昱': 'Y', '晨': 'C', '瀚': 'H',
+    '翔': 'X', '达': 'D', '迪': 'D', '迈': 'M', '逸': 'Y', '逊': 'X', '遵': 'Z',
+    '适': 'S', '选': 'X', '硅': 'G', '铂': 'B', '钨': 'W', '锗': 'Z', '钼': 'M',
+    '钽': 'T', '铌': 'N', '铍': 'P', '锆': 'Z', '铪': 'H', '钒': 'F', '镓': 'G',
+    '锶': 'S', '钡': 'B', '钴': 'G', '镍': 'N', '锌': 'X', '铝': 'L', '镁': 'M',
+    '钙': 'G', '钾': 'J', '钠': 'N', '铬': 'G', '锰': 'M', '铁': 'T', '铜': 'T',
+    '银': 'Y', '金': 'J', '碳': 'T', '氮': 'D', '氧': 'Y', '氢': 'Q', '氦': 'H',
+    '氖': 'N', '氩': 'Y', '氪': 'K', '氙': 'X', '氡': 'D', '硼': 'P', '磷': 'L',
+    '硫': 'L', '氯': 'L', '氟': 'F', '碘': 'D', '溴': 'X', '硒': 'X', '砷': 'S'
+}
+
+def char_to_pinyin_initial(c: str) -> str:
+    """Convert a single Chinese character to uppercase Pinyin initial letter."""
+    if not c or c in ('*', ' ', '-', '(', ')'):
+        return ''
+    if c.isascii():
+        return c.upper() if c.isalnum() else ''
+    if c in CUSTOM_CHAR_MAP:
+        return CUSTOM_CHAR_MAP[c]
+    try:
+        bs = c.encode('gb2312')
+        val = bs[0] * 256 + bs[1]
+        for start, end, letter in GB2312_TABLE:
+            if start <= val <= end:
+                return letter
+    except Exception:
+        pass
+    return ''
+
+def name_to_pinyin_fallback(name: str) -> str:
+    """Convert Chinese stock name to uppercase Pinyin initials."""
+    return ''.join(char_to_pinyin_initial(c) for c in (name or ''))
+
 def _ensure_stock_names_map():
-    """Lazily load all 5,200+ A-share stocks from local repository data or cache."""
-    global _STOCK_NAMES_LOADED, _ALL_STOCKS_MAP
+    """Lazily load all 5,200+ A-share stocks from local repository data and precomputed Pinyin."""
+    global _STOCK_NAMES_LOADED, _ALL_STOCKS_MAP, _SYMBOL_PINYIN_MAP
     if _STOCK_NAMES_LOADED:
         return
     with _STOCK_NAMES_LOCK:
         if _STOCK_NAMES_LOADED:
             return
         
+        # 1. Load precomputed Pinyin dictionary if available
+        pinyin_paths = [
+            Path(__file__).resolve().parent.parent.parent / "data" / "stock_pinyin.json",
+            Path("c:/Users/aaron/Documents/stock_data/easy_tdx/data/stock_pinyin.json"),
+        ]
+        pinyin_dict: dict[str, str] = {}
+        for pp in pinyin_paths:
+            if pp.exists():
+                try:
+                    pinyin_dict = json.loads(pp.read_text("utf-8"))
+                    break
+                except Exception as e:
+                    logger.debug(f"Failed to read stock pinyin from {pp}: {e}")
+
+        # 2. Load stock names
         possible_paths = [
             Path(__file__).resolve().parent.parent.parent / "data" / "stock_names.json",
             Path.home() / ".easy_tdx" / "cache" / "security_list_all.json",
@@ -104,17 +169,35 @@ def _ensure_stock_names_map():
                             n = str(item.get("name", "")).strip()
                             m = "SH" if item.get("market") == 1 else "SZ"
                             if c and n and not n.startswith("?") and not n.startswith("标的_"):
+                                py = pinyin_dict.get(c) or pinyin_dict.get(c.lstrip("0")) or name_to_pinyin_fallback(n)
                                 _SYMBOL_NAME_MAP[c] = n
-                                _ALL_STOCKS_MAP[c] = {"code": c, "name": n, "market": m}
+                                _SYMBOL_PINYIN_MAP[c] = py
+                                _ALL_STOCKS_MAP[c] = {
+                                    "symbol": c,
+                                    "code": c,
+                                    "name": n,
+                                    "market": m,
+                                    "pinyin": py,
+                                    "display": f"{c} {n}"
+                                }
                                 loaded_count += 1
                     elif isinstance(content, dict):
                         for c, n in content.items():
                             c = str(c).strip().zfill(6)
                             n = str(n).strip()
                             if c and n and not n.startswith("?") and not n.startswith("标的_"):
+                                py = pinyin_dict.get(c) or pinyin_dict.get(c.lstrip("0")) or name_to_pinyin_fallback(n)
                                 _SYMBOL_NAME_MAP[c] = n
+                                _SYMBOL_PINYIN_MAP[c] = py
                                 m = "SH" if c.startswith(("60", "68", "99")) else ("BJ" if c.startswith(("8", "4")) else "SZ")
-                                _ALL_STOCKS_MAP[c] = {"code": c, "name": n, "market": m}
+                                _ALL_STOCKS_MAP[c] = {
+                                    "symbol": c,
+                                    "code": c,
+                                    "name": n,
+                                    "market": m,
+                                    "pinyin": py,
+                                    "display": f"{c} {n}"
+                                }
                                 loaded_count += 1
                     if loaded_count > 1000:
                         break
@@ -123,20 +206,30 @@ def _ensure_stock_names_map():
         
         # Ensure common stocks & indices have priority
         for s in COMMON_STOCKS + COMMON_INDICES:
-            _SYMBOL_NAME_MAP[s["code"]] = s["name"]
-            _ALL_STOCKS_MAP[s["code"]] = s
+            c = s["code"]
+            _SYMBOL_NAME_MAP[c] = s["name"]
+            _SYMBOL_PINYIN_MAP[c] = s.get("pinyin", "")
+            _ALL_STOCKS_MAP[c] = {
+                "symbol": c,
+                "code": c,
+                "name": s["name"],
+                "market": s.get("market", "SZ"),
+                "pinyin": s.get("pinyin", ""),
+                "display": f"{c} {s['name']}"
+            }
             
         _STOCK_NAMES_LOADED = True
         logger.info(f"Loaded {len(_SYMBOL_NAME_MAP)} stock name mappings into memory")
 
 def _ensure_board_map():
-    """Lazily load all 560+ TDX industry and concept board metadata."""
+    """Lazily load all 560+ TDX industry and concept board metadata without blocking."""
     global _BOARD_MAP, _BOARD_MAP_LOADED
     if _BOARD_MAP_LOADED:
         return
     with _BOARD_MAP_LOCK:
         if _BOARD_MAP_LOADED:
             return
+        _BOARD_MAP_LOADED = True
         try:
             from easy_tdx.mac.client import MacClient
             from easy_tdx.mac.enums import BoardType
@@ -148,16 +241,17 @@ def _ensure_board_map():
                     c = str(row.get("code", "")).strip()
                     n = str(row.get("name", "")).strip()
                     if c and n:
+                        py = name_to_pinyin_fallback(n)
                         _BOARD_MAP[c] = {
                             "symbol": c,
                             "code": c,
                             "name": n,
                             "market": "HY",
-                            "pinyin": "",
+                            "pinyin": py,
                             "display": f"{c} {n} [行业板块]"
                         }
                         _SYMBOL_NAME_MAP[c] = n
-                _BOARD_MAP_LOADED = True
+                        _SYMBOL_PINYIN_MAP[c] = py
         except Exception as e:
             logger.debug(f"Failed to pre-load TDX board map: {e}")
 
@@ -214,10 +308,21 @@ def get_stock_name(symbol: str) -> str:
         
     return f"标的_{clean_sym}"
 
+def get_stock_pinyin(symbol: str) -> str:
+    """Resolve Pinyin initials from stock code or symbol."""
+    _ensure_stock_names_map()
+    clean_sym = str(symbol or "").strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace("HY", "").replace(".", "")
+    if clean_sym in _SYMBOL_PINYIN_MAP:
+        return _SYMBOL_PINYIN_MAP[clean_sym]
+    name = get_stock_name(clean_sym)
+    return name_to_pinyin_fallback(name)
+
 def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
     """Search stocks and industry boards by code, Chinese name, or Pinyin initials."""
     _ensure_stock_names_map()
-    _ensure_board_map()
+    if not _BOARD_MAP_LOADED:
+        threading.Thread(target=_ensure_board_map, daemon=True).start()
+        
     q = query.strip()
     if not q:
         sample_boards = list(_BOARD_MAP.values())[:3]
@@ -237,7 +342,7 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
     q_upper = q.upper()
     matched_map: dict[str, dict[str, Any]] = {}
 
-    # 1. Check local stock cache (contains full 5,200+ A-shares)
+    # 1. Check local stock cache (contains full 5,200+ A-shares with full Pinyin)
     for c, s in _ALL_STOCKS_MAP.items():
         name_val = s.get("name", "")
         pinyin_val = s.get("pinyin", "")
@@ -254,22 +359,25 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
                 "pinyin": pinyin_val,
                 "display": f"{c} {name_val}"
             }
-            if len(matched_map) >= limit * 2:
+            if len(matched_map) >= limit * 3:
                 break
 
     # 2. Check TDX board indices
     for c, b_info in _BOARD_MAP.items():
-        if q in c or q in b_info["name"]:
+        b_name = b_info.get("name", "")
+        b_py = b_info.get("pinyin", "")
+        if q in c or (b_name and q in b_name) or (b_py and q_upper in b_py):
             matched_map[c] = b_info
 
-    # 3. Query Tencent Smartbox as supplemental search if few matches
-    if len(matched_map) < limit:
+    # 3. Query Tencent Smartbox as supplemental search if few matches and no exact match
+    has_exact = any(x["code"] == q or (x.get("pinyin") and x["pinyin"] == q_upper) for x in matched_map.values())
+    if not has_exact and len(matched_map) < min(limit, 5):
         try:
             url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            with urlopen_safe(req, timeout=2.0) as resp:
+            with urlopen_safe(req, timeout=1.5) as resp:
                 raw_bytes = resp.read()
-                content = raw_bytes.decode("unicode_escape", errors="ignore")
+                content = raw_bytes.decode("utf-8", errors="ignore")
                 first = content.find('"')
                 last = content.rfind('"')
                 if first != -1 and last != -1:
@@ -277,10 +385,15 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
                     for item in raw_str.split("^"):
                         parts = item.split("~")
                         if len(parts) >= 4:
-                            mkt, code, name, pinyin = parts[0].upper(), parts[1], parts[2], parts[3].upper()
-                            clean_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name).strip()
+                            mkt, code, name_raw, pinyin = parts[0].upper(), parts[1], parts[2], parts[3].upper()
+                            try:
+                                clean_name = name_raw.encode("utf-8").decode("unicode_escape")
+                            except Exception:
+                                clean_name = name_raw
+                            clean_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', clean_name).strip()
                             if mkt in ("SH", "SZ", "BJ") and code:
                                 _SYMBOL_NAME_MAP[code] = clean_name
+                                _SYMBOL_PINYIN_MAP[code] = pinyin
                                 matched_map[code] = {
                                     "symbol": code,
                                     "code": code,
@@ -294,8 +407,14 @@ def search_stocks(query: str, limit: int = 12) -> list[dict[str, Any]]:
 
     results = list(matched_map.values())
     results.sort(key=lambda x: (
-        not (x["code"].startswith(q) or (x.get("pinyin") and x["pinyin"].startswith(q_upper)) or x["name"].startswith(q)),
-        len(x["name"])
+        # 0: Exact code or exact pinyin match
+        0 if x["code"] == q or (x.get("pinyin") and x["pinyin"] == q_upper) else (
+            # 1: Prefix match
+            1 if (x["code"].startswith(q) or (x.get("pinyin") and x["pinyin"].startswith(q_upper)) or x["name"].startswith(q)) else 2
+        ),
+        len(x["name"]),
+        x["code"]
     ))
     return results[:limit]
+
 

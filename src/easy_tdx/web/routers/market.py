@@ -28,11 +28,35 @@ def _fetch_stock_suggest_sync(query: str) -> list[dict[str, str]]:
     q = query.strip()
     if not q:
         return []
+    try:
+        from easy_tdx.stock_lookup import search_stocks
+        items = search_stocks(q, limit=15)
+        results: list[dict[str, str]] = []
+        for it in items:
+            m = str(it.get("market") or "").upper()
+            c = str(it.get("code") or "")
+            if not m:
+                m = "SH" if c.startswith(("6", "9")) else ("BJ" if c.startswith(("8", "4")) else "SZ")
+            results.append(
+                {
+                    "code": c,
+                    "name": str(it.get("name") or ""),
+                    "market": m,
+                    "pinyin": str(it.get("pinyin") or ""),
+                    "symbol": f"{m}:{c}",
+                }
+            )
+        if results:
+            return results
+    except Exception as e:
+        _logger.debug("search_stocks failed for %r: %s", query, e)
+
+    # Fallback to direct Tencent Smartbox
     url = f"https://smartbox.gtimg.cn/s3/?q={urllib.parse.quote(q)}&t=all"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     for attempt in range(2):
         try:
-            with urlopen_safe(req, timeout=4.0) as resp:
+            with urlopen_safe(req, timeout=2.5) as resp:
                 content = resp.read().decode("utf-8")
                 first = content.find('"')
                 last = content.rfind('"')

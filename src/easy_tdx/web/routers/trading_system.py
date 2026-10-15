@@ -141,9 +141,20 @@ def get_signal_dashboard(
         sort_direction = sort_dir if isinstance(sort_dir, str) else "desc"
 
         symbols_set = None
+        matched_search_codes: set[str] = set()
+        if search_kw:
+            from easy_tdx.stock_lookup import search_stocks
+            s_matches = search_stocks(search_kw, limit=10)
+            matched_search_codes = {str(item["code"]) for item in s_matches}
+
         if search_kw.isdigit() and len(search_kw) == 6:
             # 优先回溯历史或精准评估该股
             single_res = evaluate_universe([search_kw], max_workers=1, period=period)
+            all_stocks = single_res
+        elif len(matched_search_codes) == 1 and not symbols_str and not is_my_opt:
+            # 拼音或名称唯一定位单个标的 (如 rssh -> 002493)
+            resolved_code = list(matched_search_codes)[0]
+            single_res = evaluate_universe([resolved_code], max_workers=1, period=period)
             all_stocks = single_res
         elif symbols_str:
             clean_syms = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols_str.split(",") if s.strip()]
@@ -227,11 +238,19 @@ def get_signal_dashboard(
             if symbols_set and s["stock_code"] not in symbols_set:
                 continue
 
-            # 搜索过滤
+            # 搜索过滤（支持 6位代码、拼音首字母、中文名称）
             if search_kw:
-                code_match = search_kw in s["stock_code"]
+                code_match = search_kw in s["stock_code"] or s["stock_code"] in matched_search_codes
                 name_match = search_kw in s["stock_name"]
-                if not (code_match or name_match):
+                pinyin_match = False
+                py = s.get("pinyin")
+                if not py:
+                    from easy_tdx.stock_lookup import get_stock_pinyin
+                    py = get_stock_pinyin(s["stock_code"])
+                    s["pinyin"] = py
+                if py and search_kw in py:
+                    pinyin_match = True
+                if not (code_match or name_match or pinyin_match):
                     continue
             
             # 自选过滤
@@ -315,8 +334,19 @@ def get_resonance_screener(
     """
     try:
         search_kw = search_stock.strip().upper()
+        matched_search_codes: set[str] = set()
+        if search_kw:
+            from easy_tdx.stock_lookup import search_stocks
+            s_matches = search_stocks(search_kw, limit=10)
+            matched_search_codes = {str(item["code"]) for item in s_matches}
+
         if search_kw.isdigit() and len(search_kw) == 6:
             single_res = evaluate_universe([search_kw], max_workers=1, period=period)
+            all_stocks = single_res
+        elif len(matched_search_codes) == 1 and not my_optional:
+            # 拼音或名称唯一定位单个标的 (如 rssh -> 002493)
+            resolved_code = list(matched_search_codes)[0]
+            single_res = evaluate_universe([resolved_code], max_workers=1, period=period)
             all_stocks = single_res
         else:
             symbols = None
@@ -366,11 +396,19 @@ def get_resonance_screener(
 
         filtered: List[Dict[str, Any]] = []
         for s in all_stocks:
-            # 搜索过滤
+            # 搜索过滤（支持 6位代码、拼音首字母、中文名称）
             if search_kw:
-                code_match = search_kw in s["stock_code"]
+                code_match = search_kw in s["stock_code"] or s["stock_code"] in matched_search_codes
                 name_match = search_kw in s["stock_name"]
-                if not (code_match or name_match):
+                pinyin_match = False
+                py = s.get("pinyin")
+                if not py:
+                    from easy_tdx.stock_lookup import get_stock_pinyin
+                    py = get_stock_pinyin(s["stock_code"])
+                    s["pinyin"] = py
+                if py and search_kw in py:
+                    pinyin_match = True
+                if not (code_match or name_match or pinyin_match):
                     continue
 
             # 自选过滤

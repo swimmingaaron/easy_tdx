@@ -3896,11 +3896,14 @@
 
                         <!-- 搜索框 -->
                         <div class="relative flex items-center">
-                            <input type="text" id="ts-search-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
+                            <input type="text" id="ts-search-input" placeholder="代码/名称/拼音 (如 002493/rssh)" autocomplete="off"
                                 class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 w-52 sm:w-60 font-mono transition"
                                 oninput="handleTsSearch(this.value)">
                             <i data-lucide="search"
                                 class="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none"></i>
+                            <div id="ts-search-dropdown"
+                                class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-60 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
+                            </div>
                         </div>
 
                         <!-- 选股范围 (参考图一标准样式) -->
@@ -4158,11 +4161,14 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <!-- 搜索框 -->
                         <div class="relative flex items-center">
-                            <input type="text" id="fina-search-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
+                            <input type="text" id="fina-search-input" placeholder="代码/名称/拼音 (如 002493/rssh)" autocomplete="off"
                                 class="bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-52 sm:w-60 font-mono transition"
                                 oninput="handleFinaSearch(this.value)">
                             <i data-lucide="search"
                                 class="w-3.5 h-3.5 absolute right-2.5 text-slate-400 pointer-events-none"></i>
+                            <div id="fina-search-dropdown"
+                                class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-60 overflow-y-auto hidden z-50 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
+                            </div>
                         </div>
 
                         <!-- 选股范围 (对齐交易系统标准样式) -->
@@ -18990,6 +18996,8 @@
             initKpContextMenu();
             initKpStockSearch();
             initBtKlineSearch();
+            initTsStockSearch();
+            initFinaStockSearch();
             startDashboardAutoRefresh();
         });
     </script>
@@ -19371,6 +19379,77 @@
             tsSearchTimer = setTimeout(() => {
                 loadTradingSystemData(false);
             }, 300);
+        }
+
+        let tsStockSearchTimer = null;
+        function initTsStockSearch() {
+            const input = document.getElementById('ts-search-input');
+            const dropdown = document.getElementById('ts-search-dropdown');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                if (!query) {
+                    dropdown.innerHTML = '';
+                    dropdown.classList.add('hidden');
+                    return;
+                }
+                if (tsStockSearchTimer) clearTimeout(tsStockSearchTimer);
+                tsStockSearchTimer = setTimeout(async () => {
+                    try {
+                        const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                        if (!resp.ok) return;
+                        const json = await resp.json();
+                        const list = json.data || [];
+                        if (list.length === 0) {
+                            dropdown.innerHTML = `<div class="px-3.5 py-2 text-xs text-slate-400 text-center">未找到“${query}”的匹配标的 (支持代码/拼音/名称)</div>`;
+                            dropdown.classList.remove('hidden');
+                            return;
+                        }
+                        dropdown.innerHTML = list.slice(0, 8).map((s) => `
+                            <div onclick="selectTsStockSearchResult('${s.code}', '${(s.name || '').replace(/'/g, "\\'")}')"
+                                 class="px-3.5 py-2 text-xs hover:bg-cyan-950/80 cursor-pointer flex items-center justify-between transition border-b border-slate-800/40 last:border-0">
+                                <div>
+                                    <span class="font-bold text-cyan-400">${s.code}</span>
+                                    <span class="ml-2 text-slate-200">${s.name}</span>
+                                </div>
+                                <span class="text-[10px] text-slate-400 border border-slate-700 rounded px-1.5">${s.pinyin || s.market || ''}</span>
+                            </div>
+                        `).join('');
+                        dropdown.classList.remove('hidden');
+                    } catch (e) {
+                        console.error('TS search autocomplete error:', e);
+                    }
+                }, 120);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    dropdown.classList.add('hidden');
+                    const firstItem = dropdown.querySelector('[onclick]');
+                    if (firstItem && !/^\d{6}$/.test(input.value.trim())) {
+                        firstItem.click();
+                    } else {
+                        loadTradingSystemData(false);
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectTsStockSearchResult(code, name) {
+            const input = document.getElementById('ts-search-input');
+            const dropdown = document.getElementById('ts-search-dropdown');
+            if (input) input.value = code;
+            if (dropdown) dropdown.classList.add('hidden');
+            loadTradingSystemData(false);
         }
 
         function switchTsSubTab(mode) {
@@ -20737,9 +20816,9 @@
                 rows = rows.filter(r => !!r.is_optional);
             }
 
-            // 4. 搜索框过滤 (代码或名称)
+            // 4. 搜索框过滤 (代码、名称或拼音)
             if (finaSearchKw) {
-                rows = rows.filter(r => (r.stock_code && r.stock_code.includes(finaSearchKw)) || (r.stock_name && r.stock_name.includes(finaSearchKw)));
+                rows = rows.filter(r => (r.stock_code && r.stock_code.includes(finaSearchKw)) || (r.stock_name && r.stock_name.includes(finaSearchKw)) || (r.pinyin && r.pinyin.toUpperCase().includes(finaSearchKw)));
             }
 
             // 5. 排序
@@ -21131,6 +21210,79 @@
                 finaSearchKw = (val || '').trim().toUpperCase();
                 applyFinaFiltersAndSort();
             }, 250);
+        }
+
+        let finaStockSearchTimer = null;
+        function initFinaStockSearch() {
+            const input = document.getElementById('fina-search-input');
+            const dropdown = document.getElementById('fina-search-dropdown');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                if (!query) {
+                    dropdown.innerHTML = '';
+                    dropdown.classList.add('hidden');
+                    return;
+                }
+                if (finaStockSearchTimer) clearTimeout(finaStockSearchTimer);
+                finaStockSearchTimer = setTimeout(async () => {
+                    try {
+                        const resp = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+                        if (!resp.ok) return;
+                        const json = await resp.json();
+                        const list = json.data || [];
+                        if (list.length === 0) {
+                            dropdown.innerHTML = `<div class="px-3.5 py-2 text-xs text-slate-400 text-center">未找到“${query}”的匹配标的 (支持代码/拼音/名称)</div>`;
+                            dropdown.classList.remove('hidden');
+                            return;
+                        }
+                        dropdown.innerHTML = list.slice(0, 8).map((s) => `
+                            <div onclick="selectFinaStockSearchResult('${s.code}', '${(s.name || '').replace(/'/g, "\\'")}')"
+                                 class="px-3.5 py-2 text-xs hover:bg-indigo-950/80 cursor-pointer flex items-center justify-between transition border-b border-slate-800/40 last:border-0">
+                                <div>
+                                    <span class="font-bold text-indigo-400">${s.code}</span>
+                                    <span class="ml-2 text-slate-200">${s.name}</span>
+                                </div>
+                                <span class="text-[10px] text-slate-400 border border-slate-700 rounded px-1.5">${s.pinyin || s.market || ''}</span>
+                            </div>
+                        `).join('');
+                        dropdown.classList.remove('hidden');
+                    } catch (e) {
+                        console.error('Fina search autocomplete error:', e);
+                    }
+                }, 120);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    dropdown.classList.add('hidden');
+                    const firstItem = dropdown.querySelector('[onclick]');
+                    if (firstItem && !/^\d{6}$/.test(input.value.trim())) {
+                        firstItem.click();
+                    } else {
+                        finaSearchKw = input.value.trim().toUpperCase();
+                        applyFinaFiltersAndSort();
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectFinaStockSearchResult(code, name) {
+            const input = document.getElementById('fina-search-input');
+            const dropdown = document.getElementById('fina-search-dropdown');
+            if (input) input.value = code;
+            if (dropdown) dropdown.classList.add('hidden');
+            finaSearchKw = code.toUpperCase();
+            applyFinaFiltersAndSort();
         }
 
         function goToFinaPage(page) {

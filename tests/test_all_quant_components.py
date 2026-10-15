@@ -90,3 +90,8 @@ def test_stock_lookup():
     assert any(s["code"] == "000001" for s in res_pinyin)
     name = get_stock_name("600519")
     assert "茅台" in name
+    # Test non-common stock pinyin initials (e.g. 002493 荣盛石化)
+    res_rssh = search_stocks("rssh")
+    assert any(s["code"] == "002493" for s in res_rssh)
+    assert res_rssh[0]["code"] == "002493"
+
