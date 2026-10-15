@@ -39,7 +39,7 @@ def get_ssl_context() -> ssl.SSLContext:
         except Exception:
             pass
 
-    if ctx is None or hasattr(ssl, "_create_unverified_context"):
+    if ctx is None and hasattr(ssl, "_create_unverified_context"):
         try:
             # 在 macOS 上保证绝不因证书缺失报错
             unverified = ssl._create_unverified_context()
@@ -60,4 +60,12 @@ def get_ssl_context() -> ssl.SSLContext:
 def urlopen_safe(req: urllib.request.Request | str, timeout: float = 10.0, **kwargs: Any) -> Any:
     """带有自适应跨平台 SSL 证书兼容的 urlopen 包装器。"""
     ctx = kwargs.pop("context", None) or get_ssl_context()
+    if isinstance(req, urllib.request.Request):
+        if not req.has_header("Connection"):
+            req.add_unredirected_header("Connection", "close")
+        if not req.has_header("User-agent"):
+            req.add_unredirected_header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            )
     return urllib.request.urlopen(req, timeout=timeout, context=ctx, **kwargs)

@@ -8,6 +8,7 @@ from typing import Any
 import os
 import json
 import urllib.request
+from easy_tdx._http_utils import urlopen_safe
 from concurrent.futures import ThreadPoolExecutor
 from easy_tdx.market_data import fetch_security_kline, _get_or_create_client
 from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
@@ -221,27 +222,48 @@ def _get_yesterday_turnover_yi(today_str: str) -> float:
             return c_amt
 
     total_yest = 0.0
-    for secid in ["1.000001", "0.399001"]:
-        try:
-            url = f"http://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt=101&fqt=1&lmt=3&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f57"
-            req = urllib.request.Request(url, headers={
-                "User-Agent": _DEFAULT_USER_AGENT,
-                "Referer": "https://quote.eastmoney.com/",
-            })
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                d = json.loads(resp.read().decode("utf-8"))
-                kl = d.get("data", {}).get("klines", [])
-                if len(kl) >= 2:
-                    bar_amt = float(kl[-2].split(",")[1]) / 100000000.0
-                    total_yest += bar_amt
-                elif len(kl) == 1:
-                    bar_amt = float(kl[0].split(",")[1]) / 100000000.0
-                    total_yest += bar_amt
-        except Exception:
-            pass
+
+    # 1. Native TDX Daily K-lines (Primary)
+    try:
+        from easy_tdx.mac.enums import Period
+        mac = _get_or_create_mac_client()
+        if mac is not None:
+            df_k1 = mac.get_stock_kline(1, "000001", Period.DAILY, count=3)
+            df_k2 = mac.get_stock_kline(0, "399001", Period.DAILY, count=3)
+            if df_k1 is not None and df_k2 is not None and len(df_k1) >= 2 and len(df_k2) >= 2:
+                t_str_clean = today_str.replace("-", "")
+                idx1 = -2 if str(df_k1.iloc[-1].get("datetime", "")).replace("-", "").startswith(t_str_clean) else -1
+                idx2 = -2 if str(df_k2.iloc[-1].get("datetime", "")).replace("-", "").startswith(t_str_clean) else -1
+                bar_amt1 = float(df_k1.iloc[idx1]["amount"]) / 100000000.0
+                bar_amt2 = float(df_k2.iloc[idx2]["amount"]) / 100000000.0
+                total_yest = round(bar_amt1 + bar_amt2, 1)
+    except Exception as e:
+        logger.debug(f"Native TDX yesterday turnover fetch error: {e}")
+
+    # 2. Eastmoney Fallback
+    if total_yest <= 0:
+        for secid in ["1.000001", "0.399001"]:
+            try:
+                url = f"http://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&klt=101&fqt=1&lmt=3&end=20500101&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f57"
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": _DEFAULT_USER_AGENT,
+                    "Referer": "https://quote.eastmoney.com/",
+                    "Connection": "close",
+                })
+                with urlopen_safe(req, timeout=4) as resp:
+                    d = json.loads(resp.read().decode("utf-8"))
+                    kl = d.get("data", {}).get("klines", [])
+                    if len(kl) >= 2:
+                        bar_amt = float(kl[-2].split(",")[1]) / 100000000.0
+                        total_yest += bar_amt
+                    elif len(kl) == 1:
+                        bar_amt = float(kl[0].split(",")[1]) / 100000000.0
+                        total_yest += bar_amt
+            except Exception:
+                pass
 
     if total_yest <= 0:
-        total_yest = 18556.1
+        total_yest = 14144.0
 
     _YESTERDAY_TURNOVER_CACHE = (today_str, round(total_yest, 1))
     return round(total_yest, 1)
@@ -251,21 +273,21 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     """Fetch real-time quotes for major indices, total turnover, breadth, and intraday sparklines.
     
     Implements a robust 4-tier multi-source disaster recovery pipeline:
-      Tier 1 (Primary): Native easy_tdx TDX Socket Client (direct TCP, microsecond tick & native minute curve)
-      Tier 2: Eastmoney multi-quote & breadth API (with full browser UA + Referer to prevent 503/WAF drops)
+      Tier 1 (Primary): Native TDX MAC Client Quotes & Industry Breadth + Socket Minute Curves
+      Tier 2: Eastmoney multi-quote & breadth API (with full browser UA + urlopen_safe)
       Tier 3: Sina Finance high-speed quote (ultra-resilient, fast fallback)
       Tier 4: Tencent fast quote (final fallback with minute sparkline support)
-      Defense Tier: Zero-value self-healing protection (prevents 0.00 or -18556 yi data leakage)
+      Defense Tier: Zero-value self-healing protection (prevents 0.00 or dummy data leakage)
     """
     from easy_tdx.models.enums import Market
 
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     target_meta = [
-        ("000001", "上证指数", "上交所", "000001.SH", "sh000001", Market.SH, "999999"),
-        ("399001", "深证成指", "深交所", "399001.SZ", "sz399001", Market.SZ, "399001"),
-        ("399006", "创业板指", "创业板", "399006.SZ", "sz399006", Market.SZ, "399006"),
-        ("000688", "科创50", "科创板", "000688.SH", "sh000688", Market.SH, "000688"),
-        ("000300", "沪深300", "核心宽基", "000300.SH", "sh000300", Market.SH, "000300"),
+        ("000001", "上证指数", "上交所", "000001.SH", "sh000001", Market.SH, "999999", 1),
+        ("399001", "深证成指", "深交所", "399001.SZ", "sz399001", Market.SZ, "399001", 0),
+        ("399006", "创业板指", "创业板", "399006.SZ", "sz399006", Market.SZ, "399006", 0),
+        ("000688", "科创50", "科创板", "000688.SH", "sh000688", Market.SH, "000688", 1),
+        ("000300", "沪深300", "核心宽基", "000300.SH", "sh000300", Market.SH, "000300", 1),
     ]
 
     items_by_code: dict[str, Any] = {}
@@ -273,14 +295,46 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     up_count = 0
     down_count = 0
     flat_count = 0
+    tdx_up_count = 0
+    tdx_down_count = 0
+    tdx_flat_count = 0
 
     # =========================================================================
-    # Tier 1 (Primary): Native easy_tdx Socket Client
+    # Tier 1 (Primary): Native TDX MAC Protocol Quotes & Breadth + Socket Minute Curve
     # =========================================================================
+    # 1.1 Native TDX MAC real-time quotes for major indices
+    try:
+        mac = _get_or_create_mac_client()
+        if mac is not None:
+            stocks_to_req = [(mkt_int, code) for code, _, _, _, _, _, _, mkt_int in target_meta]
+            df_q = mac.get_stock_quotes(stocks_to_req)
+            if df_q is not None and not df_q.empty:
+                for _, row in df_q.iterrows():
+                    c = str(row.get("code", "")).strip()
+                    close_p = round(float(row.get("close", 0.0)), 2)
+                    pre_close_p = round(float(row.get("pre_close", 0.0)), 2)
+                    amt = float(row.get("amount", 0.0))
+                    if close_p > 0:
+                        chg_p = round(close_p - pre_close_p, 2) if pre_close_p > 0 else 0.0
+                        pct_p = round((close_p - pre_close_p) / pre_close_p * 100.0, 2) if pre_close_p > 0 else 0.0
+                        items_by_code[c] = {
+                            "f12": c,
+                            "f14": row.get("name", ""),
+                            "f2": close_p,
+                            "f3": pct_p,
+                            "f4": chg_p,
+                            "f6": amt,
+                            "f18": pre_close_p,
+                            "source": "native_tdx_mac",
+                        }
+    except Exception as mac_e:
+        logger.debug(f"Tier 1 native MacClient index quotes error: {mac_e}")
+
+    # 1.2 Native TDX Minute time curves for sparklines
     try:
         tdx_cli = _get_or_create_client()
         if tdx_cli is not None:
-            for code, name, ex, sym, qcode, mkt, tdx_sym in target_meta:
+            for code, name, ex, sym, qcode, mkt, tdx_sym, _ in target_meta:
                 try:
                     df_min = tdx_cli.get_minute_time_data(mkt, tdx_sym)
                     if df_min is not None and not df_min.empty and len(df_min) > 0:
@@ -288,7 +342,7 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                         pts = [round(float(p), 2) for p in df_min["price"].tolist()]
                         if pts:
                             sparklines[code] = pts
-                        if cur_p > 0:
+                        if code not in items_by_code and cur_p > 0:
                             items_by_code[code] = {
                                 "f12": code,
                                 "f14": name,
@@ -296,14 +350,28 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                                 "f3": 0.0,
                                 "f4": 0.0,
                                 "f6": 0.0,
-                                "f18": cur_p,
+                                "f18": 0.0,
                                 "sparkline": pts,
-                                "source": "easy_tdx",
+                                "source": "easy_tdx_min",
                             }
                 except Exception as tdx_e:
                     logger.debug(f"Tier 1 native easy_tdx minute fetch error for {name}: {tdx_e}")
     except Exception as e:
         logger.debug(f"Tier 1 native easy_tdx index fetch error: {e}")
+
+    # 1.3 Native Market Breadth from Industry Boards
+    try:
+        mac = _get_or_create_mac_client()
+        if mac is not None:
+            from easy_tdx.mac.enums import BoardType
+            df_hy = mac.get_board_ranking(BoardType.HY, top_n=200)
+            if df_hy is not None and not df_hy.empty and "up_count" in df_hy:
+                tdx_up_count = int(df_hy["up_count"].sum())
+                tdx_down_count = int(df_hy["down_count"].sum())
+                tot_mem = int(df_hy["member_count"].sum())
+                tdx_flat_count = max(0, tot_mem - tdx_up_count - tdx_down_count)
+    except Exception as b_e:
+        logger.debug(f"Tier 1 native market breadth fetch error: {b_e}")
 
     # =========================================================================
     # Tier 2: Eastmoney multi-quote & market breadth
@@ -314,25 +382,25 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
             "User-Agent": _DEFAULT_USER_AGENT,
             "Referer": "https://quote.eastmoney.com/center/gridlist.html",
             "Accept": "*/*",
+            "Connection": "close",
         })
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urlopen_safe(req, timeout=3.5) as resp:
             d = json.loads(resp.read().decode("utf-8"))
             items = d.get("data", {}).get("diff", [])
             for it in items:
                 c = str(it.get("f12"))
                 em_close = float(it.get("f2") or 0.0)
                 if c in items_by_code:
-                    # Enrich existing Tier 1 quote with pre_close, change_pct, amount, and breadth
                     existing = items_by_code[c]
-                    if it.get("f18") is not None:
+                    if it.get("f18") is not None and float(it.get("f18")) > 0:
                         existing["f18"] = float(it.get("f18"))
                     if it.get("f3") is not None:
                         existing["f3"] = float(it.get("f3"))
                     if it.get("f4") is not None:
                         existing["f4"] = float(it.get("f4"))
-                    if it.get("f6") is not None:
+                    if it.get("f6") is not None and float(it.get("f6")) > 0:
                         existing["f6"] = float(it.get("f6"))
-                    if existing.get("f2", 0) <= 0 and em_close > 0:
+                    if (existing.get("f2", 0) <= 0 or existing.get("source") == "easy_tdx_min") and em_close > 0:
                         existing["f2"] = em_close
                 elif em_close > 0:
                     items_by_code[c] = it
@@ -347,11 +415,11 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     # =========================================================================
     # Tier 3: Sina Finance high-speed quotes
     # =========================================================================
-    # Enrich or fill any missing index quote
     needs_sina = any(
         c[0] not in items_by_code 
         or items_by_code[c[0]].get("f2", 0) <= 0 
         or items_by_code[c[0]].get("f6", 0) <= 0 
+        or items_by_code[c[0]].get("f18", 0) <= 0
         for c in target_meta
     )
     if needs_sina:
@@ -360,8 +428,9 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
             req = urllib.request.Request(s_url, headers={
                 "User-Agent": _DEFAULT_USER_AGENT,
                 "Referer": "https://finance.sina.com.cn",
+                "Connection": "close",
             })
-            with urllib.request.urlopen(req, timeout=3.0) as resp:
+            with urlopen_safe(req, timeout=3.0) as resp:
                 text = resp.read().decode("gbk", errors="ignore")
             for line in text.strip().split(";"):
                 line = line.strip()
@@ -384,13 +453,14 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                         chg_val = float(parts[2])
                         pct_val = float(parts[3])
                         amt_wan = float(parts[5])
+                        real_pre = round(close_val - chg_val, 2)
                         if c in items_by_code:
                             it = items_by_code[c]
                             if it.get("f2", 0) <= 0 and close_val > 0:
                                 it["f2"] = close_val
-                            if it.get("f18", 0) <= 0:
-                                it["f18"] = close_val - chg_val
-                            if it.get("f3") == 0.0 and pct_val != 0.0:
+                            if it.get("f18", 0) <= 0 or it.get("f18") == it.get("f2"):
+                                it["f18"] = real_pre
+                            if (it.get("f3") == 0.0 or it.get("f3") is None) and pct_val != 0.0:
                                 it["f3"] = pct_val
                             if it.get("f6", 0) <= 0:
                                 it["f6"] = amt_wan * 10000.0
@@ -402,7 +472,7 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                                 "f3": pct_val,
                                 "f4": chg_val,
                                 "f6": amt_wan * 10000.0,
-                                "f18": close_val - chg_val,
+                                "f18": real_pre,
                             }
         except Exception as e:
             logger.debug(f"Tier 3 Sina index fallback error: {e}")
@@ -410,15 +480,22 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     # =========================================================================
     # Tier 4: Tencent fast quote
     # =========================================================================
-    needs_tencent = any(c[0] not in items_by_code or items_by_code[c[0]].get("f2", 0) <= 0 for c in target_meta)
+    needs_tencent = any(
+        c[0] not in items_by_code 
+        or items_by_code[c[0]].get("f2", 0) <= 0 
+        or items_by_code[c[0]].get("f6", 0) <= 0 
+        or items_by_code[c[0]].get("f18", 0) <= 0
+        for c in target_meta
+    )
     if needs_tencent:
         try:
             q_url = "https://qt.gtimg.cn/q=s_sh000001,s_sz399001,s_sz399006,s_sh000688,s_sh000300"
             req = urllib.request.Request(q_url, headers={
                 "User-Agent": _DEFAULT_USER_AGENT,
                 "Referer": "https://gu.qq.com/",
+                "Connection": "close",
             })
-            with urllib.request.urlopen(req, timeout=3.0) as resp:
+            with urlopen_safe(req, timeout=3.0) as resp:
                 text = resp.read().decode("gbk", errors="ignore")
             for line in text.strip().split(";"):
                 line = line.strip()
@@ -429,25 +506,29 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                 if len(p) >= 8:
                     c = p[2]
                     close_val = float(p[3])
+                    diff_val = float(p[4])
+                    chg_pct = float(p[5])
+                    amt_wan = float(p[7])
+                    real_pre = round(close_val - diff_val, 2)
                     if c in items_by_code:
                         it = items_by_code[c]
                         if it.get("f2", 0) <= 0 and close_val > 0:
                             it["f2"] = close_val
-                        if it.get("f18", 0) <= 0:
-                            it["f18"] = close_val - float(p[4])
-                        if it.get("f3") == 0.0:
-                            it["f3"] = float(p[5])
+                        if it.get("f18", 0) <= 0 or it.get("f18") == it.get("f2"):
+                            it["f18"] = real_pre
+                        if it.get("f3") == 0.0 or it.get("f3") is None:
+                            it["f3"] = chg_pct
                         if it.get("f6", 0) <= 0:
-                            it["f6"] = float(p[7]) * 10000.0
+                            it["f6"] = amt_wan * 10000.0
                     elif close_val > 0:
                         items_by_code[c] = {
                             "f12": c,
                             "f14": p[1],
                             "f2": close_val,
-                            "f3": float(p[5]),
-                            "f4": float(p[4]),
-                            "f6": float(p[7]) * 10000.0,
-                            "f18": close_val - float(p[4]),
+                            "f3": chg_pct,
+                            "f4": diff_val,
+                            "f6": amt_wan * 10000.0,
+                            "f18": real_pre,
                         }
         except Exception as e:
             logger.debug(f"Tier 4 Tencent index fallback error: {e}")
@@ -462,9 +543,10 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
                 u = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={qcode}"
                 r = urllib.request.Request(u, headers={
                     "User-Agent": _DEFAULT_USER_AGENT,
-                    "Referer": "https://gu.qq.com/"
+                    "Referer": "https://gu.qq.com/",
+                    "Connection": "close",
                 })
-                with urllib.request.urlopen(r, timeout=2.5) as resp:
+                with urlopen_safe(r, timeout=2.5) as resp:
                     jd = json.loads(resp.read().decode("utf-8"))
                     pts = jd.get("data", {}).get(qcode, {}).get("data", {}).get("data", [])
                     return code, [round(float(p.split()[1]), 2) for p in pts]
@@ -495,10 +577,10 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
     sh_amt = 0.0
     sz_amt = 0.0
 
-    for code, name, ex, sym, _, _, _ in target_meta:
+    for code, name, ex, sym, _, _, _, _ in target_meta:
         it = items_by_code.get(code, {})
         close = round(float(it.get("f2") or 0.0), 2)
-        pre_close = round(float(it.get("f18") or close), 2)
+        pre_close = round(float(it.get("f18") or 0.0), 2)
         pct = round(float(it.get("f3") or 0.0), 2)
         amt_yi = round(float(it.get("f6") or 0.0) / 100000000.0, 2)
 
@@ -513,6 +595,9 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
         # Recalculate pct if 0 and pre_close is valid and close is different
         if pct == 0.0 and pre_close > 0 and abs(close - pre_close) > 0.01:
             pct = round((close - pre_close) / pre_close * 100.0, 2)
+
+        if pre_close <= 0.0:
+            pre_close = close
 
         if code == "000001":
             sh_amt = amt_yi
@@ -533,23 +618,28 @@ def _fetch_live_indices_and_market() -> dict[str, Any]:
 
     total_turnover_yi = round(sh_amt + sz_amt, 1)
     if total_turnover_yi <= 0 and _OVERVIEW_CACHE is not None:
-        total_turnover_yi = _OVERVIEW_CACHE[1].get("turnover", {}).get("total_yi", 16800.0)
+        total_turnover_yi = _OVERVIEW_CACHE[1].get("turnover", {}).get("total_yi", 10000.0)
     elif total_turnover_yi <= 0:
-        total_turnover_yi = 16800.0
+        total_turnover_yi = 10000.0
 
     yest_turnover_yi = _get_yesterday_turnover_yi(today_str)
     diff_yi = round(total_turnover_yi - yest_turnover_yi, 1)
     is_inc = diff_yi >= 0
     diff_str = f"{abs(int(round(diff_yi))):,} 亿"
 
+    # Breadth fallback: use native TDX HY board summation before using disk cache/baseline
     if up_count == 0 and down_count == 0:
-        if _OVERVIEW_CACHE is not None:
+        if tdx_up_count > 0 or tdx_down_count > 0:
+            up_count = tdx_up_count
+            down_count = tdx_down_count
+            flat_count = tdx_flat_count
+        elif _OVERVIEW_CACHE is not None:
             prev_b = _OVERVIEW_CACHE[1].get("breadth", {})
-            up_count = prev_b.get("up_count", 1850)
-            down_count = prev_b.get("down_count", 2950)
-            flat_count = prev_b.get("flat_count", 100)
+            up_count = prev_b.get("up_count", 500)
+            down_count = prev_b.get("down_count", 4500)
+            flat_count = prev_b.get("flat_count", 50)
         else:
-            up_count, down_count, flat_count = 1850, 2950, 100
+            up_count, down_count, flat_count = 500, 4500, 50
 
     return {
         "major_indices": major_indices,

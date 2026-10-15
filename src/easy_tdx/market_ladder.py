@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 import urllib.request
+from easy_tdx._http_utils import urlopen_safe
 import json
 import time
 import threading
@@ -435,8 +436,9 @@ def _fetch_all_limit_up_candidates() -> list[dict[str, Any]]:
                 f"fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&"
                 f"fields=f12,f14,f2,f3,f5,f6,f8,f18"
             )
+            em_headers["Connection"] = "close"
             req = urllib.request.Request(url, headers=em_headers)
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            with urlopen_safe(req, timeout=3.5) as resp:
                 content = resp.read().decode("utf-8", errors="ignore")
                 data = json.loads(content)
                 items = data.get("data", {}).get("diff", [])
@@ -471,12 +473,13 @@ def _fetch_all_limit_up_candidates() -> list[dict[str, Any]]:
             sina_headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Referer": "https://finance.sina.com.cn/",
+                "Connection": "close",
             }
             while page <= 5:
                 # Use https:// to prevent connection refused / HTTP proxy issues
                 url = f"https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page={page}&num=100&sort=changepercent&asc=0&node=hs_a"
                 req = urllib.request.Request(url, headers=sina_headers)
-                with urllib.request.urlopen(req, timeout=4.0) as resp:
+                with urlopen_safe(req, timeout=4.0) as resp:
                     content = resp.read().decode("gb18030", errors="ignore")
                     items = json.loads(content)
                     if not items:
