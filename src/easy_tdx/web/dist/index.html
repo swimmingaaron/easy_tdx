@@ -4688,7 +4688,7 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">窗口:</span>
                             <select id="cl-select-win-mode" onchange="setChanlunWindowMode(this.value)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="quad" selected>⊞ 四窗口 (日·60F·周·月)</option>
+                                <option value="quad" selected>⊞ 四窗口 (日·30F·周·月)</option>
                                 <option value="dual">◫ 双窗口 (左日·右周)</option>
                                 <option value="single">⬜ 单窗口 (全宽显示)</option>
                             </select>
@@ -4817,10 +4817,11 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-purple-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                 <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
                                 <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                 <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
                             </select>
                             <div id="cl-pattern-overlay" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4830,7 +4831,7 @@
                     <div id="chanlun-echart-main" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 2: 60F·30F·5F (右上窗/第2窗) -->
+                <!-- 窗口 2: 30F·5F·1F (右上窗/第2窗) -->
                 <div id="cl-chart-card-w2" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
@@ -4841,7 +4842,7 @@
                     <!-- 顶部条：第2窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">窗2: 60F·30F·5F</span>
+                            <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">窗2: 30F·5F·1F</span>
                             <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w2">--</span>
                             </div>
@@ -4849,10 +4850,11 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-emerald-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="60F,30F,5F" selected>60F·30F·5F (超短)</option>
+                                <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
                                 <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
                                 <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                 <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
                             </select>
                             <div id="cl-pattern-overlay-w2" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4881,10 +4883,11 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                 <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
                                 <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                 <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
                             </select>
                             <div id="cl-pattern-overlay-right" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4913,10 +4916,11 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-amber-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (超短)</option>
+                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                 <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
                                 <option value="MONTH,WEEK,DAY" selected>月·周·日 (长线)</option>
                                 <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
                             </select>
                             <div id="cl-pattern-overlay-w4" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -22074,7 +22078,7 @@
         let _clCurrentCodeChangedByUser = window._clCurrentCodeChangedByUser || false;
         let _clWindowMode = 'quad'; // 'quad' (四窗口) | 'dual' (双窗口) | 'single' (单窗口全屏)
         let _clLeftPeriods = 'DAY,30F,5F';   // 窗口 1: 日·30F·5F
-        let _clW2Periods = '60F,30F,5F';     // 窗口 2: 60F·30F·5F
+        let _clW2Periods = '30F,5F,1F';      // 窗口 2: 30F·5F·1F
         let _clRightPeriods = 'WEEK,DAY,30F'; // 窗口 3: 周·日·30F
         let _clW4Periods = 'MONTH,WEEK,DAY'; // 窗口 4: 月·周·日
         let _clPeriods = 'DAY,30F,5F';
@@ -22284,6 +22288,10 @@
 
         async function initChanlun() {
             setChanlunWindowMode('quad');
+            const sPresetW2 = document.getElementById('cl-select-preset-w2');
+            if (sPresetW2) sPresetW2.value = _clW2Periods;
+            const pElW2 = document.getElementById('cl-pill-w2');
+            if (pElW2) pElW2.innerText = `窗2: ${_clW2Periods.replace(/,/g, '·')}`;
             initChanlunStockSearch();
             renderChanlunPopularStocks();
             adjustChanlunLayoutHeight();
@@ -24169,7 +24177,7 @@
                 domId = 'chanlun-echart-w2';
                 titleElId = 'cl-chart-title-text-w2';
                 patternElId = 'cl-pattern-overlay-w2';
-                periodLabel = _clW2Periods || '60F·30F·5F';
+                periodLabel = _clW2Periods || '30F·5F·1F';
                 instanceProp = 'chanlunChartW2';
             } else if (side === 'right' || side === 'w3') {
                 domId = 'chanlun-echart-right';

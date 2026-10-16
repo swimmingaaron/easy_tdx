@@ -38,10 +38,11 @@ const popularStocks = ref<ChanlunHotStockItem[]>([
 // ── 多周期设置 ───────────────────────────────────────────────────────────────
 const periodPresets = [
   { label: '标准 (日·30F·5F)', value: 'DAY,30F,5F' },
+  { label: '超短 (30F·5F·1F)', value: '30F,5F,1F' },
   { label: '波段 (周·日·30F)', value: 'WEEK,DAY,30F' },
   { label: '长线 (月·周·日)', value: 'MONTH,WEEK,DAY' },
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
-  { label: '超短 (60F·30F·5F)', value: '60F,30F,5F' },
+  { label: '短线 (60F·30F·5F)', value: '60F,30F,5F' },
 ]
 // 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 左右分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
@@ -53,12 +54,12 @@ const leftPeriodHigh = ref('DAY')
 const leftPeriodMid = ref('30F')
 const leftPeriodLow = ref('5F')
 
-// 窗口 2 周期 (默认: 60F·30F·5F)
-const w2Periods = ref('60F,30F,5F')
-const w2ActivePreset = ref('60F,30F,5F')
-const w2PeriodHigh = ref('60F')
-const w2PeriodMid = ref('30F')
-const w2PeriodLow = ref('5F')
+// 窗口 2 周期 (默认: 30F·5F·1F)
+const w2Periods = ref('30F,5F,1F')
+const w2ActivePreset = ref('30F,5F,1F')
+const w2PeriodHigh = ref('30F')
+const w2PeriodMid = ref('5F')
+const w2PeriodLow = ref('1F')
 
 // 窗口 3 周期 (默认: 周·日·30F)
 const rightPeriods = ref('WEEK,DAY,30F')
@@ -1778,7 +1779,7 @@ onBeforeUnmount(() => {
             class="mode-btn"
             :class="{ active: splitMode === 'quad' }"
             @click="setSplitMode('quad')"
-            title="四窗口布局 (日·60F·周·月)"
+            title="四窗口布局 (日·30F·周·月)"
           >
             ⊞ 四窗口
           </button>
@@ -1868,7 +1869,7 @@ onBeforeUnmount(() => {
         <div class="control-group">
           <span class="label">窗口:</span>
           <select v-model="splitMode" class="cascading-select" @change="setSplitMode(splitMode)">
-            <option value="quad">⊞ 四窗口 (日·60F·周·月)</option>
+            <option value="quad">⊞ 四窗口 (日·30F·周·月)</option>
             <option value="dual">◫ 双窗口 (左日·右周)</option>
             <option value="single">⬜ 单窗口 (全宽显示)</option>
           </select>
@@ -1984,11 +1985,11 @@ onBeforeUnmount(() => {
         <div ref="chartContainerLeft" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 2: 60F·30F·5F (四窗口模式激活时显示) -->
+      <!-- 窗口 2: 30F·5F·1F (四窗口模式激活时显示) -->
       <div v-if="splitMode === 'quad'" class="chart-window-card w2-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '60F' }}·{{ chanDataW2?.periods.mid.name || '30F' }}·{{ chanDataW2?.periods.low.name || '5F' }}</span>
+            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '30F' }}·{{ chanDataW2?.periods.mid.name || '5F' }}·{{ chanDataW2?.periods.low.name || '1F' }}</span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }}</span>
               <span v-if="candleInfoW2" class="win-stock-price" :class="candleInfoW2.colorClass">{{ candleInfoW2.priceStr }}</span>
