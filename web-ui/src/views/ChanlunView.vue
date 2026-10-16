@@ -90,7 +90,7 @@ const showLowBi = ref(true)
 const showLowZs = ref(true)
 const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
-const subIndicator = ref<'amount' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
+const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
 const activeLayersCount = computed(() => {
   let c = 0
   if (showHighBi.value) c++
@@ -928,9 +928,10 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       })
     : []
 
-  // 副图指标配置 (默认成交额，可选 MACD / RSI / KDJ / EXPMA / 关闭)
+  // 副图指标配置 (默认成交额，可选 主力净流入 / MACD / RSI / KDJ / EXPMA / 关闭)
   const hasSub = subIndicator.value !== 'none'
   const isSubAmount = subIndicator.value === 'amount'
+  const isSubInflow = subIndicator.value === 'inflow'
   const isSubMacd = subIndicator.value === 'macd'
   const isSubRsi = subIndicator.value === 'rsi'
   const isSubKdj = subIndicator.value === 'kdj'
@@ -942,6 +943,45 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   const closes = rawCandles.map((c) => c[1])
   const lows = rawCandles.map((c) => c[2])
   const highs = rawCandles.map((c) => c[3])
+
+  function calcClientInflow(candlesList: any[], amountsList: any[]) {
+    const netInflows: number[] = []
+    const n = candlesList ? candlesList.length : 0
+    for (let i = 0; i < n; i++) {
+      const c = candlesList[i]
+      const open = Number(c[0] || 0)
+      const close = Number(c[1] || 0)
+      const low = Number(c[2] || 0)
+      const high = Number(c[3] || 0)
+      let amt = 0
+      if (amountsList && amountsList[i] && amountsList[i][1] != null && !isNaN(amountsList[i][1])) {
+        amt = Number(amountsList[i][1])
+      } else {
+        amt = close * 10000
+      }
+      const preC = (i > 0 && candlesList[i - 1]) ? Number(candlesList[i - 1][1] || open) : open
+      const hlDiff = Math.max(0.001, high - low)
+      const bodyR = (close - open) / hlDiff
+      const posR = (close - low) / hlDiff - 0.5
+      const chgR = ((close / Math.max(0.01, preC)) - 1.0) * 10.0
+      let flowR = bodyR * 0.08 + posR * 0.06 + chgR * 0.10
+      flowR = Math.max(-0.20, Math.min(0.20, flowR))
+      netInflows.push(Number((amt * flowR).toFixed(2)))
+    }
+    const ma3 = netInflows.map((_, i) => {
+      if (i < 2) return null
+      let s = 0; for (let j = i - 2; j <= i; j++) s += netInflows[j]; return Number((s / 3).toFixed(2))
+    })
+    const ma5 = netInflows.map((_, i) => {
+      if (i < 4) return null
+      let s = 0; for (let j = i - 4; j <= i; j++) s += netInflows[j]; return Number((s / 5).toFixed(2))
+    })
+    const ma10 = netInflows.map((_, i) => {
+      if (i < 9) return null
+      let s = 0; for (let j = i - 9; j <= i; j++) s += netInflows[j]; return Number((s / 10).toFixed(2))
+    })
+    return { net_inflow: netInflows, ma3, ma5, ma10 }
+  }
 
   function calcClientRSI(n: number): (number | null)[] {
     const res: (number | null)[] = []
@@ -1042,6 +1082,69 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       barWidth: '55%',
       barMaxWidth: 14,
     })
+  } else if (isSubInflow) {
+    const amountsData = (uc.amounts && uc.amounts.length > 0)
+      ? uc.amounts
+      : (uc.volumes || []).map((v) => [v[0], v[1] * (uc.candles[v[0]] ? uc.candles[v[0]][1] : 0), v[2]] as [number, number, number])
+    const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
+      ? uc.inflow
+      : calcClientInflow(uc.candles || [], amountsData)
+    const netInflows = inflowData.net_inflow || []
+    const ma3 = inflowData.ma3 || []
+    const ma5 = inflowData.ma5 || []
+    const ma10 = inflowData.ma10 || []
+
+    subSeries.push(
+      {
+        name: '主力净流入',
+        type: 'bar',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: netInflows.map((val: number) => {
+          const isPos = (val || 0) >= 0
+          return {
+            value: val,
+            itemStyle: {
+              color: isPos ? '#ef4444' : '#10b981',
+              borderColor: isPos ? '#dc2626' : '#059669',
+              borderWidth: 0.8,
+            },
+          }
+        }),
+        barWidth: '55%',
+        barMaxWidth: 14,
+      },
+      {
+        name: '流入MA3',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: ma3,
+        showSymbol: false,
+        lineStyle: { width: 1.1, color: '#FACC15' },
+        itemStyle: { color: '#FACC15' },
+      },
+      {
+        name: '流入MA5',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: ma5,
+        showSymbol: false,
+        lineStyle: { width: 1.1, color: '#38BDF8' },
+        itemStyle: { color: '#38BDF8' },
+      },
+      {
+        name: '流入MA10',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: ma10,
+        showSymbol: false,
+        lineStyle: { width: 1.1, color: '#C084FC' },
+        itemStyle: { color: '#C084FC' },
+      }
+    )
   } else if (isSubMacd) {
     subSeries.push(
       {
@@ -1326,6 +1429,33 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             <span style="color:#38bdf8;">EXP12: <b>${e12 != null ? Number(e12).toFixed(2) : '--'}</b></span>
             <span style="color:#f59e0b; margin-left:8px;">EXP50: <b>${e50 != null ? Number(e50).toFixed(2) : '--'}</b></span>
           </div>`
+        } else if (isSubInflow) {
+          const amountsData = (uc.amounts && uc.amounts.length > 0)
+            ? uc.amounts
+            : (uc.volumes || []).map((v: any) => [v[0], v[1] * (uc.candles[v[0]] ? uc.candles[v[0]][1] : 0), v[2]])
+          const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
+            ? uc.inflow
+            : calcClientInflow(uc.candles || [], amountsData)
+          const flowVal = (inflowData.net_inflow && inflowData.net_inflow[idx] != null) ? inflowData.net_inflow[idx] : 0
+          const m3 = (inflowData.ma3 && inflowData.ma3[idx] != null) ? inflowData.ma3[idx] : null
+          const m5 = (inflowData.ma5 && inflowData.ma5[idx] != null) ? inflowData.ma5[idx] : null
+          const m10 = (inflowData.ma10 && inflowData.ma10[idx] != null) ? inflowData.ma10[idx] : null
+
+          const formatFlow = (val: any) => {
+            if (val == null || isNaN(val)) return '--'
+            const absV = Math.abs(val)
+            const sign = val > 0 ? '+' : (val < 0 ? '-' : '')
+            if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(2)}亿`
+            if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(1)}万`
+            return `${sign}${absV.toFixed(0)}元`
+          }
+          const flowColor = flowVal > 0 ? '#ef4444' : (flowVal < 0 ? '#10b981' : (isDark ? '#cbd5e1' : '#64748b'))
+          html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
+            <span>主力净流入: <b style="color:${flowColor};">${formatFlow(flowVal)}</b></span>
+            <span style="color:#FACC15; margin-left:8px;">MA3: <b>${formatFlow(m3)}</b></span>
+            <span style="color:#38BDF8; margin-left:8px;">MA5: <b>${formatFlow(m5)}</b></span>
+            <span style="color:#C084FC; margin-left:8px;">MA10: <b>${formatFlow(m10)}</b></span>
+          </div>`
         }
 
         return html
@@ -1338,6 +1468,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         `中级别笔(${d.periods.mid.name})`,
         `小级别笔(${d.periods.low.name})`,
         ...(isSubAmount ? ['成交额'] : []),
+        ...(isSubInflow ? ['主力净流入', '流入MA3', '流入MA5', '流入MA10'] : []),
         ...(isSubMacd ? ['MACD', 'DIF', 'DEA'] : []),
         ...(isSubRsi ? ['RSI6', 'RSI12', 'RSI24'] : []),
         ...(isSubKdj ? ['K', 'D', 'J'] : []),
@@ -1349,6 +1480,10 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         [`中级别笔(${d.periods.mid.name})`]: showMidBi.value,
         [`小级别笔(${d.periods.low.name})`]: showLowBi.value,
         成交额: true,
+        主力净流入: true,
+        流入MA3: true,
+        流入MA5: true,
+        流入MA10: true,
         MACD: true,
         DIF: true,
         DEA: true,
@@ -1417,11 +1552,20 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
                 if (n >= 1e4) return `${(n / 1e4).toFixed(0)}万`
                 return String(n)
               }
-            : (isSubExpma
-                ? (val: any) => Number(val).toFixed(2)
-                : (isSubRsi || isSubKdj
-                    ? (val: any) => Number(val).toFixed(0)
-                    : undefined)),
+            : (isSubInflow
+                ? (val: any) => {
+                    if (val == null || isNaN(val)) return ''
+                    const absV = Math.abs(val)
+                    const sign = val < 0 ? '-' : ''
+                    if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(1)}亿`
+                    if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(0)}万`
+                    return `${sign}${absV.toFixed(0)}`
+                  }
+                : (isSubExpma
+                    ? (val: any) => Number(val).toFixed(2)
+                    : (isSubRsi || isSubKdj
+                        ? (val: any) => Number(val).toFixed(0)
+                        : undefined))),
         },
       },
     ],
@@ -1948,6 +2092,7 @@ onBeforeUnmount(() => {
           <span class="label">副图:</span>
           <select v-model="subIndicator" class="cascading-select" @change="renderChart">
             <option value="amount">成交额</option>
+            <option value="inflow">主力净流入</option>
             <option value="macd">MACD</option>
             <option value="rsi">RSI</option>
             <option value="kdj">KDJ</option>

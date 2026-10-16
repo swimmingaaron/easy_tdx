@@ -31,13 +31,60 @@ from easy_tdx.chanlun.resample import convert_kline_frequency, can_resample_from
 from easy_tdx.chanlun.kline_cache import get_global_kline_disk_cache
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
-from easy_tdx.MyTT import RSI, KDJ, EXPMA
+from easy_tdx.MyTT import RSI, KDJ, EXPMA, MA
 
 
 def safe_float(val: Any, default: float | None = None) -> float | None:
     if val is None or pd.isna(val) or np.isnan(val) or np.isinf(val):
         return default
     return round(float(val), 2)
+
+
+def calculate_inflow_data(df: pd.DataFrame) -> dict[str, list[float | None]]:
+    """参考 K 线弹窗 (quotes.py) 算法计算逐根 K 线主力资金净流入及移动平均线。"""
+    if df.empty or len(df) == 0:
+        return {"net_inflow": [], "ma3": [], "ma5": [], "ma10": []}
+
+    c = df["close"].values.astype(float)
+    o = df["open"].values.astype(float)
+    h = df["high"].values.astype(float)
+    l = df["low"].values.astype(float)
+    v = df["volume"].values.astype(float) if "volume" in df.columns else np.zeros(len(df), dtype=float)
+
+    if "amount" in df.columns:
+        amt_vals = df["amount"].values.astype(float)
+        mask = np.isnan(amt_vals) | (amt_vals <= 0)
+        amt_vals[mask] = (c * v)[mask]
+    else:
+        amt_vals = (c * v).astype(float)
+
+    n_len = len(df)
+    net_inflows = np.zeros(n_len, dtype=float)
+    for idx in range(n_len):
+        c_i = float(c[idx])
+        o_i = float(o[idx])
+        h_i = float(h[idx])
+        l_i = float(l[idx])
+        amt_i = float(amt_vals[idx])
+        pre_c_i = float(c[idx - 1]) if idx > 0 else o_i
+        hl_diff = max(0.001, h_i - l_i)
+        body_r = (c_i - o_i) / hl_diff
+        pos_r = (c_i - l_i) / hl_diff - 0.5
+        chg_r = ((c_i / max(0.01, pre_c_i)) - 1.0) * 10.0
+        # Realistic net capital inflow ratio in A-share market is bounded in [-0.20, 0.20]
+        flow_r = max(-0.20, min(0.20, body_r * 0.08 + pos_r * 0.06 + chg_r * 0.10))
+        net_inflows[idx] = round(amt_i * flow_r, 2)
+
+    inflow_ma3 = MA(net_inflows, 3)
+    inflow_ma5 = MA(net_inflows, 5)
+    inflow_ma10 = MA(net_inflows, 10)
+
+    return {
+        "net_inflow": [round(float(v_val), 2) for v_val in net_inflows],
+        "ma3": [safe_float(v_val) for v_val in inflow_ma3],
+        "ma5": [safe_float(v_val) for v_val in inflow_ma5],
+        "ma10": [safe_float(v_val) for v_val in inflow_ma10],
+    }
 
 
 logger = logging.getLogger("chanlun.resonance")
@@ -1539,6 +1586,7 @@ def analyze_multi_period_resonance(
             "rsi": p_rsi,
             "kdj": p_kdj,
             "expma": p_expma,
+            "inflow": calculate_inflow_data(p_df),
         }
 
     # 最新价格与涨跌
@@ -1591,6 +1639,7 @@ def analyze_multi_period_resonance(
             "rsi": rsi_data,
             "kdj": kdj_data,
             "expma": expma_data,
+            "inflow": calculate_inflow_data(base_df),
         },
         "levels_data": levels_data,
         "backtrack_timeline": {

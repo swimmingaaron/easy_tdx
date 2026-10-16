@@ -520,6 +520,13 @@ export interface ExpmaData {
   exp50: (number | null)[]
 }
 
+export interface InflowData {
+  net_inflow: number[]
+  ma3: (number | null)[]
+  ma5: (number | null)[]
+  ma10: (number | null)[]
+}
+
 export interface UnifiedChartData {
   dates: string[]
   candles: [number, number, number, number][] // [open, close, low, high]
@@ -538,6 +545,7 @@ export interface UnifiedChartData {
   rsi?: RsiData
   kdj?: KdjData
   expma?: ExpmaData
+  inflow?: InflowData
 }
 
 export interface LevelChartData {
@@ -552,6 +560,7 @@ export interface LevelChartData {
   rsi?: RsiData
   kdj?: KdjData
   expma?: ExpmaData
+  inflow?: InflowData
 }
 
 export interface BacktrackTimeline {

@@ -4721,6 +4721,7 @@
                             <select id="cl-select-sub-indicator" onchange="setChanlunSubIndicator(this.value)"
                                 class="h-6 bg-transparent text-cyan-600 dark:text-cyan-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
                                 <option value="amount" selected>成交额</option>
+                                <option value="inflow">主力净流入</option>
                                 <option value="macd">MACD</option>
                                 <option value="rsi">RSI</option>
                                 <option value="kdj">KDJ</option>
@@ -22514,7 +22515,7 @@
             mmd: true,
             res: false
         };
-        let _clSubIndicator = 'amount'; // 'amount' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
+        let _clSubIndicator = 'amount'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
 
         function updateChanlunLayerButtons() {
             // 同步副图下拉菜单
@@ -23294,9 +23295,10 @@
             }) : [];
 
 
-            // 7. 副图指标系列 (成交额 / MACD / RSI / KDJ / EXPMA / 关闭)
+            // 7. 副图指标系列 (成交额 / 主力净流入 / MACD / RSI / KDJ / EXPMA / 关闭)
             const isSubNone = _clSubIndicator === 'none';
             const isSubAmount = _clSubIndicator === 'amount' || _clSubIndicator === 'vol';
+            const isSubInflow = _clSubIndicator === 'inflow';
             const isSubMacd = _clSubIndicator === 'macd';
             const isSubRsi = _clSubIndicator === 'rsi';
             const isSubKdj = _clSubIndicator === 'kdj';
@@ -23309,6 +23311,45 @@
             const rawCloses = rawCandles.map(c => c[1]);
             const rawLows = rawCandles.map(c => c[2]);
             const rawHighs = rawCandles.map(c => c[3]);
+
+            function calcClientInflow(candlesList, amountsList) {
+                const netInflows = [];
+                const n = candlesList ? candlesList.length : 0;
+                for (let i = 0; i < n; i++) {
+                    const c = candlesList[i];
+                    const open = Number(c[0] || 0);
+                    const close = Number(c[1] || 0);
+                    const low = Number(c[2] || 0);
+                    const high = Number(c[3] || 0);
+                    let amt = 0;
+                    if (amountsList && amountsList[i] && amountsList[i][1] != null && !isNaN(amountsList[i][1])) {
+                        amt = Number(amountsList[i][1]);
+                    } else {
+                        amt = close * 10000;
+                    }
+                    const preC = (i > 0 && candlesList[i - 1]) ? Number(candlesList[i - 1][1] || open) : open;
+                    const hlDiff = Math.max(0.001, high - low);
+                    const bodyR = (close - open) / hlDiff;
+                    const posR = (close - low) / hlDiff - 0.5;
+                    const chgR = ((close / Math.max(0.01, preC)) - 1.0) * 10.0;
+                    let flowR = bodyR * 0.08 + posR * 0.06 + chgR * 0.10;
+                    flowR = Math.max(-0.20, Math.min(0.20, flowR));
+                    netInflows.push(Number((amt * flowR).toFixed(2)));
+                }
+                const ma3 = netInflows.map((v, i) => {
+                    if (i < 2) return null;
+                    let s = 0; for (let j = i - 2; j <= i; j++) s += netInflows[j]; return Number((s / 3).toFixed(2));
+                });
+                const ma5 = netInflows.map((v, i) => {
+                    if (i < 4) return null;
+                    let s = 0; for (let j = i - 4; j <= i; j++) s += netInflows[j]; return Number((s / 5).toFixed(2));
+                });
+                const ma10 = netInflows.map((v, i) => {
+                    if (i < 9) return null;
+                    let s = 0; for (let j = i - 9; j <= i; j++) s += netInflows[j]; return Number((s / 10).toFixed(2));
+                });
+                return { net_inflow: netInflows, ma3, ma5, ma10 };
+            }
 
             function calcClientRSI(n) {
                 const res = [];
@@ -23412,6 +23453,87 @@
                             if (val >= 1e8) return `${(val / 1e8).toFixed(1)}亿`;
                             if (val >= 1e4) return `${(val / 1e4).toFixed(0)}万`;
                             return String(val);
+                        }
+                    }
+                };
+            } else if (isSubInflow) {
+                const amountsData = (uc.amounts && uc.amounts.length > 0)
+                    ? uc.amounts
+                    : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
+                const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
+                    ? uc.inflow
+                    : calcClientInflow(candles, amountsData);
+                const netInflows = inflowData.net_inflow || [];
+                const ma3 = inflowData.ma3 || [];
+                const ma5 = inflowData.ma5 || [];
+                const ma10 = inflowData.ma10 || [];
+
+                subSeries = [
+                    {
+                        name: '主力净流入',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: netInflows.map(val => {
+                            const isPos = (val || 0) >= 0;
+                            return {
+                                value: val,
+                                itemStyle: {
+                                    color: isPos ? '#ef4444' : '#10b981',
+                                    borderColor: isPos ? '#dc2626' : '#059669',
+                                    borderWidth: 0.8
+                                }
+                            };
+                        }),
+                        barWidth: '55%',
+                        barMaxWidth: 14
+                    },
+                    {
+                        name: '流入MA3',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: ma3,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#FACC15' },
+                        itemStyle: { color: '#FACC15' }
+                    },
+                    {
+                        name: '流入MA5',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: ma5,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#38BDF8' },
+                        itemStyle: { color: '#38BDF8' }
+                    },
+                    {
+                        name: '流入MA10',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: ma10,
+                        showSymbol: false,
+                        lineStyle: { width: 1.1, color: '#C084FC' },
+                        itemStyle: { color: '#C084FC' }
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: {
+                        color: '#64748b',
+                        fontSize: 9,
+                        formatter: (val) => {
+                            if (val == null || isNaN(val)) return '';
+                            const absV = Math.abs(val);
+                            const sign = val < 0 ? '-' : '';
+                            if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(1)}亿`;
+                            if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(0)}万`;
+                            return `${sign}${absV.toFixed(0)}`;
                         }
                     }
                 };
@@ -24059,6 +24181,40 @@
                                 <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
                                     <span style="color: #38bdf8;">EXP12: <b>${e12 != null ? Number(e12).toFixed(2) : '--'}</b></span>
                                     <span style="color: #f59e0b;">EXP50: <b>${e50 != null ? Number(e50).toFixed(2) : '--'}</b></span>
+                                </div>
+                            `;
+                        } else if (isSubInflow) {
+                            const amountsData = (uc.amounts && uc.amounts.length > 0)
+                                ? uc.amounts
+                                : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
+                            const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
+                                ? uc.inflow
+                                : calcClientInflow(candles, amountsData);
+                            const flowVal = (inflowData.net_inflow && inflowData.net_inflow[idx] != null) ? inflowData.net_inflow[idx] : 0;
+                            const m3 = (inflowData.ma3 && inflowData.ma3[idx] != null) ? inflowData.ma3[idx] : null;
+                            const m5 = (inflowData.ma5 && inflowData.ma5[idx] != null) ? inflowData.ma5[idx] : null;
+                            const m10 = (inflowData.ma10 && inflowData.ma10[idx] != null) ? inflowData.ma10[idx] : null;
+
+                            const formatFlow = (val) => {
+                                if (val == null || isNaN(val)) return '--';
+                                const absV = Math.abs(val);
+                                const sign = val > 0 ? '+' : (val < 0 ? '-' : '');
+                                if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(2)}亿`;
+                                if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(1)}万`;
+                                return `${sign}${absV.toFixed(0)}元`;
+                            };
+                            const flowColor = flowVal > 0 ? '#ef4444' : (flowVal < 0 ? '#10b981' : (isDark ? '#cbd5e1' : '#64748b'));
+                            subHtml = `
+                                <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">主力净流入:</span>
+                                        <b style="color: ${flowColor}; text-align: right;">${formatFlow(flowVal)}</b>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; justify-content: space-between; font-size: 10px;">
+                                        <span style="color: #FACC15;">MA3: <b>${formatFlow(m3)}</b></span>
+                                        <span style="color: #38BDF8;">MA5: <b>${formatFlow(m5)}</b></span>
+                                        <span style="color: #C084FC;">MA10: <b>${formatFlow(m10)}</b></span>
+                                    </div>
                                 </div>
                             `;
                         }
