@@ -3152,7 +3152,9 @@
                             class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
                             <span class="text-[11px] text-slate-400 font-medium">战法:</span>
                             <select id="screener-strategy-select" onchange="onScreenerParamsChange()"
-                                class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-44"></select>
+                                class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-44">
+                                <option value="chanlun_strategy" selected>[chanlun] 缠论1/2/3类买卖点与笔背驰策略 (chanlun_strategy)</option>
+                            </select>
                         </div>
 
                         <!-- Period Selector (周期筛选: 30分 60分 120分 日线 周线 月线 季线) -->
@@ -17408,7 +17410,12 @@
                     const strategies = data.strategies || data.data || [];
                     window.ALL_STRATEGIES = strategies;
                     const optHtml = strategies.map(s => `<option value="${s.name}" ${s.name === 'td_sequential' ? 'selected' : ''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
-                    document.getElementById('screener-strategy-select').innerHTML = optHtml;
+                    const screenerDefault = strategies.some(s => s.name === 'chanlun_strategy') ? 'chanlun_strategy' : (strategies.some(s => s.name === 'chan_theory_daily') ? 'chan_theory_daily' : 'td_sequential');
+                    const scrSel = document.getElementById('screener-strategy-select');
+                    if (scrSel) {
+                        scrSel.innerHTML = screenerOptHtml;
+                        scrSel.value = screenerDefault;
+                    }
                     document.getElementById('bt-strategy-select').innerHTML = optHtml;
                     const optSel = document.getElementById('opt-strategy-select');
                     if (optSel) optSel.innerHTML = optHtml;
@@ -18279,7 +18286,7 @@
             const uniSelect = document.getElementById('screener-universe-select');
             const periodSelect = document.getElementById('screener-period-select');
             const forceInput = document.getElementById('screener-force-refresh');
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
+            const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const universe = uniSelect ? uniSelect.value : 'core';
             const period = periodSelect ? periodSelect.value : 'DAY';
@@ -18304,7 +18311,7 @@
             const forceInput = document.getElementById('screener-force-refresh');
             if (uniSelect) uniSelect.value = 'all';
 
-            const strategy = stSelect ? stSelect.value : 'zig_breakout';
+            const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const period = periodSelect ? periodSelect.value : 'DAY';
             const forceRefresh = forceInput ? forceInput.checked : false;

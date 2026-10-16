@@ -28,7 +28,7 @@ _ASYNC_TASKS: dict[str, dict[str, Any]] = {}
 _TASKS_LOCK = threading.Lock()
 
 class ScreenerScanRequest(BaseModel):
-    strategy: str
+    strategy: str = "chanlun_strategy"
     universe: str = "core"
     period: str = "DAY"
     symbols: list[str] | None = None
@@ -36,7 +36,7 @@ class ScreenerScanRequest(BaseModel):
     force_refresh: bool = False
 
 class ScreenerTaskStartRequest(BaseModel):
-    strategy: str
+    strategy: str = "chanlun_strategy"
     universe: str = "core"
     period: str = "DAY"
     lookback_bars: int = 20
@@ -72,7 +72,7 @@ def api_clear_screener_cache():
 
 @router.get("/scan")
 def api_scan_get(
-    strategy: str = Query("zig_breakout", description="Strategy identifier name"),
+    strategy: str = Query("chanlun_strategy", description="Strategy identifier name"),
     universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all"),
     period: str = Query("DAY", description="Period: 30M, 60M, 120M, DAY, WEEK, MONTH, SEASON"),
     force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
