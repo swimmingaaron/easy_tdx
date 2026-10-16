@@ -503,6 +503,23 @@ export interface MacdData {
   dea: number[]
 }
 
+export interface RsiData {
+  rsi6: (number | null)[]
+  rsi12: (number | null)[]
+  rsi24: (number | null)[]
+}
+
+export interface KdjData {
+  k: (number | null)[]
+  d: (number | null)[]
+  j: (number | null)[]
+}
+
+export interface ExpmaData {
+  exp12: (number | null)[]
+  exp50: (number | null)[]
+}
+
 export interface UnifiedChartData {
   dates: string[]
   candles: [number, number, number, number][] // [open, close, low, high]
@@ -518,6 +535,9 @@ export interface UnifiedChartData {
   res_marks: ResMark[]
   macd_marks?: any[]
   macd: MacdData
+  rsi?: RsiData
+  kdj?: KdjData
+  expma?: ExpmaData
 }
 
 export interface LevelChartData {
@@ -529,6 +549,9 @@ export interface LevelChartData {
   bis: [ [string, number], [string, number] ][]
   zss: { start_date: string; end_date: string; zg: number; zd: number }[]
   macd: MacdData
+  rsi?: RsiData
+  kdj?: KdjData
+  expma?: ExpmaData
 }
 
 export interface BacktrackTimeline {

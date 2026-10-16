@@ -928,20 +928,33 @@ class MacClient:
         rows: list[dict[str, Any]] = []
         for _, row in boards_df.iterrows():
             code = str(row["code"])
-            summary = self.get_board_summary(code)
+            try:
+                summary = self.get_board_summary(code)
+            except Exception as e:
+                _logger.debug("Failed to fetch summary for board %s: %s", code, e)
+                summary = {
+                    "amount": 0.0,
+                    "vol": 0,
+                    "main_net_amount": 0.0,
+                    "main_net_3d": 0.0,
+                    "main_net_5d": 0.0,
+                    "up_count": 0,
+                    "down_count": 0,
+                    "member_count": 0,
+                }
             rows.append(
                 {
                     "code": code,
                     "name": row.get("name", ""),
                     "change_pct": round(float(row.get("change_pct", 0.0)), 2),
-                    "amount": summary["amount"],
-                    "vol": summary["vol"],
-                    "main_net_amount": summary["main_net_amount"],
-                    "main_net_3d": summary["main_net_3d"],
-                    "main_net_5d": summary["main_net_5d"],
-                    "up_count": summary["up_count"],
-                    "down_count": summary["down_count"],
-                    "member_count": summary["member_count"],
+                    "amount": summary.get("amount", 0.0),
+                    "vol": summary.get("vol", 0),
+                    "main_net_amount": summary.get("main_net_amount", 0.0),
+                    "main_net_3d": summary.get("main_net_3d", 0.0),
+                    "main_net_5d": summary.get("main_net_5d", 0.0),
+                    "up_count": summary.get("up_count", 0),
+                    "down_count": summary.get("down_count", 0),
+                    "member_count": summary.get("member_count", 0),
                 }
             )
 
@@ -1902,19 +1915,32 @@ class AsyncMacClient(AsyncHeartbeatMixin):
 
         async def _fetch_row(row: pd.Series) -> dict[str, Any]:
             code = str(row["code"])
-            summary = await self.get_board_summary(code)
+            try:
+                summary = await self.get_board_summary(code)
+            except Exception as e:
+                _logger.debug("Failed to fetch summary for board %s: %s", code, e)
+                summary = {
+                    "amount": 0.0,
+                    "vol": 0,
+                    "main_net_amount": 0.0,
+                    "main_net_3d": 0.0,
+                    "main_net_5d": 0.0,
+                    "up_count": 0,
+                    "down_count": 0,
+                    "member_count": 0,
+                }
             return {
                 "code": code,
                 "name": row.get("name", ""),
                 "change_pct": round(float(row.get("change_pct", 0.0)), 2),
-                "amount": summary["amount"],
-                "vol": summary["vol"],
-                "main_net_amount": summary["main_net_amount"],
-                "main_net_3d": summary["main_net_3d"],
-                "main_net_5d": summary["main_net_5d"],
-                "up_count": summary["up_count"],
-                "down_count": summary["down_count"],
-                "member_count": summary["member_count"],
+                "amount": summary.get("amount", 0.0),
+                "vol": summary.get("vol", 0),
+                "main_net_amount": summary.get("main_net_amount", 0.0),
+                "main_net_3d": summary.get("main_net_3d", 0.0),
+                "main_net_5d": summary.get("main_net_5d", 0.0),
+                "up_count": summary.get("up_count", 0),
+                "down_count": summary.get("down_count", 0),
+                "member_count": summary.get("member_count", 0),
             }
 
         rows = await asyncio.gather(*[_fetch_row(row) for _, row in boards_df.iterrows()])

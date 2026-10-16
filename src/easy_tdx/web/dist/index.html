@@ -4720,6 +4720,9 @@
                                 class="h-6 bg-transparent text-cyan-600 dark:text-cyan-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
                                 <option value="amount" selected>成交额</option>
                                 <option value="macd">MACD</option>
+                                <option value="rsi">RSI</option>
+                                <option value="kdj">KDJ</option>
+                                <option value="expma">EXPMA</option>
                                 <option value="none">关闭副图</option>
                             </select>
                         </div>
@@ -16258,6 +16261,14 @@
                         } else {
                             loadSectorStocks(activeInd.code, activeInd.name, true);
                         }
+                    } else if (window.ALL_INDUSTRIES && window.ALL_INDUSTRIES.length > 0) {
+                        renderIndustryList(window.ALL_INDUSTRIES);
+                    } else {
+                        const indEl = document.getElementById('industry-list');
+                        if (indEl && (!indEl.children || indEl.children.length === 0)) {
+                            indEl.innerHTML = '<div class="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center space-y-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin text-indigo-400"></i><span>正在连接实时行情源同步行业板块...</span></div>';
+                            if (window.lucide) lucide.createIcons();
+                        }
                     }
                 }
             } catch (e) {
@@ -22488,7 +22499,7 @@
             mmd: true,
             res: false
         };
-        let _clSubIndicator = 'amount'; // 'amount' | 'macd'
+        let _clSubIndicator = 'amount'; // 'amount' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
 
         function updateChanlunLayerButtons() {
             // 同步副图下拉菜单
@@ -23268,12 +23279,93 @@
             }) : [];
 
 
-            // 7. 副图指标系列 (成交额 vs MACD，默认成交额)
+            // 7. 副图指标系列 (成交额 / MACD / RSI / KDJ / EXPMA / 关闭)
+            const isSubNone = _clSubIndicator === 'none';
+            const isSubAmount = _clSubIndicator === 'amount' || _clSubIndicator === 'vol';
+            const isSubMacd = _clSubIndicator === 'macd';
+            const isSubRsi = _clSubIndicator === 'rsi';
+            const isSubKdj = _clSubIndicator === 'kdj';
+            const isSubExpma = _clSubIndicator === 'expma';
+
             const macdData = uc.macd || { hist: [], dif: [], dea: [] };
+
+            // 辅助前端本地计算 (当后端未返回对应字段时平滑兜底)
+            const rawCandles = uc.candles || [];
+            const rawCloses = rawCandles.map(c => c[1]);
+            const rawLows = rawCandles.map(c => c[2]);
+            const rawHighs = rawCandles.map(c => c[3]);
+
+            function calcClientRSI(n) {
+                const res = [];
+                let smaup = 0;
+                let smaabs = 0;
+                for (let i = 0; i < rawCloses.length; i++) {
+                    if (i === 0) { res.push(null); continue; }
+                    const dif = rawCloses[i] - rawCloses[i - 1];
+                    const up = Math.max(dif, 0);
+                    const abs = Math.abs(dif);
+                    if (i === 1) { smaup = up; smaabs = abs; }
+                    else {
+                        smaup = (up + (n - 1) * smaup) / n;
+                        smaabs = (abs + (n - 1) * smaabs) / n;
+                    }
+                    if (smaabs === 0) res.push(50);
+                    else res.push(Number(((smaup / smaabs) * 100).toFixed(2)));
+                }
+                return res;
+            }
+
+            function calcClientKDJ() {
+                const kArr = [], dArr = [], jArr = [];
+                let lastK = 50, lastD = 50;
+                for (let i = 0; i < rawCandles.length; i++) {
+                    const start = Math.max(0, i - 8);
+                    let minL = rawLows[start], maxH = rawHighs[start];
+                    for (let j = start + 1; j <= i; j++) {
+                        if (rawLows[j] < minL) minL = rawLows[j];
+                        if (rawHighs[j] > maxH) maxH = rawHighs[j];
+                    }
+                    const rsv = maxH === minL ? 50 : ((rawCloses[i] - minL) / (maxH - minL)) * 100;
+                    const curK = (1 / 3) * rsv + (2 / 3) * lastK;
+                    const curD = (1 / 3) * curK + (2 / 3) * lastD;
+                    const curJ = 3 * curK - 2 * curD;
+                    lastK = curK;
+                    lastD = curD;
+                    kArr.push(Number(curK.toFixed(2)));
+                    dArr.push(Number(curD.toFixed(2)));
+                    jArr.push(Number(curJ.toFixed(2)));
+                }
+                return { k: kArr, d: dArr, j: jArr };
+            }
+
+            function calcClientEMA(span) {
+                const res = [];
+                const alpha = 2 / (span + 1);
+                let prev = 0;
+                for (let i = 0; i < rawCloses.length; i++) {
+                    if (i === 0) prev = rawCloses[i];
+                    else prev = alpha * rawCloses[i] + (1 - alpha) * prev;
+                    res.push(Number(prev.toFixed(2)));
+                }
+                return res;
+            }
+
+            const rsiData = (uc.rsi && uc.rsi.rsi6 && uc.rsi.rsi6.length > 0)
+                ? uc.rsi
+                : { rsi6: calcClientRSI(6), rsi12: calcClientRSI(12), rsi24: calcClientRSI(24) };
+
+            const kdjData = (uc.kdj && uc.kdj.k && uc.kdj.k.length > 0)
+                ? uc.kdj
+                : calcClientKDJ();
+
+            const expmaData = (uc.expma && uc.expma.exp12 && uc.expma.exp12.length > 0)
+                ? uc.expma
+                : { exp12: calcClientEMA(12), exp50: calcClientEMA(50) };
+
             let subSeries = [];
             let subYAxis = {};
 
-            if (_clSubIndicator === 'amount' || _clSubIndicator === 'vol') {
+            if (isSubAmount) {
                 const amountsData = (uc.amounts && uc.amounts.length > 0)
                     ? uc.amounts
                     : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
@@ -23308,7 +23400,7 @@
                         }
                     }
                 };
-            } else {
+            } else if (isSubMacd) {
                 // 计算 K 线弹窗同款 Enhanced MACD 完整分析引擎 (背离箭头连线、金叉死叉、共振、RSI)
                 const barsForMacd = candles.map((c, i) => ({
                     open: c[0],
@@ -23598,6 +23690,135 @@
                     splitLine: { show: false },
                     axisLabel: { color: '#64748b', fontSize: 9 }
                 };
+            } else if (isSubRsi) {
+                subSeries = [
+                    {
+                        name: 'RSI6',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: rsiData.rsi6,
+                        lineStyle: { color: '#ffffff', width: 1.3 },
+                        symbol: 'none',
+                        markLine: {
+                            symbol: 'none',
+                            silent: true,
+                            data: [
+                                { yAxis: 80, lineStyle: { color: 'rgba(239, 68, 68, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndTop', formatter: '超买 80', color: '#ef4444', fontSize: 9 } },
+                                { yAxis: 50, lineStyle: { color: 'rgba(148, 163, 184, 0.4)', type: 'dotted', width: 1 }, label: { show: false } },
+                                { yAxis: 20, lineStyle: { color: 'rgba(16, 185, 129, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndBottom', formatter: '超卖 20', color: '#10b981', fontSize: 9 } }
+                            ]
+                        }
+                    },
+                    {
+                        name: 'RSI12',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: rsiData.rsi12,
+                        lineStyle: { color: '#ffd600', width: 1.3 },
+                        symbol: 'none'
+                    },
+                    {
+                        name: 'RSI24',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: rsiData.rsi24,
+                        lineStyle: { color: '#c084fc', width: 1.3 },
+                        symbol: 'none'
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    min: 0,
+                    max: 100,
+                    scale: false,
+                    splitLine: { show: false },
+                    axisLabel: { color: '#64748b', fontSize: 9, formatter: v => Number(v).toFixed(0) }
+                };
+            } else if (isSubKdj) {
+                subSeries = [
+                    {
+                        name: 'K',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: kdjData.k,
+                        lineStyle: { color: '#ffffff', width: 1.3 },
+                        symbol: 'none',
+                        markLine: {
+                            symbol: 'none',
+                            silent: true,
+                            data: [
+                                { yAxis: 80, lineStyle: { color: 'rgba(239, 68, 68, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndTop', formatter: '超买 80', color: '#ef4444', fontSize: 9 } },
+                                { yAxis: 20, lineStyle: { color: 'rgba(16, 185, 129, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndBottom', formatter: '超卖 20', color: '#10b981', fontSize: 9 } }
+                            ]
+                        }
+                    },
+                    {
+                        name: 'D',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: kdjData.d,
+                        lineStyle: { color: '#ffd600', width: 1.3 },
+                        symbol: 'none'
+                    },
+                    {
+                        name: 'J',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: kdjData.j,
+                        lineStyle: { color: '#f43f5e', width: 1.3 },
+                        symbol: 'none'
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: { color: '#64748b', fontSize: 9, formatter: v => Number(v).toFixed(0) }
+                };
+            } else if (isSubExpma) {
+                subSeries = [
+                    {
+                        name: 'EXP12',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: expmaData.exp12,
+                        lineStyle: { color: '#38bdf8', width: 1.4 },
+                        symbol: 'none'
+                    },
+                    {
+                        name: 'EXP50',
+                        type: 'line',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: expmaData.exp50,
+                        lineStyle: { color: '#f59e0b', width: 1.4 },
+                        symbol: 'none'
+                    }
+                ];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    scale: true,
+                    splitLine: { show: false },
+                    axisLabel: { color: '#64748b', fontSize: 9, formatter: v => Number(v).toFixed(2) }
+                };
+            } else {
+                // none: 关闭副图
+                subSeries = [];
+                subYAxis = {
+                    type: 'value',
+                    gridIndex: 1,
+                    show: false
+                };
             }
 
             // 统一坐标轴风格配置 (完全参考K线弹窗)
@@ -23712,6 +23933,51 @@
                         else if (curAmt >= 1e4) amtStr = `${(curAmt / 1e4).toFixed(0)}万`;
                         else if (curAmt > 0) amtStr = `${curAmt.toFixed(0)}元`;
 
+                        let subHtml = '';
+                        if (isSubMacd && macdData.dif && macdData.dif[idx] !== undefined) {
+                            const difV = macdData.dif[idx];
+                            const deaV = macdData.dea ? macdData.dea[idx] : undefined;
+                            const histV = macdData.hist ? macdData.hist[idx] : undefined;
+                            subHtml = `
+                                <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <span style="color: #cbd5e1;">DIF: <b style="color: #ffffff;">${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #cbd5e1;">DEA: <b style="color: #ffd600;">${deaV != null ? Number(deaV).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #cbd5e1;">MACD: <b style="color: ${(histV || 0) >= 0 ? '#ef4444' : '#10b981'};">${histV != null ? Number(histV).toFixed(2) : '--'}</b></span>
+                                </div>
+                            `;
+                        } else if (isSubRsi && rsiData.rsi6) {
+                            const r6 = rsiData.rsi6[idx];
+                            const r12 = rsiData.rsi12[idx];
+                            const r24 = rsiData.rsi24[idx];
+                            subHtml = `
+                                <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <span style="color: #ffffff;">RSI6: <b>${r6 != null ? Number(r6).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #ffd600;">RSI12: <b>${r12 != null ? Number(r12).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #c084fc;">RSI24: <b>${r24 != null ? Number(r24).toFixed(2) : '--'}</b></span>
+                                </div>
+                            `;
+                        } else if (isSubKdj && kdjData.k) {
+                            const kVal = kdjData.k[idx];
+                            const dVal = kdjData.d[idx];
+                            const jVal = kdjData.j[idx];
+                            subHtml = `
+                                <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <span style="color: #ffffff;">K: <b>${kVal != null ? Number(kVal).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #ffd600;">D: <b>${dVal != null ? Number(dVal).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #f43f5e;">J: <b>${jVal != null ? Number(jVal).toFixed(2) : '--'}</b></span>
+                                </div>
+                            `;
+                        } else if (isSubExpma && expmaData.exp12) {
+                            const e12 = expmaData.exp12[idx];
+                            const e50 = expmaData.exp50[idx];
+                            subHtml = `
+                                <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <span style="color: #38bdf8;">EXP12: <b>${e12 != null ? Number(e12).toFixed(2) : '--'}</b></span>
+                                    <span style="color: #f59e0b;">EXP50: <b>${e50 != null ? Number(e50).toFixed(2) : '--'}</b></span>
+                                </div>
+                            `;
+                        }
+
                         return `
                             <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 4px; margin-bottom: 6px;">
@@ -23729,13 +23995,14 @@
                                 </div>
                                 ${resHtml}
                                 ${macdHtml}
+                                ${subHtml}
                             </div>
                         `;
                     }
                 },
                 grid: [
-                    { left: 52, right: 32, top: 38, bottom: '24%' },
-                    { left: 52, right: 32, height: '14%', bottom: 25 }
+                    { left: 52, right: 32, top: 38, bottom: isSubNone ? 28 : '24%' },
+                    { left: 52, right: 32, height: isSubNone ? 0 : '14%', bottom: 25, show: !isSubNone }
                 ],
                 xAxis: [
                     {
@@ -23743,18 +24010,19 @@
                         data: dates,
                         gridIndex: 0,
                         axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { show: false },
-                        axisPointer: { label: { show: false } },
+                        axisLabel: { show: isSubNone, color: textColor, fontSize: 10 },
+                        axisPointer: { label: { show: isSubNone, backgroundColor: axisPointerBg } },
                         splitLine: { show: true, lineStyle: { color: splitColor, type: 'dashed' } }
                     },
                     {
                         type: 'category',
                         data: dates,
                         gridIndex: 1,
+                        show: !isSubNone,
                         axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { color: textColor, fontSize: 10 },
-                        axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
-                        splitLine: { show: true, lineStyle: { color: splitColor, type: 'dashed' } }
+                        axisLabel: { show: !isSubNone, color: textColor, fontSize: 10 },
+                        axisPointer: { label: { show: !isSubNone, backgroundColor: axisPointerBg } },
+                        splitLine: { show: !isSubNone, lineStyle: { color: splitColor, type: 'dashed' } }
                     }
                 ],
                 yAxis: [

@@ -33,12 +33,22 @@ _MAC_CLIENT = None
 _MAC_LOCK = threading.Lock()
 
 
-def _get_or_create_mac_client():
-    """Get or create a singleton MacClient for board/industry sector APIs."""
+def _get_or_create_mac_client(force_new: bool = False):
+    """Get or create a singleton MacClient for board/industry sector APIs with auto health check."""
     global _MAC_CLIENT
     with _MAC_LOCK:
-        if _MAC_CLIENT is not None:
-            return _MAC_CLIENT
+        if not force_new and _MAC_CLIENT is not None:
+            conn = getattr(_MAC_CLIENT, "_conn", None)
+            sock = getattr(conn, "_sock", None) if conn else None
+            if sock is not None and getattr(sock, "fileno", lambda: -1)() != -1:
+                return _MAC_CLIENT
+            logger.info("Existing MAC client disconnected or invalid, reconnecting...")
+            try:
+                _MAC_CLIENT.close()
+            except Exception:
+                pass
+            _MAC_CLIENT = None
+
         from easy_tdx.mac.client import MacClient
         try:
             _MAC_CLIENT = MacClient.from_best_host()
@@ -49,9 +59,49 @@ def _get_or_create_mac_client():
             _MAC_CLIENT = MacClient()
             try:
                 _MAC_CLIENT.connect()
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.warning(f"MacClient default connect failed: {e2}")
+                _MAC_CLIENT = None
         return _MAC_CLIENT
+
+
+def _parse_industry_df(df: Any) -> list[dict[str, Any]]:
+    """Helper to parse board ranking DataFrame into industry dict items."""
+    industries: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        chg_val = float(row.get("change_pct", 0.0))
+        net_inflow = float(row.get("main_net_amount", 0.0))
+        inflow_yi = round(net_inflow / 100000000.0, 1)
+
+        net_inflow_3d = float(row.get("main_net_3d", 0.0))
+        inflow_3d_yi = round(net_inflow_3d / 100000000.0, 1)
+
+        net_inflow_5d = float(row.get("main_net_5d", 0.0))
+        inflow_5d_yi = round(net_inflow_5d / 100000000.0, 1)
+
+        chg_str = f"+{chg_val:.2f}%" if chg_val >= 0 else f"{chg_val:.2f}%"
+        inflow_str = f"{inflow_yi:+.1f}亿" if abs(inflow_yi) > 0 else f"{inflow_yi:.1f}亿"
+        inflow_3d_str = f"{inflow_3d_yi:+.1f}亿" if abs(inflow_3d_yi) > 0 else f"{inflow_3d_yi:.1f}亿"
+        inflow_5d_str = f"{inflow_5d_yi:+.1f}亿" if abs(inflow_5d_yi) > 0 else f"{inflow_5d_yi:.1f}亿"
+
+        industries.append({
+            "code": str(row.get("code", "")),
+            "name": str(row.get("name", "")),
+            "chg": chg_str,
+            "inflow": inflow_str,
+            "change_pct": chg_val,
+            "amount_yi": round(float(row.get("amount", 0.0)) / 100000000.0, 1),
+            "net_inflow_yi": inflow_yi,
+            "net_inflow_3d_yi": inflow_3d_yi,
+            "net_inflow_5d_yi": inflow_5d_yi,
+            "inflow_1d_str": inflow_str,
+            "inflow_3d_str": inflow_3d_str,
+            "inflow_5d_str": inflow_5d_str,
+            "up_count": int(row.get("up_count", 0)),
+            "down_count": int(row.get("down_count", 0)),
+            "member_count": int(row.get("member_count", 0)),
+        })
+    return industries
 
 
 def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
@@ -60,65 +110,152 @@ def _fetch_industry_ranking_live(top_n: int = 200) -> list[dict[str, Any]]:
     with _IND_CACHE_LOCK:
         if _INDUSTRIES_CACHE is not None:
             ts, cached_inds = _INDUSTRIES_CACHE
-            if now - ts < 10.0 and len(cached_inds) >= min(top_n, 30):
+            ttl = 20.0 if is_trading_time() else 60.0
+            if now - ts < ttl and len(cached_inds) >= min(top_n, 30):
                 return cached_inds[:top_n]
-    """Fetch all industry sector rankings from native TDX MAC protocol.
 
-    Uses ``MacClient.get_board_ranking(BoardType.HY, top_n=200)`` which returns
-    real-time change_pct, amount (turnover), and 1d/3d/5d main_net_amount (net capital
-    inflow) for each industry sector.
-    """
     from easy_tdx.mac.enums import BoardType
     try:
         mac = _get_or_create_mac_client()
-        df = mac.get_board_ranking(BoardType.HY, top_n=top_n, sort_by="change_pct", ascending=False)
+        df = mac.get_board_ranking(BoardType.HY, top_n=top_n, sort_by="change_pct", ascending=False) if mac else None
         if df is not None and not df.empty:
-            industries: list[dict[str, Any]] = []
-            for _, row in df.iterrows():
-                chg_val = float(row.get("change_pct", 0.0))
-                net_inflow = float(row.get("main_net_amount", 0.0))
-                inflow_yi = round(net_inflow / 100000000.0, 1)
-
-                net_inflow_3d = float(row.get("main_net_3d", 0.0))
-                inflow_3d_yi = round(net_inflow_3d / 100000000.0, 1)
-
-                net_inflow_5d = float(row.get("main_net_5d", 0.0))
-                inflow_5d_yi = round(net_inflow_5d / 100000000.0, 1)
-
-                chg_str = f"+{chg_val:.2f}%" if chg_val >= 0 else f"{chg_val:.2f}%"
-                inflow_str = f"{inflow_yi:+.1f}亿" if abs(inflow_yi) > 0 else f"{inflow_yi:.1f}亿"
-                inflow_3d_str = f"{inflow_3d_yi:+.1f}亿" if abs(inflow_3d_yi) > 0 else f"{inflow_3d_yi:.1f}亿"
-                inflow_5d_str = f"{inflow_5d_yi:+.1f}亿" if abs(inflow_5d_yi) > 0 else f"{inflow_5d_yi:.1f}亿"
-
-                industries.append({
-                    "code": str(row.get("code", "")),
-                    "name": str(row.get("name", "")),
-                    "chg": chg_str,
-                    "inflow": inflow_str,
-                    "change_pct": chg_val,
-                    "amount_yi": round(float(row.get("amount", 0.0)) / 100000000.0, 1),
-                    "net_inflow_yi": inflow_yi,
-                    "net_inflow_3d_yi": inflow_3d_yi,
-                    "net_inflow_5d_yi": inflow_5d_yi,
-                    "inflow_1d_str": inflow_str,
-                    "inflow_3d_str": inflow_3d_str,
-                    "inflow_5d_str": inflow_5d_str,
-                    "up_count": int(row.get("up_count", 0)),
-                    "down_count": int(row.get("down_count", 0)),
-                    "member_count": int(row.get("member_count", 0)),
-                })
+            industries = _parse_industry_df(df)
             if industries:
                 with _IND_CACHE_LOCK:
                     _INDUSTRIES_CACHE = (time.time(), industries)
-                # Preload constituent stocks for the leading industry
                 try:
                     industries[0]["stocks"] = fetch_board_members(industries[0]["code"], count=25)
                 except Exception:
                     pass
-            return industries
+                return industries
     except Exception as e:
-        logger.warning(f"Failed to fetch TDX MAC board ranking: {e}")
+        logger.warning(f"Failed to fetch TDX MAC board ranking: {e}, retrying with new connection...")
+        try:
+            mac = _get_or_create_mac_client(force_new=True)
+            if mac:
+                df = mac.get_board_ranking(BoardType.HY, top_n=top_n, sort_by="change_pct", ascending=False)
+                if df is not None and not df.empty:
+                    industries = _parse_industry_df(df)
+                    if industries:
+                        with _IND_CACHE_LOCK:
+                            _INDUSTRIES_CACHE = (time.time(), industries)
+                        try:
+                            industries[0]["stocks"] = fetch_board_members(industries[0]["code"], count=25)
+                        except Exception:
+                            pass
+                        return industries
+        except Exception as e2:
+            logger.warning(f"Retry fetching TDX MAC board ranking failed: {e2}")
+
+    # Fallback 1: Return memory cache if present (even if expired)
+    with _IND_CACHE_LOCK:
+        if _INDUSTRIES_CACHE is not None and len(_INDUSTRIES_CACHE[1]) > 0:
+            logger.info("Using cached industries as fallback after MAC fetch failure")
+            return _INDUSTRIES_CACHE[1][:top_n]
+
+    # Fallback 2: Read from disk snapshot if present
+    if os.path.exists(_SUMMARY_DISK_CACHE):
+        try:
+            with open(_SUMMARY_DISK_CACHE, "r", encoding="utf-8") as f:
+                disk_data = json.load(f)
+                disk_inds = disk_data.get("industries", [])
+                if disk_inds and len(disk_inds) > 0:
+                    logger.info("Using disk snapshot industries as fallback after MAC fetch failure")
+                    with _IND_CACHE_LOCK:
+                        _INDUSTRIES_CACHE = (now, disk_inds)
+                    return disk_inds[:top_n]
+        except Exception:
+            pass
+
+    # Fallback 3: Quick board list from MacClient (only 1 single request, without the heavy 128-iteration summary)
+    try:
+        mac = _get_or_create_mac_client()
+        if mac:
+            b_df = mac.get_board_list(BoardType.HY)
+            if b_df is not None and not b_df.empty:
+                quick_inds = []
+                for _, row in b_df.iterrows():
+                    p = float(row.get("price", 0.0))
+                    pc = float(row.get("pre_close", 0.0))
+                    c_pct = round((p - pc) / pc * 100.0, 2) if pc > 0 else 0.0
+                    c_str = f"+{c_pct:.2f}%" if c_pct >= 0 else f"{c_pct:.2f}%"
+                    quick_inds.append({
+                        "code": str(row.get("code", "")),
+                        "name": str(row.get("name", "")),
+                        "chg": c_str,
+                        "inflow": "--",
+                        "change_pct": c_pct,
+                        "amount_yi": 0.0,
+                        "net_inflow_yi": 0.0,
+                        "net_inflow_3d_yi": 0.0,
+                        "net_inflow_5d_yi": 0.0,
+                        "inflow_1d_str": "--",
+                        "inflow_3d_str": "--",
+                        "inflow_5d_str": "--",
+                        "up_count": 0,
+                        "down_count": 0,
+                        "member_count": 0,
+                    })
+                quick_inds.sort(key=lambda x: x["change_pct"], reverse=True)
+                if quick_inds:
+                    with _IND_CACHE_LOCK:
+                        _INDUSTRIES_CACHE = (now, quick_inds)
+                    return quick_inds[:top_n]
+    except Exception as e_quick:
+        logger.warning(f"Fallback get_board_list also failed: {e_quick}")
+
     return []
+
+
+def _parse_board_members_df(df: Any, board_code: str) -> list[dict[str, Any]]:
+    """Helper to parse board members DataFrame into constituent stock dicts."""
+    from easy_tdx.stock_lookup import get_stock_name
+    stocks: list[dict[str, Any]] = []
+    for _, row in df.iterrows():
+        code = str(row.get("code", ""))
+        raw_name = str(row.get("name", ""))
+        name = raw_name if raw_name and not raw_name.startswith("?") else get_stock_name(code)
+        c = round(float(row.get("close", 0.0)), 2)
+        pc = float(row.get("pre_close", 0.0))
+        if pc > 0:
+            chg_pct = round((c - pc) / pc * 100.0, 2)
+        else:
+            chg_pct = round(float(row.get("change_pct", 0.0)), 2)
+        chg_str = f"+{chg_pct:.2f}%" if chg_pct >= 0 else f"{chg_pct:.2f}%"
+        amt_yi = round(float(row.get("amount", 0.0)) / 100000000.0, 2)
+        t_cap = float(row.get("total_market_cap_ab") or 0.0)
+        total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
+
+        m1 = float(row.get("main_net_amount", 0.0))
+        m3 = float(row.get("main_net_3d_amount", 0.0))
+        m5 = float(row.get("main_net_5d_amount", 0.0))
+
+        def _fmt_money(v: float) -> str:
+            if abs(v) >= 100000000.0:
+                return f"{v / 100000000.0:+.1f}亿"
+            elif abs(v) >= 10000.0:
+                return f"{v / 10000.0:+.0f}万"
+            else:
+                return f"{v:+.0f}元"
+
+        stocks.append({
+            "code": code,
+            "name": name,
+            "price": c,
+            "change_pct": chg_pct,
+            "chg": chg_str,
+            "amount_yi": amt_yi,
+            "total_mv_yi": total_mv_yi,
+            "main_net_amount": m1,
+            "main_net_3d": m3,
+            "main_net_5d": m5,
+            "inflow_1d_str": _fmt_money(m1),
+            "inflow_3d_str": _fmt_money(m3),
+            "inflow_5d_str": _fmt_money(m5),
+            "vol": int(row.get("vol", 0)),
+        })
+    stocks.sort(key=lambda x: -x["change_pct"])
+    return stocks
 
 
 def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]]:
@@ -131,70 +268,46 @@ def fetch_board_members(board_code: str, count: int = 30) -> list[dict[str, Any]
             if now - ts < 15.0:
                 return [dict(x) for x in cached_stocks]
 
-    from easy_tdx.stock_lookup import get_stock_name
     from easy_tdx.codec.bitmap import FieldBit, PresetField
     stocks: list[dict[str, Any]] = []
+    fields = (
+        PresetField.BASIC
+        + FieldBit.AMOUNT
+        + FieldBit.TOTAL_MARKET_CAP_AB
+        + FieldBit.MAIN_NET_AMOUNT
+        + FieldBit.MAIN_NET_3D_AMOUNT
+        + FieldBit.MAIN_NET_5D_AMOUNT
+    )
+
     try:
         mac = _get_or_create_mac_client()
-        fields = (
-            PresetField.BASIC
-            + FieldBit.AMOUNT
-            + FieldBit.TOTAL_MARKET_CAP_AB
-            + FieldBit.MAIN_NET_AMOUNT
-            + FieldBit.MAIN_NET_3D_AMOUNT
-            + FieldBit.MAIN_NET_5D_AMOUNT
-        )
-        df = mac.get_board_members(str(board_code), count=count, fields=fields)
+        df = mac.get_board_members(str(board_code), count=count, fields=fields) if mac else None
         if df is not None and not df.empty:
-            for _, row in df.iterrows():
-                code = str(row.get("code", ""))
-                raw_name = str(row.get("name", ""))
-                name = raw_name if raw_name and not raw_name.startswith("?") else get_stock_name(code)
-                c = round(float(row.get("close", 0.0)), 2)
-                pc = float(row.get("pre_close", 0.0))
-                if pc > 0:
-                    chg_pct = round((c - pc) / pc * 100.0, 2)
-                else:
-                    chg_pct = round(float(row.get("change_pct", 0.0)), 2)
-                chg_str = f"+{chg_pct:.2f}%" if chg_pct >= 0 else f"{chg_pct:.2f}%"
-                amt_yi = round(float(row.get("amount", 0.0)) / 100000000.0, 2)
-                t_cap = float(row.get("total_market_cap_ab") or 0.0)
-                total_mv_yi = round(t_cap / 100000000.0, 2) if t_cap > 0 else 0.0
-
-                m1 = float(row.get("main_net_amount", 0.0))
-                m3 = float(row.get("main_net_3d_amount", 0.0))
-                m5 = float(row.get("main_net_5d_amount", 0.0))
-
-                def _fmt_money(v: float) -> str:
-                    if abs(v) >= 100000000.0:
-                        return f"{v / 100000000.0:+.1f}亿"
-                    elif abs(v) >= 10000.0:
-                        return f"{v / 10000.0:+.0f}万"
-                    else:
-                        return f"{v:+.0f}元"
-
-                stocks.append({
-                    "code": code,
-                    "name": name,
-                    "price": c,
-                    "change_pct": chg_pct,
-                    "chg": chg_str,
-                    "amount_yi": amt_yi,
-                    "total_mv_yi": total_mv_yi,
-                    "main_net_amount": m1,
-                    "main_net_3d": m3,
-                    "main_net_5d": m5,
-                    "inflow_1d_str": _fmt_money(m1),
-                    "inflow_3d_str": _fmt_money(m3),
-                    "inflow_5d_str": _fmt_money(m5),
-                    "vol": int(row.get("vol", 0)),
-                })
-            stocks.sort(key=lambda x: -x["change_pct"])
+            stocks = _parse_board_members_df(df, board_code)
             if stocks:
                 with _BOARD_CACHE_LOCK:
                     _BOARD_MEMBERS_CACHE[cache_key] = (time.time(), stocks)
+                return stocks
     except Exception as e:
-        logger.warning(f"Failed to fetch board members for {board_code}: {e}")
+        logger.warning(f"Failed to fetch board members for {board_code}: {e}, retrying with fresh client...")
+        try:
+            mac = _get_or_create_mac_client(force_new=True)
+            if mac:
+                df = mac.get_board_members(str(board_code), count=count, fields=fields)
+                if df is not None and not df.empty:
+                    stocks = _parse_board_members_df(df, board_code)
+                    if stocks:
+                        with _BOARD_CACHE_LOCK:
+                            _BOARD_MEMBERS_CACHE[cache_key] = (time.time(), stocks)
+                        return stocks
+        except Exception as e2:
+            logger.warning(f"Retry fetching board members for {board_code} failed: {e2}")
+
+    # Fallback to expired cache if available
+    if not stocks:
+        with _BOARD_CACHE_LOCK:
+            if cache_key in _BOARD_MEMBERS_CACHE:
+                return [dict(x) for x in _BOARD_MEMBERS_CACHE[cache_key][1]]
     return stocks
 
 
@@ -723,6 +836,18 @@ def _build_market_summary() -> dict[str, Any]:
 
     # 5. Leading industry sectors from native TDX MAC board ranking
     leading_industries = _fetch_industry_ranking_live()
+    if not leading_industries:
+        with _CACHE_LOCK:
+            if _OVERVIEW_CACHE is not None and _OVERVIEW_CACHE[1].get("industries"):
+                leading_industries = _OVERVIEW_CACHE[1]["industries"]
+        if not leading_industries and os.path.exists(_SUMMARY_DISK_CACHE):
+            try:
+                with open(_SUMMARY_DISK_CACHE, "r", encoding="utf-8") as f:
+                    old_disk = json.load(f)
+                    if old_disk.get("industries"):
+                        leading_industries = old_disk["industries"]
+            except Exception:
+                pass
 
     ret_summary = {
         "status": "success",
@@ -772,6 +897,15 @@ def _build_market_summary() -> dict[str, Any]:
 
     try:
         if has_valid_quote:
+            # Prevent overwriting valid industries on disk with an empty list
+            if not ret_summary.get("industries") and os.path.exists(_SUMMARY_DISK_CACHE):
+                try:
+                    with open(_SUMMARY_DISK_CACHE, "r", encoding="utf-8") as f:
+                        old_disk = json.load(f)
+                        if old_disk.get("industries"):
+                            ret_summary["industries"] = old_disk["industries"]
+                except Exception:
+                    pass
             os.makedirs(_CACHE_DIR, exist_ok=True)
             with open(_SUMMARY_DISK_CACHE, "w", encoding="utf-8") as f:
                 json.dump(ret_summary, f, ensure_ascii=False, indent=2)

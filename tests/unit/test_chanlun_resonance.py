@@ -289,3 +289,48 @@ def test_resonance_signal_dedup():
     assert len(deduped) == 1
     assert deduped[0].grade == "AAA"
 
+
+def test_analyze_multi_period_resonance_indicators():
+    """测试 analyze_multi_period_resonance 返回的 unified_chart 和 levels_data 包含完整的 RSI、KDJ、EXPMA 指标。"""
+    from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
+
+    res = analyze_multi_period_resonance(
+        code="000001",
+        periods="DAY,30F,5F",
+        count=80,
+        force_refresh=True,
+    )
+    assert "unified_chart" in res
+    uc = res["unified_chart"]
+    dates = uc["dates"]
+    n_bars = len(dates)
+
+    # 验证 RSI 指标
+    assert "rsi" in uc
+    assert "rsi6" in uc["rsi"] and len(uc["rsi"]["rsi6"]) == n_bars
+    assert "rsi12" in uc["rsi"] and len(uc["rsi"]["rsi12"]) == n_bars
+    assert "rsi24" in uc["rsi"] and len(uc["rsi"]["rsi24"]) == n_bars
+
+    # 验证 KDJ 指标
+    assert "kdj" in uc
+    assert "k" in uc["kdj"] and len(uc["kdj"]["k"]) == n_bars
+    assert "d" in uc["kdj"] and len(uc["kdj"]["d"]) == n_bars
+    assert "j" in uc["kdj"] and len(uc["kdj"]["j"]) == n_bars
+
+    # 验证 EXPMA 指标
+    assert "expma" in uc
+    assert "exp12" in uc["expma"] and len(uc["expma"]["exp12"]) == n_bars
+    assert "exp50" in uc["expma"] and len(uc["expma"]["exp50"]) == n_bars
+
+    # 验证 levels_data
+    assert "levels_data" in res
+    for p_key, p_data in res["levels_data"].items():
+        assert "rsi" in p_data
+        assert "kdj" in p_data
+        assert "expma" in p_data
+        p_bars = len(p_data["dates"])
+        assert len(p_data["rsi"]["rsi6"]) == p_bars
+        assert len(p_data["kdj"]["k"]) == p_bars
+        assert len(p_data["expma"]["exp12"]) == p_bars
+
+

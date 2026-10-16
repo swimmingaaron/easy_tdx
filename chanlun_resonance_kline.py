@@ -82,6 +82,7 @@ from easy_tdx.chanlun.analyser import ChanlunAnalyser, ChanlunResult
 from easy_tdx.chanlun.types import BI, FX, MMD, ZS, Direction, FXType, MMDType
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
+from easy_tdx.MyTT import RSI, KDJ, EXPMA
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1202,6 +1203,31 @@ def export_interactive_html(
         for i in range(len(base_df))
     ]
 
+    c_arr = base_df["close"].values if not base_df.empty else np.array([])
+    h_arr = base_df["high"].values if not base_df.empty else np.array([])
+    l_arr = base_df["low"].values if not base_df.empty else np.array([])
+
+    def _safe_f(val: Any) -> float | None:
+        if val is None or pd.isna(val) or np.isnan(val) or np.isinf(val):
+            return None
+        return round(float(val), 2)
+
+    if len(c_arr) > 0:
+        r6 = [_safe_f(v) for v in RSI(c_arr, 6)]
+        r12 = [_safe_f(v) for v in RSI(c_arr, 12)]
+        r24 = [_safe_f(v) for v in RSI(c_arr, 24)]
+        kv, dv, jv = KDJ(c_arr, h_arr, l_arr, 9, 3, 3)
+        k_list = [_safe_f(v) for v in kv]
+        d_list = [_safe_f(v) for v in dv]
+        j_list = [_safe_f(v) for v in jv]
+        e12, e50 = EXPMA(c_arr, 12, 50)
+        exp12_list = [_safe_f(v) for v in e12]
+        exp50_list = [_safe_f(v) for v in e50]
+    else:
+        r6, r12, r24 = [], [], []
+        k_list, d_list, j_list = [], [], []
+        exp12_list, exp50_list = [], []
+
     payload_json = json.dumps({
         "code": code,
         "name": name,
@@ -1220,6 +1246,14 @@ def export_interactive_html(
         "dea": dea,
         "macd_marks": macd_marks,
         "div_mark_lines": div_mark_lines,
+        "rsi6": r6,
+        "rsi12": r12,
+        "rsi24": r24,
+        "kdj_k": k_list,
+        "kdj_d": d_list,
+        "kdj_j": j_list,
+        "expma12": exp12_list,
+        "expma50": exp50_list,
         "resonances": [
             {
                 "timestamp": r.timestamp,
@@ -1273,7 +1307,7 @@ def export_interactive_html(
             backgroundColor: '#181b27',
             animation: false,
             legend: {{
-                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '★共振信号', '成交额', 'MACD'],
+                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '★共振信号', '成交额', 'MACD', 'RSI6', 'RSI12', 'RSI24', 'KDJ_K', 'KDJ_D', 'KDJ_J', 'EXP12', 'EXP50'],
                 selected: {{
                     '基准K线': true,
                     '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true,
@@ -1281,7 +1315,15 @@ def export_interactive_html(
                     '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true,
                     '★共振信号': false,
                     '成交额': true,
-                    'MACD': false
+                    'MACD': false,
+                    'RSI6': false,
+                    'RSI12': false,
+                    'RSI24': false,
+                    'KDJ_K': false,
+                    'KDJ_D': false,
+                    'KDJ_J': false,
+                    'EXP12': false,
+                    'EXP50': false
                 }},
                 top: 10,
                 textStyle: {{ color: '#ffffff' }}
@@ -1422,6 +1464,78 @@ def export_interactive_html(
                     yAxisIndex: 1,
                     data: D.dea,
                     lineStyle: {{ color: '#facc15', width: 1.2 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'RSI6',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.rsi6,
+                    lineStyle: {{ color: '#ffffff', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'RSI12',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.rsi12,
+                    lineStyle: {{ color: '#ffd600', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'RSI24',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.rsi24,
+                    lineStyle: {{ color: '#c084fc', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'KDJ_K',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.kdj_k,
+                    lineStyle: {{ color: '#ffffff', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'KDJ_D',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.kdj_d,
+                    lineStyle: {{ color: '#ffd600', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'KDJ_J',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.kdj_j,
+                    lineStyle: {{ color: '#f43f5e', width: 1.3 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'EXP12',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.expma12,
+                    lineStyle: {{ color: '#38bdf8', width: 1.4 }},
+                    symbol: 'none'
+                }},
+                {{
+                    name: 'EXP50',
+                    type: 'line',
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    data: D.expma50,
+                    lineStyle: {{ color: '#f59e0b', width: 1.4 }},
                     symbol: 'none'
                 }}
             ]

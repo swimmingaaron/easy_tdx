@@ -89,7 +89,7 @@ const showLowBi = ref(true)
 const showLowZs = ref(true)
 const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
-const subIndicator = ref<'amount' | 'macd' | 'none'>('amount')
+const subIndicator = ref<'amount' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
 const activeLayersCount = computed(() => {
   let c = 0
   if (showHighBi.value) c++
@@ -888,11 +888,102 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
       })
     : []
 
-  // 副图指标配置 (默认成交额，不要 MACD)
+  // 副图指标配置 (默认成交额，可选 MACD / RSI / KDJ / EXPMA / 关闭)
   const hasSub = subIndicator.value !== 'none'
   const isSubAmount = subIndicator.value === 'amount'
   const isSubMacd = subIndicator.value === 'macd'
+  const isSubRsi = subIndicator.value === 'rsi'
+  const isSubKdj = subIndicator.value === 'kdj'
+  const isSubExpma = subIndicator.value === 'expma'
   const macdData = uc.macd || { hist: [], dif: [], dea: [] }
+
+  // 辅助前端本地计算 (当后端未返回对应字段时平滑兜底)
+  const rawCandles = uc.candles || []
+  const closes = rawCandles.map((c) => c[1])
+  const lows = rawCandles.map((c) => c[2])
+  const highs = rawCandles.map((c) => c[3])
+
+  function calcClientRSI(n: number): (number | null)[] {
+    const res: (number | null)[] = []
+    let smaup = 0
+    let smaabs = 0
+    for (let i = 0; i < closes.length; i++) {
+      if (i === 0) {
+        res.push(null)
+        continue
+      }
+      const dif = closes[i] - closes[i - 1]
+      const up = Math.max(dif, 0)
+      const abs = Math.abs(dif)
+      if (i === 1) {
+        smaup = up
+        smaabs = abs
+      } else {
+        smaup = (up + (n - 1) * smaup) / n
+        smaabs = (abs + (n - 1) * smaabs) / n
+      }
+      if (smaabs === 0) {
+        res.push(50)
+      } else {
+        res.push(Number(((smaup / smaabs) * 100).toFixed(2)))
+      }
+    }
+    return res
+  }
+
+  function calcClientKDJ(): { k: (number | null)[]; d: (number | null)[]; j: (number | null)[] } {
+    const kArr: (number | null)[] = []
+    const dArr: (number | null)[] = []
+    const jArr: (number | null)[] = []
+    let lastK = 50
+    let lastD = 50
+    for (let i = 0; i < rawCandles.length; i++) {
+      const start = Math.max(0, i - 8)
+      let minL = lows[start]
+      let maxH = highs[start]
+      for (let j = start + 1; j <= i; j++) {
+        if (lows[j] < minL) minL = lows[j]
+        if (highs[j] > maxH) maxH = highs[j]
+      }
+      const rsv = maxH === minL ? 50 : ((closes[i] - minL) / (maxH - minL)) * 100
+      const curK = (1 / 3) * rsv + (2 / 3) * lastK
+      const curD = (1 / 3) * curK + (2 / 3) * lastD
+      const curJ = 3 * curK - 2 * curD
+      lastK = curK
+      lastD = curD
+      kArr.push(Number(curK.toFixed(2)))
+      dArr.push(Number(curD.toFixed(2)))
+      jArr.push(Number(curJ.toFixed(2)))
+    }
+    return { k: kArr, d: dArr, j: jArr }
+  }
+
+  function calcClientEMA(span: number): (number | null)[] {
+    const res: (number | null)[] = []
+    const alpha = 2 / (span + 1)
+    let prev = 0
+    for (let i = 0; i < closes.length; i++) {
+      if (i === 0) {
+        prev = closes[i]
+      } else {
+        prev = alpha * closes[i] + (1 - alpha) * prev
+      }
+      res.push(Number(prev.toFixed(2)))
+    }
+    return res
+  }
+
+  const rsiData = (uc.rsi && uc.rsi.rsi6 && uc.rsi.rsi6.length > 0)
+    ? uc.rsi
+    : { rsi6: calcClientRSI(6), rsi12: calcClientRSI(12), rsi24: calcClientRSI(24) }
+
+  const kdjData = (uc.kdj && uc.kdj.k && uc.kdj.k.length > 0)
+    ? uc.kdj
+    : calcClientKDJ()
+
+  const expmaData = (uc.expma && uc.expma.exp12 && uc.expma.exp12.length > 0)
+    ? uc.expma
+    : { exp12: calcClientEMA(12), exp50: calcClientEMA(50) }
 
   const subSeries: any[] = []
   if (isSubAmount) {
@@ -967,7 +1058,106 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
         symbol: 'none',
       }
     )
+  } else if (isSubRsi) {
+    subSeries.push(
+      {
+        name: 'RSI6',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: rsiData.rsi6,
+        lineStyle: { color: '#ffffff', width: 1.3 },
+        symbol: 'none',
+        markLine: {
+          symbol: 'none',
+          silent: true,
+          data: [
+            { yAxis: 80, lineStyle: { color: 'rgba(239, 68, 68, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndTop', formatter: '超买 80', color: '#ef4444', fontSize: 9 } },
+            { yAxis: 50, lineStyle: { color: 'rgba(148, 163, 184, 0.4)', type: 'dotted', width: 1 }, label: { show: false } },
+            { yAxis: 20, lineStyle: { color: 'rgba(16, 185, 129, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndBottom', formatter: '超卖 20', color: '#10b981', fontSize: 9 } },
+          ],
+        },
+      },
+      {
+        name: 'RSI12',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: rsiData.rsi12,
+        lineStyle: { color: '#ffd600', width: 1.3 },
+        symbol: 'none',
+      },
+      {
+        name: 'RSI24',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: rsiData.rsi24,
+        lineStyle: { color: '#c084fc', width: 1.3 },
+        symbol: 'none',
+      }
+    )
+  } else if (isSubKdj) {
+    subSeries.push(
+      {
+        name: 'K',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: kdjData.k,
+        lineStyle: { color: '#ffffff', width: 1.3 },
+        symbol: 'none',
+        markLine: {
+          symbol: 'none',
+          silent: true,
+          data: [
+            { yAxis: 80, lineStyle: { color: 'rgba(239, 68, 68, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndTop', formatter: '超买 80', color: '#ef4444', fontSize: 9 } },
+            { yAxis: 20, lineStyle: { color: 'rgba(16, 185, 129, 0.65)', type: 'dashed', width: 1 }, label: { show: true, position: 'insideEndBottom', formatter: '超卖 20', color: '#10b981', fontSize: 9 } },
+          ],
+        },
+      },
+      {
+        name: 'D',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: kdjData.d,
+        lineStyle: { color: '#ffd600', width: 1.3 },
+        symbol: 'none',
+      },
+      {
+        name: 'J',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: kdjData.j,
+        lineStyle: { color: '#f43f5e', width: 1.3 },
+        symbol: 'none',
+      }
+    )
+  } else if (isSubExpma) {
+    subSeries.push(
+      {
+        name: 'EXP12',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: expmaData.exp12,
+        lineStyle: { color: '#38bdf8', width: 1.4 },
+        symbol: 'none',
+      },
+      {
+        name: 'EXP50',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: expmaData.exp50,
+        lineStyle: { color: '#f59e0b', width: 1.4 },
+        symbol: 'none',
+      }
+    )
   }
+
 
   const option: echarts.EChartsCoreOption = {
     backgroundColor: '#131722',
@@ -1041,6 +1231,44 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
             ${matchedMacd.label}: ${matchedMacd.msg}
           </div>`
         }
+
+        // 副图数据展示
+        if (isSubMacd && macdData.dif && macdData.dif[idx] !== undefined) {
+          const difV = macdData.dif[idx]
+          const deaV = macdData.dea ? macdData.dea[idx] : undefined
+          const histV = macdData.hist ? macdData.hist[idx] : undefined
+          html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
+            <span style="color:#ffffff;">DIF: <b>${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
+            <span style="color:#ffd600; margin-left:8px;">DEA: <b>${deaV != null ? Number(deaV).toFixed(2) : '--'}</b></span>
+            <span style="color:${(histV || 0) >= 0 ? '#ef4146' : '#089981'}; margin-left:8px;">MACD: <b>${histV != null ? Number(histV).toFixed(2) : '--'}</b></span>
+          </div>`
+        } else if (isSubRsi && rsiData.rsi6) {
+          const r6 = rsiData.rsi6[idx]
+          const r12 = rsiData.rsi12[idx]
+          const r24 = rsiData.rsi24[idx]
+          html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
+            <span style="color:#ffffff;">RSI6: <b>${r6 != null ? Number(r6).toFixed(2) : '--'}</b></span>
+            <span style="color:#ffd600; margin-left:8px;">RSI12: <b>${r12 != null ? Number(r12).toFixed(2) : '--'}</b></span>
+            <span style="color:#c084fc; margin-left:8px;">RSI24: <b>${r24 != null ? Number(r24).toFixed(2) : '--'}</b></span>
+          </div>`
+        } else if (isSubKdj && kdjData.k) {
+          const kVal = kdjData.k[idx]
+          const dVal = kdjData.d[idx]
+          const jVal = kdjData.j[idx]
+          html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
+            <span style="color:#ffffff;">K: <b>${kVal != null ? Number(kVal).toFixed(2) : '--'}</b></span>
+            <span style="color:#ffd600; margin-left:8px;">D: <b>${dVal != null ? Number(dVal).toFixed(2) : '--'}</b></span>
+            <span style="color:#f43f5e; margin-left:8px;">J: <b>${jVal != null ? Number(jVal).toFixed(2) : '--'}</b></span>
+          </div>`
+        } else if (isSubExpma && expmaData.exp12) {
+          const e12 = expmaData.exp12[idx]
+          const e50 = expmaData.exp50[idx]
+          html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
+            <span style="color:#38bdf8;">EXP12: <b>${e12 != null ? Number(e12).toFixed(2) : '--'}</b></span>
+            <span style="color:#f59e0b; margin-left:8px;">EXP50: <b>${e50 != null ? Number(e50).toFixed(2) : '--'}</b></span>
+          </div>`
+        }
+
         return html
       },
     },
@@ -1050,7 +1278,11 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
         `大级别笔(${d.periods.high.name})`,
         `中级别笔(${d.periods.mid.name})`,
         `小级别笔(${d.periods.low.name})`,
-        ...(isSubAmount ? ['成交额'] : (isSubMacd ? ['MACD'] : [])),
+        ...(isSubAmount ? ['成交额'] : []),
+        ...(isSubMacd ? ['MACD', 'DIF', 'DEA'] : []),
+        ...(isSubRsi ? ['RSI6', 'RSI12', 'RSI24'] : []),
+        ...(isSubKdj ? ['K', 'D', 'J'] : []),
+        ...(isSubExpma ? ['EXP12', 'EXP50'] : []),
       ],
       selected: {
         基准K线: true,
@@ -1059,6 +1291,16 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
         [`小级别笔(${d.periods.low.name})`]: showLowBi.value,
         成交额: true,
         MACD: true,
+        DIF: true,
+        DEA: true,
+        RSI6: true,
+        RSI12: true,
+        RSI24: true,
+        K: true,
+        D: true,
+        J: true,
+        EXP12: true,
+        EXP50: true,
       },
       top: 10,
       textStyle: { color: '#a0a6b5', fontSize: 12 },
@@ -1098,7 +1340,9 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
       },
       {
         type: 'value',
-        scale: true,
+        scale: !isSubAmount && !isSubRsi,
+        min: isSubAmount ? 0 : (isSubRsi ? 0 : undefined),
+        max: isSubRsi ? 100 : undefined,
         gridIndex: 1,
         show: hasSub,
         position: 'right',
@@ -1114,7 +1358,11 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
                 if (n >= 1e4) return `${(n / 1e4).toFixed(0)}万`
                 return String(n)
               }
-            : undefined,
+            : (isSubExpma
+                ? (val: any) => Number(val).toFixed(2)
+                : (isSubRsi || isSubKdj
+                    ? (val: any) => Number(val).toFixed(0)
+                    : undefined)),
         },
       },
     ],
@@ -1586,6 +1834,9 @@ onBeforeUnmount(() => {
           <select v-model="subIndicator" class="cascading-select" @change="renderChart">
             <option value="amount">成交额</option>
             <option value="macd">MACD</option>
+            <option value="rsi">RSI</option>
+            <option value="kdj">KDJ</option>
+            <option value="expma">EXPMA</option>
             <option value="none">关闭副图</option>
           </select>
         </div>

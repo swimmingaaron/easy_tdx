@@ -31,6 +31,14 @@ from easy_tdx.chanlun.resample import convert_kline_frequency, can_resample_from
 from easy_tdx.chanlun.kline_cache import get_global_kline_disk_cache
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
+from easy_tdx.MyTT import RSI, KDJ, EXPMA
+
+
+def safe_float(val: Any, default: float | None = None) -> float | None:
+    if val is None or pd.isna(val) or np.isnan(val) or np.isinf(val):
+        return default
+    return round(float(val), 2)
+
 
 logger = logging.getLogger("chanlun.resonance")
 
@@ -1433,6 +1441,38 @@ def analyze_multi_period_resonance(
 
     macd_marks.sort(key=lambda x: x["bar_idx"])
 
+    # 6.3 辅助副图技术指标计算 (RSI, KDJ, EXPMA)
+    c_arr = base_df["close"].values if not base_df.empty else np.array([])
+    h_arr = base_df["high"].values if not base_df.empty else np.array([])
+    l_arr = base_df["low"].values if not base_df.empty else np.array([])
+
+    rsi_data: dict[str, list[float | None]] = {"rsi6": [], "rsi12": [], "rsi24": []}
+    kdj_data: dict[str, list[float | None]] = {"k": [], "d": [], "j": []}
+    expma_data: dict[str, list[float | None]] = {"exp12": [], "exp50": []}
+
+    if len(c_arr) > 0:
+        r6 = RSI(c_arr, 6)
+        r12 = RSI(c_arr, 12)
+        r24 = RSI(c_arr, 24)
+        rsi_data = {
+            "rsi6": [safe_float(v) for v in r6],
+            "rsi12": [safe_float(v) for v in r12],
+            "rsi24": [safe_float(v) for v in r24],
+        }
+
+        kv, dv, jv = KDJ(c_arr, h_arr, l_arr, 9, 3, 3)
+        kdj_data = {
+            "k": [safe_float(v) for v in kv],
+            "d": [safe_float(v) for v in dv],
+            "j": [safe_float(v) for v in jv],
+        }
+
+        e12, e50 = EXPMA(c_arr, 12, 50)
+        expma_data = {
+            "exp12": [safe_float(v) for v in e12],
+            "exp50": [safe_float(v) for v in e50],
+        }
+
     # 7. 各周期独立分屏数据（用于切换分屏联动视图或单独看某个周期）
     levels_data = {}
     for p in p_list:
@@ -1458,6 +1498,31 @@ def analyze_multi_period_resonance(
             and 0 <= zs.end.k.k_index < len(p_dates)
         ]
         p_macd = p_res.macd or {}
+
+        p_c = p_df["close"].values if not p_df.empty else np.array([])
+        p_h = p_df["high"].values if not p_df.empty else np.array([])
+        p_l = p_df["low"].values if not p_df.empty else np.array([])
+        p_rsi: dict[str, list[float | None]] = {"rsi6": [], "rsi12": [], "rsi24": []}
+        p_kdj: dict[str, list[float | None]] = {"k": [], "d": [], "j": []}
+        p_expma: dict[str, list[float | None]] = {"exp12": [], "exp50": []}
+        if len(p_c) > 0:
+            p_rsi = {
+                "rsi6": [safe_float(v) for v in RSI(p_c, 6)],
+                "rsi12": [safe_float(v) for v in RSI(p_c, 12)],
+                "rsi24": [safe_float(v) for v in RSI(p_c, 24)],
+            }
+            p_kv, p_dv, p_jv = KDJ(p_c, p_h, p_l, 9, 3, 3)
+            p_kdj = {
+                "k": [safe_float(v) for v in p_kv],
+                "d": [safe_float(v) for v in p_dv],
+                "j": [safe_float(v) for v in p_jv],
+            }
+            p_e12, p_e50 = EXPMA(p_c, 12, 50)
+            p_expma = {
+                "exp12": [safe_float(v) for v in p_e12],
+                "exp50": [safe_float(v) for v in p_e50],
+            }
+
         levels_data[p] = {
             "period": p,
             "label": PERIOD_SPECS[p]["label"],
@@ -1471,6 +1536,9 @@ def analyze_multi_period_resonance(
                 "dif": [round(d, 3) for d in (p_macd.get("dif") or [])],
                 "dea": [round(d, 3) for d in (p_macd.get("dea") or [])],
             },
+            "rsi": p_rsi,
+            "kdj": p_kdj,
+            "expma": p_expma,
         }
 
     # 最新价格与涨跌
@@ -1520,6 +1588,9 @@ def analyze_multi_period_resonance(
             },
             "macd_marks": macd_marks,
             "macd_div_lines": macd_div_lines,
+            "rsi": rsi_data,
+            "kdj": kdj_data,
+            "expma": expma_data,
         },
         "levels_data": levels_data,
         "backtrack_timeline": {
