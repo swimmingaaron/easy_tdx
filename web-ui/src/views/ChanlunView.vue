@@ -261,6 +261,45 @@ const chanDataRight = ref<ChanlunResonanceResponse | null>(null)
 const chanDataW4 = ref<ChanlunResonanceResponse | null>(null)
 const chanData = computed(() => chanDataLeft.value)
 
+interface WinCandleInfo {
+  priceStr: string
+  chgStr: string
+  colorClass: string
+}
+
+function getLatestCandleInfo(data: ChanlunResonanceResponse | null): WinCandleInfo | null {
+  if (!data?.unified_chart?.candles || data.unified_chart.candles.length === 0) return null
+  const candles = data.unified_chart.candles
+  const lastIdx = candles.length - 1
+  const close = Number(candles[lastIdx][1] || 0)
+  const prevC = (lastIdx > 0 && candles[lastIdx - 1]) ? Number(candles[lastIdx - 1][1] || 0) : Number(candles[lastIdx][0] || 0)
+  const chg = close - prevC
+  const chgPct = prevC > 0 ? (chg / prevC * 100) : 0
+  const isUp = chgPct > 0.0001
+  const isDown = chgPct < -0.0001
+  const colorClass = isUp ? 'color-up' : (isDown ? 'color-down' : 'color-flat')
+  const chgSign = isUp ? '+' : ''
+  let priceStr = close.toFixed(2)
+  if (Math.abs(Math.round(close * 100) - close * 100) > 0.001) {
+    priceStr = close.toFixed(3)
+  }
+  return {
+    priceStr,
+    chgStr: `${chgSign}${chgPct.toFixed(2)}%`,
+    colorClass,
+  }
+}
+
+const hoverCandleLeft = ref<WinCandleInfo | null>(null)
+const hoverCandleW2 = ref<WinCandleInfo | null>(null)
+const hoverCandleRight = ref<WinCandleInfo | null>(null)
+const hoverCandleW4 = ref<WinCandleInfo | null>(null)
+
+const candleInfoLeft = computed(() => hoverCandleLeft.value || getLatestCandleInfo(chanDataLeft.value))
+const candleInfoW2 = computed(() => hoverCandleW2.value || getLatestCandleInfo(chanDataW2.value))
+const candleInfoRight = computed(() => hoverCandleRight.value || getLatestCandleInfo(chanDataRight.value))
+const candleInfoW4 = computed(() => hoverCandleW4.value || getLatestCandleInfo(chanDataW4.value))
+
 const chartContainerLeft = ref<HTMLDivElement | null>(null)
 const chartContainerW2 = ref<HTMLDivElement | null>(null)
 const chartContainerRight = ref<HTMLDivElement | null>(null)
@@ -683,7 +722,7 @@ function stopReplay() {
 }
 
 // ── ECharts 配置生成 ─────────────────────────────────────────────────────────
-function buildChanlunOption(d: ChanlunResonanceResponse): any {
+function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' | 'right' | 'w4'): any {
   const uc = d.unified_chart
 
   if (!uc || !uc.dates || uc.dates.length === 0) {
@@ -1202,6 +1241,25 @@ function buildChanlunOption(d: ChanlunResonanceResponse): any {
           else if (curAmt >= 1e4) amtStr = `¥${(curAmt / 1e4).toFixed(1)}万`
           else if (curAmt > 0) amtStr = `¥${curAmt.toFixed(0)}元`
 
+          if (winKey) {
+            const isUpChg = chgPct > 0.0001
+            const isDownChg = chgPct < -0.0001
+            const colorClass = isUpChg ? 'color-up' : (isDownChg ? 'color-down' : 'color-flat')
+            let pStr = close.toFixed(2)
+            if (Math.abs(Math.round(close * 100) - close * 100) > 0.001) {
+              pStr = close.toFixed(3)
+            }
+            const info: WinCandleInfo = {
+              priceStr: pStr,
+              chgStr: `${chgSign}${chgPct.toFixed(2)}%`,
+              colorClass,
+            }
+            if (winKey === 'left') hoverCandleLeft.value = info
+            else if (winKey === 'w2') hoverCandleW2.value = info
+            else if (winKey === 'right') hoverCandleRight.value = info
+            else if (winKey === 'w4') hoverCandleW4.value = info
+          }
+
           html += `<div style="color:${color}; margin-bottom:4px;">
             开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
             <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
@@ -1484,9 +1542,11 @@ function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
+      chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
+      chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
       window.addEventListener('resize', handleResize)
     }
-    const optionLeft = buildChanlunOption(chanDataLeft.value)
+    const optionLeft = buildChanlunOption(chanDataLeft.value, 'left')
     chartInstanceLeft.setOption(optionLeft, { notMerge: true, lazyUpdate: true })
   }
 
@@ -1494,30 +1554,38 @@ function renderChart() {
     if (chartContainerW2.value && chanDataW2.value) {
       if (!chartInstanceW2) {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
+        chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
+        chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
       }
-      const optionW2 = buildChanlunOption(chanDataW2.value)
+      const optionW2 = buildChanlunOption(chanDataW2.value, 'w2')
       chartInstanceW2.setOption(optionW2, { notMerge: true, lazyUpdate: true })
     }
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
+        chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
       }
-      const optionRight = buildChanlunOption(chanDataRight.value)
+      const optionRight = buildChanlunOption(chanDataRight.value, 'right')
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
     }
     if (chartContainerW4.value && chanDataW4.value) {
       if (!chartInstanceW4) {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
+        chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
+        chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
       }
-      const optionW4 = buildChanlunOption(chanDataW4.value)
+      const optionW4 = buildChanlunOption(chanDataW4.value, 'w4')
       chartInstanceW4.setOption(optionW4, { notMerge: true, lazyUpdate: true })
     }
   } else if (splitMode.value === 'dual') {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
+        chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
       }
-      const optionRight = buildChanlunOption(chanDataRight.value)
+      const optionRight = buildChanlunOption(chanDataRight.value, 'right')
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
     }
   }
@@ -1888,7 +1956,11 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill left-pill">窗1: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
-            <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }} · 大中小周期立体共振</span>
+            <div class="win-stock-header-info">
+              <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }}</span>
+              <span v-if="candleInfoLeft" class="win-stock-price" :class="candleInfoLeft.colorClass">{{ candleInfoLeft.priceStr }}</span>
+              <span v-if="candleInfoLeft" class="win-stock-chg" :class="candleInfoLeft.colorClass">{{ candleInfoLeft.chgStr }}</span>
+            </div>
           </div>
           <div class="win-tools-box">
             <select
@@ -1917,7 +1989,11 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '60F' }}·{{ chanDataW2?.periods.mid.name || '30F' }}·{{ chanDataW2?.periods.low.name || '5F' }}</span>
-            <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }} · 超短立体共振</span>
+            <div class="win-stock-header-info">
+              <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }}</span>
+              <span v-if="candleInfoW2" class="win-stock-price" :class="candleInfoW2.colorClass">{{ candleInfoW2.priceStr }}</span>
+              <span v-if="candleInfoW2" class="win-stock-chg" :class="candleInfoW2.colorClass">{{ candleInfoW2.chgStr }}</span>
+            </div>
           </div>
           <div class="win-tools-box">
             <select
@@ -1943,7 +2019,11 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill right-pill">窗3: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
-            <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }} · 波段立体共振</span>
+            <div class="win-stock-header-info">
+              <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }}</span>
+              <span v-if="candleInfoRight" class="win-stock-price" :class="candleInfoRight.colorClass">{{ candleInfoRight.priceStr }}</span>
+              <span v-if="candleInfoRight" class="win-stock-chg" :class="candleInfoRight.colorClass">{{ candleInfoRight.chgStr }}</span>
+            </div>
           </div>
           <div class="win-tools-box">
             <select
@@ -1969,7 +2049,11 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w4-pill">窗4: {{ chanDataW4?.periods.high.name || '月' }}·{{ chanDataW4?.periods.mid.name || '周' }}·{{ chanDataW4?.periods.low.name || '日' }}</span>
-            <span class="win-stock-title">{{ chanDataW4?.code }} {{ chanDataW4?.name }} · 长线立体共振</span>
+            <div class="win-stock-header-info">
+              <span class="win-stock-title">{{ chanDataW4?.code }} {{ chanDataW4?.name }}</span>
+              <span v-if="candleInfoW4" class="win-stock-price" :class="candleInfoW4.colorClass">{{ candleInfoW4.priceStr }}</span>
+              <span v-if="candleInfoW4" class="win-stock-chg" :class="candleInfoW4.colorClass">{{ candleInfoW4.chgStr }}</span>
+            </div>
           </div>
           <div class="win-tools-box">
             <select
@@ -2668,9 +2752,34 @@ onBeforeUnmount(() => {
   color: #fcd34d;
   border: 1px solid rgba(252, 211, 77, 0.4);
 }
+.win-stock-header-info {
+  display: flex;
+  align-items: center;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
 .win-stock-title {
-  color: #94a3b8;
+  color: #cbd5e1;
   font-size: 11px;
+  font-weight: 600;
+}
+.win-stock-price {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.win-stock-chg {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.color-up {
+  color: #ef4444;
+}
+.color-down {
+  color: #10b981;
+}
+.color-flat {
+  color: #94a3b8;
 }
 .win-preset-select {
   background: #131722;

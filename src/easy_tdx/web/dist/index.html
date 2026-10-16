@@ -23087,7 +23087,7 @@
             }
         }
 
-        function buildChanlunEchartOption(d, isDark, prevDataZoom) {
+        function buildChanlunEchartOption(d, isDark, prevDataZoom, side) {
             if (!d || !d.unified_chart) return null;
             const uc = d.unified_chart;
             const dates = uc.dates || [];
@@ -23879,6 +23879,9 @@
                         const prevC = (idx > 0 && candles && candles[idx - 1]) ? candles[idx - 1][1] : open;
                         const chg = close - prevC;
                         const chgPct = prevC > 0 ? (chg / prevC * 100) : 0;
+                        if (side) {
+                            updateWindowHeaderCandle(side, close, chgPct);
+                        }
                         const chgColor = close > prevC ? '#ef4444' : (close < prevC ? '#10b981' : (isDark ? '#e2e8f0' : '#1e293b'));
                         const chgSign = chg > 0 ? '+' : '';
                         const openColor = open > prevC ? '#ef4444' : (open < prevC ? '#10b981' : (isDark ? '#e2e8f0' : '#1e293b'));
@@ -24119,6 +24122,42 @@
             return option;
         }
 
+        const _clLatestCandle = {};
+
+        function updateWindowHeaderCandle(side, close, chgPct) {
+            let titleElId = 'cl-chart-title-text';
+            if (side === 'w2') {
+                titleElId = 'cl-chart-title-text-w2';
+            } else if (side === 'right' || side === 'w3') {
+                titleElId = 'cl-chart-title-text-right';
+            } else if (side === 'w4') {
+                titleElId = 'cl-chart-title-text-w4';
+            }
+
+            const priceEl = document.getElementById(titleElId + '-price');
+            const chgEl = document.getElementById(titleElId + '-chg');
+            if (!priceEl || !chgEl) return;
+
+            const numClose = Number(close || 0);
+            const numChg = Number(chgPct || 0);
+            const isUp = numChg > 0.0001;
+            const isDown = numChg < -0.0001;
+            const colorClass = isUp ? 'text-rose-500 font-bold' : (isDown ? 'text-emerald-500 font-bold' : 'text-slate-400 font-medium');
+
+            let priceStr = numClose.toFixed(2);
+            if (Math.abs(Math.round(numClose * 100) - numClose * 100) > 0.001) {
+                priceStr = numClose.toFixed(3);
+            }
+            const chgSign = isUp ? '+' : '';
+            const chgStr = `${chgSign}${numChg.toFixed(2)}%`;
+
+            priceEl.textContent = priceStr;
+            priceEl.className = `stock-title-price font-bold font-mono text-[12px] ml-2 ${colorClass}`;
+
+            chgEl.textContent = chgStr;
+            chgEl.className = `stock-title-chg font-bold font-mono text-[11px] ml-1.5 ${colorClass}`;
+        }
+
         function renderSingleChanlunChart(side, d) {
             let domId = 'chanlun-echart-main';
             let titleElId = 'cl-chart-title-text';
@@ -24178,10 +24217,36 @@
                 return;
             }
 
-            // 更新窗口标题与形态胶囊
+            // 更新窗口标题（移除冗余共振文本，呈现当前蜡烛图价格与涨跌幅）
             const titleEl = document.getElementById(titleElId);
             if (titleEl) {
-                titleEl.textContent = `${d.code} | ${d.name} · [${periodLabel}] 缠论共振`;
+                const candles = uc.candles || [];
+                let lastClose = 0;
+                let lastChgPct = 0;
+                if (candles.length > 0) {
+                    const lastIdx = candles.length - 1;
+                    lastClose = Number(candles[lastIdx][1] || 0);
+                    const prevC = (lastIdx > 0 && candles[lastIdx - 1]) ? Number(candles[lastIdx - 1][1] || 0) : Number(candles[lastIdx][0] || 0);
+                    const diff = lastClose - prevC;
+                    lastChgPct = prevC > 0 ? (diff / prevC * 100) : 0;
+                }
+                _clLatestCandle[side] = { close: lastClose, chgPct: lastChgPct };
+
+                const isUp = lastChgPct > 0.0001;
+                const isDown = lastChgPct < -0.0001;
+                const colorClass = isUp ? 'text-rose-500 font-bold' : (isDown ? 'text-emerald-500 font-bold' : 'text-slate-400 font-medium');
+                let priceStr = lastClose.toFixed(2);
+                if (Math.abs(Math.round(lastClose * 100) - lastClose * 100) > 0.001) {
+                    priceStr = lastClose.toFixed(3);
+                }
+                const chgSign = isUp ? '+' : '';
+                const chgStr = `${chgSign}${lastChgPct.toFixed(2)}%`;
+
+                titleEl.innerHTML = `
+                    <span class="stock-title-name font-bold tracking-tight">${d.code} | ${d.name}</span>
+                    <span id="${titleElId}-price" class="stock-title-price font-bold font-mono text-[12px] ml-2 ${colorClass}">${priceStr}</span>
+                    <span id="${titleElId}-chg" class="stock-title-chg font-bold font-mono text-[11px] ml-1.5 ${colorClass}">${chgStr}</span>
+                `;
             }
             const patternOverlay = document.getElementById(patternElId);
             if (patternOverlay && d.summary) {
@@ -24210,10 +24275,35 @@
                 }
             } catch (e) { }
 
-            const opt = buildChanlunEchartOption(d, isDark, prevDataZoom);
+            const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
             if (opt) {
                 instance.setOption(opt, true);
                 try { instance.resize(); } catch (_) {}
+            }
+
+            // 监听光标离开图表事件，恢复当前最新蜡烛图价格及涨跌幅
+            instance.off('globalout');
+            instance.on('globalout', () => {
+                const latest = _clLatestCandle[side];
+                if (latest) {
+                    updateWindowHeaderCandle(side, latest.close, latest.chgPct);
+                }
+            });
+            instance.off('hideTip');
+            instance.on('hideTip', () => {
+                const latest = _clLatestCandle[side];
+                if (latest) {
+                    updateWindowHeaderCandle(side, latest.close, latest.chgPct);
+                }
+            });
+            if (!chartDom._hasLeaveListener) {
+                chartDom._hasLeaveListener = true;
+                chartDom.addEventListener('mouseleave', () => {
+                    const latest = _clLatestCandle[side];
+                    if (latest) {
+                        updateWindowHeaderCandle(side, latest.close, latest.chgPct);
+                    }
+                });
             }
             // 确保渲染完成后当前窗口加载遮罩被隐藏
             let overlayId = null;
