@@ -1425,28 +1425,74 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         },
       },
     ],
-    dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: [0, 1],
-        minValueSpan: 20,
-        start: Math.max(0, 100 - (110 / uc.dates.length) * 100),
-        end: 100,
-      },
-      {
-        type: 'slider',
-        xAxisIndex: [0, 1],
-        bottom: 4,
-        height: 14,
-        minValueSpan: 20,
-        borderColor: '#2a2e39',
-        backgroundColor: '#181b27',
-        fillerColor: 'rgba(41, 98, 255, 0.25)',
-        textStyle: { color: '#888888', fontSize: 10 },
-        start: Math.max(0, 100 - (110 / uc.dates.length) * 100),
-        end: 100,
-      },
-    ],
+    ...(() => {
+      // 保证每个窗口默认显示窗口中，有且只有一个完整的大周期线段
+      const totalBars = uc.dates ? uc.dates.length : 0
+      let defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100)
+      let defaultZoomEnd = 100
+
+      const highBis = uc.high_bis || []
+      if (highBis.length > 0 && totalBars > 0) {
+        const targetBi = highBis[highBis.length - 1]
+        const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null
+
+        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+
+        // 留出适度左边距（例如 3~5 根K线），确保起始顶点圆形标记和分型清晰展现；
+        // 同时边距严控不超过与前一条线段起点的间距，确保前一条线段在视野内不完整，
+        // 从而保证当前默认显示窗口中有且仅有一个完整的大周期线段。
+        let leftMargin = 4
+        if (prevBi) {
+          const prevStartIdx = Math.max(0, prevBi.start_idx)
+          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+          leftMargin = Math.min(leftMargin, allowedMargin)
+        }
+        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+
+        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+        defaultZoomEnd = 100
+      } else if ((uc.mid_bis || []).length > 0 && totalBars > 0) {
+        // 兜底：若暂无大级别笔，则退化使用中级别最新完整线段
+        const midBis = uc.mid_bis || []
+        const targetBi = midBis[midBis.length - 1]
+        const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null
+        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+        let leftMargin = 4
+        if (prevBi) {
+          const prevStartIdx = Math.max(0, prevBi.start_idx)
+          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+          leftMargin = Math.min(leftMargin, allowedMargin)
+        }
+        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+        defaultZoomEnd = 100
+      }
+
+      return {
+        dataZoom: [
+          {
+            type: 'inside',
+            xAxisIndex: [0, 1],
+            minValueSpan: 10,
+            start: defaultZoomStart,
+            end: defaultZoomEnd,
+          },
+          {
+            type: 'slider',
+            xAxisIndex: [0, 1],
+            bottom: 4,
+            height: 14,
+            minValueSpan: 10,
+            borderColor: '#2a2e39',
+            backgroundColor: '#181b27',
+            fillerColor: 'rgba(41, 98, 255, 0.25)',
+            textStyle: { color: '#888888', fontSize: 10 },
+            start: defaultZoomStart,
+            end: defaultZoomEnd,
+          },
+        ],
+      }
+    })(),
     series: [
       {
         name: '基准K线',

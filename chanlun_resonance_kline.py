@@ -1382,10 +1382,31 @@ def export_interactive_html(
                     }}
                 }}
             ],
-            dataZoom: [
-                {{ type: 'inside', xAxisIndex: [0, 1], minValueSpan: 20, start: Math.max(0, 100 - (110 / D.dates.length) * 100), end: 100 }},
-                {{ type: 'slider', xAxisIndex: [0, 1], top: '95%', height: 16, minValueSpan: 20, start: Math.max(0, 100 - (110 / D.dates.length) * 100), end: 100 }}
-            ],
+            dataZoom: (() => {{
+                var totalBars = D.dates ? D.dates.length : 0;
+                var defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100);
+                if (D.high_bis && D.high_bis.length > 0 && totalBars > 0) {{
+                    var lastHb = D.high_bis[D.high_bis.length - 1];
+                    var sDate = lastHb[0] ? lastHb[0][0] : null;
+                    var sIdx = sDate ? D.dates.indexOf(sDate) : -1;
+                    if (sIdx >= 0) {{
+                        var leftMargin = 4;
+                        if (D.high_bis.length >= 2) {{
+                            var prevDate = D.high_bis[D.high_bis.length - 2][0] ? D.high_bis[D.high_bis.length - 2][0][0] : null;
+                            var prevIdx = prevDate ? D.dates.indexOf(prevDate) : -1;
+                            if (prevIdx >= 0 && sIdx > prevIdx) {{
+                                leftMargin = Math.min(leftMargin, Math.floor((sIdx - prevIdx) / 4));
+                            }}
+                        }}
+                        var vIdx = Math.max(0, sIdx - leftMargin);
+                        defaultZoomStart = Math.max(0, Number(((vIdx / totalBars) * 100).toFixed(2)));
+                    }}
+                }}
+                return [
+                    {{ type: 'inside', xAxisIndex: [0, 1], minValueSpan: 10, start: defaultZoomStart, end: 100 }},
+                    {{ type: 'slider', xAxisIndex: [0, 1], top: '95%', height: 16, minValueSpan: 10, start: defaultZoomStart, end: 100 }}
+                ];
+            }})(),
             series: [
                 {{
                     name: '基准K线',

@@ -23842,7 +23842,74 @@
             // 蓝色标题已通过 HTML 元素在主图左上角顶部分离呈现，此处不再在画布内重叠绘制
             const watermarkGraphic = [];
 
-            // 保持当前 dataZoom (由入参 prevDataZoom 传入)
+            // 默认显示窗口中，保证每个窗口有且只有一个完整的大周期线段 (以 high_bis 为准，兜底 mid_bis)
+            let defaultZoomStart = Math.max(0, 100 - (100 / (n_bars || 1)) * 110);
+            let defaultZoomEnd = 100;
+
+            const highBis = uc.high_bis || [];
+            if (highBis.length > 0 && n_bars > 0) {
+                const targetBi = highBis[highBis.length - 1];
+                const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null;
+
+                let targetStartIdx = targetBi.start_idx != null ? targetBi.start_idx : -1;
+                if (targetStartIdx < 0 && targetBi.start && targetBi.start[0]) {
+                    targetStartIdx = dates.indexOf(targetBi.start[0]);
+                }
+                if (targetStartIdx >= 0) {
+                    targetStartIdx = Math.max(0, Math.min(n_bars - 1, targetStartIdx));
+
+                    // 留出适度左边距（3~4 根K线），确保起始顶点圆形标记和分型清晰展现；
+                    // 同时边距严控不超过与前一条线段起点的间距，确保前一条线段在视野内不完整，
+                    // 从而保证当前默认显示窗口中有且仅有一个完整的大周期线段。
+                    let leftMargin = 4;
+                    if (prevBi) {
+                        let prevStartIdx = prevBi.start_idx != null ? prevBi.start_idx : -1;
+                        if (prevStartIdx < 0 && prevBi.start && prevBi.start[0]) {
+                            prevStartIdx = dates.indexOf(prevBi.start[0]);
+                        }
+                        if (prevStartIdx >= 0) {
+                            const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4));
+                            leftMargin = Math.min(leftMargin, allowedMargin);
+                        }
+                    }
+                    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin);
+                    defaultZoomStart = Math.max(0, Number(((viewStartIdx / n_bars) * 100).toFixed(2)));
+                }
+            } else if ((uc.mid_bis || []).length > 0 && n_bars > 0) {
+                // 兜底：若暂无大级别笔，则退化使用中级别最新完整线段
+                const midBis = uc.mid_bis || [];
+                const targetBi = midBis[midBis.length - 1];
+                const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null;
+                let targetStartIdx = targetBi.start_idx != null ? targetBi.start_idx : -1;
+                if (targetStartIdx < 0 && targetBi.start && targetBi.start[0]) {
+                    targetStartIdx = dates.indexOf(targetBi.start[0]);
+                }
+                if (targetStartIdx >= 0) {
+                    targetStartIdx = Math.max(0, Math.min(n_bars - 1, targetStartIdx));
+                    let leftMargin = 4;
+                    if (prevBi) {
+                        let prevStartIdx = prevBi.start_idx != null ? prevBi.start_idx : -1;
+                        if (prevStartIdx < 0 && prevBi.start && prevBi.start[0]) {
+                            prevStartIdx = dates.indexOf(prevBi.start[0]);
+                        }
+                        if (prevStartIdx >= 0) {
+                            const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4));
+                            leftMargin = Math.min(leftMargin, allowedMargin);
+                        }
+                    }
+                    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin);
+                    defaultZoomStart = Math.max(0, Number(((viewStartIdx / n_bars) * 100).toFixed(2)));
+                }
+            }
+
+            const finalStart = (() => {
+                if (prevDataZoom && (prevDataZoom.end - prevDataZoom.start) > 2) {
+                    const prevBars = (prevDataZoom.end - prevDataZoom.start) / 100 * dates.length;
+                    if (prevBars >= 10) return prevDataZoom.start;
+                }
+                return defaultZoomStart;
+            })();
+            const finalEnd = prevDataZoom ? prevDataZoom.end : defaultZoomEnd;
 
             const option = {
                 backgroundColor: 'transparent',
@@ -24052,34 +24119,22 @@
                     {
                         type: 'inside',
                         xAxisIndex: [0, 1],
-                        minValueSpan: 20,
-                        start: (() => {
-                            if (prevDataZoom && (prevDataZoom.end - prevDataZoom.start) > 2) {
-                                const prevBars = (prevDataZoom.end - prevDataZoom.start) / 100 * dates.length;
-                                if (prevBars >= 20) return prevDataZoom.start;
-                            }
-                            return Math.max(0, 100 - (100 / dates.length) * 110);
-                        })(),
-                        end: prevDataZoom ? prevDataZoom.end : 100
+                        minValueSpan: 10,
+                        start: finalStart,
+                        end: finalEnd
                     },
                     {
                         type: 'slider',
                         xAxisIndex: [0, 1],
                         bottom: 4,
                         height: 14,
-                        minValueSpan: 20,
+                        minValueSpan: 10,
                         borderColor: axisColor,
                         backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(241, 245, 249, 0.8)',
                         fillerColor: 'rgba(147, 51, 234, 0.25)',
                         textStyle: { color: textColor, fontSize: 9 },
-                        start: (() => {
-                            if (prevDataZoom && (prevDataZoom.end - prevDataZoom.start) > 2) {
-                                const prevBars = (prevDataZoom.end - prevDataZoom.start) / 100 * dates.length;
-                                if (prevBars >= 20) return prevDataZoom.start;
-                            }
-                            return Math.max(0, 100 - (100 / dates.length) * 110);
-                        })(),
-                        end: prevDataZoom ? prevDataZoom.end : 100
+                        start: finalStart,
+                        end: finalEnd
                     }
                 ],
                 series: [
@@ -24277,11 +24332,14 @@
 
             let prevDataZoom = null;
             try {
-                const curOpt = instance.getOption();
-                if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
-                    prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+                if (instance._clLastRenderedCode === _clCurrentCode) {
+                    const curOpt = instance.getOption();
+                    if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
+                        prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+                    }
                 }
             } catch (e) { }
+            instance._clLastRenderedCode = _clCurrentCode;
 
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
             if (opt) {
