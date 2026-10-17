@@ -822,38 +822,82 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
 
   const isDark = document.documentElement.classList.contains('dark')
 
-  // 多级别买卖点同图呈现 markPoints
+  // 多级别买卖点同图呈现 markPoints (区间套极值点、次级别稳健确认点、大级别趋势确认点)
   const mmdMarkPoints = showMmdMarks.value
     ? uc.mmd_marks.map((m) => {
-        const isBig = m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')
-        const isMid = m.label.includes('次')
+        const isBig = m.level === 'high' || m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')
+        const isMid = m.level === 'mid' || m.label.includes('次')
+        const isNested1Buy = m.category === 'nested_1buy' || m.label.includes('极低') || m.label.includes('区间套1买')
+        const isSteady2Buy = m.category === 'steady_2buy' || m.label.includes('稳健') || (m.is_buy && m.label.includes('2买'))
+        const isBreakout3Buy = m.category === 'breakout_3buy' || m.label.includes('主升') || (m.is_buy && m.label.includes('3买'))
+        const isNested1Sell = m.category === 'nested_1sell' || m.label.includes('极高') || m.label.includes('区间套1卖')
+        const isDefense2Sell = m.category === 'defense_2sell' || m.label.includes('清仓') || (!m.is_buy && m.label.includes('2卖'))
+        const isBreakdown3Sell = m.category === 'breakdown_3sell' || m.label.includes('破位') || (!m.is_buy && m.label.includes('3卖'))
+
+        // 色彩与层级视觉定义：
+        // 极值1买：烈焰高亮红 (#ef4444) - 抓最低下影线
+        // 稳健2买：琥珀金黄 (#f59e0b) - 避开滞后高胜率二次确认
+        // 主升3买：洋红玫瑰 (#e11d48) - 突破中枢起爆
+        // 极高1卖：翡翠亮绿 (#10b981) - 抓最高上影线逃顶
+        // 清仓2卖：暖橙黄 (#d97706) - 反弹不过清仓
+        // 破位3卖：深青绿 (#059669) - 破位下杀离场
+        // 大级别点：高贵紫 (#9333ea) - 大级别趋势确认
         let color = m.is_buy ? '#ef4444' : '#10b981'
+        let symbolSize = 28
+
         if (isBig) {
           color = '#9333ea'
+          symbolSize = 32
         } else if (isMid) {
-          color = m.is_buy ? '#f59e0b' : '#d97706'
+          color = m.is_buy ? (isSteady2Buy ? '#f59e0b' : '#ea580c') : (isDefense2Sell ? '#d97706' : '#059669')
+          symbolSize = 28
+        } else {
+          // 当前小级别/基准级别
+          if (isNested1Buy) {
+            color = '#ef4444'
+            symbolSize = 32
+          } else if (isSteady2Buy) {
+            color = '#f59e0b'
+            symbolSize = 29
+          } else if (isBreakout3Buy) {
+            color = '#e11d48'
+            symbolSize = 27
+          } else if (isNested1Sell) {
+            color = '#10b981'
+            symbolSize = 32
+          } else if (isDefense2Sell) {
+            color = '#d97706'
+            symbolSize = 29
+          } else if (isBreakdown3Sell) {
+            color = '#059669'
+            symbolSize = 27
+          }
         }
+
+        const displayText = m.short_label || m.label
 
         let textColor, textBorderColor
         if (isDark) {
-          textColor = isMid && m.is_buy ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5')
-          textBorderColor = 'rgba(0, 0, 0, 0.9)'
+          textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5')
+          textBorderColor = 'rgba(0, 0, 0, 0.95)'
         } else {
-          textColor = isMid ? (m.is_buy ? '#78350f' : '#9a3412') : (m.is_buy ? '#991b1b' : '#064e3b')
+          textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#78350f' : (m.is_buy ? '#991b1b' : '#064e3b')
           textBorderColor = '#ffffff'
         }
 
         return {
           name: m.type,
           coord: m.coord,
-          value: m.label,
+          value: displayText,
           symbol: m.is_buy ? 'pin' : 'arrow',
           symbolRotate: m.is_buy ? 0 : 180,
-          symbolSize: isBig ? 32 : (isMid ? 28 : 26),
+          symbolSize,
           itemStyle: { 
             color,
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.2)',
-            borderWidth: 1,
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.25)',
+            borderWidth: 1.2,
+            shadowBlur: (isNested1Buy || isNested1Sell || isBig) ? 6 : 0,
+            shadowColor: color,
           },
           label: {
             show: true,
@@ -861,7 +905,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             textBorderColor: textBorderColor,
             textBorderWidth: 2.5,
             fontWeight: 'bold',
-            fontSize: 9.5,
+            fontSize: displayText.length > 5 ? 8.5 : 9.5,
+            formatter: displayText,
           },
         }
       })
@@ -1371,15 +1416,51 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
           </div>`
         }
+        // 匹配缠论买卖点 (区间套极值买卖点、次级别稳健买卖点、大级别趋势买卖点)
+        const matchedMmds = (uc.mmd_marks || []).filter((m) => m.date === dateStr)
+        if (matchedMmds.length > 0) {
+          matchedMmds.forEach((m) => {
+            const isBuy = m.is_buy
+            const isNested = m.category?.includes('nested') || m.label.includes('极低') || m.label.includes('极高')
+            const isSteady = m.category?.includes('steady') || m.label.includes('稳健')
+            const isBig = m.level === 'high' || m.label.includes('大级别')
+            let mmdBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
+            let mmdBorder = isBuy ? '#ef4444' : '#10b981'
+            let mmdColor = isDark ? (isBuy ? '#fca5a5' : '#86efac') : (isBuy ? '#991b1b' : '#064e3b')
+            let icon = isNested ? (isBuy ? '🎯' : '💎') : (isBuy ? '🔺' : '🔻')
+            if (isSteady) {
+              mmdBg = isDark ? 'rgba(245, 158, 11, 0.22)' : 'rgba(254, 243, 199, 0.95)'
+              mmdBorder = '#f59e0b'
+              mmdColor = isDark ? '#fde047' : '#92400e'
+              icon = '🛡️'
+            } else if (isBig) {
+              mmdBg = isDark ? 'rgba(147, 51, 234, 0.22)' : 'rgba(243, 232, 255, 0.95)'
+              mmdBorder = '#9333ea'
+              mmdColor = isDark ? '#d8b4fe' : '#6b21a8'
+              icon = '🌐'
+            }
+
+            html += `<div style="padding:4px 7px; background:${mmdBg}; border:1px solid ${mmdBorder}; border-radius:4px; margin-top:4px; font-size:11px;">
+              <div style="font-weight:bold; color:${mmdColor}; display:flex; justify-content:space-between; align-items:center;">
+                <span>${icon} ${m.label}</span>
+                <span style="font-family:monospace; margin-left:8px;">¥${m.price.toFixed(2)}</span>
+              </div>
+              <div style="color:${isDark ? '#cbd5e1' : '#475569'}; margin-top:2px; font-size:10.5px; line-height:1.35;">
+                ${m.msg}
+              </div>
+            </div>`
+          })
+        }
+
         // 匹配共振点
         const matchedRes = uc.res_marks.find((r) => r.date === dateStr)
         if (matchedRes) {
           const isBuy = matchedRes.direction === 'BUY'
-          const resBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
-          const resBorder = isBuy ? '#ef4444' : '#10b981'
-          const resColor = isDark ? (isBuy ? '#fca5a5' : '#86efac') : (isBuy ? '#991b1b' : '#064e3b')
-          html += `<div style="padding:4px 6px; background:${resBg}; border:1px solid ${resBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${resColor}; font-size:11px;">
-            ${matchedRes.pattern_name} [${matchedRes.grade}级] ¥${matchedRes.price.toFixed(2)}
+          const resBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
+          const resBorder = isBuy ? '#f59e0b' : '#06b6d4'
+          const resColor = isDark ? (isBuy ? '#fde047' : '#67e8f9') : (isBuy ? '#92400e' : '#0e7490')
+          html += `<div style="padding:4px 7px; background:${resBg}; border:1px solid ${resBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${resColor}; font-size:11px;">
+            ★ ${matchedRes.pattern_name} [${matchedRes.grade}级共振] ¥${matchedRes.price.toFixed(2)}
           </div>`
         }
         // 匹配 MACD 背离点

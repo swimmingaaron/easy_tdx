@@ -655,46 +655,50 @@ class ThreePeriodResonanceEngine:
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
             if "1buy" in h_type and "1buy" in m_type and "1buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 全一买三套极限抄底"
+                return "AAA", f"★ [{p_names}] 区间套·极值底背驰全共振"
             if "2buy" in h_type and "2buy" in m_type and "2buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 全二买主升浪确立共振"
+                return "AAA", f"★ [{p_names}] 全二买稳健主升共振"
             if "3buy" in h_type and "3buy" in m_type and "3buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 全三买中枢爆发共振"
+                return "AAA", f"★ [{p_names}] 全三买主升浪爆发共振"
 
-            # 花姐核心区间套模型：大级别1买确立后，次级别/小级别2买二次确认 (蓝2进1蓝2)
+            # 核心区间套模型：大/次级别处于底区，次级别/小级别2买二次确认 (稳健起涨)
             if "1buy" in h_type and "2buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 区间套·蓝2进1双重确认买点"
+                return "AAA", f"★ [{p_names}] 区间套·次级别稳健二买确认"
             if "1buy" in m_type and "2buy" in low_mmd:
-                return "AAA", f"★ [{p_names}] 区间套·次一买小二买共振点"
+                return "AAA", f"★ [{p_names}] 区间套·次一买小二买共振"
+            if ("1buy" in h_type or "1buy" in m_type) and "1buy" in low_mmd:
+                return "AAA", f"★ [{p_names}] 区间套·极值底背驰共振点"
 
             if "3buy" in low_mmd:
-                return "AA", f"★ [{p_names}] 三类买点中枢突破共振"
+                return "AA", f"★ [{p_names}] 三类买点中枢突破起爆"
             if "2buy" in low_mmd:
-                return "AA", f"★ [{p_names}] 二类买点起跑共振"
+                return "AA", f"★ [{p_names}] 次级别稳健二买起跑"
             if "1buy" in low_mmd:
-                return "AA", f"★ [{p_names}] 底背驰 T1 拐点共振"
+                return "AA", f"★ [{p_names}] 区间套极值底背驰拐点"
 
             return "A", f"★ [{p_names}] 多周期多头趋势共振买点"
         else:
             h_type = high.recent_mmd_type
             m_type = mid.recent_mmd_type
             if "1sell" in h_type and "1sell" in m_type and "1sell" in low_mmd:
-                return "AAA", f"▼ [{p_names}] 全一卖顶背驰高抛共振"
+                return "AAA", f"▼ [{p_names}] 区间套·极高顶背驰全共振"
             if "2sell" in h_type and "2sell" in m_type and "2sell" in low_mmd:
                 return "AAA", f"▼ [{p_names}] 全二卖破位共振"
             if "3sell" in h_type and "3sell" in m_type and "3sell" in low_mmd:
-                return "AAA", f"▼ [{p_names}] 全三卖中枢破位下杀共振"
+                return "AAA", f"▼ [{p_names}] 全三卖破位下杀共振"
 
-            # 花姐核心区间套卖点：大级别1卖出顶，次级别/小级别2卖破位确认
+            # 核心区间套卖点：大级别1卖出顶，次级别/小级别2卖破位确认
             if "1sell" in h_type and "2sell" in low_mmd:
-                return "AAA", f"▼ [{p_names}] 区间套·大一卖小二卖破位确认"
+                return "AAA", f"▼ [{p_names}] 区间套·次级别清仓二卖破位"
             if "1sell" in m_type and "2sell" in low_mmd:
                 return "AAA", f"▼ [{p_names}] 区间套·次一卖小二卖破位点"
+            if ("1sell" in h_type or "1sell" in m_type) and "1sell" in low_mmd:
+                return "AAA", f"▼ [{p_names}] 区间套·极高顶背驰共振点"
 
             if "1sell" in low_mmd:
-                return "AA", f"▼ [{p_names}] 顶背驰 T1 拐点共振"
+                return "AA", f"▼ [{p_names}] 区间套极高顶背驰拐点"
             if "2sell" in low_mmd:
-                return "AA", f"▼ [{p_names}] 二类卖点反弹不过共振"
+                return "AA", f"▼ [{p_names}] 次级别清仓二卖反弹不过"
             if "3sell" in low_mmd:
                 return "AA", f"▼ [{p_names}] 三类卖点破位下杀共振"
 
@@ -1219,10 +1223,13 @@ def analyze_multi_period_resonance(
             "dd": round(zs.dd, 2),
         })
 
-    # 4. 买卖点标记点 (多级别同图融合与区间套专业标识)
+    # 4. 买卖点标记点 (多级别同图融合与区间套专业标识，攻克大周期买卖点滞后)
     mmd_marks = []
+    low_short_name = PERIOD_SPECS.get(low_p, {}).get("short_name", low_p)
+    mid_short_name = PERIOD_SPECS.get(mid_p, {}).get("short_name", mid_p)
+    high_short_name = PERIOD_SPECS.get(high_p, {}).get("short_name", high_p)
 
-    # 小级别自身买卖点 (底背驰 T1 / 顶背驰 T1 / 2买 / 3买)
+    # 4.1 小级别/当前底图级别买卖点 (抓极值影线拐点与稳健二买确认，解决滞后核心)
     for mmd in low_res.mmds:
         if mmd.bi:
             k_idx = mmd.bi.end.k.k_index
@@ -1236,20 +1243,42 @@ def analyze_multi_period_resonance(
             k_idx = max(0, min(n_base - 1, k_idx))
             is_buy = "buy" in mmd.mmd_type.value
             m_type = mmd.mmd_type.value.lower()
+
             if "1buy" in m_type:
-                label_txt = "底背驰 T1"
+                label_txt = "区间套1买(极低)"
+                short_label = "极低1买"
+                category = "nested_1buy"
+                trade_msg = "【区间套极值买点】底背驰极值拐点，抓相对最低价。严格以跌破分型底设止损（极小止损博高盈亏比）。"
             elif "2buy" in m_type:
-                label_txt = "2买"
+                label_txt = "次级别2买(稳健)"
+                short_label = "稳健2买"
+                category = "steady_2buy"
+                trade_msg = "【次级别稳健买点】回踩不破前低起涨确认，避开大级别确认滞后，高胜率相对低吸点。"
             elif "3buy" in m_type:
-                label_txt = "3买"
+                label_txt = "3买(主升起爆)"
+                short_label = "主升3买"
+                category = "breakout_3buy"
+                trade_msg = "【中枢突破3买】突破中枢回抽不破中枢上沿，主升浪起爆点，动能强劲。"
             elif "1sell" in m_type:
-                label_txt = "顶背驰 T1"
+                label_txt = "区间套1卖(极高)"
+                short_label = "极高1卖"
+                category = "nested_1sell"
+                trade_msg = "【区间套极值卖点】顶背驰极高点逃顶，大级别涨势衰竭，抓最高影线分批锁定利润。"
             elif "2sell" in m_type:
-                label_txt = "2卖"
+                label_txt = "次级别2卖(清仓)"
+                short_label = "清仓2卖"
+                category = "defense_2sell"
+                trade_msg = "【次级别清仓卖点】冲高回落反弹不创新高，多头动能枯竭，清仓或破位防守。"
             elif "3sell" in m_type:
-                label_txt = "3卖"
+                label_txt = "3卖(破位下杀)"
+                short_label = "破位3卖"
+                category = "breakdown_3sell"
+                trade_msg = "【中枢破位3卖】跌破中枢反抽不入中枢，加速下杀风险，坚决空仓规避。"
             else:
                 label_txt = mmd.mmd_type.value.upper()
+                short_label = label_txt
+                category = "other"
+                trade_msg = mmd.msg
 
             mmd_marks.append({
                 "coord": [dates[k_idx], mmd.bi.end.val],
@@ -1258,11 +1287,13 @@ def analyze_multi_period_resonance(
                 "type": mmd.mmd_type.value.upper(),
                 "level": "low",
                 "label": label_txt,
+                "short_label": short_label,
+                "category": category,
                 "is_buy": is_buy,
-                "msg": mmd.msg,
+                "msg": trade_msg,
             })
 
-    # 中级别买卖点向底图映射 (次二买 / 次二卖 / 可能的三卖)
+    # 4.2 中级别买卖点向底图映射 (次级别波段拐点与稳健确认)
     for mmd in mid_res.mmds:
         if mmd.bi:
             end_val = mmd.bi.end.val
@@ -1272,19 +1303,40 @@ def analyze_multi_period_resonance(
                 is_buy = "buy" in mmd.mmd_type.value
                 m_type = mmd.mmd_type.value.lower()
                 if "1buy" in m_type:
-                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]1买"
+                    label_txt = f"[{mid_short_name}]区间套1买"
+                    short_label = f"[{mid_short_name}]极低1买"
+                    category = "mid_1buy"
+                    trade_msg = f"【{mid_short_name}区间套1买】次级别底背驰极值拐点，博取中周期波段底部。"
                 elif "2buy" in m_type:
-                    label_txt = "次二买"
+                    label_txt = f"[{mid_short_name}]稳健2买"
+                    short_label = f"[{mid_short_name}]稳健2买"
+                    category = "mid_2buy"
+                    trade_msg = f"【{mid_short_name}稳健2买】次级别回踩不破前低，中周期起涨确认点。"
                 elif "3buy" in m_type:
-                    label_txt = "次三买"
+                    label_txt = f"[{mid_short_name}]主升3买"
+                    short_label = f"[{mid_short_name}]主升3买"
+                    category = "mid_3buy"
+                    trade_msg = f"【{mid_short_name}主升3买】次级别突破中枢回抽确认，主升起跑。"
                 elif "1sell" in m_type:
-                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]1卖"
+                    label_txt = f"[{mid_short_name}]极高1卖"
+                    short_label = f"[{mid_short_name}]极高1卖"
+                    category = "mid_1sell"
+                    trade_msg = f"【{mid_short_name}极高1卖】次级别顶背驰，波段极高点分批锁定利润。"
                 elif "2sell" in m_type:
-                    label_txt = "次二卖"
+                    label_txt = f"[{mid_short_name}]清仓2卖"
+                    short_label = f"[{mid_short_name}]清仓2卖"
+                    category = "mid_2sell"
+                    trade_msg = f"【{mid_short_name}清仓2卖】次级别反弹不破前高，波段清仓防守。"
                 elif "3sell" in m_type:
-                    label_txt = "可能的三卖"
+                    label_txt = f"[{mid_short_name}]破位3卖"
+                    short_label = f"[{mid_short_name}]破位3卖"
+                    category = "mid_3sell"
+                    trade_msg = f"【{mid_short_name}破位3卖】跌破次级别中枢反抽不入，离场避险。"
                 else:
-                    label_txt = f"[{PERIOD_SPECS[mid_p]['short_name']}]{mmd.mmd_type.value.upper()}"
+                    label_txt = f"[{mid_short_name}]{mmd.mmd_type.value.upper()}"
+                    short_label = label_txt
+                    category = "mid_other"
+                    trade_msg = f"{PERIOD_SPECS[mid_p]['label']}: {mmd.msg}"
 
                 mmd_marks.append({
                     "coord": [dates[b_idx], end_val],
@@ -1293,34 +1345,56 @@ def analyze_multi_period_resonance(
                     "type": mmd.mmd_type.value.upper(),
                     "level": "mid",
                     "label": label_txt,
+                    "short_label": short_label,
+                    "category": category,
                     "is_buy": is_buy,
-                    "msg": f"{PERIOD_SPECS[mid_p]['label']}: {mmd.msg}",
+                    "msg": trade_msg,
                 })
 
-    # 大级别买卖点向底图映射 (大级别1买 / 大级别1卖 / 大级别2买)
+    # 4.3 大级别买卖点向底图映射 (明确大级别趋势反转确认，阐明滞后原因与大趋势跟踪)
     for mmd in high_res.mmds:
         if mmd.bi:
             end_val = mmd.bi.end.val
             is_high = mmd.bi.end.fx_type == FXType.DING
             b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
             if 0 <= b_idx < n_base:
-
                 is_buy = "buy" in mmd.mmd_type.value
                 m_type = mmd.mmd_type.value.lower()
                 if "1buy" in m_type:
-                    label_txt = "大级别走势1买"
+                    label_txt = f"[{high_short_name}]大级别1买(趋势确认)"
+                    short_label = f"[{high_short_name}]大1买"
+                    category = "high_1buy"
+                    trade_msg = f"【{high_short_name}大级别1买】趋势转折确认区（大级别笔确认存在滞后，适于长线趋势跟踪；更优相对低点请参考次级别区间套1买/2买）。"
                 elif "2buy" in m_type:
-                    label_txt = "大级别2买"
+                    label_txt = f"[{high_short_name}]大级别2买"
+                    short_label = f"[{high_short_name}]大2买"
+                    category = "high_2buy"
+                    trade_msg = f"【{high_short_name}大级别2买】大级别右侧回踩不破底，中长线安全边际最高。"
                 elif "3buy" in m_type:
-                    label_txt = "大级别3买"
+                    label_txt = f"[{high_short_name}]大级别3买"
+                    short_label = f"[{high_short_name}]大3买"
+                    category = "high_3buy"
+                    trade_msg = f"【{high_short_name}大级别3买】突破大级别中枢，超大级别主升浪起爆点。"
                 elif "1sell" in m_type:
-                    label_txt = "大级别1卖"
+                    label_txt = f"[{high_short_name}]大级别1卖(趋势确认)"
+                    short_label = f"[{high_short_name}]大1卖"
+                    category = "high_1sell"
+                    trade_msg = f"【{high_short_name}大级别1卖】大级别顶背驰确认区（确认存在滞后，极高逃顶请参考次级别区间套1卖/2卖）。"
                 elif "2sell" in m_type:
-                    label_txt = "大级别2卖"
+                    label_txt = f"[{high_short_name}]大级别2卖"
+                    short_label = f"[{high_short_name}]大2卖"
+                    category = "high_2sell"
+                    trade_msg = f"【{high_short_name}大级别2卖】反弹不过大级别前高，大周期趋势转熊防御。"
                 elif "3sell" in m_type:
-                    label_txt = "大级别3卖"
+                    label_txt = f"[{high_short_name}]大级别3卖"
+                    short_label = f"[{high_short_name}]大3卖"
+                    category = "high_3sell"
+                    trade_msg = f"【{high_short_name}大级别3卖】跌破大级别中枢，进入大周期下行熊途。"
                 else:
-                    label_txt = f"大级别{mmd.mmd_type.value.upper()}"
+                    label_txt = f"[{high_short_name}]大级别{mmd.mmd_type.value.upper()}"
+                    short_label = label_txt
+                    category = "high_other"
+                    trade_msg = f"{PERIOD_SPECS[high_p]['label']}: {mmd.msg}"
 
                 mmd_marks.append({
                     "coord": [dates[b_idx], end_val],
@@ -1329,14 +1403,17 @@ def analyze_multi_period_resonance(
                     "type": mmd.mmd_type.value.upper(),
                     "level": "high",
                     "label": label_txt,
+                    "short_label": short_label,
+                    "category": category,
                     "is_buy": is_buy,
-                    "msg": f"{PERIOD_SPECS[high_p]['label']}: {mmd.msg}",
+                    "msg": trade_msg,
                 })
 
-    # 5. 共振买卖点标记
+    # 5. 共振买卖点标记 (三周期立体共振)
     res_marks = []
     for r in resonances:
         if 0 <= r.low_bar_idx < n_base:
+            is_buy = r.direction == "BUY"
             res_marks.append({
                 "coord": [dates[r.low_bar_idx], r.price],
                 "date": dates[r.low_bar_idx],
@@ -1344,7 +1421,8 @@ def analyze_multi_period_resonance(
                 "direction": r.direction,
                 "grade": r.grade,
                 "pattern_name": r.pattern_name,
-                "label": f"★{r.grade}买" if r.direction == "BUY" else f"▼{r.grade}卖",
+                "label": f"★{r.grade}买" if is_buy else f"▼{r.grade}卖",
+                "short_label": f"★{r.grade}买" if is_buy else f"▼{r.grade}卖",
                 "desc": r.description,
             })
 

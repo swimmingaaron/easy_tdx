@@ -481,7 +481,10 @@ export interface MmdMark {
   date: string
   price: number
   type: string
+  level?: string
   label: string
+  short_label?: string
+  category?: string
   is_buy: boolean
   msg: string
 }
@@ -494,6 +497,7 @@ export interface ResMark {
   grade: string
   pattern_name: string
   label: string
+  short_label?: string
   desc: string
 }
 
