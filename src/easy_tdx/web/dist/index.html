@@ -1930,6 +1930,9 @@
             <button onclick="switchTab('chanlun')" id="tab-chanlun"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="trending-up"
                     class="w-3.5 h-3.5 inline mr-1 text-purple-400"></i>缠论</button>
+            <button onclick="switchTab('etfdata')" id="tab-etfdata"
+                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layers"
+                    class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>ETF数据</button>
         </nav>
 
         <!-- Desktop Action Buttons -->
@@ -4935,6 +4938,238 @@
             </div>
         </section>
 
+        <!-- ==================== 国家队 ETF 动向追踪看板 (ETF Data Tracking View) ==================== -->
+        <section id="view-etfdata" class="hidden space-y-6">
+            <!-- 顶部看板标题与快速操作栏 -->
+            <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg relative overflow-hidden bg-slate-900/60">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <span class="p-2 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30">
+                                <i data-lucide="layers" class="w-5 h-5"></i>
+                            </span>
+                            <div>
+                                <h2 class="text-xl font-bold text-white tracking-wide flex items-center gap-2">
+                                    国家队 ETF 动向追踪
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium">宽基核心 16 标的</span>
+                                </h2>
+                                <p class="text-xs text-slate-400">
+                                    通过每日份额变动估算国家队（中央汇金、国新投资、诚通金控等）被动与主动增持资金，联动中信期货净空头头寸与半年报底仓
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3 self-end md:self-auto">
+                        <div class="text-right">
+                            <span class="text-[11px] text-slate-400 block">数据基准日</span>
+                            <span id="etf-update-time" class="text-xs font-mono font-semibold text-emerald-400">加载中...</span>
+                        </div>
+                        <button onclick="refreshEtfData(true)" id="etf-refresh-btn"
+                            class="px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-medium flex items-center space-x-1.5 transition shadow-sm cursor-pointer border border-emerald-400/30">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>同步最新数据</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 核心汇总指标卡片 (5 Cards) -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 pt-4 border-t border-slate-800/80">
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div class="text-[11px] text-slate-400">当日估算净流入</div>
+                        <div id="etf-metric-flow-today" class="text-lg font-bold font-mono mt-1 text-slate-200">--</div>
+                        <div id="etf-metric-flow-today-sub" class="text-[10px] text-slate-400 mt-0.5">较前日变动</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div class="text-[11px] text-slate-400">近 5 日累计净流入</div>
+                        <div id="etf-metric-flow-5d" class="text-lg font-bold font-mono mt-1 text-slate-200">--</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">短期国家队护盘烈度</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div class="text-[11px] text-slate-400">近 20 日累计净流入</div>
+                        <div id="etf-metric-flow-20d" class="text-lg font-bold font-mono mt-1 text-slate-200">--</div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">月度级别波段增减持</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                        <div class="text-[11px] text-slate-400">16只ETF最新总规模</div>
+                        <div id="etf-metric-total-asset" class="text-lg font-bold font-mono mt-1 text-slate-200">--</div>
+                        <div id="etf-metric-total-shares" class="text-[10px] text-slate-400 mt-0.5">总份额: -- 亿份</div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 col-span-2 md:col-span-1">
+                        <div class="text-[11px] text-slate-400">中信期货净空头 (IH/IF/IC/IM)</div>
+                        <div id="etf-metric-futures-net" class="text-lg font-bold font-mono mt-1 text-slate-200">--</div>
+                        <div id="etf-metric-futures-sub" class="text-[10px] text-slate-400 mt-0.5">多空对冲总敞口变动</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 图表模块第一行：全市场每日净流入走势 + 单只 ETF 详情对比 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 每日净流入 & 累计走势 -->
+                <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col bg-slate-900/60">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">16只核心ETF单日净流入与累计净流入走势</h3>
+                        </div>
+                        <div class="flex items-center space-x-1.5 text-xs">
+                            <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[11px]">柱状图: 单日估算(亿)</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 text-[11px]">折线: 累计净额(亿)</span>
+                        </div>
+                    </div>
+                    <div id="etf-chart-total" class="w-full h-80"></div>
+                </div>
+
+                <!-- 单只 ETF 份额变动与收盘价联动 -->
+                <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col bg-slate-900/60">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">单只ETF份额变动与收盘价走势</h3>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <select id="etf-select-code" onchange="renderEtfSingleChart()"
+                                class="bg-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500 cursor-pointer">
+                                <!-- 由 JS 动态填充选项 -->
+                            </select>
+                            <button onclick="openEtfKlineModal()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs flex items-center space-x-1 border border-slate-700" title="打开K线图">
+                                <i data-lucide="candlestick-chart" class="w-3.5 h-3.5"></i>
+                                <span>K线</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="etf-chart-single" class="w-full h-80"></div>
+                </div>
+            </div>
+
+            <!-- 数据表格一：16只宽基 ETF 最新跟踪明细与增减持排行 -->
+            <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg bg-slate-900/60">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                            16 只核心宽基 ETF 动向全景明细
+                            <span class="text-[11px] font-normal text-slate-400">(点击代码或名称可调出 easy_tdx 原生专业 K 线分析)</span>
+                        </h3>
+                    </div>
+                    <div class="text-xs text-slate-400 flex items-center space-x-3">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span>资金净流入 (份额增加)</span>
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>资金净流出 (份额缩减)</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300 border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-700 text-slate-400 bg-slate-800/40 font-medium">
+                                <th class="p-2.5 cursor-pointer hover:text-white" onclick="sortEtfTable('code')">代码</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white" onclick="sortEtfTable('name')">名称</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('close')">最新价</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('pct_chg')">日涨跌</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('flow_today')">当日净流入 (亿)</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('flow_5d')">近5日净流入 (亿)</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('flow_20d')">近20日净流入 (亿)</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('shares')">最新份额 (亿份)</th>
+                                <th class="p-2.5 cursor-pointer hover:text-white text-right" onclick="sortEtfTable('asset')">最新规模 (亿元)</th>
+                                <th class="p-2.5 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="etf-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- 由 JS 渲染 -->
+                        </tbody>
+                        <tfoot id="etf-table-foot" class="border-t-2 border-slate-700 font-mono font-bold bg-slate-800/50">
+                            <!-- 由 JS 渲染合计行 -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 图表模块第二行：中信期货对冲持仓追踪 (期指净空头) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 中信期货净空头变动趋势折线图 -->
+                <div class="lg:col-span-2 glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col bg-slate-900/60">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                            <h3 class="text-sm font-bold text-white tracking-wide">中信期货净空头对冲持仓走势 (手)</h3>
+                        </div>
+                        <div class="text-[11px] text-slate-400">
+                            IH上证50 / IF沪深300 / IC中证500 / IM中证1000
+                        </div>
+                    </div>
+                    <div id="etf-chart-futures" class="w-full h-80"></div>
+                </div>
+
+                <!-- 中信期货最新主力合约明细卡片 -->
+                <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col bg-slate-900/60">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-white tracking-wide flex items-center gap-1.5">
+                            <i data-lucide="shield" class="w-4 h-4 text-violet-400"></i>
+                            最新合约多空持仓
+                        </h3>
+                        <span id="etf-futures-date" class="text-[11px] text-slate-400 font-mono">--</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mb-3">
+                        国家队及大资金通常通过中信期货席位建立空单对冲现货波动风险，空头大幅减仓往往提示下行风险出清。
+                    </p>
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left text-xs text-slate-300 border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-700 text-slate-400 text-[11px]">
+                                    <th class="py-1.5">合约</th>
+                                    <th class="py-1.5 text-right">买多</th>
+                                    <th class="py-1.5 text-right">卖空</th>
+                                    <th class="py-1.5 text-right">净空</th>
+                                </tr>
+                            </thead>
+                            <tbody id="etf-futures-tbody" class="divide-y divide-slate-800 text-[11px] font-mono">
+                                <!-- 由 JS 渲染 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据表格三：国家队半年度官方持仓基准 (中央汇金、国新投资、诚通金控) -->
+            <div class="glass-card rounded-2xl p-5 border border-slate-700/60 shadow-lg bg-slate-900/60">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <h3 class="text-sm font-bold text-white tracking-wide">
+                            国家队官方底仓基准 (2025 年半年报披露持仓)
+                        </h3>
+                    </div>
+                    <span class="text-xs text-slate-400">数据源自基金中报披露的前十大持有人信息</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300 border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-700 text-slate-400 bg-slate-800/40 text-[11px]">
+                                <th class="p-2">代码</th>
+                                <th class="p-2">基金名称</th>
+                                <th class="p-2">国家队持有主体</th>
+                                <th class="p-2 text-right">持有份额 (亿份)</th>
+                                <th class="p-2 text-right">占总份额比例</th>
+                                <th class="p-2 text-right">中报持仓市值 (亿元)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="etf-baseline-tbody" class="divide-y divide-slate-800/60 text-[11px] font-mono">
+                            <!-- 由 JS 渲染 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 底部：测算逻辑与免责声明 -->
+            <div class="p-4 rounded-xl bg-slate-800/30 border border-slate-700/40 text-slate-400 text-xs space-y-1.5">
+                <div class="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="info" class="w-4 h-4 text-cyan-400"></i>
+                    测算逻辑与数据说明
+                </div>
+                <p>1. <strong>估算净流入</strong>：每日净流入资金 = 当日份额变动（亿份）× 当日收盘价。份额增加代表资金申购，份额减少代表资金赎回。</p>
+                <p>2. <strong>国家队标的范围</strong>：选取沪深300（510300/510310/510330/159919）、上证50（510050/510180）、中证500（510500/512500）、中证1000（512100/159845/560010/159629）、科创50（588000/588080）及创业板指（159915/159977）等16只宽基ETF。</p>
+                <p>3. <strong>期货对冲</strong>：中信期货席位 IH/IF/IC/IM 期指净空头头寸根据中金所每日盘后会员成交持仓龙虎榜汇总计算。</p>
+                <p>4. <strong>风险提示</strong>：ETF 份额变动为全市场申赎合力估算，非单一机构专有通道，数据仅供量化研究参考，不构成投资买卖依据。</p>
+            </div>
+        </section>
+
         <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
         <div id="sl-board-modal"
             class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
@@ -6204,7 +6439,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun'];
+        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
 
         function getActiveTabName() {
             if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
@@ -6292,6 +6527,13 @@
                                 if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
                                 if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
                             }, 50);
+                        } else if (t === 'etfdata') {
+                            setTimeout(() => {
+                                if (typeof initEtfDataView === 'function') initEtfDataView();
+                                if (window._etfChartTotal) window._etfChartTotal.resize();
+                                if (window._etfChartSingle) window._etfChartSingle.resize();
+                                if (window._etfChartFutures) window._etfChartFutures.resize();
+                            }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
                             runDiagnosis();
@@ -6336,7 +6578,8 @@
             tradingsystem: '交易系统',
             finaanalysis: '财报分析',
             sectorleaders: '板块龙头',
-            chanlun: '缠论'
+            chanlun: '缠论',
+            etfdata: 'ETF数据'
         };
 
         function toggleMobileNav(forceState) {
@@ -25288,6 +25531,712 @@
         if (typeof initChanlunStockSearch === 'function') {
             initChanlunStockSearch();
         }
+
+        // =========================================================================
+        // 国家队 ETF 动向追踪看板客户端核心逻辑 (National Team ETF Tracker Client)
+        // =========================================================================
+        window._etfRawData = null;
+        window._etfSortKey = 'flow_today';
+        window._etfSortAsc = false;
+        window._etfChartTotal = null;
+        window._etfChartSingle = null;
+        window._etfChartFutures = null;
+
+        async function initEtfDataView(force = false) {
+            if (window._etfRawData && !force) {
+                renderEtfAllViews();
+                return;
+            }
+            await fetchEtfTrackingData(force);
+        }
+
+        async function refreshEtfData(force = true) {
+            const btn = document.getElementById('etf-refresh-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-60', 'cursor-not-allowed');
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>同步中...</span>`;
+                lucide.createIcons();
+            }
+            try {
+                await fetchEtfTrackingData(force);
+                showToast('国家队ETF数据已更新', '成功获取最新ETF份额与对冲仓位数据');
+            } catch (err) {
+                showToast('更新失败', err.message || '网络连接超时');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60', 'cursor-not-allowed');
+                    btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>同步最新数据</span>`;
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        async function fetchEtfTrackingData(force = false) {
+            try {
+                const resp = await fetch(`/api/etf/data?force=${force ? 'true' : 'false'}`);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                if (!data || !data.etfs || !data.dates) {
+                    throw new Error(data?.error || '返回数据格式不符合预期');
+                }
+                window._etfRawData = data;
+                renderEtfAllViews();
+            } catch (e) {
+                console.error('[ETF] 加载国家队ETF数据失败:', e);
+                showToast('ETF数据加载失败', e.message);
+            }
+        }
+
+        function renderEtfAllViews() {
+            const data = window._etfRawData;
+            if (!data) return;
+
+            // 1. 基准日更新
+            const timeEl = document.getElementById('etf-update-time');
+            if (timeEl) {
+                timeEl.textContent = data.updated || (data.dates.length ? data.dates[data.dates.length - 1] : '--');
+            }
+
+            // 2. 指标卡片与单只下拉框
+            renderEtfMetricCards(data);
+            populateEtfSelect(data);
+
+            // 3. 图表渲染
+            renderEtfChartTotal(data);
+            renderEtfSingleChart();
+            renderEtfChartFutures(data);
+
+            // 4. 表格渲染
+            renderEtfTable(data);
+            renderEtfFuturesTable(data);
+            renderEtfBaselineTable(data);
+
+            lucide.createIcons();
+        }
+
+        function renderEtfMetricCards(data) {
+            const dates = data.dates || [];
+            if (!dates.length) return;
+            const N = dates.length;
+            const lastIdx = N - 1;
+
+            let flowToday = 0;
+            let flowPrevDay = 0;
+            let flow5d = 0;
+            let flow20d = 0;
+            let totalAsset = 0;
+            let totalShares = 0;
+
+            (data.etfs || []).forEach(etf => {
+                const s = data.series?.[etf.code];
+                if (!s) return;
+                const flows = s.flow || [];
+                const shares = s.shares || [];
+                const closes = s.close || [];
+
+                const curFlow = flows[lastIdx] != null ? flows[lastIdx] : 0;
+                const prevFlow = lastIdx > 0 && flows[lastIdx - 1] != null ? flows[lastIdx - 1] : 0;
+                flowToday += curFlow;
+                flowPrevDay += prevFlow;
+
+                // 近5日
+                const start5 = Math.max(0, N - 5);
+                for (let i = start5; i <= lastIdx; i++) {
+                    if (flows[i] != null) flow5d += flows[i];
+                }
+
+                // 近20日
+                const start20 = Math.max(0, N - 20);
+                for (let i = start20; i <= lastIdx; i++) {
+                    if (flows[i] != null) flow20d += flows[i];
+                }
+
+                // 最新规模 = 份额 * 收盘价
+                const curShare = shares[lastIdx] != null ? shares[lastIdx] : 0;
+                const curClose = closes[lastIdx] != null ? closes[lastIdx] : (etf.price || 1);
+                totalShares += curShare;
+                totalAsset += (curShare * curClose);
+            });
+
+            // 渲染卡片
+            const elToday = document.getElementById('etf-metric-flow-today');
+            const elTodaySub = document.getElementById('etf-metric-flow-today-sub');
+            if (elToday) {
+                const sign = flowToday > 0 ? '+' : '';
+                elToday.textContent = `${sign}${flowToday.toFixed(2)} 亿元`;
+                elToday.className = `text-lg font-bold font-mono mt-1 ${flowToday >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+            }
+            if (elTodaySub) {
+                const diff = flowToday - flowPrevDay;
+                elTodaySub.textContent = `前日: ${flowPrevDay.toFixed(2)} 亿 (${diff >= 0 ? '+' : ''}${diff.toFixed(2)} 亿)`;
+            }
+
+            const el5d = document.getElementById('etf-metric-flow-5d');
+            if (el5d) {
+                const sign5 = flow5d > 0 ? '+' : '';
+                el5d.textContent = `${sign5}${flow5d.toFixed(2)} 亿元`;
+                el5d.className = `text-lg font-bold font-mono mt-1 ${flow5d >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+            }
+
+            const el20d = document.getElementById('etf-metric-flow-20d');
+            if (el20d) {
+                const sign20 = flow20d > 0 ? '+' : '';
+                el20d.textContent = `${sign20}${flow20d.toFixed(2)} 亿元`;
+                el20d.className = `text-lg font-bold font-mono mt-1 ${flow20d >= 0 ? 'text-rose-400' : 'text-emerald-400'}`;
+            }
+
+            const elAsset = document.getElementById('etf-metric-total-asset');
+            const elShares = document.getElementById('etf-metric-total-shares');
+            if (elAsset) elAsset.textContent = `${totalAsset.toFixed(2)} 亿元`;
+            if (elShares) elShares.textContent = `总份额: ${totalShares.toFixed(2)} 亿份`;
+
+            // 期货汇总
+            const futNetEl = document.getElementById('etf-metric-futures-net');
+            const futSubEl = document.getElementById('etf-metric-futures-sub');
+            if (data.futures && data.futures.series) {
+                const prods = ['IH', 'IF', 'IC', 'IM'];
+                let curNetShort = 0;
+                let prevNetShort = 0;
+                prods.forEach(p => {
+                    const arr = data.futures.series[p]?.net_short || [];
+                    if (arr.length > 0) {
+                        curNetShort += (arr[arr.length - 1] || 0);
+                        if (arr.length > 1) prevNetShort += (arr[arr.length - 2] || 0);
+                    }
+                });
+                if (futNetEl) {
+                    futNetEl.textContent = `${curNetShort.toLocaleString()} 手`;
+                    futNetEl.className = 'text-lg font-bold font-mono mt-1 text-violet-400';
+                }
+                if (futSubEl) {
+                    const chg = curNetShort - prevNetShort;
+                    futSubEl.textContent = `较前日: ${chg >= 0 ? '+' : ''}${chg.toLocaleString()} 手`;
+                }
+            }
+        }
+
+        function populateEtfSelect(data) {
+            const sel = document.getElementById('etf-select-code');
+            if (!sel || sel.options.length > 0) return;
+            (data.etfs || []).forEach(etf => {
+                const opt = document.createElement('option');
+                opt.value = etf.code;
+                opt.textContent = `${etf.code} ${etf.name}`;
+                sel.appendChild(opt);
+            });
+        }
+
+        function openEtfKlineModal() {
+            const sel = document.getElementById('etf-select-code');
+            if (!sel || !sel.value) return;
+            const code = sel.value;
+            const etf = (window._etfRawData?.etfs || []).find(e => e.code === code);
+            const name = etf ? etf.name : code;
+            if (typeof openKlineModal === 'function') {
+                openKlineModal(code, name);
+            }
+        }
+
+        // 渲染图表1：16只ETF每日净流入与累计净流入
+        function renderEtfChartTotal(data) {
+            const dom = document.getElementById('etf-chart-total');
+            if (!dom) return;
+            if (!window._etfChartTotal) {
+                window._etfChartTotal = echarts.init(dom, 'dark');
+            }
+            const dates = data.dates || [];
+            const dailyTotals = [];
+            const cumTotals = [];
+            let runningSum = 0;
+
+            for (let i = 0; i < dates.length; i++) {
+                let dayFlow = 0;
+                (data.etfs || []).forEach(etf => {
+                    const f = data.series?.[etf.code]?.flow?.[i];
+                    if (f != null) dayFlow += f;
+                });
+                dayFlow = Math.round(dayFlow * 100) / 100;
+                runningSum = Math.round((runningSum + dayFlow) * 100) / 100;
+                dailyTotals.push(dayFlow);
+                cumTotals.push(runningSum);
+            }
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    borderColor: '#334155',
+                    formatter: function (params) {
+                        if (!params || !params.length) return '';
+                        let res = `<div class="font-bold text-slate-200">${params[0].axisValue}</div>`;
+                        params.forEach(p => {
+                            const val = p.value != null ? p.value : '--';
+                            res += `<div class="text-xs flex items-center justify-between gap-4 mt-1">
+                                <span style="color:${p.color}">${p.seriesName}</span>
+                                <span class="font-mono font-semibold">${val} 亿元</span>
+                            </div>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: {
+                    data: ['单日净流入', '累计净流入'],
+                    textStyle: { color: '#94a3b8', fontSize: 11 },
+                    top: 0
+                },
+                grid: {
+                    left: '50',
+                    right: '50',
+                    top: '35',
+                    bottom: '40',
+                    containLabel: false
+                },
+                dataZoom: [
+                    { type: 'inside', start: 60, end: 100 },
+                    { type: 'slider', height: 16, bottom: 5, borderColor: '#334155', textStyle: { color: '#64748b' } }
+                ],
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '单日(亿)',
+                        nameTextStyle: { color: '#64748b', fontSize: 10 },
+                        splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    },
+                    {
+                        type: 'value',
+                        name: '累计(亿)',
+                        nameTextStyle: { color: '#64748b', fontSize: 10 },
+                        splitLine: { show: false },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    }
+                ],
+                series: [
+                    {
+                        name: '单日净流入',
+                        type: 'bar',
+                        data: dailyTotals,
+                        itemStyle: {
+                            color: function (params) {
+                                return params.value >= 0 ? '#f43f5e' : '#10b981';
+                            }
+                        }
+                    },
+                    {
+                        name: '累计净流入',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: true,
+                        showSymbol: false,
+                        data: cumTotals,
+                        lineStyle: { width: 2.5, color: '#f59e0b' },
+                        itemStyle: { color: '#f59e0b' }
+                    }
+                ]
+            };
+            window._etfChartTotal.setOption(option);
+        }
+
+        // 渲染图表2：单只 ETF 份额变动与收盘价联动
+        function renderEtfSingleChart() {
+            const data = window._etfRawData;
+            if (!data) return;
+            const sel = document.getElementById('etf-select-code');
+            const code = sel?.value || data.etfs?.[0]?.code || '510300';
+            const s = data.series?.[code];
+            if (!s) return;
+
+            const dom = document.getElementById('etf-chart-single');
+            if (!dom) return;
+            if (!window._etfChartSingle) {
+                window._etfChartSingle = echarts.init(dom, 'dark');
+            }
+
+            const dates = data.dates || [];
+            const shares = s.shares || [];
+            const closes = s.close || [];
+            const flows = s.flow || [];
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    borderColor: '#334155',
+                    formatter: function (params) {
+                        if (!params || !params.length) return '';
+                        let res = `<div class="font-bold text-slate-200">${params[0].axisValue}</div>`;
+                        params.forEach(p => {
+                            const val = p.value != null ? p.value : '--';
+                            const unit = p.seriesName === '收盘价' ? '元' : (p.seriesName === '总份额' ? '亿份' : '亿元');
+                            res += `<div class="text-xs flex items-center justify-between gap-4 mt-1">
+                                <span style="color:${p.color}">${p.seriesName}</span>
+                                <span class="font-mono font-semibold">${val} ${unit}</span>
+                            </div>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: {
+                    data: ['总份额', '收盘价', '单日净申赎'],
+                    textStyle: { color: '#94a3b8', fontSize: 11 },
+                    top: 0
+                },
+                grid: {
+                    left: '50',
+                    right: '50',
+                    top: '35',
+                    bottom: '40',
+                    containLabel: false
+                },
+                dataZoom: [
+                    { type: 'inside', start: 60, end: 100 },
+                    { type: 'slider', height: 16, bottom: 5, borderColor: '#334155', textStyle: { color: '#64748b' } }
+                ],
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '份额(亿份)',
+                        scale: true,
+                        nameTextStyle: { color: '#64748b', fontSize: 10 },
+                        splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    },
+                    {
+                        type: 'value',
+                        name: '收盘价(元)',
+                        scale: true,
+                        nameTextStyle: { color: '#64748b', fontSize: 10 },
+                        splitLine: { show: false },
+                        axisLabel: { color: '#94a3b8', fontSize: 10 }
+                    }
+                ],
+                series: [
+                    {
+                        name: '总份额',
+                        type: 'line',
+                        smooth: true,
+                        showSymbol: false,
+                        data: shares,
+                        lineStyle: { width: 2, color: '#06b6d4' },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(6, 182, 212, 0.25)' },
+                                { offset: 1, color: 'rgba(6, 182, 212, 0.0)' }
+                            ])
+                        },
+                        itemStyle: { color: '#06b6d4' }
+                    },
+                    {
+                        name: '收盘价',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: true,
+                        showSymbol: false,
+                        data: closes,
+                        lineStyle: { width: 2, color: '#a855f7' },
+                        itemStyle: { color: '#a855f7' }
+                    },
+                    {
+                        name: '单日净申赎',
+                        type: 'bar',
+                        data: flows,
+                        itemStyle: {
+                            color: function (params) {
+                                return params.value >= 0 ? '#f43f5e' : '#10b981';
+                            }
+                        }
+                    }
+                ]
+            };
+            window._etfChartSingle.setOption(option);
+        }
+
+        // 渲染图表3：中信期货期指净空头趋势 (IH/IF/IC/IM)
+        function renderEtfChartFutures(data) {
+            const dom = document.getElementById('etf-chart-futures');
+            if (!dom) return;
+            if (!window._etfChartFutures) {
+                window._etfChartFutures = echarts.init(dom, 'dark');
+            }
+            const futDates = data.futures?.dates || data.dates || [];
+            const seriesMap = data.futures?.series || {};
+
+            const prods = [
+                { key: 'IF', name: '沪深300 (IF)', color: '#3b82f6' },
+                { key: 'IH', name: '上证50 (IH)', color: '#ef4444' },
+                { key: 'IC', name: '中证500 (IC)', color: '#10b981' },
+                { key: 'IM', name: '中证1000 (IM)', color: '#8b5cf6' }
+            ];
+
+            const seriesList = prods.map(p => ({
+                name: p.name,
+                type: 'line',
+                smooth: true,
+                showSymbol: false,
+                lineStyle: { width: 2, color: p.color },
+                itemStyle: { color: p.color },
+                data: seriesMap[p.key]?.net_short || []
+            }));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    borderColor: '#334155',
+                    formatter: function (params) {
+                        if (!params || !params.length) return '';
+                        let res = `<div class="font-bold text-slate-200">${params[0].axisValue} 中信席位净空头</div>`;
+                        let totalShort = 0;
+                        params.forEach(p => {
+                            const val = p.value != null ? p.value : 0;
+                            totalShort += val;
+                            res += `<div class="text-xs flex items-center justify-between gap-4 mt-1">
+                                <span style="color:${p.color}">${p.seriesName}</span>
+                                <span class="font-mono font-semibold">${val.toLocaleString()} 手</span>
+                            </div>`;
+                        });
+                        res += `<div class="text-xs flex items-center justify-between gap-4 mt-2 pt-1 border-t border-slate-700 text-amber-300 font-bold">
+                            <span>四大期指净空合计</span>
+                            <span class="font-mono">${totalShort.toLocaleString()} 手</span>
+                        </div>`;
+                        return res;
+                    }
+                },
+                legend: {
+                    data: prods.map(p => p.name),
+                    textStyle: { color: '#94a3b8', fontSize: 11 },
+                    top: 0
+                },
+                grid: {
+                    left: '55',
+                    right: '30',
+                    top: '35',
+                    bottom: '40',
+                    containLabel: false
+                },
+                dataZoom: [
+                    { type: 'inside', start: 60, end: 100 },
+                    { type: 'slider', height: 16, bottom: 5, borderColor: '#334155', textStyle: { color: '#64748b' } }
+                ],
+                xAxis: {
+                    type: 'category',
+                    data: futDates,
+                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '净空单(手)',
+                    nameTextStyle: { color: '#64748b', fontSize: 10 },
+                    splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
+                    axisLabel: { color: '#94a3b8', fontSize: 10 }
+                },
+                series: seriesList
+            };
+            window._etfChartFutures.setOption(option);
+        }
+
+        // 渲染表格1：16只ETF明细
+        function sortEtfTable(key) {
+            if (window._etfSortKey === key) {
+                window._etfSortAsc = !window._etfSortAsc;
+            } else {
+                window._etfSortKey = key;
+                window._etfSortAsc = false;
+            }
+            if (window._etfRawData) renderEtfTable(window._etfRawData);
+        }
+
+        function renderEtfTable(data) {
+            const tbody = document.getElementById('etf-table-body');
+            const tfoot = document.getElementById('etf-table-foot');
+            if (!tbody) return;
+
+            const dates = data.dates || [];
+            const lastIdx = dates.length - 1;
+            const prevIdx = lastIdx > 0 ? lastIdx - 1 : 0;
+
+            const rows = (data.etfs || []).map(etf => {
+                const s = data.series?.[etf.code] || {};
+                const sharesArr = s.shares || [];
+                const flowsArr = s.flow || [];
+                const closesArr = s.close || [];
+
+                const close = closesArr[lastIdx] != null ? closesArr[lastIdx] : (etf.price || 0);
+                const prevClose = closesArr[prevIdx] != null ? closesArr[prevIdx] : close;
+                const pctChg = prevClose > 0 ? ((close - prevClose) / prevClose * 100) : 0;
+
+                const flowToday = flowsArr[lastIdx] != null ? flowsArr[lastIdx] : 0;
+                let flow5d = 0;
+                for (let i = Math.max(0, lastIdx - 4); i <= lastIdx; i++) {
+                    if (flowsArr[i] != null) flow5d += flowsArr[i];
+                }
+                let flow20d = 0;
+                for (let i = Math.max(0, lastIdx - 19); i <= lastIdx; i++) {
+                    if (flowsArr[i] != null) flow20d += flowsArr[i];
+                }
+
+                const curShares = sharesArr[lastIdx] != null ? sharesArr[lastIdx] : 0;
+                const asset = curShares * close;
+
+                return {
+                    code: etf.code,
+                    name: etf.name,
+                    close: close,
+                    pct_chg: pctChg,
+                    flow_today: flowToday,
+                    flow_5d: flow5d,
+                    flow_20d: flow20d,
+                    shares: curShares,
+                    asset: asset
+                };
+            });
+
+            // 排序
+            const key = window._etfSortKey || 'flow_today';
+            const asc = window._etfSortAsc ? 1 : -1;
+            rows.sort((a, b) => {
+                if (typeof a[key] === 'string') return a[key].localeCompare(b[key]) * asc;
+                return ((a[key] || 0) - (b[key] || 0)) * asc;
+            });
+
+            // 累计合计
+            let sumFlowToday = 0;
+            let sumFlow5d = 0;
+            let sumFlow20d = 0;
+            let sumShares = 0;
+            let sumAsset = 0;
+
+            tbody.innerHTML = rows.map(r => {
+                sumFlowToday += r.flow_today;
+                sumFlow5d += r.flow_5d;
+                sumFlow20d += r.flow_20d;
+                sumShares += r.shares;
+                sumAsset += r.asset;
+
+                const pctColor = r.pct_chg >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const flowTodayColor = r.flow_today >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const flow5dColor = r.flow_5d >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const flow20dColor = r.flow_20d >= 0 ? 'text-rose-400' : 'text-emerald-400';
+
+                return `<tr class="hover:bg-slate-800/50 transition">
+                    <td class="p-2.5">
+                        <button onclick="openKlineModal('${r.code}', '${r.name}')" class="text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer underline decoration-dotted">
+                            ${r.code}
+                        </button>
+                    </td>
+                    <td class="p-2.5 font-sans">
+                        <button onclick="openKlineModal('${r.code}', '${r.name}')" class="hover:text-white cursor-pointer text-left font-medium">
+                            ${r.name}
+                        </button>
+                    </td>
+                    <td class="p-2.5 text-right font-semibold">${r.close.toFixed(3)}</td>
+                    <td class="p-2.5 text-right font-semibold ${pctColor}">${r.pct_chg >= 0 ? '+' : ''}${r.pct_chg.toFixed(2)}%</td>
+                    <td class="p-2.5 text-right font-semibold ${flowTodayColor}">${r.flow_today >= 0 ? '+' : ''}${r.flow_today.toFixed(2)}</td>
+                    <td class="p-2.5 text-right font-semibold ${flow5dColor}">${r.flow_5d >= 0 ? '+' : ''}${r.flow_5d.toFixed(2)}</td>
+                    <td class="p-2.5 text-right font-semibold ${flow20dColor}">${r.flow_20d >= 0 ? '+' : ''}${r.flow_20d.toFixed(2)}</td>
+                    <td class="p-2.5 text-right">${r.shares.toFixed(2)}</td>
+                    <td class="p-2.5 text-right font-semibold text-slate-200">${r.asset.toFixed(2)}</td>
+                    <td class="p-2.5 text-center">
+                        <button onclick="openKlineModal('${r.code}', '${r.name}')" class="px-2 py-0.5 rounded bg-slate-700/60 hover:bg-slate-600 text-cyan-300 text-[11px] transition">
+                            K线
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            if (tfoot) {
+                const totalFlowTodayColor = sumFlowToday >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const totalFlow5dColor = sumFlow5d >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const totalFlow20dColor = sumFlow20d >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                tfoot.innerHTML = `<tr>
+                    <td class="p-2.5 font-sans" colspan="2">合计 (16 只宽基 ETF)</td>
+                    <td class="p-2.5 text-right">--</td>
+                    <td class="p-2.5 text-right">--</td>
+                    <td class="p-2.5 text-right ${totalFlowTodayColor}">${sumFlowToday >= 0 ? '+' : ''}${sumFlowToday.toFixed(2)}</td>
+                    <td class="p-2.5 text-right ${totalFlow5dColor}">${sumFlow5d >= 0 ? '+' : ''}${sumFlow5d.toFixed(2)}</td>
+                    <td class="p-2.5 text-right ${totalFlow20dColor}">${sumFlow20d >= 0 ? '+' : ''}${sumFlow20d.toFixed(2)}</td>
+                    <td class="p-2.5 text-right">${sumShares.toFixed(2)}</td>
+                    <td class="p-2.5 text-right text-amber-300 font-bold">${sumAsset.toFixed(2)}</td>
+                    <td class="p-2.5 text-center">--</td>
+                </tr>`;
+            }
+        }
+
+        // 渲染表格2：中信期货主力合约持仓
+        function renderEtfFuturesTable(data) {
+            const tbody = document.getElementById('etf-futures-tbody');
+            const dateEl = document.getElementById('etf-futures-date');
+            if (!tbody) return;
+
+            const fut = data.futures || {};
+            if (dateEl) dateEl.textContent = fut.latest?.date || data.dates?.[data.dates.length - 1] || '--';
+
+            const contracts = fut.latest?.contracts || [];
+            if (!contracts.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-500">暂无合约龙虎榜数据</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = contracts.map(c => {
+                const net = (c.short || 0) - (c.long || 0);
+                return `<tr class="hover:bg-slate-800/40">
+                    <td class="py-1.5 font-semibold text-slate-200">${c.name || c.contract || '--'}</td>
+                    <td class="py-1.5 text-right text-rose-400 font-medium">${(c.long || 0).toLocaleString()}</td>
+                    <td class="py-1.5 text-right text-emerald-400 font-medium">${(c.short || 0).toLocaleString()}</td>
+                    <td class="py-1.5 text-right font-bold ${net >= 0 ? 'text-violet-400' : 'text-amber-400'}">${net.toLocaleString()}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // 渲染表格3：国家队底仓基准
+        function renderEtfBaselineTable(data) {
+            const tbody = document.getElementById('etf-baseline-tbody');
+            if (!tbody) return;
+            const baselines = data.baseline || [];
+            if (!baselines.length) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">暂无基准披露数据</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = baselines.map(b => {
+                return `<tr class="hover:bg-slate-800/40">
+                    <td class="p-2 text-cyan-400 font-semibold cursor-pointer" onclick="openKlineModal('${b.code}', '${b.name}')">${b.code}</td>
+                    <td class="p-2 font-sans text-slate-200">${b.name || '--'}</td>
+                    <td class="p-2 font-sans text-amber-300 font-medium">${b.holder || b.entity || '中央汇金投资有限责任公司'}</td>
+                    <td class="p-2 text-right">${b.holding_shares != null ? Number(b.holding_shares).toFixed(2) : '--'}</td>
+                    <td class="p-2 text-right text-slate-300">${b.ratio ? (b.ratio * 100).toFixed(2) + '%' : (b.pct || '--')}</td>
+                    <td class="p-2 text-right font-semibold text-slate-100">${b.holding_value != null ? Number(b.holding_value).toFixed(2) : '--'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // 窗口 resize 监听自动适配 ETF 图表
+        window.addEventListener('resize', () => {
+            if (window._etfChartTotal) window._etfChartTotal.resize();
+            if (window._etfChartSingle) window._etfChartSingle.resize();
+            if (window._etfChartFutures) window._etfChartFutures.resize();
+        });
 
     </script>
 
