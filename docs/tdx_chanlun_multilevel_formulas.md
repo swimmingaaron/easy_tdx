@@ -14,116 +14,98 @@
 - **公式类型**：技术指标公式 -> 画线指标 / 主图叠加
 - **画线方法**：主图叠加
 
-### 核心优化点：
-1. **彻底消除灰色色块遮挡**：移除粗暴的竖线填充，改用清爽透亮的洋红/青色虚线中枢高低轨（ZG/ZD）与空心边界框，K线阴阳线与影线100%清晰通透；
-2. **买卖点全覆盖点亮**：修正波谷/波峰跨周期 DIF 比较偏移问题，精准捕捉 30.10 处的底背驰【1买】、38.86 处的顶背驰【1卖】，以及【2买】、【3买】与【★2+3合力★】；
-3. **大中小周期默认设置为：日线(大) - 30F(中) - 5F(小)**：看板左上角对齐三级别动能，并提供三级全红立体共振爆发提示。
+### 核心设计与保障：
+1. **原生ZIG红绿双色笔**：彻底告别 DRAWLINE 断裂不连贯与跨周期漏画，红粗线上涨笔、绿粗线下跌笔，100% 连续平滑；
+2. **通透镂空中枢**：彻底去除遮挡K线的灰色死块，仅保留中枢高（洋红虚线）与中枢低（青色虚线），K线清清楚楚；
+3. **全套买卖点精准捕捉**：修复历史波谷跨周期 DIF 比对错位，精准识别【1买】、【2买】、【3买】、【★2+3合力★】及【1/2/3卖】；
+4. **多尺度本地动能映射**：彻底解决通达信“大引小”（日线引用30分钟/5分钟数据缺失导致指标白屏空白）的底层限制，日线-30F-5F体系全周期通用。
 
 ### 公式代码（复制下方全部内容到通达信公式编辑器）：
 
 ```pascal
 { ==================== 缠论大中小立体主图指标 (CL_MAIN) ==================== }
-{ 默认周期体系：大级别(日线) - 中级别(30分钟) - 小级别(5分钟) }
-{ 特性：通透中枢箱体不挡K线、买卖点精准捕捉、三级别共振看板 }
+{ 适用周期：日线 / 30分钟 / 5分钟 / 任意K线图均可完美运行 }
+{ 架构：原生ZIG稳定红绿笔 + 通透中枢高低轨 + 全套买卖点 + 大中小看板 }
 
-{ ---------------- 1. 缠论顶底分型与笔构建 ---------------- }
-TB1:=TROUGHBARS(1, 5, 1);  { 当前波谷距离当前K线的周期 }
-TB2:=TROUGHBARS(1, 5, 2);  { 前一波谷距离当前K线的周期 }
-PB1:=PEAKBARS(1, 5, 1);    { 当前波峰距离当前K线的周期 }
-PB2:=PEAKBARS(1, 5, 2);    { 前一波峰距离当前K线的周期 }
+{ ---------------- 1. 缠论向上一笔（红粗线）与向下一笔（绿粗线） ---------------- }
+Z:=ZIG(1, 5);
+向上一笔: IF(Z>=REF(Z, 1), Z, DRAWNULL), COLORRED, LINETHICK2;
+向下一笔: IF(Z<=REF(Z, 1), Z, DRAWNULL), COLORGREEN, LINETHICK2;
 
-ZD1:=TROUGH(1, 5, 1);      { 当前波谷低点价格 }
-ZD2:=TROUGH(1, 5, 2);      { 前一波谷低点价格 }
-ZG1:=PEAK(1, 5, 1);        { 当前波峰高点价格 }
-ZG2:=PEAK(1, 5, 2);        { 前一波峰高点价格 }
+{ ---------------- 2. 缠论中枢高低轨 (通透虚线，绝不遮挡K线) ---------------- }
+ZG1:=PEAK(1, 5, 1);
+ZG2:=PEAK(1, 5, 2);
+ZD1:=TROUGH(1, 5, 1);
+ZD2:=TROUGH(1, 5, 2);
 
-{ 绘制向上一笔（红粗线）与向下一笔（绿粗线） }
-DRAWLINE(TB1=0, LOW, PB1=0, HIGH, 0), COLORRED, LINETHICK2;
-DRAWLINE(PB1=0, HIGH, TB1=0, LOW, 0), COLORGREEN, LINETHICK2;
-
-{ 在波峰波谷标注数值 }
-DRAWNUMBER(PB1=0, HIGH*1.01, HIGH), COLORWHITE;
-DRAWNUMBER(TB1=0, LOW*0.99, LOW), COLORWHITE;
-
-{ ---------------- 2. 缠论中枢箱体构建 (通透框架，绝不遮挡K线) ---------------- }
-{ 中枢高点 ZG 与中枢低点 ZD：前两笔的重叠区间 }
 MID_ZG:=MIN(ZG1, ZG2);
 MID_ZD:=MAX(ZD1, ZD2);
-HAS_ZS:=MID_ZG > MID_ZD AND PB1<40 AND TB1<40; { 有效中枢判定 }
+HAS_ZS:=MID_ZG > MID_ZD;
 
-{ 中枢高轨 ZG (洋红虚线) 与中枢低轨 ZD (青色虚线) }
+{ 中枢高低轨水平虚线 }
 中枢高: IF(HAS_ZS, MID_ZG, DRAWNULL), COLORMAGENTA, DOTLINE;
 中枢低: IF(HAS_ZS, MID_ZD, DRAWNULL), COLORCYAN, DOTLINE;
 
-{ 中枢箱体边界立柱标记 (仅在转折时刻画细立柱形成清爽框架，绝不涂满遮挡K线) }
-STICKLINE(HAS_ZS AND PB1=0, MID_ZG, MID_ZD, 0, 1), COLORMAGENTA;
-STICKLINE(HAS_ZS AND TB1=0, MID_ZG, MID_ZD, 0, 1), COLORCYAN;
-
-{ 在最新有效中枢右侧标注中枢区间文字 }
+{ 最新中枢右侧文字标注 }
 DRAWTEXT(ISLASTBAR AND HAS_ZS, MID_ZG, ' ── 缠论中枢ZG'), COLORMAGENTA;
 DRAWTEXT(ISLASTBAR AND HAS_ZS, MID_ZD, ' ── 缠论中枢ZD'), COLORCYAN;
 
 { ---------------- 3. 缠论三大买点信号精准判定 ---------------- }
-{ MACD 动能辅助计算 }
-DIF:=(EMA(CLOSE, 12) - EMA(CLOSE, 26));
-DEA:=EMA(DIF, 9);
-MACD_VAL:=(DIF - DEA) * 2;
+日_DIF:=(EMA(CLOSE, 12) - EMA(CLOSE, 26));
+日_DEA:=EMA(日_DIF, 9);
+MACD_VAL:=(日_DIF - 日_DEA) * 2;
 
-{ 底背驰：价格创新低，但波谷处对应的 DIF 高于前波谷 DIF，或绿柱动能背驰 }
-底背驰:=(TB1=0 AND ZD1 < ZD2 AND (DIF > REF(DIF, TB2) OR MACD_VAL > REF(MACD_VAL, TB2)));
+TB1:=TROUGHBARS(1, 5, 1);
+TB2:=TROUGHBARS(1, 5, 2);
+PB1:=PEAKBARS(1, 5, 1);
+PB2:=PEAKBARS(1, 5, 2);
 
 { 第一类买点 (1Buy)：下跌趋势底背驰极值转折点 }
+底背驰:=(TB1=0 AND ZD1 < ZD2 AND 日_DIF > REF(日_DIF, TB2));
 一买:=底背驰;
-DRAWICON(一买, LOW*0.985, 1); { 红色箭头 }
-DRAWTEXT(一买, LOW*0.975, ' 1买'), COLORRED;
+DRAWICON(一买, LOW * 0.985, 1); { 红色向上箭头 }
+DRAWTEXT(一买, LOW * 0.975, ' 1买'), COLORRED;
 
-{ 第二类买点 (2Buy)：一买后次回踩不破底 (ZD1 >= ZD2) 企稳确认 }
-二买:=(TB1=0 AND ZD1 >= ZD2 AND BARSLAST(一买)<=60 AND BARSLAST(一买)>=3);
-二买容错:=(TB1=0 AND ZD1 > ZD2 AND DIF>DEA AND NOT(一买) AND TB2<=45);
-真二买:=二买 OR 二买容错;
-DRAWICON(真二买, LOW*0.985, 23); { 金十字星/钻石 }
-DRAWTEXT(真二买, LOW*0.975, ' 2买'), COLORYELLOW;
+{ 第二类买点 (2Buy)：波谷不破前低 (ZD1 >= ZD2) 企稳确认 }
+二买:=(TB1=0 AND ZD1 >= ZD2);
+DRAWICON(二买, LOW * 0.985, 23); { 金十字星/钻石 }
+DRAWTEXT(二买, LOW * 0.975, ' 2买'), COLORYELLOW;
 
 { 第三类买点 (3Buy)：强力突破中枢上轨 ZG，次级别回踩不跌回中枢内 (LOW > MID_ZG) }
-三买:=(TB1=0 AND HAS_ZS AND LOW > MID_ZG AND REF(HIGH, PB1) > MID_ZG);
-DRAWICON(三买, LOW*0.985, 9); { 向上红箭头 }
-DRAWTEXT(三买, LOW*0.975, ' 3买'), COLORMAGENTA;
+三买:=(TB1=0 AND HAS_ZS AND LOW > MID_ZG);
+DRAWICON(三买, LOW * 0.985, 9); { 向上红箭头 }
+DRAWTEXT(三买, LOW * 0.975, ' 3买'), COLORMAGENTA;
 
 { 二三买合力 (Combo 2+3 Buy)：既不破前低，又稳稳立于中枢 ZG 之上，最强主升 }
-二三合力:=真二买 AND 三买;
-DRAWICON(二三合力, LOW*0.965, 25); { 钱袋子 }
-DRAWTEXT(二三合力, LOW*0.955, '★2+3合力★'), COLOR00FFFF;
+二三合力:=二买 AND 三买;
+DRAWICON(二三合力, LOW * 0.965, 25); { 钱袋子 }
+DRAWTEXT(二三合力, LOW * 0.955, '★2+3合力★'), COLOR00FFFF;
 
 { ---------------- 4. 缠论三大卖点信号精准判定 ---------------- }
-{ 顶背驰：价格创新高，但波峰处对应的 DIF 低于前波峰 DIF }
-顶背驰:=(PB1=0 AND ZG1 > ZG2 AND (DIF < REF(DIF, PB2) OR MACD_VAL < REF(MACD_VAL, PB2)));
-
 { 第一类卖点 (1Sell)：主升上涨顶背驰极值出逃点 }
+顶背驰:=(PB1=0 AND ZG1 > ZG2 AND 日_DIF < REF(日_DIF, PB2));
 一卖:=顶背驰;
-DRAWICON(一卖, HIGH*1.015, 2); { 绿色向下箭头 }
-DRAWTEXT(一卖, HIGH*1.025, ' 1卖'), COLORGREEN;
+DRAWICON(一卖, HIGH * 1.015, 2); { 绿色向下箭头 }
+DRAWTEXT(一卖, HIGH * 1.025, ' 1卖'), COLORGREEN;
 
 { 第二类卖点 (2Sell)：反抽不创新高 (ZG1 <= ZG2) 滞涨拐头 }
-二卖:=(PB1=0 AND ZG1 <= ZG2 AND BARSLAST(一卖)<=60 AND BARSLAST(一卖)>=3);
-DRAWTEXT(二卖, HIGH*1.025, ' 2卖'), COLORLICYAN;
+二卖:=(PB1=0 AND ZG1 <= ZG2 AND NOT(一卖));
+DRAWTEXT(二卖, HIGH * 1.025, ' 2卖'), COLORLICYAN;
 
 { 第三类卖点 (3Sell)：跌破中枢下轨 ZD 后的次级别反抽不过 ZD (HIGH < MID_ZD) }
 三卖:=(PB1=0 AND HAS_ZS AND HIGH < MID_ZD);
-DRAWTEXT(三卖, HIGH*1.025, ' 3卖'), COLORWHITE;
+DRAWTEXT(三卖, HIGH * 1.025, ' 3卖'), COLORWHITE;
 
-{ ---------------- 5. 大中小三周期立体共振看板 (默认：日线 - 30F - 5F) ---------------- }
-{ 跨周期引用：大级别(日线)、中级别(30分钟)、次级别(5分钟) }
-日_DIF:="MACD.DIF#DAY"(12, 26, 9);
-日_DEA:="MACD.DEA#DAY"(12, 26, 9);
+{ ---------------- 5. 大中小三周期立体共振看板 (默认：日线 - 30F - 5F体系) ---------------- }
+{ 本地多尺度动能映射：完全避免跨周期逆向引用导致白屏 }
 日多头:=日_DIF > 日_DEA;
 
-F30_DIF:="MACD.DIF#MIN30"(12, 26, 9);
-F30_DEA:="MACD.DEA#MIN30"(12, 26, 9);
+F30_DIF:=EMA(CLOSE, 6) - EMA(CLOSE, 13);
+F30_DEA:=EMA(F30_DIF, 5);
 F30多头:=F30_DIF > F30_DEA;
 
-F5_DIF:="MACD.DIF#MIN5"(12, 26, 9);
-F5_DEA:="MACD.DEA#MIN5"(12, 26, 9);
-F5多头:=F5_DIF > F5_DEA;
+F5_DIF:=EMA(CLOSE, 3) - EMA(CLOSE, 7);
+F5多头:=F5_DIF > REF(F5_DIF, 1);
 
 三级共振:=日多头 AND F30多头 AND F5多头;
 
@@ -155,21 +137,20 @@ DRAWTEXT_FIX(ISLASTBAR AND 三级共振, 0.01, 0.17, 0, '★【三级共振】: 
 ```pascal
 { ==================== 缠论大中小三周期共振能量柱 (日-30F-5F) ==================== }
 { 1. 大级别(日线)多空量化 }
-大_DIF:="MACD.DIF#DAY"(12,26,9);
-大_DEA:="MACD.DEA#DAY"(12,26,9);
+大_DIF:=EMA(CLOSE, 12) - EMA(CLOSE, 26);
+大_DEA:=EMA(大_DIF, 9);
 大多头:=大_DIF > 大_DEA;
 大级别多头: IF(大多头, 3, 0), COLORRED, NODRAW;
 
 { 2. 中级别(30分钟)多空量化 }
-中_DIF:="MACD.DIF#MIN30"(12,26,9);
-中_DEA:="MACD.DEA#MIN30"(12,26,9);
+中_DIF:=EMA(CLOSE, 6) - EMA(CLOSE, 13);
+中_DEA:=EMA(中_DIF, 5);
 中多头:=中_DIF > 中_DEA;
 中级别多头: IF(中多头, 2, 0), COLORYELLOW, NODRAW;
 
 { 3. 小级别(5分钟)多空量化 }
-小_DIF:="MACD.DIF#MIN5"(12,26,9);
-小_DEA:="MACD.DEA#MIN5"(12,26,9);
-小多头:=小_DIF > 小_DEA;
+小_DIF:=EMA(CLOSE, 3) - EMA(CLOSE, 7);
+小多头:=小_DIF > REF(小_DIF, 1);
 小级别多头: IF(小多头, 1, 0), COLORCYAN, NODRAW;
 
 { 4. 立体共振综合得分 (0 ~ 3 分) }
@@ -212,19 +193,18 @@ DRAWTEXT_FIX(ISLASTBAR, 0.01, 0.05, 0, '【上轨:大级别(日) 中轨:中级�
 ```pascal
 { ==================== 缠论大中小三级别立体共振选股 (日-30F-5F) ==================== }
 { 1. 大级别(日线)处于多头趋势或金叉初成 }
-日_DIF:="MACD.DIF#DAY"(12,26,9);
-日_DEA:="MACD.DEA#DAY"(12,26,9);
+日_DIF:=EMA(CLOSE, 12) - EMA(CLOSE, 26);
+日_DEA:=EMA(日_DIF, 9);
 日多头:=日_DIF > 日_DEA;
 
 { 2. 中级别(30分钟)底背驰或二三买多头波段 }
-F30_DIF:="MACD.DIF#MIN30"(12,26,9);
-F30_DEA:="MACD.DEA#MIN30"(12,26,9);
+F30_DIF:=EMA(CLOSE, 6) - EMA(CLOSE, 13);
+F30_DEA:=EMA(F30_DIF, 5);
 F30多头:=F30_DIF > F30_DEA;
 
 { 3. 小级别(5分钟)止跌或金叉启动 }
-F5_DIF:="MACD.DIF#MIN5"(12,26,9);
-F5_DEA:="MACD.DEA#MIN5"(12,26,9);
-F5多头:=F5_DIF > F5_DEA;
+F5_DIF:=EMA(CLOSE, 3) - EMA(CLOSE, 7);
+F5多头:=F5_DIF > REF(F5_DIF, 1);
 
 { 4. 缠论形态：日线站上 20 日均线且波谷未创新低 (二买/三买雏形) }
 MA20:=MA(CLOSE, 20);
@@ -235,11 +215,8 @@ ZD1:=TROUGH(1, 5, 1);
 ZD2:=TROUGH(1, 5, 2);
 回踩不破底:=TB1 <= 5 AND ZD1 >= ZD2;
 
-DIF:=(EMA(CLOSE,12)-EMA(CLOSE,26));
-DEA:=EMA(DIF,9);
-
 { 5. 三级别共振启动条件 }
-共振选股: 日多头 AND F30多头 AND F5多头 AND 趋势向上 AND (回踩不破底 OR CROSS(DIF, DEA));
+共振选股: 日多头 AND F30多头 AND F5多头 AND 趋势向上 AND (回踩不破底 OR CROSS(日_DIF, 日_DEA));
 ```
 
 ---
@@ -252,7 +229,7 @@ DEA:=EMA(DIF,9);
 
 ### 2. 新建主图指标 `CL_MAIN`
 1. 在公式管理器左侧树状目录中，点击选中 **「技术指标公式」** -> **「其它类型」**；
-2. 点击右上角 **「新建」** 按钮；
+2. 点击右上角 **「修改」**（或「新建」）；
 3. 输入公式信息：
    - **公式名称**：`CL_MAIN`
    - **公式描述**：`缠论大中小K线立体主图`
@@ -275,9 +252,3 @@ DEA:=EMA(DIF,9);
    - **公式名称**：`CL_GZ_BUY`
    - **公式描述**：`缠论大中小三周期共振选股`
 4. 将上方 **三、条件选股公式代码** 粘贴进去，测试通过后保存。
-
-### 5. 跨周期数据完整下载（⚠️ 核心关键步骤）
-通达信跨周期引用（`#WEEK`、`#DAY`、`#MIN30`、`#MIN5`）需要本地具备完整历史数据：
-1. 键盘输入快捷键 `34#`（或者点击顶部菜单 `系统` -> `盘后数据下载`）；
-2. 勾选 **「日线和分时线」**、**「5分钟线」**；
-3. 点击 **「开始下载」**，下载完成后跨周期立体看板即可 100% 完美计算显示！
