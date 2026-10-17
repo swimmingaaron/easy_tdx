@@ -1138,8 +1138,15 @@ class ChanlunStrategy(ParametrizedStrategy):
         self.sell_signals = np.zeros(n_bars, dtype=bool)
         self.stop_levels = np.zeros(n_bars, dtype=float)
 
-        buy_mode = self.p.get("buy_mode", "combo_23")
-        entry_mode = self.p.get("entry_mode", "confirmed")
+        bm = self.p.get("buy_mode", "combo_23")
+        if isinstance(bm, dict):
+            bm = bm.get("default", "combo_23")
+        buy_mode = str(bm).strip().lower() if bm else "combo_23"
+
+        em = self.p.get("entry_mode", "confirmed")
+        if isinstance(em, dict):
+            em = em.get("default", "confirmed")
+        entry_mode = str(em).strip().lower() if em else "confirmed"
 
         for mmd in res.mmds:
             mtype = mmd.mmd_type.value

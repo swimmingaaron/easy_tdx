@@ -30,8 +30,15 @@ class ChanlunBuySellStrategy(BaseStrategy):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.buy_mode = self.params.get("buy_mode", "combo_23")
-        self.entry_mode = self.params.get("entry_mode", "confirmed")
+        bm = self.params.get("buy_mode", "combo_23")
+        if isinstance(bm, dict):
+            bm = bm.get("default", "combo_23")
+        self.buy_mode = str(bm) if bm else "combo_23"
+
+        em = self.params.get("entry_mode", "confirmed")
+        if isinstance(em, dict):
+            em = em.get("default", "confirmed")
+        self.entry_mode = str(em) if em else "confirmed"
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         res = df.copy()
@@ -52,8 +59,8 @@ class ChanlunBuySellStrategy(BaseStrategy):
             analyser = ChanlunAnalyser(frequency="DAILY")
             cl_res = analyser.process_klines(res)
 
-            buy_mode = self.buy_mode
-            entry_mode = self.entry_mode
+            buy_mode = str(self.buy_mode).strip().lower()
+            entry_mode = str(self.entry_mode).strip().lower()
 
             for mmd in cl_res.mmds:
                 mtype = mmd.mmd_type.value

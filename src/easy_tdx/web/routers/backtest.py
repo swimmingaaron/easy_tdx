@@ -953,6 +953,8 @@ async def api_run_backtest_unified(
                 if cash >= cost + comm:
                     cash -= (cost + comm)
                     shares = target_shares
+                    sig_type = str(row.get("signal_type", "")).strip()
+                    buy_reason = f"缠论{sig_type}买点" if sig_type else "策略买入信号"
                     trade_item = {
                         "datetime": dt_str,
                         "action": "BUY",
@@ -964,7 +966,7 @@ async def api_run_backtest_unified(
                         "pnl": 0.0,
                         "pnl_pct": 0.0,
                         "holding_days": 0,
-                        "reason": "策略买入信号"
+                        "reason": buy_reason
                     }
                     trades.append(trade_item)
                     buy_records.append({"price": price, "dt": dt_str, "idx": i})
@@ -979,6 +981,8 @@ async def api_run_backtest_unified(
             holding = max(1, i - last_buy.get("idx", i))
             
             cash += (revenue - comm - tax)
+            sig_type = str(row.get("signal_type", "")).strip()
+            sell_reason = f"缠论{sig_type}卖点" if sig_type else ("策略卖出信号" if pnl >= 0 else "止损/平仓离场")
             trade_item = {
                 "datetime": dt_str,
                 "action": "SELL",
@@ -990,7 +994,7 @@ async def api_run_backtest_unified(
                 "pnl": round(pnl, 2),
                 "pnl_pct": round(pnl_pct, 2),
                 "holding_days": holding,
-                "reason": "策略卖出信号" if pnl >= 0 else "止损/平仓离场"
+                "reason": sell_reason
             }
             trades.append(trade_item)
             shares = 0

@@ -44,7 +44,10 @@ class BaseStrategy(ABC):
         if self.params_list:
             defaults = {p.name: p.default for p in self.params_list}
         elif self.params_schema:
-            defaults = self.params_schema.copy()
+            defaults = {
+                k: (v.get("default") if isinstance(v, dict) else v)
+                for k, v in self.params_schema.items()
+            }
         self.params = {**defaults, **params}
 
     @classmethod
@@ -52,20 +55,34 @@ class BaseStrategy(ABC):
         if cls.params_list:
             return [p.to_dict() for p in cls.params_list]
         if cls.params_schema:
-            return [
-                {
-                    "name": k,
-                    "type": type(v).__name__,
-                    "default": v,
-                    "min_value": None,
-                    "max_value": None,
-                    "step": 1 if isinstance(v, int) else 0.1,
-                    "label": k,
-                    "description": "",
-                }
-                for k, v in cls.params_schema.items()
-            ]
+            res = []
+            for k, v in cls.params_schema.items():
+                if isinstance(v, dict):
+                    res.append({
+                        "name": k,
+                        "type": v.get("type", "str"),
+                        "default": v.get("default"),
+                        "choices": v.get("choices", []),
+                        "min_value": v.get("min_value"),
+                        "max_value": v.get("max_value"),
+                        "step": v.get("step"),
+                        "label": v.get("label", k),
+                        "description": v.get("description", ""),
+                    })
+                else:
+                    res.append({
+                        "name": k,
+                        "type": type(v).__name__,
+                        "default": v,
+                        "min_value": None,
+                        "max_value": None,
+                        "step": 1 if isinstance(v, int) else 0.1,
+                        "label": k,
+                        "description": "",
+                    })
+            return res
         return []
+
         
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
