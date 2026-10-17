@@ -143,7 +143,7 @@ def _get_market(symbol: str) -> Market:
         .replace("BK", "")
     )
     # Specific standard Shanghai index codes and 88xxxx industry/concept board indices
-    if sym in ("999999", "999998", "999997", "000688"):
+    if sym in ("999999", "999998", "999997"):
         return Market.SH
     if sym.startswith(("60", "68", "99", "88")):
         return Market.SH
@@ -327,7 +327,8 @@ def fetch_security_kline(
 
     # 1. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB）
     disk_cache = get_global_kline_disk_cache()
-    cached_df = disk_cache.read_cached(clean_sym, cache_suffix, adj_val.name)
+    cache_sym = f"SH_{clean_sym}" if (market == Market.SH and clean_sym.startswith("00")) else clean_sym
+    cached_df = disk_cache.read_cached(cache_sym, cache_suffix, adj_val.name)
 
     # 1.1 若已有本地缓存，且数量已满足需求，且非强制刷新
     if cached_df is not None and not cached_df.empty and len(cached_df) >= count and not force_refresh:
@@ -342,7 +343,7 @@ def fetch_security_kline(
             delta_cnt = min(80, count)
             delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
             if delta_df is not None and not delta_df.empty:
-                merged_df = disk_cache.merge_and_update(clean_sym, cache_suffix, cached_df, delta_df, adj_val.name)
+                merged_df = disk_cache.merge_and_update(cache_sym, cache_suffix, cached_df, delta_df, adj_val.name)
                 res = merged_df.iloc[-count:].copy().reset_index(drop=True)
                 _CACHE[cache_key] = (now, res)
                 return res
@@ -356,7 +357,7 @@ def fetch_security_kline(
     pull_count = max(count, 800)
     raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
     if raw_df is not None and not raw_df.empty:
-        disk_cache.write_cached(clean_sym, cache_suffix, raw_df, adj_val.name)
+        disk_cache.write_cached(cache_sym, cache_suffix, raw_df, adj_val.name)
         res = raw_df.iloc[-count:].copy().reset_index(drop=True)
         _CACHE[cache_key] = (now, res)
         return res
@@ -397,7 +398,8 @@ def _fetch_raw_tdx_kline(
         mac_p = mac_period_map.get(category, MacPeriod.DAILY)
         with _MAC_LOCK:
             mac = _get_or_create_mac_client()
-            mkt_id = 1 if (clean_sym.startswith("6") or clean_sym.startswith("88") or clean_sym.startswith("9")) else 0
+            mkt_enum = _get_market(symbol)
+            mkt_id = 1 if mkt_enum == Market.SH else 0
             if is_120m:
                 bdf = mac.get_stock_kline(mkt_id, clean_sym, MacPeriod.MINS, times=120, count=fetch_count, adjust=adj_val)
             else:

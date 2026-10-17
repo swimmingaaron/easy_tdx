@@ -41,3 +41,39 @@ class TestStockSuggest:
         """测试空查询返回空列表。"""
         assert _fetch_stock_suggest_sync("") == []
         assert _fetch_stock_suggest_sync("   ") == []
+
+    def test_000688_distinguishes_guocheng_vs_kechuang50(self) -> None:
+        """测试 000688 深圳股票国城矿业 与 000688.SH/999688 上证科创50指数的精确区分。"""
+        from easy_tdx.market_data import _get_market
+        from easy_tdx.stock_lookup import get_stock_name, search_stocks
+        from easy_tdx.web.routers.quotes import _get_market_suffix, _get_board_tag, _resolve_stock_board_info
+        from easy_tdx.models.enums import Market
+
+        assert _get_market("000688") == Market.SZ
+        assert _get_market("000688.SZ") == Market.SZ
+        assert _get_market("000688.SH") == Market.SH
+        assert _get_market("999688") == Market.SH
+
+        assert _get_market_suffix("000688") == ("SZ", "000688.SZ")
+        assert _get_market_suffix("000688.SH") == ("SH", "000688.SH")
+
+        assert get_stock_name("000688") == "国城矿业"
+        assert get_stock_name("000688.SZ") == "国城矿业"
+        assert get_stock_name("000688.SH") == "科创50"
+        assert get_stock_name("999688") == "科创50"
+
+        assert _get_board_tag("000688")["label"] == "主"
+        assert _get_board_tag("000688.SH")["label"] == "科"
+
+        b_info_sz = _resolve_stock_board_info("000688")
+        assert b_info_sz["board_name"] != "宽基指数"
+
+        b_info_sh = _resolve_stock_board_info("000688.SH")
+        assert b_info_sh["board_name"] == "宽基指数"
+
+        gcky_matches = search_stocks("GCKY")
+        assert any(r["code"] == "000688" and "国城矿业" in r["name"] for r in gcky_matches)
+
+        kc50_matches = search_stocks("KC50")
+        assert any("科创50" in r["name"] for r in kc50_matches)
+

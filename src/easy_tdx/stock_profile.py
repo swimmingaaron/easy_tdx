@@ -123,10 +123,10 @@ def _parse_stock_symbol(code: str) -> Tuple[str, Market, str, bool]:
                 "399006",
                 "399300",
                 "000300",
-                "000688",
             )
             and (has_sh or not has_sz)
         )
+        or (clean_code in ("000688", "000001") and has_sh)
     )
 
     if (
@@ -136,12 +136,12 @@ def _parse_stock_symbol(code: str) -> Tuple[str, Market, str, bool]:
     ):
         mkt = Market.BJ
         pfx = "BJ"
-    elif has_sz or clean_code.startswith(("00", "30", "399", "08", "03")):
-        mkt = Market.SZ
-        pfx = "SZ"
-    else:
+    elif has_sh or (not has_sz and clean_code.startswith(("60", "68", "99", "88"))):
         mkt = Market.SH
         pfx = "SH"
+    else:
+        mkt = Market.SZ
+        pfx = "SZ"
 
     return clean_code, mkt, pfx, is_index_or_board
 
@@ -937,7 +937,7 @@ def _fetch_stock_financials(
 def get_stock_full_profile(code: str, use_cache: bool = True) -> Dict[str, Any]:
     """Fetch complete stock profile including shareholders, company info, sectors, and financials."""
     clean_code, mkt, pfx, is_index_or_board = _parse_stock_symbol(code)
-    cache_key = clean_code
+    cache_key = f"{clean_code}.{pfx}"
 
     if use_cache:
         with _CACHE_LOCK:

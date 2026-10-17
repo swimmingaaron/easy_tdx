@@ -272,7 +272,7 @@ def get_stock_name(symbol: str) -> str:
         return _SYMBOL_NAME_MAP[f"{clean_sym}.SH"]
     if ("SZ" in raw_sym) and f"{clean_sym}.SZ" in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[f"{clean_sym}.SZ"].startswith("标的_"):
         return _SYMBOL_NAME_MAP[f"{clean_sym}.SZ"]
-    if raw_sym in ("000688", "999688", "SH000688"):
+    if raw_sym in ("999688", "SH000688", "000688SH", "000688.SH"):
         return "科创50"
     if clean_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[clean_sym].startswith("标的_"):
         return _SYMBOL_NAME_MAP[clean_sym]

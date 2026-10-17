@@ -48,10 +48,12 @@ class KlineDiskCache:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_file_path(self, symbol: str, period: Any, adjust: Any = "QFQ") -> pathlib.Path:
-        clean_sym = str(symbol).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
+        s_upper = str(symbol).strip().upper()
+        pfx = "SH_" if (("SH" in s_upper or s_upper.startswith("SH_")) and s_upper.replace("SH_", "").replace("SH", "").replace(".", "").startswith("00")) else ""
+        clean_sym = s_upper.replace("SH_", "").replace("SH", "").replace("SZ", "").replace("BJ", "").replace(".", "")
         clean_p = str(period).strip().upper().replace("MIN_", "").replace("MIN", "M").replace("F", "M")
         clean_adj = str(adjust).strip().upper()
-        return self.base_dir / f"{clean_sym}_{clean_p}_{clean_adj}.pkl"
+        return self.base_dir / f"{pfx}{clean_sym}_{clean_p}_{clean_adj}.pkl"
 
     def read_cached(self, symbol: str, period: str, adjust: str = "QFQ") -> pd.DataFrame | None:
         """从本地磁盘读取 K 线缓存。"""

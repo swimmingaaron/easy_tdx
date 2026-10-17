@@ -50,7 +50,7 @@ def _get_market_suffix(sym: str) -> tuple[str, str]:
         return "HY", f"{clean}.HY"
 
     clean_sym = raw_upper.replace(".", "").replace("HY", "").replace("BK", "")
-    if clean_sym in ("999999", "999998", "999997", "000688"):
+    if clean_sym in ("999999", "999998", "999997"):
         return "SH", f"{clean_sym}.SH"
     if clean_sym.startswith("88"):
         return "HY", f"{clean_sym}.HY"
@@ -73,7 +73,8 @@ def _get_board_tag(sym: str) -> dict[str, str]:
         .replace(".BK", "").replace("BK", "")
         .replace(".", "")
     )
-    if clean in ("000688", "999688"):
+    is_sh = raw_upper.endswith(".SH") or raw_upper.startswith("SH")
+    if clean == "999688" or (clean == "000688" and is_sh):
         return {"label": "科", "color": "#a855f7"}
     if clean in ("999999", "000001", "000300", "399300", "399001"):
         return {"label": "指", "color": "#3b82f6"}
@@ -153,7 +154,8 @@ def _resolve_stock_board_info(code: str, raw_sym: str = "") -> dict[str, str]:
                 logger.debug(f"Failed to populate board list from MAC client: {e}")
         b_name = _BOARD_NAME_MAP.get(clean) or get_stock_name(clean)
         return {"board_code": clean, "board_name": b_name}
-    if clean in ("999999", "399001", "399006", "000300", "000688", "899050"):
+    is_sh = "SH" in (code + raw_sym).upper()
+    if clean in ("999999", "399001", "399006", "000300", "899050") or (clean in ("000688", "999688") and (is_sh or clean == "999688")):
         return {"board_code": clean, "board_name": "宽基指数"}
         
     with _STOCK_BOARD_LOCK:
@@ -401,8 +403,9 @@ def get_kline(
     clean_end_date = end_date.strip().replace("/", "-") if end_date else None
     adj_raw = adjust.default if hasattr(adjust, "default") else adjust
     adj_str = str(adj_raw).strip().upper() if adj_raw else "QFQ"
-    cache_k = f"{clean_sym}_{period.upper()}_{n_bars}_{adj_str}_{clean_end_date}" if clean_end_date else f"{clean_sym}_{period.upper()}_{n_bars}_{adj_str}"
-    base_k = f"{clean_sym}_{period.upper()}_{adj_str}"
+    mkt, full_sym = _get_market_suffix(raw_sym)
+    cache_k = f"{full_sym}_{period.upper()}_{n_bars}_{adj_str}_{clean_end_date}" if clean_end_date else f"{full_sym}_{period.upper()}_{n_bars}_{adj_str}"
+    base_k = f"{full_sym}_{period.upper()}_{adj_str}"
     with _KLINE_CACHE_LOCK:
         if cache_k in _KLINE_CACHE:
             ts, cached_res = _KLINE_CACHE[cache_k]
@@ -430,7 +433,6 @@ def get_kline(
             df = fetch_security_kline(raw_sym, count=4800, period=period, adjust=adj_str)
         if df is not None and not df.empty:
             df = df[df["datetime"].astype(str) <= e_cmp].reset_index(drop=True)
-    mkt, full_sym = _get_market_suffix(raw_sym)
     if clean_sym.startswith("88") and clean_sym not in _BOARD_NAME_MAP:
         _resolve_stock_board_info(clean_sym)
     stock_name = _BOARD_NAME_MAP.get(clean_sym) or get_stock_name(full_sym)
