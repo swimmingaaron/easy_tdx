@@ -17414,10 +17414,11 @@
                     const screenerDefault = strategies.some(s => s.name === 'chanlun_strategy') ? 'chanlun_strategy' : (strategies.some(s => s.name === 'chan_theory_daily') ? 'chan_theory_daily' : 'td_sequential');
                     const scrSel = document.getElementById('screener-strategy-select');
                     if (scrSel) {
-                        scrSel.innerHTML = screenerOptHtml;
+                        scrSel.innerHTML = optHtml;
                         scrSel.value = screenerDefault;
                     }
-                    document.getElementById('bt-strategy-select').innerHTML = optHtml;
+                    const btSel = document.getElementById('bt-strategy-select');
+                    if (btSel) btSel.innerHTML = optHtml;
                     const optSel = document.getElementById('opt-strategy-select');
                     if (optSel) optSel.innerHTML = optHtml;
                     renderStrategyParams('td_sequential');
