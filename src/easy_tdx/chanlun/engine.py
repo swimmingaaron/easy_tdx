@@ -49,22 +49,33 @@ class ChanlunEngine:
             
         try:
             res = self.analyser.process_klines(self.df)
+            n_bars = len(self.df)
             for mmd in res.mmds:
-                mtype = getattr(mmd, "type", "")
-                idx = getattr(mmd, "kline_idx", None)
-                if idx is None:
+                mtype = mmd.mmd_type.value if hasattr(mmd, "mmd_type") else str(getattr(mmd, "type", "")).lower()
+                idx = None
+                if mmd.bi and mmd.bi.end and mmd.bi.end.k:
+                    idx = mmd.bi.end.k.k_index
+                    if hasattr(mmd.bi.end.k, "klines") and mmd.bi.end.k.klines:
+                        is_end_high = (mmd.bi.end.fx_type == FXType.DING)
+                        for raw_k in mmd.bi.end.k.klines:
+                            raw_target = raw_k.high if is_end_high else raw_k.low
+                            if abs(raw_target - mmd.bi.end.val) < 1e-4:
+                                idx = raw_k.index
+                                break
+                if idx is None or idx < 0 or idx >= n_bars:
                     continue
-                if "1B" in str(mtype) or "BUY_1" in str(mtype):
+
+                if "1buy" in mtype or "buy_1" in mtype:
                     points["buy_1"].append(idx)
-                elif "2B" in str(mtype) or "BUY_2" in str(mtype):
+                elif "2buy" in mtype or "buy_2" in mtype:
                     points["buy_2"].append(idx)
-                elif "3B" in str(mtype) or "BUY_3" in str(mtype):
+                elif "3buy" in mtype or "buy_3" in mtype:
                     points["buy_3"].append(idx)
-                elif "1S" in str(mtype) or "SELL_1" in str(mtype):
+                elif "1sell" in mtype or "sell_1" in mtype:
                     points["sell_1"].append(idx)
-                elif "2S" in str(mtype) or "SELL_2" in str(mtype):
+                elif "2sell" in mtype or "sell_2" in mtype:
                     points["sell_2"].append(idx)
-                elif "3S" in str(mtype) or "SELL_3" in str(mtype):
+                elif "3sell" in mtype or "sell_3" in mtype:
                     points["sell_3"].append(idx)
         except Exception:
             pass

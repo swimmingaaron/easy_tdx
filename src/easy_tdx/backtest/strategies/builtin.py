@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from easy_tdx.backtest.strategies.registry import (
     Param,
     ParametrizedStrategy,
@@ -1021,5 +1023,220 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
 )
 class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
     pass
+
+
+# ── 缠论实战买卖点策略 ────────────────────────────────────────────────────────
+
+
+@register_strategy(
+    name="chanlun_strategy",
+    label="缠论买卖点战法",
+    description=(
+        "基于缠论分型、笔、中枢及背驰买卖点体系的量化实战策略。"
+        "支持二三买共振、次级别二买低吸、三买主升突破与一买底背驰；"
+        "结合分型底硬止损与动态移动止盈（Trailing Stop）保护浮盈。"
+    ),
+)
+class ChanlunStrategy(ParametrizedStrategy):
+    """缠论买卖点与动态风控量化实战策略。
+
+    实战核心机制：
+    1. 买点模式 (buy_mode)：
+       - combo_23: 二买与三买组合（胜率最高、盈亏比最大，回避一买盲目猜底风险）；
+       - steady_2buy: 次级别二买稳健低吸（回踩不创新低，止损极小）；
+       - breakout_3buy: 三买主升浪突破（突破中枢回踩不进，追随主升）；
+       - nested_1buy: 一买底背驰极值抓底（动力背驰衰竭反转，严设防守线）；
+       - all_buys: 包含 1/2/3 类全部买点。
+    2. 入场时机 (entry_mode)：
+       - confirmed: 分型右侧第3根K线确认后次日开盘买入（严格无未来函数，实盘首选）；
+       - immediate: 分型极值触发（左侧挂单模式）。
+    3. 动态防守与止损保护：
+       - 底分型防守线：以触发买点的分型低点作为基准防线，跌破即判定买点失败止损；
+       - 硬止损比例：跌破买入价 stop_loss_pct (默认 5.0%) 强制平仓止损。
+    4. 动态移动止盈 (Trailing Stop)：
+       - 浮盈超过 activate_profit (默认 8.0%) 后激活追踪；
+       - 从持仓最高价回撤达到 trailing_stop_pct (默认 5.0%) 止盈锁定利润。
+    5. 离场机制：
+       - 出现缠论 1卖/2卖/3卖卖点信号，全仓离场；
+       - 触及固定目标止盈 take_profit_pct (若开启)；
+       - 持仓超过 max_hold_bars 根 K 线超时平仓，释放资金使用效率。
+    """
+
+    params = [
+        Param(
+            "buy_mode",
+            str,
+            default="combo_23",
+            choices=["combo_23", "steady_2buy", "breakout_3buy", "all_buys", "nested_1buy"],
+            label="买点模式",
+            description="combo_23(二三买组合,推荐)、steady_2buy(次级别二买稳健低吸)、breakout_3buy(三买突破主升)、all_buys(全部买点)、nested_1buy(一买底背驰)",
+        ),
+        Param(
+            "entry_mode",
+            str,
+            default="confirmed",
+            choices=["confirmed", "immediate"],
+            label="入场时机",
+            description="confirmed(分型右侧确认入场，无未来函数，实盘首选)、immediate(分型极值触发)",
+        ),
+        Param(
+            "stop_loss_pct",
+            float,
+            default=5.0,
+            min_value=0.0,
+            max_value=20.0,
+            label="硬止损比例(%)",
+            description="跌破买入价或分型防守线该百分比强制平仓止损（0 为关闭）",
+        ),
+        Param(
+            "trailing_stop_pct",
+            float,
+            default=5.0,
+            min_value=0.0,
+            max_value=20.0,
+            label="移动止盈回撤(%)",
+            description="从持仓最高盈利点回撤达此比例强制平仓锁定利润（0 为关闭）",
+        ),
+        Param(
+            "activate_profit",
+            float,
+            default=8.0,
+            min_value=0.0,
+            max_value=50.0,
+            label="移动止盈启动阈值(%)",
+            description="浮盈达到此百分比后方才激活移动止盈追踪保护",
+        ),
+        Param(
+            "take_profit_pct",
+            float,
+            default=0.0,
+            min_value=0.0,
+            max_value=100.0,
+            label="目标止盈比例(%)",
+            description="达到此固定盈利幅度提前止盈离场（0 为仅由缠论卖点或移动止盈离场）",
+        ),
+        Param(
+            "max_hold_bars",
+            int,
+            default=30,
+            min_value=5,
+            max_value=120,
+            label="最大持仓周期",
+            description="买入后最多持仓 K 线根数，超时未能拉升则主动平仓释放资金",
+        ),
+    ]
+
+    def init(self) -> None:
+        from easy_tdx.chanlun.analyser import ChanlunAnalyser
+
+        df = self.df
+        n_bars = len(df)
+        analyser = ChanlunAnalyser(frequency="DAILY")
+        res = analyser.process_klines(df)
+
+        self.buy_signals = np.zeros(n_bars, dtype=bool)
+        self.sell_signals = np.zeros(n_bars, dtype=bool)
+        self.stop_levels = np.zeros(n_bars, dtype=float)
+
+        buy_mode = self.p.get("buy_mode", "combo_23")
+        entry_mode = self.p.get("entry_mode", "confirmed")
+
+        for mmd in res.mmds:
+            mtype = mmd.mmd_type.value
+            bi = mmd.bi
+            if not bi or not bi.end:
+                continue
+            fx = bi.end
+            mid_idx = fx.k.k_index
+            if entry_mode == "confirmed" and len(fx.klines) > 2 and fx.klines[2].klines:
+                bar_idx = fx.klines[2].klines[-1].index
+            else:
+                bar_idx = mid_idx
+
+            if bar_idx < 0 or bar_idx >= n_bars:
+                continue
+
+            # 筛选买点
+            is_buy = False
+            if buy_mode == "all_buys" and "buy" in mtype:
+                is_buy = True
+            elif buy_mode == "combo_23" and ("2buy" in mtype or "3buy" in mtype):
+                is_buy = True
+            elif buy_mode == "steady_2buy" and "2buy" in mtype:
+                is_buy = True
+            elif buy_mode == "breakout_3buy" and "3buy" in mtype:
+                is_buy = True
+            elif buy_mode == "nested_1buy" and "1buy" in mtype:
+                is_buy = True
+
+            if is_buy:
+                self.buy_signals[bar_idx] = True
+                self.stop_levels[bar_idx] = fx.val
+
+            # 卖点（1卖/2卖/3卖均作为平仓候选）
+            if "sell" in mtype:
+                self.sell_signals[bar_idx] = True
+
+        self._entry_price: float = 0.0
+        self._entry_bar: int = 0
+        self._stop_price: float = 0.0
+        self._highest_price: float = 0.0
+
+    def next(self) -> None:
+        idx = self._bar_index
+        cur_c = float(self.data.close[0])
+        cur_pos = self.position["size"]
+
+        if cur_pos == 0:
+            if self.buy_signals[idx]:
+                fractal_stop = self.stop_levels[idx]
+                sl_pct = self.p["stop_loss_pct"]
+                pct_stop = cur_c * (1.0 - sl_pct / 100.0) if sl_pct > 0 else fractal_stop
+                effective_stop = max(fractal_stop, pct_stop) if fractal_stop > 0 else pct_stop
+
+                self.buy(size=0, stop_loss=effective_stop)
+                self._entry_price = cur_c
+                self._entry_bar = idx
+                self._stop_price = effective_stop
+                self._highest_price = cur_c
+        else:
+            if cur_c > self._highest_price:
+                self._highest_price = cur_c
+
+            # A股 T+1 保护：买入当根 bar 不卖
+            if idx <= self._entry_bar:
+                return
+
+            # 条件 1：缠论卖点（1卖顶背驰 / 2卖不创新高 / 3卖破位）
+            is_sell_point = bool(self.sell_signals[idx])
+
+            # 条件 2：硬止损防线击穿
+            is_sl = (cur_c <= self._stop_price) if self._stop_price > 0 else False
+
+            # 条件 3：移动止盈（浮盈冲高回撤锁利）
+            is_trailing = False
+            act_profit = self.p["activate_profit"]
+            trail_pct = self.p["trailing_stop_pct"]
+            if act_profit > 0 and trail_pct > 0 and self._entry_price > 0:
+                max_gain = (self._highest_price - self._entry_price) / self._entry_price * 100.0
+                if max_gain >= act_profit:
+                    drawdown_from_high = (self._highest_price - cur_c) / self._highest_price * 100.0
+                    if drawdown_from_high >= trail_pct:
+                        is_trailing = True
+
+            # 条件 4：固定目标止盈
+            is_tp = False
+            take_profit = self.p.get("take_profit_pct", 0.0)
+            if take_profit > 0 and self._entry_price > 0:
+                if (cur_c - self._entry_price) / self._entry_price * 100.0 >= take_profit:
+                    is_tp = True
+
+            # 条件 5：最大持仓期超时平仓
+            is_timeout = (self.p["max_hold_bars"] > 0) and (idx - self._entry_bar >= self.p["max_hold_bars"])
+
+            if is_sell_point or is_sl or is_trailing or is_tp or is_timeout:
+                self.sell(size=0)
+                self._entry_price = 0.0
+                self._highest_price = 0.0
 
 

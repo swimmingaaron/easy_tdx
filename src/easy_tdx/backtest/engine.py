@@ -125,6 +125,9 @@ class BacktestEngine:
         if "datetime" not in df.columns and "date" in df.columns:
             df = df.copy()
             df["datetime"] = df["date"]
+        if "datetime" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["datetime"]):
+            df = df.copy()
+            df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
 
         # Auto-compute chanlun if chanlun_level is set and no manual result
         if chanlun_result is None and self._chanlun_level is not None:
@@ -373,9 +376,9 @@ class BacktestEngine:
             if triggered:
                 # Get datetime for this bar
                 dt_val = df["datetime"].iloc[bar_index]
-                if hasattr(dt_val, "strftime"):
-                    dt_int = int(dt_val.strftime("%Y%m%d"))
-                else:
+                try:
+                    dt_int = int(pd.to_datetime(dt_val).strftime("%Y%m%d"))
+                except Exception:
                     dt_int = int(dt_val)
 
                 signals.append(

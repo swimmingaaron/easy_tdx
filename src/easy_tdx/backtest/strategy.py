@@ -379,6 +379,13 @@ class Strategy(ABC):
         """
         return self._chanlun_result
 
+    @property
+    def df(self) -> pd.DataFrame:
+        """获取绑定的原始 DataFrame。"""
+        if self._raw_df is None:
+            raise RuntimeError("策略未绑定数据，请先调用 _bind_data()")
+        return self._raw_df
+
     # ── 内部方法（引擎调用） ─────────────────────────────────────────────────────
 
     def _bind_data(self, df: pd.DataFrame) -> None:
@@ -387,6 +394,7 @@ class Strategy(ABC):
         Args:
             df: K线 DataFrame
         """
+        self._raw_df = df
         self._data_proxy = StrategyDataProxy(df)
         # 提取 datetime 数组
         if "datetime" in df.columns:
@@ -454,11 +462,14 @@ def _datetime_to_int(arr: NDArray) -> NDArray:
     # datetime64 → 向量化转换
     if arr.dtype.kind == "M":
         return np.asarray(pd.to_datetime(arr).strftime("%Y%m%d").astype(float), dtype=np.float64)
-    # object 数组（可能包含 Timestamp）
-    if arr.dtype == object:
-        if len(arr) > 0 and isinstance(arr[0], pd.Timestamp | np.datetime64):
+    # object 或 string 数组（可能包含 str 或 Timestamp）
+    if arr.dtype == object or arr.dtype.kind in ("U", "S", "O"):
+        try:
             return np.asarray(
                 pd.to_datetime(arr).strftime("%Y%m%d").astype(float), dtype=np.float64
             )
+        except Exception:
+            pass
     # 已经是数值类型
     return arr.astype(np.float64)
+
