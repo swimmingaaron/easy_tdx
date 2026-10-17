@@ -115,15 +115,15 @@ DRAWTEXT(三卖, HIGH*1.025, ' 3卖'), COLORWHITE;
 { 跨周期引用：大级别(日线)、中级别(30分钟)、次级别(5分钟) }
 日_DIF:="MACD.DIF#DAY"(12, 26, 9);
 日_DEA:="MACD.DEA#DAY"(12, 26, 9);
-日多头:=IF(ISNAN(日_DIF) OR 日_DIF=0, DIF>DEA, 日_DIF > 日_DEA);
+日多头:=日_DIF > 日_DEA;
 
 F30_DIF:="MACD.DIF#MIN30"(12, 26, 9);
 F30_DEA:="MACD.DEA#MIN30"(12, 26, 9);
-F30多头:=IF(ISNAN(F30_DIF) OR F30_DIF=0, DIF>DEA, F30_DIF > F30_DEA);
+F30多头:=F30_DIF > F30_DEA;
 
 F5_DIF:="MACD.DIF#MIN5"(12, 26, 9);
 F5_DEA:="MACD.DEA#MIN5"(12, 26, 9);
-F5多头:=IF(ISNAN(F5_DIF) OR F5_DIF=0, DIF>DEA, F5_DIF > F5_DEA);
+F5多头:=F5_DIF > F5_DEA;
 
 三级共振:=日多头 AND F30多头 AND F5多头;
 
@@ -139,7 +139,7 @@ DRAWTEXT_FIX(ISLASTBAR AND NOT(F30多头), 0.01, 0.09, 0, '☆ 中级别 (30F ):
 DRAWTEXT_FIX(ISLASTBAR AND F5多头, 0.01, 0.13, 0, '★ 小级别 (5F  ): 具备买点 [短线精准买入]'), COLORMAGENTA;
 DRAWTEXT_FIX(ISLASTBAR AND NOT(F5多头), 0.01, 0.13, 0, '☆ 小级别 (5F  ): 处于反抽调整 [等待次级拐点]'), COLORGRAY;
 
-DRAWTEXT_FIX(ISLASTBAR AND 三级共振, 0.01, 0.17, 0, '🔥【三级共振】: 日+30F+5F 三级别全红多头！主升狂暴出击！'), COLOR00FFFF;
+DRAWTEXT_FIX(ISLASTBAR AND 三级共振, 0.01, 0.17, 0, '★【三级共振】: 日+30F+5F 三级别全红多头！主升狂暴出击！'), COLOR00FFFF;
 ```
 
 ---
@@ -157,21 +157,19 @@ DRAWTEXT_FIX(ISLASTBAR AND 三级共振, 0.01, 0.17, 0, '🔥【三级共振】:
 { 1. 大级别(日线)多空量化 }
 大_DIF:="MACD.DIF#DAY"(12,26,9);
 大_DEA:="MACD.DEA#DAY"(12,26,9);
-大多头:=IF(ISNAN(大_DIF) OR 大_DIF=0, CLOSE>MA(CLOSE,20), 大_DIF>大_DEA);
+大多头:=大_DIF > 大_DEA;
 大级别多头: IF(大多头, 3, 0), COLORRED, NODRAW;
 
 { 2. 中级别(30分钟)多空量化 }
 中_DIF:="MACD.DIF#MIN30"(12,26,9);
 中_DEA:="MACD.DEA#MIN30"(12,26,9);
-中多头:=IF(ISNAN(中_DIF) OR 中_DIF=0, CLOSE>REF(CLOSE,1), 中_DIF>中_DEA);
+中多头:=中_DIF > 中_DEA;
 中级别多头: IF(中多头, 2, 0), COLORYELLOW, NODRAW;
 
 { 3. 小级别(5分钟)多空量化 }
 小_DIF:="MACD.DIF#MIN5"(12,26,9);
 小_DEA:="MACD.DEA#MIN5"(12,26,9);
-DIF:=(EMA(CLOSE,12)-EMA(CLOSE,26));
-DEA:=EMA(DIF,9);
-小多头:=IF(ISNAN(小_DIF) OR 小_DIF=0, DIF>DEA, 小_DIF>小_DEA);
+小多头:=小_DIF > 小_DEA;
 小级别多头: IF(小多头, 1, 0), COLORCYAN, NODRAW;
 
 { 4. 立体共振综合得分 (0 ~ 3 分) }
@@ -216,19 +214,17 @@ DRAWTEXT_FIX(ISLASTBAR, 0.01, 0.05, 0, '【上轨:大级别(日) 中轨:中级�
 { 1. 大级别(日线)处于多头趋势或金叉初成 }
 日_DIF:="MACD.DIF#DAY"(12,26,9);
 日_DEA:="MACD.DEA#DAY"(12,26,9);
-DIF:=(EMA(CLOSE,12)-EMA(CLOSE,26));
-DEA:=EMA(DIF,9);
-日多头:=IF(ISNAN(日_DIF) OR 日_DIF=0, DIF>DEA, 日_DIF > 日_DEA);
+日多头:=日_DIF > 日_DEA;
 
 { 2. 中级别(30分钟)底背驰或二三买多头波段 }
 F30_DIF:="MACD.DIF#MIN30"(12,26,9);
 F30_DEA:="MACD.DEA#MIN30"(12,26,9);
-F30多头:=IF(ISNAN(F30_DIF) OR F30_DIF=0, DIF>DEA, F30_DIF > F30_DEA);
+F30多头:=F30_DIF > F30_DEA;
 
 { 3. 小级别(5分钟)止跌或金叉启动 }
 F5_DIF:="MACD.DIF#MIN5"(12,26,9);
 F5_DEA:="MACD.DEA#MIN5"(12,26,9);
-F5多头:=IF(ISNAN(F5_DIF) OR F5_DIF=0, DIF>DEA, F5_DIF > F5_DEA);
+F5多头:=F5_DIF > F5_DEA;
 
 { 4. 缠论形态：日线站上 20 日均线且波谷未创新低 (二买/三买雏形) }
 MA20:=MA(CLOSE, 20);
@@ -238,6 +234,9 @@ TB1:=TROUGHBARS(1, 5, 1);
 ZD1:=TROUGH(1, 5, 1);
 ZD2:=TROUGH(1, 5, 2);
 回踩不破底:=TB1 <= 5 AND ZD1 >= ZD2;
+
+DIF:=(EMA(CLOSE,12)-EMA(CLOSE,26));
+DEA:=EMA(DIF,9);
 
 { 5. 三级别共振启动条件 }
 共振选股: 日多头 AND F30多头 AND F5多头 AND 趋势向上 AND (回踩不破底 OR CROSS(DIF, DEA));
