@@ -4756,10 +4756,10 @@
                                 </button>
                             </div>
 
-                            <button type="button" onclick="stepChanlunBacktrack(-1)" id="cl-btn-prev-bar"
-                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0"
-                                title="前移 1 根K线 (快捷键: ← 方向键)">
-                                <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+                            <button type="button" onclick="stepChanlunBacktrack(-1, event)" id="cl-btn-prev-bar"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 active:scale-90 active:bg-cyan-900 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0 select-none"
+                                title="前移 1 个交易日 (Shift+点击: 前移 1 根K线, 快捷键: ←)">
+                                <i data-lucide="chevron-left" class="w-3.5 h-3.5 pointer-events-none"></i>
                             </button>
 
                             <div class="relative flex items-center shrink-0">
@@ -4768,10 +4768,10 @@
                                     title="选择回溯截止日期模拟历史当时当下">
                             </div>
 
-                            <button type="button" onclick="stepChanlunBacktrack(1)" id="cl-btn-next-bar"
-                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0"
-                                title="后移 1 根K线 (快捷键: → 方向键)">
-                                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                            <button type="button" onclick="stepChanlunBacktrack(1, event)" id="cl-btn-next-bar"
+                                class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 active:scale-90 active:bg-cyan-900 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0 select-none"
+                                title="后移 1 个交易日 (Shift+点击: 后移 1 根K线, 快捷键: →)">
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 pointer-events-none"></i>
                             </button>
 
                             <button type="button" onclick="exitChanlunBacktrack()" id="cl-btn-latest-bar"
@@ -6208,7 +6208,7 @@
 
         function getActiveTabName() {
             if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
-            const hash = (window.location.hash || '').replace('#', '').trim().toLowerCase();
+            const hash = (window.location.hash || '').replace('#', '').trim().toLowerCase().split('?')[0];
             if (hash && VALID_TABS.includes(hash)) return hash;
             for (const t of VALID_TABS) {
                 const v = document.getElementById(`view-${t}`);
@@ -23005,7 +23005,16 @@
                     _clBacktrackDate = tl.max_date;
                     slider.value = String(_clBacktrackIndex);
                 } else {
-                    const foundIdx = dates.indexOf(_clBacktrackDate);
+                    let foundIdx = dates.indexOf(_clBacktrackDate);
+                    if (foundIdx < 0 && _clBacktrackDate) {
+                        const d10 = _clBacktrackDate.slice(0, 10);
+                        for (let i = dates.length - 1; i >= 0; i--) {
+                            if (dates[i].startsWith(d10) || dates[i] <= _clBacktrackDate) {
+                                foundIdx = i;
+                                break;
+                            }
+                        }
+                    }
                     if (foundIdx >= 0) {
                         _clBacktrackIndex = foundIdx;
                         slider.value = String(foundIdx);
@@ -25058,15 +25067,82 @@
             }
         }
 
-        function stepChanlunBacktrack(step) {
+        function stepChanlunBacktrack(step, evt = null) {
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
             _clAutoRefresh = false;
             toggleChanlunAutoRefreshState(false);
 
-            if (!_clCachedData || !_clCachedData.backtrack_timeline) return;
-            const dates = _clCachedData.backtrack_timeline.available_dates || [];
-            const nextIdx = _clBacktrackIndex + step;
+            const timeline = _clCachedData?.backtrack_timeline || _clLeftCachedData?.backtrack_timeline;
+            if (!timeline) return;
+            const dates = timeline.available_dates || [];
+            if (!dates || dates.length === 0) return;
+
+            // Ensure _clBacktrackIndex is within valid range
+            if (typeof _clBacktrackIndex !== 'number' || isNaN(_clBacktrackIndex) || _clBacktrackIndex < 0 || _clBacktrackIndex >= dates.length) {
+                _clBacktrackIndex = dates.length - 1;
+            }
+
+            // Decide whether to step by bar or by trading day
+            // Mouse click without Shift -> step by trading day (前一交易日 / 后一交易日), changing the date picker value directly!
+            // Shift + Click or Keyboard Arrow -> step by 1 K-line bar
+            const isClick = !evt || evt.type === 'click';
+            const byBar = evt ? (isClick ? evt.shiftKey : !evt.shiftKey) : false;
+
+            let nextIdx = -1;
+            if (byBar) {
+                nextIdx = _clBacktrackIndex + step;
+                if (nextIdx < 0) {
+                    if (window.showToast) showToast('提示', '已至最早K线数据');
+                    return;
+                }
+                if (nextIdx >= dates.length) {
+                    if (window.showToast) showToast('提示', '已是最新K线数据');
+                    exitChanlunBacktrack();
+                    return;
+                }
+            } else {
+                // Step by trading day
+                const cutoffInput = document.getElementById('cl-cutoff-date');
+                const curDateStr = _clBacktrackDate || dates[_clBacktrackIndex] || timeline.max_date || '';
+                const curYMD = curDateStr.slice(0, 10);
+
+                if (step < 0) {
+                    // Previous day: find the latest bar whose date is < curYMD
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i].slice(0, 10) < curYMD) {
+                            nextIdx = i;
+                            break;
+                        }
+                    }
+                    if (nextIdx < 0) {
+                        if (window.showToast) showToast('提示', '已至最早历史交易日');
+                        return;
+                    }
+                } else {
+                    // Next day: find the earliest day > curYMD, and pick its last bar
+                    let nextDayYMD = null;
+                    for (let i = 0; i < dates.length; i++) {
+                        const ymd = dates[i].slice(0, 10);
+                        if (ymd > curYMD) {
+                            nextDayYMD = ymd;
+                            break;
+                        }
+                    }
+                    if (!nextDayYMD) {
+                        if (window.showToast) showToast('提示', '已是最新交易日');
+                        exitChanlunBacktrack();
+                        return;
+                    }
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i].slice(0, 10) === nextDayYMD) {
+                            nextIdx = i;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (nextIdx >= 0 && nextIdx < dates.length) {
                 _clBacktrackIndex = nextIdx;
                 _clBacktrackDate = dates[nextIdx];
@@ -25078,16 +25154,23 @@
                     updateChanlunSliderTrack(slider.value, slider.max);
                 }
                 const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
-                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (${_clBacktrackIndex + 1}/${dates.length})`;
                 const cutoffInput = document.getElementById('cl-cutoff-date');
                 if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
                 const latestBtn = document.getElementById('cl-btn-latest-bar');
                 if (latestBtn) latestBtn.classList.remove('hidden');
 
+                // If reached the latest bar, exit backtrack back to live
+                if (_clBacktrackIndex >= dates.length - 1) {
+                    exitChanlunBacktrack();
+                    return;
+                }
+
                 const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
                 if (_clBacktrackCache.has(cacheKey)) {
                     const cached = _clBacktrackCache.get(cacheKey);
                     _clCachedData = cached;
+                    _clLeftCachedData = cached;
                     updateChanlunOverview(cached);
                     updateChanlunTimeline(cached);
                     renderChanlunSignalsTable(cached);
@@ -25098,7 +25181,7 @@
                 if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
                 _clBacktrackDebounceTimer = setTimeout(() => {
                     triggerChanlunBacktrackLoad();
-                }, 60);
+                }, 50);
             }
         }
 
@@ -25125,7 +25208,7 @@
                     stopChanlunReplay();
                     return;
                 }
-                stepChanlunBacktrack(1);
+                stepChanlunBacktrack(1, { type: 'replay', shiftKey: true });
             }, 1000);
         }
 
@@ -25188,10 +25271,10 @@
                 zoomChanlunChart(1.25);
             } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
-                stepChanlunBacktrack(-1);
+                stepChanlunBacktrack(-1, e);
             } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
-                stepChanlunBacktrack(1);
+                stepChanlunBacktrack(1, e);
             } else if (e.code === 'Space') {
                 e.preventDefault();
                 toggleChanlunReplay();
