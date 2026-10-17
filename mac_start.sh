@@ -1,3 +1,6 @@
+git co .
+git pull
+
 # 重启服务（不改plist，只重启进程）
 sudo launchctl kickstart -k system/com.easytdx.service
 
