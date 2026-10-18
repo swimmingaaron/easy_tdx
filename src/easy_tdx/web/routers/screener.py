@@ -30,7 +30,7 @@ _TASKS_LOCK = threading.Lock()
 class ScreenerScanRequest(BaseModel):
     strategy: str = "chanlun_strategy"
     universe: str = "core"
-    period: str = "DAY"
+    period: str = "30F_5F_1F"
     symbols: list[str] | None = None
     lookback_bars: int = 20
     force_refresh: bool = False
@@ -38,7 +38,7 @@ class ScreenerScanRequest(BaseModel):
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str = "chanlun_strategy"
     universe: str = "core"
-    period: str = "DAY"
+    period: str = "30F_5F_1F"
     lookback_bars: int = 20
     force_refresh: bool = False
 
@@ -74,7 +74,7 @@ def api_clear_screener_cache():
 def api_scan_get(
     strategy: str = Query("chanlun_strategy", description="Strategy identifier name"),
     universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all"),
-    period: str = Query("DAY", description="Period: 30M, 60M, 120M, DAY, WEEK, MONTH, SEASON"),
+    period: str = Query("30F_5F_1F", description="Period: 30F_5F_1F, DAY_30F_5F, WEEK_DAY_30F, MONTH_WEEK_DAY, DAY, etc."),
     force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
 ):
     """Scan market against selected strategy synchronously (GET request)."""
@@ -110,7 +110,7 @@ def api_scan_post(req: ScreenerScanRequest):
         "data": matches
     }
 
-def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "DAY", lookback_bars: int = 20, force_refresh: bool = False):
+def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "30F_5F_1F", lookback_bars: int = 20, force_refresh: bool = False):
     """Background worker for long-running screening tasks (e.g. all 5,200+ A-shares)."""
     with _TASKS_LOCK:
         task = _ASYNC_TASKS.get(task_id)

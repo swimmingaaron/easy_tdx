@@ -3154,25 +3154,22 @@
                         <div
                             class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
                             <span class="text-[11px] text-slate-400 font-medium">战法:</span>
-                            <select id="screener-strategy-select" onchange="onScreenerParamsChange()"
+                            <select id="screener-strategy-select" onchange="onScreenerStrategyChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-44">
                                 <option value="chanlun_strategy" selected>[chanlun] 缠论1/2/3类买卖点与笔背驰策略 (chanlun_strategy)</option>
                             </select>
                         </div>
 
-                        <!-- Period Selector (周期筛选: 30分 60分 120分 日线 周线 月线 季线) -->
+                        <!-- Period Selector (周期筛选: 缠论4级联周期 / 常规单周期) -->
                         <div
                             class="flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
                             <span class="text-[11px] text-slate-400 font-medium">周期:</span>
                             <select id="screener-period-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="DAY" selected>📅 日线</option>
-                                <option value="30M">⏱️ 30分钟</option>
-                                <option value="60M">⏱️ 60分钟</option>
-                                <option value="120M">⏱️ 120分钟</option>
-                                <option value="WEEK">📊 周线</option>
-                                <option value="MONTH">📈 月线</option>
-                                <option value="SEASON">🎯 季线</option>
+                                <option value="30F_5F_1F" selected>⏱️ 30F 5F 1F (大周期30F大买 · 默认)</option>
+                                <option value="DAY_30F_5F">📅 日 30F 5F (大周期日线大买)</option>
+                                <option value="WEEK_DAY_30F">📊 周 日 30F (大周期周线大买)</option>
+                                <option value="MONTH_WEEK_DAY">📈 月 周 日 (大周期月线大买)</option>
                             </select>
                         </div>
 
@@ -6732,11 +6729,12 @@
         });
 
         // 点击股票代码/K线链接在新的浏览器标签中打开缠论视图并定位到该股缠论K线
-        function openChanlunKline(code, name, event) {
+        function openChanlunKline(code, name, event, periods = '') {
             if (!code) return;
             const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
             if (!cleanCode) return;
-            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+            const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
+            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${pParam}`;
 
             // 如果链接已有原生 target="_blank" 属性，由浏览器原生在新标签页中打开
             if (event && event.currentTarget && event.currentTarget.tagName === 'A' && event.currentTarget.target === '_blank') {
@@ -17692,6 +17690,7 @@
                         scrSel.innerHTML = optHtml;
                         scrSel.value = screenerDefault;
                     }
+                    updateScreenerPeriodOptions(screenerDefault);
                     const btSel = document.getElementById('bt-strategy-select');
                     if (btSel) btSel.innerHTML = optHtml;
                     const optSel = document.getElementById('opt-strategy-select');
@@ -17726,6 +17725,50 @@
         let activeScreenerTaskId = null;
         let screenerPollTimer = null;
 
+        const CHANLUN_PERIOD_OPTIONS = [
+            { value: '30F_5F_1F', text: '⏱️ 30F 5F 1F (大周期30F大买 · 默认)', selected: true },
+            { value: 'DAY_30F_5F', text: '📅 日 30F 5F (大周期日线大买)' },
+            { value: 'WEEK_DAY_30F', text: '📊 周 日 30F (大周期周线大买)' },
+            { value: 'MONTH_WEEK_DAY', text: '📈 月 周 日 (大周期月线大买)' }
+        ];
+
+        const STANDARD_PERIOD_OPTIONS = [
+            { value: 'DAY', text: '📅 日线 (默认)', selected: true },
+            { value: '30M', text: '⏱️ 30分钟' },
+            { value: '60M', text: '⏱️ 60分钟' },
+            { value: '120M', text: '⏱️ 120分钟' },
+            { value: 'WEEK', text: '📊 周线' },
+            { value: 'MONTH', text: '📈 月线' },
+            { value: 'SEASON', text: '🏛️ 季线' }
+        ];
+
+        function updateScreenerPeriodOptions(strategy) {
+            const periodSel = document.getElementById('screener-period-select');
+            if (!periodSel) return;
+            const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
+            const targetOptions = isChanlun ? CHANLUN_PERIOD_OPTIONS : STANDARD_PERIOD_OPTIONS;
+            
+            const currentVal = periodSel.value;
+            const hasCurrentVal = targetOptions.some(opt => opt.value === currentVal);
+            
+            periodSel.innerHTML = targetOptions.map(opt => {
+                const isSel = hasCurrentVal ? (opt.value === currentVal) : (opt.selected ? true : false);
+                return `<option value="${opt.value}" ${isSel ? 'selected' : ''}>${opt.text}</option>`;
+            }).join('');
+            
+            if (!hasCurrentVal) {
+                const defaultOpt = targetOptions.find(opt => opt.selected) || targetOptions[0];
+                periodSel.value = defaultOpt.value;
+            }
+            onScreenerParamsChange();
+        }
+
+        function onScreenerStrategyChange() {
+            const stSelect = document.getElementById('screener-strategy-select');
+            const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
+            updateScreenerPeriodOptions(strategy);
+        }
+
         function onScreenerParamsChange() {
             const uniSel = document.getElementById('screener-universe-select');
             const forceInput = document.getElementById('screener-force-refresh');
@@ -17733,6 +17776,10 @@
             const uni = uniSel ? uniSel.value : 'core';
             const period = periodSel ? periodSel.value : 'DAY';
             const periodMap = {
+                '30F_5F_1F': '30F 5F 1F (大买)',
+                'DAY_30F_5F': '日 30F 5F (大买)',
+                'WEEK_DAY_30F': '周 日 30F (大买)',
+                'MONTH_WEEK_DAY': '月 周 日 (大买)',
                 '30M': '30分钟',
                 '60M': '60分钟',
                 '120M': '120分钟',
@@ -18035,10 +18082,13 @@
 
                 // 1. 诊断与缠论超链接 (48大策略选股: 诊断 + 缠论)
                 const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
-                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+                const chanPeriodsParam = (m.chan_periods && Array.isArray(m.chan_periods)) ? encodeURIComponent(m.chan_periods.join(',')) : '';
+                const chanPeriodsArg = (m.chan_periods && Array.isArray(m.chan_periods)) ? m.chan_periods.join(',') : '';
+                const chanPeriodsQuery = chanPeriodsParam ? `&periods=${chanPeriodsParam}` : '';
+                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${chanPeriodsQuery}`;
                 const btnDiag = `<div class="inline-flex items-center space-x-1">
                     <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>
-                    <a href="${chanlunUrl}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${name}', event)" class="cl-screener-btn" title="在新标签中打开【${name}】(${cleanCode}) 缠论K线">缠论</a>
+                    <a href="${chanlunUrl}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${name}', event, '${chanPeriodsArg}')" class="cl-screener-btn" title="在新标签中打开【${name}】(${cleanCode}) 缠论K线">缠论</a>
                 </div>`;
 
                 // 2. 自选
@@ -18226,7 +18276,10 @@
                 missingCodes.forEach(c => window._screenerTsFetched.add(c));
                 window._screenerTsFetching = true;
                 const activePeriod = (document.getElementById('screener-period-select')?.value || 'DAY').toLowerCase();
-                const pMap = { 'day': 'day', '30m': '30m', '60m': '60m', '120m': '120m', 'week': 'week', 'month': 'month' };
+                const pMap = {
+                    'day': 'day', '30m': '30m', '60m': '60m', '120m': '120m', 'week': 'week', 'month': 'month',
+                    '30f_5f_1f': '30m', 'day_30f_5f': 'day', 'week_day_30f': 'week', 'month_week_day': 'month'
+                };
                 const reqPeriod = pMap[activePeriod] || 'day';
                 fetch(`/api/trading_system/dashboard?symbols=${missingCodes.slice(0, 50).join(',')}&period=${reqPeriod}`)
                     .then(res => res.json())
@@ -18338,7 +18391,21 @@
                 const cleanCode = (code || '').replace(/[^0-9]/g, '');
                 if (!cleanCode) return;
 
-                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+                const curStrat = document.getElementById('screener-strategy-select')?.value;
+                const curPeriod = document.getElementById('screener-period-select')?.value;
+                let periodsQuery = '';
+                let periodsArg = '';
+                if (curStrat === 'chanlun_strategy' || curStrat === 'chan_theory_daily') {
+                    const presetPeriodMap = {
+                        '30F_5F_1F': '30F,5F,1F',
+                        'DAY_30F_5F': 'DAY,30F,5F',
+                        'WEEK_DAY_30F': 'WEEK,DAY,30F',
+                        'MONTH_WEEK_DAY': 'MONTH,WEEK,DAY'
+                    };
+                    periodsArg = presetPeriodMap[curPeriod] || '30F,5F,1F';
+                    periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
+                }
+                const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${periodsQuery}`;
                 const clLink = document.createElement('a');
                 clLink.href = chanlunUrl;
                 clLink.target = '_blank';
@@ -18347,7 +18414,7 @@
                 clLink.innerText = '缠论';
                 clLink.title = `在新标签中打开【${name || cleanCode}】(${cleanCode}) 缠论K线`;
                 clLink.onclick = function(e) {
-                    openChanlunKline(cleanCode, name, e);
+                    openChanlunKline(cleanCode, name, e, periodsArg);
                 };
 
                 const parentBox = diagBtn.parentElement;
@@ -18391,6 +18458,10 @@
             }
 
             const periodMap = {
+                '30F_5F_1F': '30F 5F 1F (大买)',
+                'DAY_30F_5F': '日 30F 5F (大买)',
+                'WEEK_DAY_30F': '周 日 30F (大买)',
+                'MONTH_WEEK_DAY': '月 周 日 (大买)',
                 '30M': '30分钟',
                 '60M': '60分钟',
                 '120M': '120分钟',
@@ -18566,7 +18637,9 @@
             const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const universe = uniSelect ? uniSelect.value : 'core';
-            const period = periodSelect ? periodSelect.value : 'DAY';
+            const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
+            const defaultPeriod = isChanlun ? '30F_5F_1F' : 'DAY';
+            const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 
             const uniMap = {
@@ -18590,7 +18663,9 @@
 
             const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-            const period = periodSelect ? periodSelect.value : 'DAY';
+            const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
+            const defaultPeriod = isChanlun ? '30F_5F_1F' : 'DAY';
+            const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 
             await startScreenerTask(strategy, 'all', strategyName, '全市场全A股 (5222只)', period, forceRefresh);

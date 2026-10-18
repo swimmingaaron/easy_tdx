@@ -53,7 +53,7 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
     if not cache_f.exists():
         p_clean = str(period).strip().upper()
         cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
-        if not cands:
+        if not cands and p_clean == "DAY":
             cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
         if cands:
             cache_f = cands[0]
@@ -364,6 +364,84 @@ def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = Fal
     return _fetch_kline_internal(sym, period=p_clean, force_refresh=force_refresh)
 
 
+# ── 缠论 4 级联选股周期预设 ───────────────────────────────────────────
+# 1. 30F 5F 1F: 筛选条件 大周期30F线出现大买 (默认)
+# 2. 日 30F 5F: 筛选条件 大周期日线出现大买
+# 3. 周 日 30F: 筛选条件 大周期周线出现大买
+# 4. 月 周 日: 筛选条件 大周期月线出现大买
+CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
+    "30F_5F_1F": {
+        "key": "30F_5F_1F",
+        "periods": ["30F", "5F", "1F"],
+        "high_p": "30F",
+        "high_period": "30F",
+        "high_name": "30F",
+        "kline_period": "30M",
+        "label": "30F 5F 1F",
+        "desc": "30F 5F 1F (大周期30F线出现大买)",
+    },
+    "DAY_30F_5F": {
+        "key": "DAY_30F_5F",
+        "periods": ["DAY", "30F", "5F"],
+        "high_p": "DAY",
+        "high_period": "DAY",
+        "high_name": "日线",
+        "kline_period": "DAY",
+        "label": "日 30F 5F",
+        "desc": "日 30F 5F (大周期日线出现大买)",
+    },
+    "WEEK_DAY_30F": {
+        "key": "WEEK_DAY_30F",
+        "periods": ["WEEK", "DAY", "30F"],
+        "high_p": "WEEK",
+        "high_period": "WEEK",
+        "high_name": "周线",
+        "kline_period": "WEEK",
+        "label": "周 日 30F",
+        "desc": "周 日 30F (大周期周线出现大买)",
+    },
+    "MONTH_WEEK_DAY": {
+        "key": "MONTH_WEEK_DAY",
+        "periods": ["MONTH", "WEEK", "DAY"],
+        "high_p": "MONTH",
+        "high_period": "MONTH",
+        "high_name": "月线",
+        "kline_period": "MONTH",
+        "label": "月 周 日",
+        "desc": "月 周 日 (大周期月线出现大买)",
+    },
+}
+
+
+def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
+    """解析缠论选股的 4 级联周期，默认为 30F 5F 1F。"""
+    if not raw_period:
+        return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+
+    clean = str(raw_period).strip().upper().replace(" ", "_").replace("-", "_").replace(",", "_")
+
+    # 1. 30F 5F 1F (默认)
+    if "30F_5F_1F" in clean or ("30F" in clean and "5F" in clean and "1F" in clean) or clean in ("30M", "30F", "1M", "5M"):
+        return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+
+    # 2. 日 30F 5F
+    if "DAY_30F_5F" in clean or ("DAY" in clean and "30F" in clean and "5F" in clean) or ("日" in str(raw_period) and "30" in str(raw_period) and "5" in str(raw_period)):
+        return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
+
+    # 3. 周 日 30F
+    if "WEEK_DAY_30F" in clean or ("WEEK" in clean and "DAY" in clean and "30F" in clean) or ("周" in str(raw_period) and "日" in str(raw_period) and "30" in str(raw_period)) or clean in ("WEEK", "WEEKLY", "W"):
+        return CHANLUN_PERIOD_PRESETS["WEEK_DAY_30F"]
+
+    # 4. 月 周 日
+    if "MONTH_WEEK_DAY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean) or ("月" in str(raw_period) and "周" in str(raw_period) and "日" in str(raw_period)) or clean in ("MONTH", "MONTHLY", "M"):
+        return CHANLUN_PERIOD_PRESETS["MONTH_WEEK_DAY"]
+
+    if clean in ("DAY", "DAILY", "D"):
+        return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
+
+    return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+
+
 def _evaluate_stock_for_strategy(
     sym: str,
     strategy_name: str,
@@ -372,17 +450,29 @@ def _evaluate_stock_for_strategy(
     period: str = "DAY",
     force_refresh: bool = False
 ) -> dict[str, Any] | None:
-    df = _get_or_fetch_kline(sym, period=period, force_refresh=force_refresh)
+    if strategy_name == "chanlun_strategy":
+        cl_preset = parse_chanlun_screener_preset(period)
+        eval_period = cl_preset["kline_period"]
+    else:
+        cl_preset = None
+        eval_period = period
+
+    df = _get_or_fetch_kline(sym, period=eval_period, force_refresh=force_refresh)
     if df is None or len(df) < 15:
         return None
 
     try:
         if strategy_name == "chanlun_strategy":
-            # 严格以 “日线 30F 5F” 区间套为大中小周期，筛选出最近最后 大周期 为“ 大级别买 大级别1买 大级别2买 大级别3买 ” 的股票
+            assert cl_preset is not None
+            chan_periods = cl_preset["periods"]
+            high_name = cl_preset["high_name"]
+            high_p = cl_preset["high_p"]
+
+            # 执行三周期缠论立体共振分析，大周期为 high_p (30F / 日 / 周 / 月)
             from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
             chan_res = analyze_multi_period_resonance(
                 code=sym,
-                periods=["DAY", "30F", "5F"],
+                periods=chan_periods,
                 count=300,
                 force_refresh=force_refresh
             )
@@ -398,23 +488,28 @@ def _evaluate_stock_for_strategy(
             m_type = str(last_m.get("type", "")).upper()
             is_buy = bool(last_m.get("is_buy", False))
 
-            # 筛选出最近最后大周期为“大级别买 大级别1买 大级别2买 大级别3买”的股票
+            # 筛选条件：大周期出现大买 (大级别买 / 大级别1买 / 大级别2买 / 大级别3买 / 1BUY / 2BUY / 3BUY)
             # 严格排除卖点 (大级别1卖 / 2卖 / 3卖)
             is_high_buy = is_buy and (
-                any(k in label for k in ["大级别买", "大级别1买", "大级别2买", "大级别3买", "大级别走势1买", "买"]) or
+                any(k in label for k in ["大级别买", "大级别1买", "大级别2买", "大级别3买", "大级别走势1买", "大买", "买"]) or
                 m_type in ("1BUY", "2BUY", "3BUY", "BUY_1", "BUY_2", "BUY_3")
             )
             if not is_high_buy:
                 return None
 
-            chan_tag = label or ("大级别1买" if "1BUY" in m_type else ("大级别2买" if "2BUY" in m_type else ("大级别3买" if "3BUY" in m_type else "大级别买")))
+            chan_tag = last_m.get("short_label") or label or (f"[{high_name}]大级别1买" if "1BUY" in m_type else (f"[{high_name}]大级别2买" if "2BUY" in m_type else (f"[{high_name}]大级别3买" if "3BUY" in m_type else f"[{high_name}]大买")))
             sig_df = df.copy()
 
             # 定位触发日及价格
-            sig_date_str = str(last_m.get("date", "")).split(" ")[0]
+            sig_date_str = str(last_m.get("date", "")).strip()
             date_col = "datetime" if "datetime" in sig_df.columns else "date"
             dt_series = sig_df[date_col].astype(str)
             match_indices = sig_df.index[dt_series.str.startswith(sig_date_str)]
+            if len(match_indices) == 0 and len(sig_date_str) >= 10:
+                match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:10])]
+            if len(match_indices) == 0:
+                match_indices = sig_df.index[dt_series <= sig_date_str]
+
             if len(match_indices) > 0:
                 trigger_loc = sig_df.index.get_loc(match_indices[-1])
                 trigger_bar = sig_df.iloc[trigger_loc]
@@ -451,14 +546,14 @@ def _evaluate_stock_for_strategy(
                 if since_pct > 15.0:
                     return None
 
-            # 3. 区间套次级别共振过滤 (30F / 5F 确认)：
-            # 若次级别 (30F) 最新最后点位处于卖点破位 (如 30F 处于 3卖 或 1卖)，说明次级别正在下杀，大级别买点当前正在被破坏，排除！
+            # 3. 区间套次级别共振过滤：
+            # 若次级别最新最后点位处于卖点破位 (如次级别处于 3卖 或 1卖)，说明次级别正在下杀，大级别买点当前正在被破坏，排除！
             mid_mmds = [m for m in chan_res.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
             if mid_mmds:
                 last_mid = mid_mmds[-1]
                 if not last_mid.get("is_buy", True):
-                    mid_date_str = str(last_mid.get("date", "")).split(" ")[0]
-                    mid_matches = sig_df.index[dt_series.str.startswith(mid_date_str)]
+                    mid_date_str = str(last_mid.get("date", "")).strip()
+                    mid_matches = sig_df.index[dt_series.str.startswith(mid_date_str[:10])]
                     if len(mid_matches) > 0:
                         mid_days_ago = len(sig_df) - 1 - sig_df.index.get_loc(mid_matches[-1])
                         if mid_days_ago <= 3:
@@ -579,6 +674,10 @@ def _evaluate_stock_for_strategy(
 
         p_clean = str(period).strip().upper()
         period_unit_map = {
+            "30F_5F_1F": "根30分K",
+            "DAY_30F_5F": "日",
+            "WEEK_DAY_30F": "周",
+            "MONTH_WEEK_DAY": "月",
             "30M": "根30分K",
             "60M": "根60分K",
             "120M": "根120分K",
@@ -589,6 +688,10 @@ def _evaluate_stock_for_strategy(
             "YEAR": "年",
         }
         period_name_map = {
+            "30F_5F_1F": "30F 5F 1F",
+            "DAY_30F_5F": "日 30F 5F",
+            "WEEK_DAY_30F": "周 日 30F",
+            "MONTH_WEEK_DAY": "月 周 日",
             "30M": "30分钟",
             "60M": "60分钟",
             "120M": "120分钟",
@@ -598,8 +701,12 @@ def _evaluate_stock_for_strategy(
             "SEASON": "季线",
             "YEAR": "年线",
         }
-        p_unit = period_unit_map.get(p_clean, "期")
-        p_name = period_name_map.get(p_clean, p_clean)
+        if strategy_name == "chanlun_strategy" and cl_preset is not None:
+            p_unit = period_unit_map.get(cl_preset["kline_period"], "期")
+            p_name = cl_preset["label"]
+        else:
+            p_unit = period_unit_map.get(p_clean, "期")
+            p_name = period_name_map.get(p_clean, p_clean)
 
         if strategy_name == "td_sequential":
             if cur_h_seq == 3:
@@ -627,9 +734,9 @@ def _evaluate_stock_for_strategy(
                 status_label = f"{days_ago}日前四边形·{q_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形·{q_type}"
         elif strategy_name == "chanlun_strategy":
             if days_ago == 0:
-                status_label = f"今日{chan_tag}" if p_clean == "DAY" else f"最新{p_name}{chan_tag}"
+                status_label = f"最新{chan_tag}"
             else:
-                status_label = f"{days_ago}日前{chan_tag}" if p_clean == "DAY" else f"{days_ago}{p_unit}前{chan_tag}"
+                status_label = f"{days_ago}{p_unit}前{chan_tag}"
         else:
             if days_ago == 0:
                 status_label = "今日触发" if p_clean == "DAY" else f"最新{p_name}触发"
@@ -721,7 +828,7 @@ def _evaluate_stock_for_strategy(
         elif len(latest_date) == 8 and latest_date.isdigit():
             latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
 
-        return {
+        res_dict = {
             "symbol": sym,
             "code": sym,
             "name": stock_name,
@@ -753,6 +860,13 @@ def _evaluate_stock_for_strategy(
             "market_cap_yi": 0.0,
             "market_cap_str": "--",
         }
+        if strategy_name == "chanlun_strategy" and cl_preset is not None:
+            res_dict["chan_periods"] = cl_preset["periods"]
+            res_dict["high_period"] = cl_preset["high_p"]
+            res_dict["high_period_name"] = cl_preset["high_name"]
+            res_dict["period_preset"] = cl_preset.get("key", "30F_5F_1F")
+            res_dict["period_preset_label"] = cl_preset["label"]
+        return res_dict
     except Exception as e:
         logger.debug(f"Strategy {strategy_name} scan error on {sym}: {e}")
         return None
@@ -769,19 +883,10 @@ def scan_market_strategy(
     progress_callback: Callable[[int, int, int, float], None] | None = None,
     stop_event: threading.Event | None = None
 ) -> list[dict[str, Any]]:
-    """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency.
-    
-    Args:
-        strategy_name: Identifier for strategy in registry
-        symbols: Optional custom list of symbols. If None, loaded based on universe.
-        universe: Universe tier: 'core' (35), 'hs300' (300), 'zz500' (500), 'zz1000' (1000), 'all' (5200+)
-        period: Kline period: '30M', '60M', '120M', 'DAY', 'WEEK', 'MONTH', 'SEASON'
-        lookback_bars: Signal trigger lookback window
-        use_cache: If True, check disk cache for today's completed scan
-        force_refresh: If True, bypass all memory and disk caches and fetch fresh intraday data
-        progress_callback: Optional callable(processed, total, matches_count, percent)
-        stop_event: Optional threading.Event to abort early
-    """
+    """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency."""
+    if strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "")):
+        period = "30F_5F_1F"
+
     st = get_strategy(strategy_name)
     
     if not symbols:
