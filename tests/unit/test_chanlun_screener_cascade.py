@@ -44,8 +44,8 @@ def test_parse_chanlun_screener_preset_definitions():
 
 
 def test_parse_chanlun_screener_preset_fallbacks():
-    """Verify fallback defaults to 30F_5F_1F for empty or unknown periods."""
-    default_preset = CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+    """Verify fallback defaults to DAY_30F_5F for empty or unknown periods."""
+    default_preset = CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
     assert parse_chanlun_screener_preset(None) == default_preset
     assert parse_chanlun_screener_preset("") == default_preset
     assert parse_chanlun_screener_preset("unknown_period") == default_preset
@@ -150,9 +150,9 @@ def test_evaluate_chanlun_strategy_big_cycle_buy():
 
 
 def test_screener_request_models_defaults():
-    """Verify router request models default to 30F_5F_1F."""
+    """Verify router request models default to DAY_30F_5F."""
     req_scan = ScreenerScanRequest()
-    assert req_scan.period == "30F_5F_1F"
+    assert req_scan.period == "DAY_30F_5F"
 
     req_task = ScreenerTaskStartRequest(strategy="chanlun_strategy", universe="core")
-    assert req_task.period == "30F_5F_1F"
+    assert req_task.period == "DAY_30F_5F"

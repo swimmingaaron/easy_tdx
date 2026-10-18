@@ -3166,8 +3166,8 @@
                             <span class="text-[11px] text-slate-400 font-medium">周期:</span>
                             <select id="screener-period-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="30F_5F_1F" selected>⏱️ 30F 5F 1F (大周期30F大买 · 默认)</option>
-                                <option value="DAY_30F_5F">📅 日 30F 5F (大周期日线大买)</option>
+                                <option value="DAY_30F_5F" selected>📅 日 30F 5F (大周期日线大买 · 默认)</option>
+                                <option value="30F_5F_1F">⏱️ 30F 5F 1F (大周期30F大买)</option>
                                 <option value="WEEK_DAY_30F">📊 周 日 30F (大周期周线大买)</option>
                                 <option value="MONTH_WEEK_DAY">📈 月 周 日 (大周期月线大买)</option>
                             </select>
@@ -17726,8 +17726,8 @@
         let screenerPollTimer = null;
 
         const CHANLUN_PERIOD_OPTIONS = [
-            { value: '30F_5F_1F', text: '⏱️ 30F 5F 1F (大周期30F大买 · 默认)', selected: true },
-            { value: 'DAY_30F_5F', text: '📅 日 30F 5F (大周期日线大买)' },
+            { value: 'DAY_30F_5F', text: '📅 日 30F 5F (大周期日线大买 · 默认)', selected: true },
+            { value: '30F_5F_1F', text: '⏱️ 30F 5F 1F (大周期30F大买)' },
             { value: 'WEEK_DAY_30F', text: '📊 周 日 30F (大周期周线大买)' },
             { value: 'MONTH_WEEK_DAY', text: '📈 月 周 日 (大周期月线大买)' }
         ];
@@ -18402,7 +18402,7 @@
                         'WEEK_DAY_30F': 'WEEK,DAY,30F',
                         'MONTH_WEEK_DAY': 'MONTH,WEEK,DAY'
                     };
-                    periodsArg = presetPeriodMap[curPeriod] || '30F,5F,1F';
+                    periodsArg = presetPeriodMap[curPeriod] || 'DAY,30F,5F';
                     periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
                 }
                 const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${periodsQuery}`;
@@ -18638,7 +18638,7 @@
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const universe = uniSelect ? uniSelect.value : 'core';
             const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
-            const defaultPeriod = isChanlun ? '30F_5F_1F' : 'DAY';
+            const defaultPeriod = isChanlun ? 'DAY_30F_5F' : 'DAY';
             const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 
@@ -18664,7 +18664,7 @@
             const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
-            const defaultPeriod = isChanlun ? '30F_5F_1F' : 'DAY';
+            const defaultPeriod = isChanlun ? 'DAY_30F_5F' : 'DAY';
             const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 

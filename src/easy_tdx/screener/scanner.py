@@ -414,18 +414,18 @@ CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
 
 
 def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
-    """解析缠论选股的 4 级联周期，默认为 30F 5F 1F。"""
+    """解析缠论选股的 4 级联周期，默认为 日 30F 5F (DAY_30F_5F)。"""
     if not raw_period:
-        return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+        return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
 
     clean = str(raw_period).strip().upper().replace(" ", "_").replace("-", "_").replace(",", "_")
 
-    # 1. 30F 5F 1F (默认)
+    # 1. 30F 5F 1F
     if "30F_5F_1F" in clean or ("30F" in clean and "5F" in clean and "1F" in clean) or clean in ("30M", "30F", "1M", "5M"):
         return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
 
-    # 2. 日 30F 5F
-    if "DAY_30F_5F" in clean or ("DAY" in clean and "30F" in clean and "5F" in clean) or ("日" in str(raw_period) and "30" in str(raw_period) and "5" in str(raw_period)):
+    # 2. 日 30F 5F (默认)
+    if "DAY_30F_5F" in clean or ("DAY" in clean and "30F" in clean and "5F" in clean) or ("日" in str(raw_period) and "30" in str(raw_period) and "5" in str(raw_period)) or clean in ("DAY", "DAILY", "D"):
         return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
 
     # 3. 周 日 30F
@@ -436,10 +436,7 @@ def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
     if "MONTH_WEEK_DAY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean) or ("月" in str(raw_period) and "周" in str(raw_period) and "日" in str(raw_period)) or clean in ("MONTH", "MONTHLY", "M"):
         return CHANLUN_PERIOD_PRESETS["MONTH_WEEK_DAY"]
 
-    if clean in ("DAY", "DAILY", "D"):
-        return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
-
-    return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
+    return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
 
 
 def _evaluate_stock_for_strategy(
@@ -885,7 +882,7 @@ def scan_market_strategy(
 ) -> list[dict[str, Any]]:
     """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency."""
     if strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "")):
-        period = "30F_5F_1F"
+        period = "DAY_30F_5F"
 
     st = get_strategy(strategy_name)
     
