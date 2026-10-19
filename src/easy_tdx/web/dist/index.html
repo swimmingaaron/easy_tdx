@@ -24457,6 +24457,9 @@
                         if (!Array.isArray(params) || params.length === 0) return '';
                         const dateStr = params[0].name;
                         const idx = params[0].dataIndex;
+                        if (side && dateStr) {
+                            _clHoveredCandle[side] = { date: String(dateStr).trim(), index: idx, time: Date.now() };
+                        }
                         const kParam = params.find(p => p.seriesType === 'candlestick');
                         if (!kParam || !kParam.value) return '';
 
@@ -24780,6 +24783,7 @@
         }
 
         const _clLatestCandle = {};
+        const _clHoveredCandle = {};
 
         function updateWindowHeaderCandle(side, close, chgPct) {
             let titleElId = 'cl-chart-title-text';
@@ -24957,29 +24961,81 @@
                 }
             });
 
+            instance.off('updateAxisPointer');
+            instance.on('updateAxisPointer', (event) => {
+                if (event && typeof event.dataIndex === 'number' && dates && dates[event.dataIndex]) {
+                    const dStr = String(dates[event.dataIndex]).trim();
+                    if (/^\d{4}[-/]\d{2}/.test(dStr)) {
+                        _clHoveredCandle[side] = { date: dStr, index: event.dataIndex, time: Date.now() };
+                    }
+                }
+            });
+
             // 监听鼠标双击事件：双击 K 线时，将回溯截止日期设为此处，模拟历史当下
             instance.off('dblclick');
             instance.on('dblclick', (params) => {
                 let targetDate = null;
-                if (params && params.name) {
-                    targetDate = String(params.name).trim();
-                } else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
-                    targetDate = String(dates[params.dataIndex]).trim();
+                const hovered = _clHoveredCandle[side];
+
+                // 1. 优先使用鼠标当前悬停/吸附的蜡烛日期（杜绝中枢色块、笔线段、K线间隙导致的误判）
+                if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
+                    if (/^\d{4}[-/]\d{2}/.test(hovered.date)) {
+                        targetDate = hovered.date;
+                    }
                 }
+
+                // 2. 检查 params.name 是否包含合法日期格式（严格过滤中枢名、画线名、空白等）
+                if (!targetDate && params && params.name) {
+                    const nStr = String(params.name).trim();
+                    if (/^\d{4}[-/]\d{2}/.test(nStr)) {
+                        targetDate = nStr;
+                    }
+                }
+
+                // 3. 检查 params.dataIndex
+                if (!targetDate && params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
+                    const dStr = String(dates[params.dataIndex]).trim();
+                    if (/^\d{4}[-/]\d{2}/.test(dStr)) {
+                        targetDate = dStr;
+                    }
+                }
+
+                // 4. 坐标系换算兜底（严格防跳回第0根：严禁超出当前可视区域范围）
                 if (!targetDate && params && params.event) {
-                    // 若双击在空白处但处于坐标系内，通过 convertFromPixel 换算对应 x 轴索引
                     try {
-                        const pointInPixel = [params.event.offsetX, params.event.offsetY];
-                        const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, pointInPixel);
-                        if (pointInGrid && typeof pointInGrid[0] === 'number') {
-                            const xIdx = Math.round(pointInGrid[0]);
-                            if (xIdx >= 0 && xIdx < dates.length) {
-                                targetDate = String(dates[xIdx]).trim();
+                        const zrEvt = params.event;
+                        const px = (zrEvt && typeof zrEvt.zrX === 'number') ? zrEvt.zrX : (zrEvt && typeof zrEvt.offsetX === 'number' ? zrEvt.offsetX : null);
+                        const py = (zrEvt && typeof zrEvt.zrY === 'number') ? zrEvt.zrY : (zrEvt && typeof zrEvt.offsetY === 'number' ? zrEvt.offsetY : null);
+                        if (px != null && py != null) {
+                            const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
+                            if (pointInGrid && typeof pointInGrid[0] === 'number' && !isNaN(pointInGrid[0])) {
+                                const xIdx = Math.round(pointInGrid[0]);
+                                // 检查当前视口范围，严禁异常降级到远在可视区域外的第0根！
+                                const opt = instance.getOption();
+                                const zoom = opt && opt.dataZoom && opt.dataZoom[0];
+                                let minValidIdx = 0;
+                                let maxValidIdx = dates.length - 1;
+                                if (zoom && typeof zoom.start === 'number' && typeof zoom.end === 'number') {
+                                    minValidIdx = Math.max(0, Math.floor((zoom.start / 100) * dates.length) - 5);
+                                    maxValidIdx = Math.min(dates.length - 1, Math.ceil((zoom.end / 100) * dates.length) + 5);
+                                }
+                                if (xIdx >= minValidIdx && xIdx <= maxValidIdx && dates[xIdx]) {
+                                    const candidate = String(dates[xIdx]).trim();
+                                    if (/^\d{4}[-/]\d{2}/.test(candidate)) {
+                                        targetDate = candidate;
+                                    }
+                                }
                             }
                         }
                     } catch (_) {}
                 }
-                if (targetDate && typeof setChanlunBacktrackDateToBar === 'function') {
+
+                // 5. 兜底：如果悬停记录存在过有效日期，使用该日期，绝不跳到第 0 根
+                if (!targetDate && hovered && hovered.date && /^\d{4}[-/]\d{2}/.test(hovered.date)) {
+                    targetDate = hovered.date;
+                }
+
+                if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
                     setChanlunBacktrackDateToBar(targetDate, side);
                 }
             });
@@ -25312,6 +25368,7 @@
         function setChanlunBacktrackDateToBar(targetDate, side = 'left') {
             if (!targetDate) return;
             const cleanDate = String(targetDate).trim();
+            if (!/^\d{4}[-/]\d{2}/.test(cleanDate)) return;
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
             _clAutoRefresh = false;

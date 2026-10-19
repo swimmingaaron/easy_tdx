@@ -296,6 +296,11 @@ const hoverCandleW2 = ref<WinCandleInfo | null>(null)
 const hoverCandleRight = ref<WinCandleInfo | null>(null)
 const hoverCandleW4 = ref<WinCandleInfo | null>(null)
 
+const hoverCandleDateLeft = ref<string | null>(null)
+const hoverCandleDateW2 = ref<string | null>(null)
+const hoverCandleDateRight = ref<string | null>(null)
+const hoverCandleDateW4 = ref<string | null>(null)
+
 const candleInfoLeft = computed(() => hoverCandleLeft.value || getLatestCandleInfo(chanDataLeft.value))
 const candleInfoW2 = computed(() => hoverCandleW2.value || getLatestCandleInfo(chanDataW2.value))
 const candleInfoRight = computed(() => hoverCandleRight.value || getLatestCandleInfo(chanDataRight.value))
@@ -631,6 +636,7 @@ function exitBacktracking() {
 function setBacktrackDateToBar(targetDate: string) {
   if (!targetDate) return
   const cleanDate = targetDate.trim()
+  if (!/^\d{4}[-/]\d{2}/.test(cleanDate)) return
   isBacktrackingMode.value = true
   if (autoRefresh.value) {
     autoRefresh.value = false
@@ -1413,6 +1419,12 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         if (!Array.isArray(params) || params.length === 0) return ''
         const dateStr = params[0].name
         const idx = params[0].dataIndex
+        if (dateStr && /^\d{4}[-/]\d{2}/.test(dateStr)) {
+          if (winKey === 'left') hoverCandleDateLeft.value = dateStr
+          else if (winKey === 'w2') hoverCandleDateW2.value = dateStr
+          else if (winKey === 'right') hoverCandleDateRight.value = dateStr
+          else if (winKey === 'w4') hoverCandleDateW4.value = dateStr
+        }
         const kParam = params.find((p: any) => p.seriesType === 'candlestick')
         let html = `<div style="font-weight:bold; margin-bottom:4px; color:#ffffff;">📅 ${dateStr}</div>`
         if (kParam && kParam.value) {
@@ -1862,20 +1874,77 @@ function handleResize() {
   adjustLayoutHeight()
 }
 
+function extractChanlunDblclickDate(
+  params: any,
+  dates: string[],
+  hoveredDate: string | null,
+  instance: echarts.ECharts | null
+): string | null {
+  // 1. 优先使用鼠标最近悬停/吸附的蜡烛日期（杜绝中枢色块、笔线段、K线间隙导致的误判）
+  if (hoveredDate && /^\d{4}[-/]\d{2}/.test(hoveredDate)) {
+    return hoveredDate
+  }
+  // 2. 检查 params.name 是否包含合法日期格式（严格过滤中枢名、画线名、空白等）
+  if (params && params.name) {
+    const nStr = String(params.name).trim()
+    if (/^\d{4}[-/]\d{2}/.test(nStr)) {
+      return nStr
+    }
+  }
+  // 3. 检查 params.dataIndex
+  if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
+    const dStr = String(dates[params.dataIndex]).trim()
+    if (/^\d{4}[-/]\d{2}/.test(dStr)) {
+      return dStr
+    }
+  }
+  // 4. 坐标系换算兜底（严格防跳回第0根：严禁超出当前可视区域范围）
+  if (params && params.event && instance) {
+    try {
+      const zrEvt = params.event
+      const px = (zrEvt && typeof zrEvt.zrX === 'number') ? zrEvt.zrX : (zrEvt && typeof zrEvt.offsetX === 'number' ? zrEvt.offsetX : null)
+      const py = (zrEvt && typeof zrEvt.zrY === 'number') ? zrEvt.zrY : (zrEvt && typeof zrEvt.offsetY === 'number' ? zrEvt.offsetY : null)
+      if (px != null && py != null) {
+        const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, [px, py])
+        if (pointInGrid && typeof pointInGrid[0] === 'number' && !isNaN(pointInGrid[0])) {
+          const xIdx = Math.round(pointInGrid[0])
+          const opt: any = instance.getOption()
+          const zoom = opt && opt.dataZoom && opt.dataZoom[0]
+          let minValidIdx = 0
+          let maxValidIdx = dates.length - 1
+          if (zoom && typeof zoom.start === 'number' && typeof zoom.end === 'number') {
+            minValidIdx = Math.max(0, Math.floor((zoom.start / 100) * dates.length) - 5)
+            maxValidIdx = Math.min(dates.length - 1, Math.ceil((zoom.end / 100) * dates.length) + 5)
+          }
+          if (xIdx >= minValidIdx && xIdx <= maxValidIdx && dates[xIdx]) {
+            const candidate = String(dates[xIdx]).trim()
+            if (/^\d{4}[-/]\d{2}/.test(candidate)) {
+              return candidate
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return null
+}
+
 function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
+      chartInstanceLeft.on('updateAxisPointer', (event: any) => {
+        const dates = chanDataLeft.value?.unified_chart?.dates || []
+        if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
+          const dStr = String(dates[event.dataIndex]).trim()
+          if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateLeft.value = dStr
+        }
+      })
       chartInstanceLeft.on('dblclick', (params: any) => {
         const dates = chanDataLeft.value?.unified_chart?.dates || []
-        let targetDate: string | null = null
-        if (params && params.name) {
-          targetDate = String(params.name).trim()
-        } else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
-          targetDate = String(dates[params.dataIndex]).trim()
-        }
+        const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateLeft.value, chartInstanceLeft)
         if (targetDate) setBacktrackDateToBar(targetDate)
       })
       window.addEventListener('resize', handleResize)
@@ -1890,11 +1959,16 @@ function renderChart() {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
+        chartInstanceW2.on('updateAxisPointer', (event: any) => {
+          const dates = chanDataW2.value?.unified_chart?.dates || []
+          if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
+            const dStr = String(dates[event.dataIndex]).trim()
+            if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateW2.value = dStr
+          }
+        })
         chartInstanceW2.on('dblclick', (params: any) => {
           const dates = chanDataW2.value?.unified_chart?.dates || []
-          let targetDate: string | null = null
-          if (params && params.name) targetDate = String(params.name).trim()
-          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW2.value, chartInstanceW2)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
       }
@@ -1906,11 +1980,16 @@ function renderChart() {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
+        chartInstanceRight.on('updateAxisPointer', (event: any) => {
+          const dates = chanDataRight.value?.unified_chart?.dates || []
+          if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
+            const dStr = String(dates[event.dataIndex]).trim()
+            if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateRight.value = dStr
+          }
+        })
         chartInstanceRight.on('dblclick', (params: any) => {
           const dates = chanDataRight.value?.unified_chart?.dates || []
-          let targetDate: string | null = null
-          if (params && params.name) targetDate = String(params.name).trim()
-          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateRight.value, chartInstanceRight)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
       }
@@ -1922,11 +2001,16 @@ function renderChart() {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
+        chartInstanceW4.on('updateAxisPointer', (event: any) => {
+          const dates = chanDataW4.value?.unified_chart?.dates || []
+          if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
+            const dStr = String(dates[event.dataIndex]).trim()
+            if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateW4.value = dStr
+          }
+        })
         chartInstanceW4.on('dblclick', (params: any) => {
           const dates = chanDataW4.value?.unified_chart?.dates || []
-          let targetDate: string | null = null
-          if (params && params.name) targetDate = String(params.name).trim()
-          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW4.value, chartInstanceW4)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
       }
