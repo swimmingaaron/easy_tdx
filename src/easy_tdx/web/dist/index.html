@@ -908,7 +908,7 @@
         /* ==================== 行业板块列表 护眼与质感配色体系 ==================== */
         .industry-grid-layout {
             display: grid;
-            grid-template-columns: 24px minmax(72px, 1.1fr) 52px minmax(56px, 0.9fr) minmax(64px, 1fr) minmax(64px, 1fr) minmax(64px, 1fr) 80px;
+            grid-template-columns: 24px minmax(72px, 1.1fr) 52px minmax(56px, 0.9fr) minmax(64px, 1fr) minmax(64px, 1fr) minmax(64px, 1fr) 108px;
             gap: 6px;
             align-items: center;
         }
@@ -2878,7 +2878,7 @@
 
                             <!-- 一行一个板块 表头与列表容器 (包裹在水平可滚动容器内，支持极窄屏自适应，8列无损呈现) -->
                             <div class="overflow-x-auto flex-1 flex flex-col">
-                                <div class="min-w-[440px] flex flex-col flex-1">
+                                <div class="min-w-[470px] flex flex-col flex-1">
                                     <div
                                         class="industry-table-header industry-grid-layout px-2 py-1.5 text-[11px] font-medium select-none rounded-t-lg">
                                         <div class="flex items-center">
@@ -16742,6 +16742,7 @@
                     <!-- 8. 操作 -->
                     <div class="flex items-center justify-center space-x-1 whitespace-nowrap" onclick="event.stopPropagation()">
                         <a href="/#chanlun?code=${ind.code || ''}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${ind.code || ''}', '${ind.name}', event)" class="btn-chanlun px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap no-underline inline-block text-center" title="在新的标签页中打开【${ind.name}】(${ind.code || ''}) 缠论K线">缠论</a>
+                        <button onclick="openKlineModal('${ind.code || ''}', '${ind.name}')" class="btn-kline px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="点击查看【${ind.name}】(${ind.code || ''}) 板块K线行情">K线</button>
                         <button onclick="quickBacktest('${ind.code || ''}')" class="btn-bt px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer whitespace-nowrap" title="对${ind.name}执行回测">回测</button>
                     </div>
                 </div>
