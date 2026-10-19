@@ -24956,6 +24956,34 @@
                     updateWindowHeaderCandle(side, latest.close, latest.chgPct);
                 }
             });
+
+            // 监听鼠标双击事件：双击 K 线时，将回溯截止日期设为此处，模拟历史当下
+            instance.off('dblclick');
+            instance.on('dblclick', (params) => {
+                let targetDate = null;
+                if (params && params.name) {
+                    targetDate = String(params.name).trim();
+                } else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
+                    targetDate = String(dates[params.dataIndex]).trim();
+                }
+                if (!targetDate && params && params.event) {
+                    // 若双击在空白处但处于坐标系内，通过 convertFromPixel 换算对应 x 轴索引
+                    try {
+                        const pointInPixel = [params.event.offsetX, params.event.offsetY];
+                        const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, pointInPixel);
+                        if (pointInGrid && typeof pointInGrid[0] === 'number') {
+                            const xIdx = Math.round(pointInGrid[0]);
+                            if (xIdx >= 0 && xIdx < dates.length) {
+                                targetDate = String(dates[xIdx]).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+                if (targetDate && typeof setChanlunBacktrackDateToBar === 'function') {
+                    setChanlunBacktrackDateToBar(targetDate, side);
+                }
+            });
+
             if (!chartDom._hasLeaveListener) {
                 chartDom._hasLeaveListener = true;
                 chartDom.addEventListener('mouseleave', () => {
@@ -25278,6 +25306,90 @@
                 clearInterval(_clRefreshTimer);
                 _clRefreshTimer = null;
             }
+        }
+
+        // 鼠标双击K线时调用：将缠论K线回溯的最新日期设为此处，方便回溯
+        function setChanlunBacktrackDateToBar(targetDate, side = 'left') {
+            if (!targetDate) return;
+            const cleanDate = String(targetDate).trim();
+            _clIsBacktracking = true;
+            stopChanlunAutoRefresh();
+            _clAutoRefresh = false;
+            toggleChanlunAutoRefreshState(false);
+
+            _clBacktrackDate = cleanDate;
+
+            // 1. 同步时间选择框（提取 YYYY-MM-DD）
+            const ymd = cleanDate.slice(0, 10);
+            const cutoffInput = document.getElementById('cl-cutoff-date');
+            if (cutoffInput) {
+                cutoffInput.value = ymd;
+            }
+
+            // 2. 同步时间轴与滑块位置
+            const timeline = _clCachedData?.backtrack_timeline || _clLeftCachedData?.backtrack_timeline;
+            const dates = timeline?.available_dates || [];
+            let matchedIdx = -1;
+            if (dates.length > 0) {
+                // 精确匹配
+                matchedIdx = dates.indexOf(cleanDate);
+                if (matchedIdx < 0) {
+                    // 按前缀匹配（如同一天）
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i].startsWith(cleanDate) || cleanDate.startsWith(dates[i])) {
+                            matchedIdx = i;
+                            break;
+                        }
+                    }
+                }
+                if (matchedIdx < 0) {
+                    // 按 <= cleanDate 寻找最近一根K线
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i] <= cleanDate) {
+                            matchedIdx = i;
+                            break;
+                        }
+                    }
+                }
+                if (matchedIdx >= 0) {
+                    _clBacktrackIndex = matchedIdx;
+                    const slider = document.getElementById('cl-backtrack-slider');
+                    if (slider) {
+                        slider.value = String(_clBacktrackIndex);
+                        updateChanlunSliderTrack(slider.value, slider.max);
+                    }
+                }
+            }
+
+            // 3. 更新截断文本与“返回最新”按钮
+            const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+            if (cutoffText) {
+                const totalStr = dates.length > 0 ? ` (${matchedIdx + 1}/${dates.length})` : '';
+                cutoffText.innerText = `截断: ${cleanDate}${totalStr}`;
+            }
+            const latestBtn = document.getElementById('cl-btn-latest-bar');
+            if (latestBtn) latestBtn.classList.remove('hidden');
+
+            // 4. 显示交互轻提示 Toast
+            if (window.showToast) {
+                window.showToast('缠论历史回溯', `双击定位：最新截断至 ${cleanDate}`);
+            }
+
+            // 5. 优先检查客户端内存缓存
+            const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
+            if (_clBacktrackCache.has(cacheKey)) {
+                const cached = _clBacktrackCache.get(cacheKey);
+                _clCachedData = cached;
+                _clLeftCachedData = cached;
+                updateChanlunOverview(cached);
+                updateChanlunTimeline(cached);
+                renderChanlunSignalsTable(cached);
+                renderChanlunChart(cached);
+                return;
+            }
+
+            // 6. 加载回溯计算结果
+            loadChanlunData(false);
         }
 
         function onChanlunCutoffDateChange(dateVal) {

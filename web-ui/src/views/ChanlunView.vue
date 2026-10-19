@@ -627,6 +627,58 @@ function exitBacktracking() {
   loadData()
 }
 
+// 鼠标双击K线时调用：将缠论K线回溯的最新日期设为此处，方便回溯
+function setBacktrackDateToBar(targetDate: string) {
+  if (!targetDate) return
+  const cleanDate = targetDate.trim()
+  isBacktrackingMode.value = true
+  if (autoRefresh.value) {
+    autoRefresh.value = false
+    stopAutoRefresh()
+  }
+
+  backtrackDate.value = cleanDate
+
+  // 匹配时间轴与滑块位置
+  const dates = availableDates.value || []
+  let matchedIdx = -1
+  if (dates.length > 0) {
+    matchedIdx = dates.indexOf(cleanDate)
+    if (matchedIdx < 0) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (dates[i].startsWith(cleanDate) || cleanDate.startsWith(dates[i])) {
+          matchedIdx = i
+          break
+        }
+      }
+    }
+    if (matchedIdx < 0) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (dates[i] <= cleanDate) {
+          matchedIdx = i
+          break
+        }
+      }
+    }
+    if (matchedIdx >= 0) {
+      backtrackIndex.value = matchedIdx
+    }
+  }
+
+  // 检查客户端内存缓存
+  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
+  if (backtrackCache.has(cacheKey)) {
+    const cached = backtrackCache.get(cacheKey)!
+    chanDataLeft.value = cached
+    nextTick(() => {
+      renderChart()
+    })
+    return
+  }
+
+  loadData()
+}
+
 function onSliderInput(e: Event) {
   const val = Number((e.target as HTMLInputElement).value)
   backtrackIndex.value = val
@@ -1816,6 +1868,16 @@ function renderChart() {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
+      chartInstanceLeft.on('dblclick', (params: any) => {
+        const dates = chanDataLeft.value?.unified_chart?.dates || []
+        let targetDate: string | null = null
+        if (params && params.name) {
+          targetDate = String(params.name).trim()
+        } else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
+          targetDate = String(dates[params.dataIndex]).trim()
+        }
+        if (targetDate) setBacktrackDateToBar(targetDate)
+      })
       window.addEventListener('resize', handleResize)
     }
     const optionLeft = buildChanlunOption(chanDataLeft.value, 'left')
@@ -1828,6 +1890,13 @@ function renderChart() {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
+        chartInstanceW2.on('dblclick', (params: any) => {
+          const dates = chanDataW2.value?.unified_chart?.dates || []
+          let targetDate: string | null = null
+          if (params && params.name) targetDate = String(params.name).trim()
+          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          if (targetDate) setBacktrackDateToBar(targetDate)
+        })
       }
       const optionW2 = buildChanlunOption(chanDataW2.value, 'w2')
       chartInstanceW2.setOption(optionW2, { notMerge: true, lazyUpdate: true })
@@ -1837,6 +1906,13 @@ function renderChart() {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
+        chartInstanceRight.on('dblclick', (params: any) => {
+          const dates = chanDataRight.value?.unified_chart?.dates || []
+          let targetDate: string | null = null
+          if (params && params.name) targetDate = String(params.name).trim()
+          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          if (targetDate) setBacktrackDateToBar(targetDate)
+        })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
@@ -1846,6 +1922,13 @@ function renderChart() {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
+        chartInstanceW4.on('dblclick', (params: any) => {
+          const dates = chanDataW4.value?.unified_chart?.dates || []
+          let targetDate: string | null = null
+          if (params && params.name) targetDate = String(params.name).trim()
+          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          if (targetDate) setBacktrackDateToBar(targetDate)
+        })
       }
       const optionW4 = buildChanlunOption(chanDataW4.value, 'w4')
       chartInstanceW4.setOption(optionW4, { notMerge: true, lazyUpdate: true })
@@ -1856,6 +1939,13 @@ function renderChart() {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
+        chartInstanceRight.on('dblclick', (params: any) => {
+          const dates = chanDataRight.value?.unified_chart?.dates || []
+          let targetDate: string | null = null
+          if (params && params.name) targetDate = String(params.name).trim()
+          else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
+          if (targetDate) setBacktrackDateToBar(targetDate)
+        })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
