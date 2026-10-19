@@ -35,6 +35,22 @@ def test_convert_kline_frequency():
     assert "datetime" in df_30m.columns
     assert "close" in df_30m.columns
 
+    # 测试 1分钟 20 根合成 5M (应该合成 4 根 5M)
+    dates_1m = pd.date_range("2026-10-12 09:31", periods=20, freq="1min")
+    df_1m = pd.DataFrame({
+        "datetime": dates_1m.strftime("%Y-%m-%d %H:%M"),
+        "open": range(20),
+        "high": range(20),
+        "low": range(20),
+        "close": range(20),
+        "volume": [100] * 20,
+        "amount": [1000] * 20,
+    })
+    df_5m = convert_kline_frequency(df_1m, "5M")
+    assert not df_5m.empty
+    assert len(df_5m) == 4
+    assert df_5m.iloc[0]["datetime"] == "2026-10-12 09:35"
+
 
 def test_kline_disk_cache(tmp_path):
     cache = KlineDiskCache(cache_dir=tmp_path)

@@ -784,8 +784,8 @@ def map_pivot_to_base(
         elif "1" in p_upper:
             delta_m = 1
 
-        t_min = anchor_dt - pd.Timedelta(minutes=delta_m + 5)
-        t_max = anchor_dt + pd.Timedelta(minutes=5)
+        t_min = anchor_dt - pd.Timedelta(minutes=delta_m)
+        t_max = anchor_dt + pd.Timedelta(seconds=59)
         mask = (base_dts >= t_min) & (base_dts <= t_max)
 
     if mask is not None:
@@ -895,7 +895,12 @@ def analyze_multi_period_resonance(
 
     for p in (mid_p, high_p):
         # 仅在非回溯模式或数据足够时启用内存重采样合成（例如 5F 合成 15F/30F/60F/120F）
-        if can_resample_from(low_p, p):
+        # 1F/1M 作为基准周期时，由于历史长度有限（通常仅覆盖数日），不应作为 30F/60F/120F 等大级别重采样源，
+        # 直接拉取独立大级别原生 K 线可获得数月完整中枢历史
+        if low_p in ("1F", "1M") and p in ("30F", "30M", "60F", "60M", "120F", "120M", "DAY"):
+            if p not in needed_fetch_periods:
+                needed_fetch_periods.append(p)
+        elif can_resample_from(low_p, p):
             resample_plan[p] = low_p
         elif p not in needed_fetch_periods:
             needed_fetch_periods.append(p)
@@ -1084,6 +1089,8 @@ def analyze_multi_period_resonance(
         e_clamp = max(0, min(n_base - 1, e_i))
         start_coord = prev_high_end_coord if prev_high_end_coord is not None else [dates[s_clamp], bi.start.val]
         start_idx = prev_high_end_idx if prev_high_end_idx is not None else s_clamp
+        if e_clamp <= start_idx and start_idx < n_base - 1:
+            e_clamp = start_idx + 1
         end_coord = [dates[e_clamp], bi.end.val]
         high_bis.append({
             "start": start_coord,
@@ -1132,6 +1139,8 @@ def analyze_multi_period_resonance(
         e_clamp = max(0, min(n_base - 1, e_i))
         start_coord = prev_mid_end_coord if prev_mid_end_coord is not None else [dates[s_clamp], bi.start.val]
         start_idx = prev_mid_end_idx if prev_mid_end_idx is not None else s_clamp
+        if e_clamp <= start_idx and start_idx < n_base - 1:
+            e_clamp = start_idx + 1
         end_coord = [dates[e_clamp], bi.end.val]
         mid_bis.append({
             "start": start_coord,

@@ -112,9 +112,9 @@ def convert_kline_frequency(
             cols.append("amount")
         return grouped[cols].sort_values("datetime").reset_index(drop=True)
 
-    # 2. 针对 15M、30M 使用标准 pandas resample
-    if clean_freq in ("15M", "30M"):
-        freq_alias = "15min" if clean_freq == "15M" else "30min"
+    # 2. 针对 5M、15M、30M 使用标准 pandas resample
+    if clean_freq in ("5M", "15M", "30M"):
+        freq_alias = "5min" if clean_freq == "5M" else ("15min" if clean_freq == "15M" else "30min")
         work_df.set_index("dt", inplace=True)
         agg_dict = {
             "open": "first",
