@@ -71,7 +71,7 @@ def test_evaluate_chanlun_strategy_big_cycle_buy():
         "amount": [100000] * 25,
     })
 
-    # Case 1: Big cycle (30F) triggers 1BUY -> should match
+    # Case 1: Big cycle (30F) triggers 3BUY (主升3买) -> should match
     with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
          patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance") as mock_resonance:
         mock_resonance.return_value = {
@@ -80,7 +80,7 @@ def test_evaluate_chanlun_strategy_big_cycle_buy():
             "resonance_status": "STRONG_RESONANCE",
             "unified_chart": {
                 "mmd_marks": [
-                    {"bar_idx": 2, "date": "2026-10-18", "type": "1BUY", "label": "30F大级别1买", "is_buy": True, "level": "high"}
+                    {"bar_idx": 2, "date": "2026-10-18", "type": "3BUY", "label": "30F主升3买", "is_buy": True, "level": "high"}
                 ]
             }
         }
@@ -94,7 +94,7 @@ def test_evaluate_chanlun_strategy_big_cycle_buy():
         )
 
         assert res is not None
-        assert "30F" in res["status_label"] and "1买" in res["status_label"]
+        assert "30F" in res["status_label"] and "3买" in res["status_label"]
         assert res["chan_periods"] == ["30F", "5F", "1F"]
         assert res["high_period"] == "30F"
         assert res["period_preset"] == "30F_5F_1F"

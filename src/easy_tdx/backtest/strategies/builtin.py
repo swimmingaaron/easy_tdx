@@ -1030,11 +1030,11 @@ class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
 
 @register_strategy(
     name="chanlun_strategy",
-    label="缠论买卖点战法",
+    label="缠论主升3买与中枢突破策略",
     description=(
-        "基于缠论分型、笔、中枢及背驰买卖点体系的量化实战策略。"
-        "支持二三买共振、次级别二买低吸、三买主升突破与一买底背驰；"
-        "结合分型底硬止损与动态移动止盈（Trailing Stop）保护浮盈。"
+        "基于缠论分型、笔、中枢体系的量化实战策略。"
+        "以主升3买（次级别突破中枢回抽不破中枢上轨ZG确认）为核心买入点，捕捉主升浪起跑；"
+        "结合分型底硬止损与动态移动止盈（Trailing Stop）锁定利润，最大化提高交易胜率。"
     ),
 )
 class ChanlunStrategy(ParametrizedStrategy):
@@ -1042,9 +1042,9 @@ class ChanlunStrategy(ParametrizedStrategy):
 
     实战核心机制：
     1. 买点模式 (buy_mode)：
-       - combo_23: 二买与三买组合（胜率最高、盈亏比最大，回避一买盲目猜底风险）；
+       - breakout_3buy: 三买主升浪突破（突破中枢回抽不进ZG确认，主升起跑，胜率最高·默认）；
+       - combo_23: 二买与三买组合（兼顾次级别回抽确认与主升突破）；
        - steady_2buy: 次级别二买稳健低吸（回踩不创新低，止损极小）；
-       - breakout_3buy: 三买主升浪突破（突破中枢回踩不进，追随主升）；
        - nested_1buy: 一买底背驰极值抓底（动力背驰衰竭反转，严设防守线）；
        - all_buys: 包含 1/2/3 类全部买点。
     2. 入场时机 (entry_mode)：
@@ -1066,10 +1066,10 @@ class ChanlunStrategy(ParametrizedStrategy):
         Param(
             "buy_mode",
             str,
-            default="combo_23",
-            choices=["combo_23", "steady_2buy", "breakout_3buy", "all_buys", "nested_1buy"],
+            default="breakout_3buy",
+            choices=["breakout_3buy", "combo_23", "steady_2buy", "all_buys", "nested_1buy"],
             label="买点模式",
-            description="combo_23(二三买组合,推荐)、steady_2buy(次级别二买稳健低吸)、breakout_3buy(三买突破主升)、all_buys(全部买点)、nested_1buy(一买底背驰)",
+            description="breakout_3buy(主升3买突破确认,胜率最高·推荐)、combo_23(二三买组合)、steady_2buy(次级别二买稳健低吸)、all_buys(全部买点)、nested_1buy(一买底背驰)",
         ),
         Param(
             "entry_mode",

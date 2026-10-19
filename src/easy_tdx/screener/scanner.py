@@ -378,7 +378,7 @@ CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
         "high_name": "30F",
         "kline_period": "30M",
         "label": "30F 5F 1F",
-        "desc": "30F 5F 1F (大周期30F线出现大买)",
+        "desc": "30F 5F 1F (大周期30F线主升3买)",
     },
     "DAY_30F_5F": {
         "key": "DAY_30F_5F",
@@ -388,7 +388,7 @@ CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
         "high_name": "日线",
         "kline_period": "DAY",
         "label": "日 30F 5F",
-        "desc": "日 30F 5F (大周期日线出现大买)",
+        "desc": "日 30F 5F (大周期日线主升3买 · 默认)",
     },
     "WEEK_DAY_30F": {
         "key": "WEEK_DAY_30F",
@@ -398,7 +398,7 @@ CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
         "high_name": "周线",
         "kline_period": "WEEK",
         "label": "周 日 30F",
-        "desc": "周 日 30F (大周期周线出现大买)",
+        "desc": "周 日 30F (大周期周线主升3买)",
     },
     "MONTH_WEEK_DAY": {
         "key": "MONTH_WEEK_DAY",
@@ -408,7 +408,7 @@ CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
         "high_name": "月线",
         "kline_period": "MONTH",
         "label": "月 周 日",
-        "desc": "月 周 日 (大周期月线出现大买)",
+        "desc": "月 周 日 (大周期月线主升3买)",
     },
 }
 
@@ -480,21 +480,74 @@ def _evaluate_stock_for_strategy(
             if not high_mmds:
                 return None
 
-            last_m = high_mmds[-1]
-            label = str(last_m.get("label", ""))
-            m_type = str(last_m.get("type", "")).upper()
-            is_buy = bool(last_m.get("is_buy", False))
+            # 筛选条件：严格聚焦【主升3买】(3BUY / 3买)，突破中枢回抽确认不进ZG
+            # 模式 A: 大级别自身触发主升3买 (如日线3买)
+            # 模式 B: 次级别在中枢上方触发主升3买，且大级别处于多头或前序3买共振
+            high_3buys = [m for m in high_mmds if m.get("is_buy") and ("3BUY" in str(m.get("type", "")).upper() or "3买" in str(m.get("label", "")))]
+            mid_mmds = [m for m in chan_res.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+            mid_3buys = [m for m in mid_mmds if m.get("is_buy") and ("3BUY" in str(m.get("type", "")).upper() or "3买" in str(m.get("label", "")))]
 
-            # 筛选条件：大周期出现大买 (大级别买 / 大级别1买 / 大级别2买 / 大级别3买 / 1BUY / 2BUY / 3BUY)
-            # 严格排除卖点 (大级别1卖 / 2卖 / 3卖)
-            is_high_buy = is_buy and (
-                any(k in label for k in ["大级别买", "大级别1买", "大级别2买", "大级别3买", "大级别走势1买", "大买", "买"]) or
-                m_type in ("1BUY", "2BUY", "3BUY", "BUY_1", "BUY_2", "BUY_3")
-            )
-            if not is_high_buy:
+            target_m: dict[str, Any] | None = None
+            is_mid_sub = False
+
+            high_state = chan_res.get("summary", {}).get("high_state", {})
+            last_c = float(df.iloc[-1]["close"])
+
+            # 评估大级别3买候选
+            cand_high: dict[str, Any] | None = None
+            if high_3buys:
+                ch = high_3buys[-1]
+                last_high = high_mmds[-1]
+                if last_high.get("is_buy", False) or "BUY" in str(last_high.get("type", "")).upper():
+                    cand_high = ch
+
+            # 评估次级别3买候选 (需要大级别处于多头或无大级别空头压制)
+            cand_mid: dict[str, Any] | None = None
+            if mid_3buys and (high_state.get("is_bullish", False) or not high_state.get("is_bearish", True)):
+                cm = mid_3buys[-1]
+                if mid_mmds:
+                    last_mid = mid_mmds[-1]
+                    if last_mid.get("is_buy", True) or "2BUY" in str(last_mid.get("type", "")):
+                        cand_mid = cm
+                    elif "SELL" in str(last_mid.get("type", "")) and not ("3SELL" in str(last_mid.get("type", "")).upper()):
+                        cand_mid = cm
+
+            # 优先选择最贴合当前行情的有效主升3买点
+            if cand_high and cand_mid:
+                p_high = float(cand_high.get("price", 0.0))
+                p_mid = float(cand_mid.get("price", 0.0))
+                pct_high = (last_c - p_high) / p_high * 100.0 if p_high > 0 else 999.0
+                pct_mid = (last_c - p_mid) / p_mid * 100.0 if p_mid > 0 else 999.0
+
+                # 若大级别3买涨幅已被充分兑现(>15%)，而次级别3买刚启动且盈亏比极佳，则优先使用次级别3买
+                if pct_high > 15.0 and pct_mid <= 18.0:
+                    target_m = cand_mid
+                    is_mid_sub = True
+                elif pct_high <= 18.0:
+                    target_m = cand_high
+                    is_mid_sub = False
+                elif pct_mid <= 18.0:
+                    target_m = cand_mid
+                    is_mid_sub = True
+            elif cand_high:
+                target_m = cand_high
+                is_mid_sub = False
+            elif cand_mid:
+                target_m = cand_mid
+                is_mid_sub = True
+
+            if not target_m:
                 return None
 
-            chan_tag = last_m.get("short_label") or label or (f"[{high_name}]大级别1买" if "1BUY" in m_type else (f"[{high_name}]大级别2买" if "2BUY" in m_type else (f"[{high_name}]大级别3买" if "3BUY" in m_type else f"[{high_name}]大买")))
+            last_m = target_m
+            label = str(last_m.get("label", ""))
+            m_type = str(last_m.get("type", "")).upper()
+
+            if is_mid_sub:
+                chan_tag = f"[{cl_preset['periods'][1]}]主升3买"
+            else:
+                chan_tag = f"[{high_name}]主升3买"
+
             sig_df = df.copy()
 
             # 定位触发日及价格
@@ -526,7 +579,7 @@ def _evaluate_stock_for_strategy(
                     trigger_loc = len(sig_df) - 1
                     days_ago = 0
 
-            # 1. 严格时效性控制：买点必须发生在近期 (默认 <= 15 根 K 线内，杜绝陈旧失效信号)
+            # 1. 严格时效性控制：主升3买必须发生在近期 (默认 <= 15 根 K 线内，杜绝陈旧失效信号)
             effective_lookback = min(lookback_bars, 15) if lookback_bars > 0 else 15
             if days_ago > effective_lookback:
                 return None
@@ -535,20 +588,19 @@ def _evaluate_stock_for_strategy(
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
             if trigger_p > 0:
-                # 止损过滤：跌破买点价 4% 视为买点破坏失效
-                if last_c < trigger_p * 0.96:
+                # 止损过滤：跌破买点价 5% 视为买点破坏失效
+                if last_c < trigger_p * 0.95:
                     return None
-                # 透支过滤：自买点以来涨幅超 15% 视为已大幅兑现/追高风险，不推荐
+                # 透支过滤：自买点以来涨幅超 18% 视为已大幅兑现/追高风险，不推荐
                 since_pct = (last_c - trigger_p) / trigger_p * 100.0
-                if since_pct > 15.0:
+                if since_pct > 18.0:
                     return None
 
             # 3. 区间套次级别共振过滤：
-            # 若次级别最新最后点位处于卖点破位 (如次级别处于 3卖 或 1卖)，说明次级别正在下杀，大级别买点当前正在被破坏，排除！
-            mid_mmds = [m for m in chan_res.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+            # 若次级别最新最后点位处于严重卖点破位 (如次级别3卖)，排除
             if mid_mmds:
                 last_mid = mid_mmds[-1]
-                if not last_mid.get("is_buy", True):
+                if not last_mid.get("is_buy", True) and "3SELL" in str(last_mid.get("type", "")).upper():
                     mid_date_str = str(last_mid.get("date", "")).strip()
                     mid_matches = sig_df.index[dt_series.str.startswith(mid_date_str[:10])]
                     if len(mid_matches) > 0:

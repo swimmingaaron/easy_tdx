@@ -8,16 +8,16 @@ from easy_tdx.chanlun.types import FXType, Direction
 @register_strategy
 class ChanlunBuySellStrategy(BaseStrategy):
     name = "chanlun_strategy"
-    display_name = "缠论1/2/3类买卖点战法"
+    display_name = "缠论主升3买与中枢突破策略"
     category = "chanlun"
-    description = "基于缠论分型、笔、中枢与背驰买卖点体系，支持二三买主升共振、次级别稳健二买低吸与一买底背驰"
+    description = "基于缠论分型、笔与中枢体系，以主升3买（次级别突破中枢回抽不破ZG确认）为核心买入点，捕捉主升浪起跑，大幅提升交易胜率"
     params_schema = {
         "buy_mode": {
             "type": "choice",
-            "choices": ["combo_23", "all_buys", "steady_2buy", "breakout_3buy", "nested_1buy"],
-            "default": "combo_23",
+            "choices": ["breakout_3buy", "combo_23", "all_buys", "steady_2buy", "nested_1buy"],
+            "default": "breakout_3buy",
             "label": "买点模式",
-            "description": "combo_23(二三买组合,推荐)、steady_2buy(次级别二买)、breakout_3buy(三买突破)、all_buys(全部买点)、nested_1buy(一买底背驰)",
+            "description": "breakout_3buy(主升3买突破确认,胜率最高·推荐)、combo_23(二三买组合)、steady_2buy(次级别二买)、all_buys(全部买点)、nested_1buy(一买底背驰)",
         },
         "entry_mode": {
             "type": "choice",
@@ -30,10 +30,10 @@ class ChanlunBuySellStrategy(BaseStrategy):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        bm = self.params.get("buy_mode", "combo_23")
+        bm = self.params.get("buy_mode", "breakout_3buy")
         if isinstance(bm, dict):
-            bm = bm.get("default", "combo_23")
-        self.buy_mode = str(bm) if bm else "combo_23"
+            bm = bm.get("default", "breakout_3buy")
+        self.buy_mode = str(bm) if bm else "breakout_3buy"
 
         em = self.params.get("entry_mode", "confirmed")
         if isinstance(em, dict):
