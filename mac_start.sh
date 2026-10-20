@@ -1,5 +1,9 @@
+mv watchlist.json watchlist.jsonbak
+
 git co .
 git pull
+
+mv watchlist.jsonbak watchlist.json 
 
 # 重启服务（不改plist，只重启进程）
 sudo launchctl kickstart -k system/com.easytdx.service
