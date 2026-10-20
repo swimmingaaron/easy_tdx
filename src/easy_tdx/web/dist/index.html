@@ -6022,6 +6022,206 @@
                     style="top: 2px; transform: scale(0.82); transform-origin: left top; padding: 1.5px 6px;"
                     class="absolute left-[56px] z-30 pointer-events-none hidden items-center space-x-1 rounded bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/70 shadow-sm text-[11px] select-none transition-all">
                 </div>
+        </div>
+    </div>
+
+    <!-- ==================== 通达信风格 区间统计(复权) 弹窗 ==================== -->
+    <div id="tdx-range-stat-modal" class="fixed z-[9999] hidden select-none shadow-2xl rounded-lg font-sans border border-[#a01010] bg-[#ece9d8] dark:bg-[#1a1f2c] dark:border-slate-700 text-[#000000] dark:text-[#f1f5f9] overflow-hidden" style="width: 360px; box-shadow: 0 12px 36px rgba(0,0,0,0.55); top: 120px; left: 160px;">
+        <!-- 标题栏：通达信经典红/深红褐色标题栏，支持鼠标拖拽移动 -->
+        <div id="tdx-range-stat-header" class="flex items-center justify-between px-3 py-1.5 bg-[#800000] dark:bg-[#450a0a] text-white cursor-move select-none text-xs font-bold tracking-wide">
+            <span id="tdx-stat-title">区间统计(复权)</span>
+            <button onclick="closeTdxRangeStatModal()" class="text-white hover:text-rose-200 text-sm font-black p-0.5 leading-none cursor-pointer">&times;</button>
+        </div>
+        
+        <!-- 表单内容 -->
+        <div class="p-2.5 text-xs space-y-1.5 font-mono">
+            <!-- 起始时间 与 周期数 -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-1">
+                    <span class="w-16 text-slate-700 dark:text-slate-300 font-sans">起始时间</span>
+                    <input type="text" id="tdx-stat-start-date" readonly class="w-24 px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-center text-xs">
+                </div>
+                <div class="text-right text-[11px] font-sans">
+                    <span>周期数 <strong id="tdx-stat-period-count" class="font-mono text-xs text-rose-600 dark:text-rose-400">0</strong>个</span>
+                </div>
+            </div>
+
+            <!-- 截止时间 与 自然日 -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-1">
+                    <span class="w-16 text-slate-700 dark:text-slate-300 font-sans">截止时间</span>
+                    <input type="text" id="tdx-stat-end-date" readonly class="w-24 px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-center text-xs">
+                </div>
+                <div class="text-right text-[11px] font-sans">
+                    <span>自然日 <strong id="tdx-stat-calendar-days" class="font-mono text-xs text-cyan-600 dark:text-cyan-400">0</strong>天</span>
+                </div>
+            </div>
+
+            <!-- 分割与主体信息左右布局 -->
+            <div class="grid grid-cols-12 gap-1.5 pt-1 border-t border-slate-300 dark:border-slate-700">
+                <!-- 左侧指标列表 (8列) -->
+                <div class="col-span-8 space-y-1">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">前收盘价</span>
+                        <input type="text" id="tdx-stat-prev-close" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">开盘价</span>
+                        <input type="text" id="tdx-stat-open" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">最高价</span>
+                        <input type="text" id="tdx-stat-high" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-rose-600 dark:text-rose-400 font-bold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">最低价</span>
+                        <input type="text" id="tdx-stat-low" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-emerald-600 dark:text-emerald-400 font-bold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">收盘价</span>
+                        <input type="text" id="tdx-stat-close" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">成交量</span>
+                        <input type="text" id="tdx-stat-volume" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">成交额</span>
+                        <input type="text" id="tdx-stat-amount" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-amber-600 dark:text-amber-400 font-semibold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">收盘平均</span>
+                        <input type="text" id="tdx-stat-avg-close" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">加权均价</span>
+                        <input type="text" id="tdx-stat-weighted-avg" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-semibold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">区间涨幅</span>
+                        <input type="text" id="tdx-stat-chg" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">区间振幅</span>
+                        <input type="text" id="tdx-stat-amp" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">最大上涨</span>
+                        <input type="text" id="tdx-stat-max-gain" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-rose-600 dark:text-rose-400">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">最大回撤</span>
+                        <input type="text" id="tdx-stat-max-drawdown" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-emerald-600 dark:text-emerald-400">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">累计换手</span>
+                        <input type="text" id="tdx-stat-total-turnover" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">平均换手</span>
+                        <input type="text" id="tdx-stat-avg-turnover" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-700 dark:text-slate-300 font-sans text-[11px]">年化收益</span>
+                        <input type="text" id="tdx-stat-annualized" readonly class="w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold">
+                    </div>
+                </div>
+
+                <!-- 右侧：K线涨跌统计 与 功能操作按钮 (4列) -->
+                <div class="col-span-4 flex flex-col justify-between pl-1 border-l border-slate-300 dark:border-slate-700 text-[11px] font-sans">
+                    <div class="space-y-1">
+                        <div class="flex justify-between"><span>阳线</span><strong id="tdx-stat-up-bars" class="text-rose-600 dark:text-rose-400 font-mono">--</strong></div>
+                        <div class="flex justify-between"><span>阴线</span><strong id="tdx-stat-down-bars" class="text-emerald-600 dark:text-emerald-400 font-mono">--</strong></div>
+                        <div class="flex justify-between"><span>平线</span><strong id="tdx-stat-flat-bars" class="text-slate-500 font-mono">--</strong></div>
+                        <div class="h-[1px] bg-slate-300 dark:bg-slate-700 my-1"></div>
+                        <div class="flex justify-between"><span>上涨</span><strong id="tdx-stat-gain-days" class="text-rose-600 dark:text-rose-400 font-mono">--</strong></div>
+                        <div class="flex justify-between"><span>下跌</span><strong id="tdx-stat-lose-days" class="text-emerald-600 dark:text-emerald-400 font-mono">--</strong></div>
+                        <div class="flex justify-between"><span>平盘</span><strong id="tdx-stat-even-days" class="text-slate-500 font-mono">--</strong></div>
+                    </div>
+
+                    <div class="space-y-1.5 pt-2">
+                        <button type="button" onclick="triggerPatternMatchFromStat()" class="w-full py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded shadow-sm transition text-xs flex items-center justify-center space-x-1 cursor-pointer">
+                            <span>✨ 形态匹配</span>
+                        </button>
+                        <button type="button" onclick="closeTdxRangeStatModal()" class="w-full py-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded border border-slate-400 dark:border-slate-600 transition text-xs cursor-pointer">
+                            关闭
+                        </button>
+                        <label class="flex items-center space-x-1 text-[11px] cursor-pointer pt-1 text-slate-600 dark:text-slate-300 select-none">
+                            <input type="checkbox" id="tdx-stat-keep-box" checked class="rounded border-slate-400 text-rose-600">
+                            <span>保留区间线</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 形态匹配选股 弹窗 ==================== -->
+    <div id="tdx-pattern-match-modal" class="fixed inset-0 z-[10000] hidden bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+        <div class="bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- 头部 -->
+            <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/80 shrink-0">
+                <div class="flex items-center space-x-2">
+                    <span class="p-1 rounded bg-amber-500/10 text-amber-500 font-bold text-base">✨</span>
+                    <div>
+                        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                            <span>形态匹配选股 (Pattern Matching)</span>
+                            <span id="pm-target-badge" class="px-2 py-0.5 rounded text-xs font-mono font-normal bg-cyan-950 text-cyan-300 border border-cyan-800">模板提取中</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">基于皮尔逊相关系数算法，在指定股票池中寻找走势形态最相似的标的</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closePatternMatchModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- 筛选栏与状态 -->
+            <div class="px-4 py-2 bg-slate-100/70 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
+                <div class="flex items-center space-x-2">
+                    <span class="text-slate-500 font-medium">股票池:</span>
+                    <select id="pm-universe-select" onchange="runPatternMatchScan()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 font-mono text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer">
+                        <option value="core" selected>核心流动性龙头池 (159只 · 推荐极速)</option>
+                        <option value="hs300">沪深 300 权重池 (300只)</option>
+                        <option value="zz500">中证 500 主力池 (500只)</option>
+                        <option value="zz1000">中证 1000 活跃池 (1000只)</option>
+                        <option value="all">全市场 A 股 (5200+只)</option>
+                    </select>
+                    <button type="button" onclick="runPatternMatchScan()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded flex items-center space-x-1 cursor-pointer transition">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        <span>重新匹配</span>
+                    </button>
+                </div>
+                <div id="pm-scan-status" class="text-slate-500 font-mono text-[11px]">
+                    就绪
+                </div>
+            </div>
+
+            <!-- 结果表格列表 -->
+            <div class="flex-1 overflow-y-auto p-4 min-h-[300px]">
+                <div id="pm-loading" class="hidden flex-col items-center justify-center py-12 space-y-3 text-cyan-500">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                    <span class="text-xs font-mono font-medium text-slate-400">正在全市场多线程并行提取K线并计算形态相关系数...</span>
+                </div>
+
+                <table id="pm-result-table" class="w-full text-left text-xs font-mono">
+                    <thead class="text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[11px] select-none pb-1">
+                        <tr>
+                            <th class="py-2 px-2 text-center w-10">#</th>
+                            <th class="py-2 px-2">代码</th>
+                            <th class="py-2 px-2">名称</th>
+                            <th class="py-2 px-3">形态相似度</th>
+                            <th class="py-2 px-3 text-center">走势拟合对比</th>
+                            <th class="py-2 px-2 text-right">现价</th>
+                            <th class="py-2 px-2 text-right">涨跌幅</th>
+                            <th class="py-2 px-3 text-center">匹配区间</th>
+                            <th class="py-2 px-3 text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pm-result-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
+                        <!-- 动态渲染 -->
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -9528,6 +9728,11 @@
                 e.preventDefault();
                 e.stopPropagation();
 
+                if (typeof _suppressNextContextMenu !== 'undefined' && _suppressNextContextMenu) {
+                    _suppressNextContextMenu = false;
+                    return;
+                }
+
                 showKpContextMenu(e.clientX, e.clientY);
             });
 
@@ -12176,6 +12381,7 @@
             if (typeof initKpDrawInteractions === 'function') initKpDrawInteractions();
             if (typeof updateKpDrawUI === 'function') updateKpDrawUI();
             if (typeof updateKpWaveOnChartRender === 'function') updateKpWaveOnChartRender();
+            if (typeof attachTdxSelectionToKpChart === 'function') attachTdxSelectionToKpChart();
 
             // 监听 dataZoom 事件（鼠标滚轮缩放、底部滑动条拖动、图表左右平移拖拽），极速动态调整可视区域内最高价、最低价与Y轴自适应
             kpEchart.off('dataZoom');
@@ -25062,6 +25268,9 @@
             if (side === 'left' || side === 'w1') {
                 setTimeout(updateChanlunVisibleExtrema, 100);
             }
+            if (typeof attachTdxSelectionToChanlunCharts === 'function') {
+                attachTdxSelectionToChanlunCharts();
+            }
         }
 
         function renderChanlunChart(d) {
@@ -26528,6 +26737,630 @@
             if (window._etfChartSingle) window._etfChartSingle.resize();
             if (window._etfChartFutures) window._etfChartFutures.resize();
         });
+
+        // ==================== 通达信风格 区间统计与形态匹配选股引擎 ====================
+        let _currentTdxStatData = null;
+        let _currentActiveSelectionBox = null;
+        let _suppressNextContextMenu = false;
+
+        function normalizeBarsForTdxStat(raw) {
+            if (!raw) return [];
+            if (Array.isArray(raw)) {
+                if (raw.length > 0 && typeof raw[0] === 'object' && ('close' in raw[0])) {
+                    return raw;
+                }
+            }
+            if (raw && raw.dates && raw.candles) {
+                return raw.dates.map((d, i) => {
+                    const c = raw.candles[i] || [0, 0, 0, 0];
+                    return {
+                        datetime: d,
+                        open: Number(c[0] || 0),
+                        close: Number(c[1] || 0),
+                        low: Number(c[2] || 0),
+                        high: Number(c[3] || 0),
+                        vol: Number(raw.volumes ? raw.volumes[i] : 0),
+                        amount: Number(raw.amounts ? raw.amounts[i] : 0)
+                    };
+                });
+            }
+            return [];
+        }
+
+        function calcTdxRangeStatistics(bars, startIdx, endIdx, stockName, stockCode) {
+            if (!bars || bars.length === 0) return null;
+            startIdx = Math.max(0, Math.min(bars.length - 1, startIdx));
+            endIdx = Math.max(0, Math.min(bars.length - 1, endIdx));
+            if (startIdx > endIdx) {
+                const tmp = startIdx; startIdx = endIdx; endIdx = tmp;
+            }
+            const subBars = bars.slice(startIdx, endIdx + 1);
+            if (subBars.length === 0) return null;
+
+            const startDate = String(subBars[0].datetime || '');
+            const endDate = String(subBars[subBars.length - 1].datetime || '');
+            const periodCount = subBars.length;
+
+            let calendarDays = periodCount;
+            try {
+                const d1 = new Date(startDate.split(' ')[0].replace(/-/g, '/'));
+                const d2 = new Date(endDate.split(' ')[0].replace(/-/g, '/'));
+                if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+                    calendarDays = Math.max(1, Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+                }
+            } catch (e) {}
+
+            const prevClose = startIdx > 0 ? Number(bars[startIdx - 1].close || subBars[0].open) : Number(subBars[0].open || 0);
+            const openPrice = Number(subBars[0].open || 0);
+            const closePrice = Number(subBars[subBars.length - 1].close || 0);
+            
+            let highPrice = -Infinity;
+            let lowPrice = Infinity;
+            let totalVol = 0;
+            let totalAmt = 0;
+            let sumClose = 0;
+            let totalTurnover = 0;
+            let hasTurnover = false;
+
+            let upBars = 0;
+            let downBars = 0;
+            let flatBars = 0;
+
+            let gainDays = 0;
+            let loseDays = 0;
+            let evenDays = 0;
+
+            let maxGain = 0;
+            let minLowSoFar = Infinity;
+
+            let maxHighSoFar = -Infinity;
+            let maxDrawdown = 0;
+
+            for (let i = 0; i < subBars.length; i++) {
+                const b = subBars[i];
+                const o = Number(b.open || 0);
+                const c = Number(b.close || 0);
+                const h = Number(b.high || 0);
+                const l = Number(b.low || 0);
+                const v = Number(b.vol || b.volume || 0);
+                const a = Number(b.amount || 0);
+
+                if (h > highPrice) highPrice = h;
+                if (l < lowPrice) lowPrice = l;
+                totalVol += v;
+                totalAmt += a;
+                sumClose += c;
+
+                if (b.turnover != null && !isNaN(b.turnover)) {
+                    totalTurnover += Number(b.turnover);
+                    hasTurnover = true;
+                }
+
+                if (c > o) upBars++;
+                else if (c < o) downBars++;
+                else flatBars++;
+
+                const pClose = (i === 0) ? prevClose : Number(subBars[i - 1].close || 0);
+                if (c > pClose) gainDays++;
+                else if (c < pClose) loseDays++;
+                else evenDays++;
+
+                if (l < minLowSoFar) minLowSoFar = l;
+                if (minLowSoFar > 0 && h > minLowSoFar) {
+                    const g = (h - minLowSoFar) / minLowSoFar * 100;
+                    if (g > maxGain) maxGain = g;
+                }
+
+                if (h > maxHighSoFar) maxHighSoFar = h;
+                if (maxHighSoFar > 0 && l < maxHighSoFar) {
+                    const dd = (l - maxHighSoFar) / maxHighSoFar * 100;
+                    if (dd < maxDrawdown) maxDrawdown = dd;
+                }
+            }
+
+            if (highPrice === -Infinity) highPrice = closePrice;
+            if (lowPrice === Infinity) lowPrice = closePrice;
+
+            const chgDiff = closePrice - prevClose;
+            const chgPct = prevClose > 0 ? (chgDiff / prevClose * 100) : 0;
+            const ampDiff = highPrice - lowPrice;
+            const ampPct = prevClose > 0 ? (ampDiff / prevClose * 100) : 0;
+
+            const avgClose = periodCount > 0 ? (sumClose / periodCount) : closePrice;
+            const weightedAvg = totalVol > 0 ? (totalAmt / totalVol) : avgClose;
+
+            let annualized = 0;
+            if (periodCount > 0 && prevClose > 0) {
+                const ratio = closePrice / prevClose;
+                if (ratio > 0) {
+                    annualized = (Math.pow(ratio, 250 / periodCount) - 1) * 100;
+                }
+            }
+
+            const fmtAmt = (amt) => {
+                if (amt >= 1e8) return `${(amt / 1e8).toFixed(2)}亿`;
+                if (amt >= 1e4) return `${(amt / 1e4).toFixed(1)}万`;
+                return amt.toFixed(0);
+            };
+
+            return {
+                stockName: stockName || '标的',
+                stockCode: stockCode || '',
+                startDate,
+                endDate,
+                periodCount,
+                calendarDays,
+                prevClose: prevClose.toFixed(2),
+                openPrice: openPrice.toFixed(2),
+                highPrice: highPrice.toFixed(2),
+                lowPrice: lowPrice.toFixed(2),
+                closePrice: closePrice.toFixed(2),
+                totalVol: totalVol.toFixed(0),
+                totalAmtStr: fmtAmt(totalAmt),
+                avgClose: avgClose.toFixed(2),
+                weightedAvg: weightedAvg.toFixed(2),
+                chgDiff: (chgDiff >= 0 ? `+${chgDiff.toFixed(2)}` : chgDiff.toFixed(2)),
+                chgPct: chgPct.toFixed(2),
+                ampDiff: ampDiff.toFixed(2),
+                ampPct: ampPct.toFixed(2),
+                maxGain: maxGain.toFixed(2),
+                maxDrawdown: maxDrawdown.toFixed(2),
+                totalTurnover: hasTurnover ? `${totalTurnover.toFixed(2)}%` : '--',
+                avgTurnover: hasTurnover ? `${(totalTurnover / periodCount).toFixed(2)}%` : '--',
+                annualized: (annualized >= 0 ? `+${annualized.toFixed(2)}%` : `${annualized.toFixed(2)}%`),
+                upBars,
+                downBars,
+                flatBars,
+                gainDays,
+                loseDays,
+                evenDays,
+                targetPrices: subBars.map(b => Number(b.close || 0))
+            };
+        }
+
+        function showTdxRangeStatModal(stats, clientX, clientY) {
+            if (!stats) return;
+            _currentTdxStatData = stats;
+
+            const modal = document.getElementById('tdx-range-stat-modal');
+            if (!modal) return;
+
+            document.getElementById('tdx-stat-title').innerText = `${stats.stockName} 区间统计(复权)`;
+            document.getElementById('tdx-stat-start-date').value = stats.startDate.split(' ')[0];
+            document.getElementById('tdx-stat-end-date').value = stats.endDate.split(' ')[0];
+            document.getElementById('tdx-stat-period-count').innerText = stats.periodCount;
+            document.getElementById('tdx-stat-calendar-days').innerText = stats.calendarDays;
+
+            document.getElementById('tdx-stat-prev-close').value = stats.prevClose;
+            document.getElementById('tdx-stat-open').value = stats.openPrice;
+            document.getElementById('tdx-stat-high').value = stats.highPrice;
+            document.getElementById('tdx-stat-low').value = stats.lowPrice;
+            document.getElementById('tdx-stat-close').value = stats.closePrice;
+            document.getElementById('tdx-stat-volume').value = stats.totalVol;
+            document.getElementById('tdx-stat-amount').value = stats.totalAmtStr;
+            document.getElementById('tdx-stat-avg-close').value = stats.avgClose;
+            document.getElementById('tdx-stat-weighted-avg').value = stats.weightedAvg;
+
+            const chgEl = document.getElementById('tdx-stat-chg');
+            chgEl.value = `${stats.chgDiff} (${stats.chgPct}%)`;
+            chgEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${Number(stats.chgPct) >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+
+            document.getElementById('tdx-stat-amp').value = `${stats.ampDiff} (${stats.ampPct}%)`;
+            document.getElementById('tdx-stat-max-gain').value = `+${stats.maxGain}%`;
+            document.getElementById('tdx-stat-max-drawdown').value = `${stats.maxDrawdown}%`;
+
+            document.getElementById('tdx-stat-total-turnover').value = stats.totalTurnover;
+            document.getElementById('tdx-stat-avg-turnover').value = stats.avgTurnover;
+
+            const annEl = document.getElementById('tdx-stat-annualized');
+            annEl.value = stats.annualized;
+            annEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${stats.annualized.startsWith('+') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+
+            document.getElementById('tdx-stat-up-bars').innerText = `${stats.upBars}个`;
+            document.getElementById('tdx-stat-down-bars').innerText = `${stats.downBars}个`;
+            document.getElementById('tdx-stat-flat-bars').innerText = `${stats.flatBars}个`;
+
+            document.getElementById('tdx-stat-gain-days').innerText = `${stats.gainDays}个`;
+            document.getElementById('tdx-stat-lose-days').innerText = `${stats.loseDays}个`;
+            document.getElementById('tdx-stat-even-days').innerText = `${stats.evenDays}个`;
+
+            if (clientX != null && clientY != null) {
+                let left = clientX + 15;
+                let top = clientY + 15;
+                const modalW = 360;
+                const modalH = 490;
+                if (left + modalW > window.innerWidth) left = Math.max(10, clientX - modalW - 15);
+                if (top + modalH > window.innerHeight) top = Math.max(10, window.innerHeight - modalH - 20);
+                modal.style.left = `${left}px`;
+                modal.style.top = `${top}px`;
+            }
+
+            modal.classList.remove('hidden');
+            initTdxDraggable('tdx-range-stat-modal', 'tdx-range-stat-header');
+        }
+
+        function closeTdxRangeStatModal() {
+            const modal = document.getElementById('tdx-range-stat-modal');
+            if (modal) modal.classList.add('hidden');
+
+            const keepBox = document.getElementById('tdx-stat-keep-box');
+            if (keepBox && !keepBox.checked && _currentActiveSelectionBox) {
+                _currentActiveSelectionBox.style.display = 'none';
+            }
+        }
+
+        function initTdxDraggable(modalId, headerId) {
+            const modal = document.getElementById(modalId);
+            const header = document.getElementById(headerId);
+            if (!modal || !header || header._draggableInit) return;
+            header._draggableInit = true;
+
+            let isDragging = false;
+            let offsetX = 0, offsetY = 0;
+
+            header.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                isDragging = true;
+                const rect = modal.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                let left = e.clientX - offsetX;
+                let top = e.clientY - offsetY;
+                left = Math.max(0, Math.min(window.innerWidth - modal.offsetWidth, left));
+                top = Math.max(0, Math.min(window.innerHeight - modal.offsetHeight, top));
+                modal.style.left = `${left}px`;
+                modal.style.top = `${top}px`;
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+
+        function bindChartRightClickSelection(dom, getChartInstance, getBarsFunc, getStockInfoFunc) {
+            if (!dom) return;
+            if (dom._tdxSelectionBound) return;
+            dom._tdxSelectionBound = true;
+
+            const parent = dom.parentElement;
+            if (parent && getComputedStyle(parent).position === 'static') {
+                parent.style.position = 'relative';
+            }
+
+            let box = parent.querySelector('.tdx-chart-selection-box');
+            if (!box) {
+                box = document.createElement('div');
+                box.className = 'tdx-chart-selection-box';
+                box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.08); pointer-events: none; z-index: 45; display: none; box-shadow: 0 0 6px rgba(255,255,255,0.45);';
+                parent.appendChild(box);
+            }
+
+            let isSelecting = false;
+            let startX = 0, startY = 0;
+            let hasDragged = false;
+
+            dom.addEventListener('mousedown', (e) => {
+                if (e.button !== 2) return;
+                const rect = dom.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                isSelecting = true;
+                hasDragged = false;
+
+                box.style.left = `${startX}px`;
+                box.style.top = `${startY}px`;
+                box.style.width = '0px';
+                box.style.height = '0px';
+                box.style.display = 'block';
+                _currentActiveSelectionBox = box;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isSelecting) return;
+                const rect = dom.getBoundingClientRect();
+                const curX = e.clientX - rect.left;
+                const curY = e.clientY - rect.top;
+
+                const left = Math.min(startX, curX);
+                const top = Math.min(startY, curY);
+                const width = Math.abs(curX - startX);
+                const height = Math.abs(curY - startY);
+
+                box.style.left = `${left}px`;
+                box.style.top = `${top}px`;
+                box.style.width = `${width}px`;
+                box.style.height = `${height}px`;
+
+                if (width > 6 || height > 6) {
+                    hasDragged = true;
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (!isSelecting || e.button !== 2) return;
+                isSelecting = false;
+
+                if (!hasDragged) {
+                    box.style.display = 'none';
+                    _suppressNextContextMenu = false;
+                    return;
+                }
+
+                _suppressNextContextMenu = true;
+
+                const chart = (typeof getChartInstance === 'function') ? getChartInstance() : getChartInstance;
+                if (!chart) return;
+
+                const rect = dom.getBoundingClientRect();
+                const endX = e.clientX - rect.left;
+                const minX = Math.min(startX, endX);
+                const maxX = Math.max(startX, endX);
+
+                let startIdx = -1;
+                let endIdx = -1;
+
+                try {
+                    const p1 = chart.convertFromPixel({ seriesIndex: 0 }, [minX, 0]);
+                    const p2 = chart.convertFromPixel({ seriesIndex: 0 }, [maxX, 0]);
+                    if (p1 && p2) {
+                        startIdx = Math.round(p1[0]);
+                        endIdx = Math.round(p2[0]);
+                    }
+                } catch (err) {
+                    try {
+                        const p1 = chart.convertFromPixel({ gridIndex: 0 }, [minX, 0]);
+                        const p2 = chart.convertFromPixel({ gridIndex: 0 }, [maxX, 0]);
+                        if (p1 && p2) {
+                            startIdx = Math.round(p1[0]);
+                            endIdx = Math.round(p2[0]);
+                        }
+                    } catch (err2) {}
+                }
+
+                const rawBars = getBarsFunc();
+                const bars = normalizeBarsForTdxStat(rawBars);
+
+                if (startIdx === -1 || endIdx === -1 || bars.length === 0) {
+                    box.style.display = 'none';
+                    return;
+                }
+
+                startIdx = Math.max(0, Math.min(bars.length - 1, startIdx));
+                endIdx = Math.max(0, Math.min(bars.length - 1, endIdx));
+
+                const stockInfo = getStockInfoFunc ? getStockInfoFunc() : { name: '', code: '' };
+                const stats = calcTdxRangeStatistics(bars, startIdx, endIdx, stockInfo.name, stockInfo.code);
+                if (stats) {
+                    showTdxRangeStatModal(stats, e.clientX, e.clientY);
+                } else {
+                    box.style.display = 'none';
+                }
+            });
+        }
+
+        // ==================== 形态匹配选股 逻辑 ====================
+        function triggerPatternMatchFromStat() {
+            if (!_currentTdxStatData || !_currentTdxStatData.targetPrices || _currentTdxStatData.targetPrices.length < 3) {
+                alert('请先框选至少 3 根 K 线的有效形态区间');
+                return;
+            }
+            openPatternMatchModal(
+                _currentTdxStatData.targetPrices,
+                _currentTdxStatData.stockCode,
+                _currentTdxStatData.stockName,
+                _currentTdxStatData.startDate,
+                _currentTdxStatData.endDate
+            );
+        }
+
+        let _pmCurrentTargetPrices = [];
+        let _pmCurrentTargetSymbol = '';
+
+        function openPatternMatchModal(prices, symbol, name, startDate, endDate) {
+            _pmCurrentTargetPrices = prices;
+            _pmCurrentTargetSymbol = symbol;
+
+            const modal = document.getElementById('tdx-pattern-match-modal');
+            if (!modal) return;
+
+            document.getElementById('pm-target-badge').innerText = `模板: ${name || symbol} (${symbol}) · ${startDate} ~ ${endDate} (${prices.length}根K线)`;
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+
+            runPatternMatchScan();
+        }
+
+        function closePatternMatchModal() {
+            const modal = document.getElementById('tdx-pattern-match-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function runPatternMatchScan() {
+            if (!_pmCurrentTargetPrices || _pmCurrentTargetPrices.length < 3) return;
+            const universe = document.getElementById('pm-universe-select')?.value || 'core';
+            const statusEl = document.getElementById('pm-scan-status');
+            const loadingEl = document.getElementById('pm-loading');
+            const tbody = document.getElementById('pm-result-tbody');
+
+            if (loadingEl) { loadingEl.classList.remove('hidden'); loadingEl.classList.add('flex'); }
+            if (statusEl) statusEl.innerText = '正在全市场计算匹配度...';
+            if (tbody) tbody.innerHTML = '';
+
+            try {
+                const resp = await fetch('/api/screener/pattern-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_prices: _pmCurrentTargetPrices,
+                        target_symbol: _pmCurrentTargetSymbol,
+                        universe: universe,
+                        top_n: 30
+                    })
+                });
+                const res = await resp.json();
+                if (res.status === 'success') {
+                    if (statusEl) statusEl.innerText = `扫描完成: 耗时 ${res.cost_seconds}s · 扫描 ${res.total_scanned} 只 · 匹配到 ${res.matched_count} 只`;
+                    renderPatternMatchRows(res.matches, res.target_points);
+                } else {
+                    if (statusEl) statusEl.innerText = `匹配失败: ${res.message || '未知错误'}`;
+                }
+            } catch (e) {
+                if (statusEl) statusEl.innerText = `网络请求异常: ${e.message || e}`;
+            } finally {
+                if (loadingEl) { loadingEl.classList.add('hidden'); loadingEl.classList.remove('flex'); }
+            }
+        }
+
+        function renderPatternSparklineSvg(targetNorm, candNorm) {
+            if (!candNorm || candNorm.length < 2) return '';
+            const w = 110;
+            const h = 26;
+            const pad = 3;
+            const n = candNorm.length;
+            const step = (w - pad * 2) / (n - 1);
+
+            let tPath = '';
+            if (targetNorm && targetNorm.length === n) {
+                targetNorm.forEach((v, i) => {
+                    const x = pad + i * step;
+                    const y = h - pad - (v / 100) * (h - pad * 2);
+                    tPath += (i === 0 ? `M ${x.toFixed(1)} ${y.toFixed(1)}` : ` L ${x.toFixed(1)} ${y.toFixed(1)}`);
+                });
+            }
+
+            let cPath = '';
+            candNorm.forEach((v, i) => {
+                const x = pad + i * step;
+                const y = h - pad - (v / 100) * (h - pad * 2);
+                cPath += (i === 0 ? `M ${x.toFixed(1)} ${y.toFixed(1)}` : ` L ${x.toFixed(1)} ${y.toFixed(1)}`);
+            });
+
+            return `<svg width="${w}" height="${h}" class="inline-block overflow-visible">
+                ${tPath ? `<path d="${tPath}" fill="none" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="2,2" opacity="0.75" />` : ''}
+                <path d="${cPath}" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linecap="round" />
+            </svg>`;
+        }
+
+        function renderPatternMatchRows(matches, targetNorm) {
+            const tbody = document.getElementById('pm-result-tbody');
+            if (!tbody) return;
+            if (!matches || matches.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400">未找到相似度达标的标的</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = matches.map((m, idx) => {
+                const pctColor = m.pct_change >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold';
+                const simVal = Number(m.similarity || 0);
+                const simBarColor = simVal >= 90 ? 'bg-amber-400' : (simVal >= 80 ? 'bg-emerald-400' : 'bg-cyan-400');
+                const sparkline = renderPatternSparklineSvg(targetNorm, m.cand_points);
+
+                return `<tr class="hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition">
+                    <td class="py-2.5 px-2 text-center text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="py-2.5 px-2">
+                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="text-cyan-600 dark:text-cyan-400 font-mono font-bold hover:underline cursor-pointer">
+                            ${m.code}
+                        </button>
+                    </td>
+                    <td class="py-2.5 px-2 font-bold text-slate-800 dark:text-slate-100">
+                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="hover:text-cyan-500 cursor-pointer text-left">
+                            ${m.name || '--'}
+                        </button>
+                    </td>
+                    <td class="py-2.5 px-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-mono font-bold ${simVal >= 90 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}">${simVal.toFixed(1)}%</span>
+                            <div class="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div class="h-full ${simBarColor}" style="width: ${Math.min(100, Math.max(0, simVal))}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        ${sparkline}
+                    </td>
+                    <td class="py-2.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white">¥${Number(m.latest_price || 0).toFixed(2)}</td>
+                    <td class="py-2.5 px-2 text-right font-mono ${pctColor}">${m.pct_change >= 0 ? '+' : ''}${Number(m.pct_change || 0).toFixed(2)}%</td>
+                    <td class="py-2.5 px-3 text-center text-[11px] text-slate-500 font-mono">${m.start_date || '--'} ~ ${m.end_date || '--'}</td>
+                    <td class="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="px-2 py-0.5 rounded text-[11px] bg-cyan-950/80 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 transition cursor-pointer">K线</button>
+                        <a href="/#chanlun?code=${m.code}" target="_blank" onclick="openChanlunKline('${m.code}', '${m.name}', event); closePatternMatchModal();" class="inline-block px-2 py-0.5 rounded text-[11px] bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900 transition cursor-pointer no-underline">缠论</a>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // 挂载 K线预览弹窗与缠论图表的自动绑定
+        function attachTdxSelectionToKpChart() {
+            const dom = document.getElementById('echarts-preview-modal-container');
+            if (dom) {
+                bindChartRightClickSelection(
+                    dom,
+                    () => kpEchart,
+                    () => (currentKpData?.data || []),
+                    () => ({ name: currentKpStockName || currentKpSymbol, code: currentKpSymbol })
+                );
+            }
+        }
+
+        function attachTdxSelectionToChanlunCharts() {
+            const domLeft = document.getElementById('chanlun-echart-main');
+            if (domLeft) {
+                bindChartRightClickSelection(
+                    domLeft,
+                    () => window.clChartLeft,
+                    () => (_clLeftCachedData?.unified_chart || _clCachedData?.unified_chart),
+                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                );
+            }
+            const domW2 = document.getElementById('chanlun-echart-w2');
+            if (domW2) {
+                bindChartRightClickSelection(
+                    domW2,
+                    () => window.clChartW2,
+                    () => (_clW2CachedData?.unified_chart),
+                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                );
+            }
+            const domRight = document.getElementById('chanlun-echart-right');
+            if (domRight) {
+                bindChartRightClickSelection(
+                    domRight,
+                    () => window.clChartRight,
+                    () => (_clRightCachedData?.unified_chart),
+                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                );
+            }
+            const domW4 = document.getElementById('chanlun-echart-w4');
+            if (domW4) {
+                bindChartRightClickSelection(
+                    domW4,
+                    () => window.clChartW4,
+                    () => (_clW4CachedData?.unified_chart),
+                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                );
+            }
+        }
+
+        // 在 DOMContentLoaded 与图表渲染处自动初始化绑定
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                attachTdxSelectionToKpChart();
+                attachTdxSelectionToChanlunCharts();
+            }, 500);
+        });
+        window.attachTdxSelectionToKpChart = attachTdxSelectionToKpChart;
+        window.attachTdxSelectionToChanlunCharts = attachTdxSelectionToChanlunCharts;
+        window.showTdxRangeStatModal = showTdxRangeStatModal;
+        window.closeTdxRangeStatModal = closeTdxRangeStatModal;
+        window.openPatternMatchModal = openPatternMatchModal;
+        window.closePatternMatchModal = closePatternMatchModal;
+        window.runPatternMatchScan = runPatternMatchScan;
+        window.triggerPatternMatchFromStat = triggerPatternMatchFromStat;
 
     </script>
 

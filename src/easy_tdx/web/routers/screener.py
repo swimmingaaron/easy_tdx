@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from easy_tdx.screener.scanner import scan_market_strategy, clear_screener_cache
 from easy_tdx.screener.universe import get_universe_options, get_universe_symbols
+from easy_tdx.screener.pattern_matcher import search_pattern_matches
 from easy_tdx.strategies.registry import list_all_strategies, get_strategy
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,29 @@ class ScreenerTaskStartRequest(BaseModel):
     period: str = "DAY_30F_5F"
     lookback_bars: int = 20
     force_refresh: bool = False
+
+class PatternMatchRequest(BaseModel):
+    target_prices: list[float]
+    target_symbol: str = ""
+    universe: str = "core"
+    symbols: list[str] | None = None
+    period: str = "DAY"
+    top_n: int = 30
+    lookback_window: int = 0
+
+@router.post("/pattern-match")
+def api_pattern_match(req: PatternMatchRequest):
+    """通达信形态匹配选股：比对框选K线与股票池中各标的形态的相似度。"""
+    res = search_pattern_matches(
+        target_prices=req.target_prices,
+        target_symbol=req.target_symbol,
+        universe=req.universe,
+        symbols=req.symbols,
+        period=req.period,
+        top_n=req.top_n,
+        lookback_window=req.lookback_window,
+    )
+    return res
 
 @router.get("/universes")
 def get_universes():

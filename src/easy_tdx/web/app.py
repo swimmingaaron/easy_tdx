@@ -366,3 +366,6 @@ def _create_app(
         logger.info("Web UI dist not found — serving API only")
 
     return app
+
+
+create_app = _create_app
