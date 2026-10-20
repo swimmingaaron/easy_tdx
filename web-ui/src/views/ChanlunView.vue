@@ -2320,33 +2320,35 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
   if ((containerEl as any)._tdxSelectionBound) return
   ;(containerEl as any)._tdxSelectionBound = true
 
-  const parent = containerEl.parentElement
-  if (parent && getComputedStyle(parent).position === 'static') {
-    parent.style.position = 'relative'
-  }
+  containerEl.style.position = 'relative'
 
-  let box = parent?.querySelector('.tdx-chart-selection-box') as HTMLDivElement | null
-  if (!box && parent) {
+  let box = containerEl.querySelector('.tdx-chart-selection-box') as HTMLDivElement | null
+  if (!box) {
     box = document.createElement('div')
     box.className = 'tdx-chart-selection-box'
-    box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.08); pointer-events: none; z-index: 45; display: none; box-shadow: 0 0 6px rgba(255,255,255,0.45);'
-    parent.appendChild(box)
+    box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.12); pointer-events: none; z-index: 99; display: none; box-shadow: 0 0 8px rgba(255,255,255,0.6);'
+    containerEl.appendChild(box)
   }
 
   let isSelecting = false
   let startX = 0, startY = 0
   let hasDragged = false
 
-  containerEl.addEventListener('contextmenu', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  })
+  const stopContextMenu = (e: MouseEvent) => {
+    if (isSelecting || hasDragged) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }
+  containerEl.addEventListener('contextmenu', stopContextMenu, true)
+  window.addEventListener('contextmenu', stopContextMenu, true)
 
   containerEl.addEventListener('mousedown', (e) => {
     if (e.button !== 2) return
+    e.preventDefault()
     const rect = containerEl.getBoundingClientRect()
-    startX = e.clientX - rect.left
-    startY = e.clientY - rect.top
+    startX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+    startY = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
     isSelecting = true
     hasDragged = false
 
@@ -2363,8 +2365,8 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
   window.addEventListener('mousemove', (e) => {
     if (!isSelecting || !box) return
     const rect = containerEl.getBoundingClientRect()
-    const curX = e.clientX - rect.left
-    const curY = e.clientY - rect.top
+    const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
+    const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
 
     const left = Math.min(startX, curX)
     const top = Math.min(startY, curY)
@@ -2390,29 +2392,35 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
       return
     }
 
-    const chart = getInstance()
-    if (!chart) return
+    const chart = getInstance() || (echarts.getInstanceByDom(containerEl) as any)
+    if (!chart) {
+      if (box) box.style.display = 'none'
+      return
+    }
 
     const rect = containerEl.getBoundingClientRect()
-    const endX = e.clientX - rect.left
+    const endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
     const minX = Math.min(startX, endX)
     const maxX = Math.max(startX, endX)
 
     let startIdx = -1
     let endIdx = -1
 
+    const midY = Math.max(10, rect.height * 0.4)
     try {
-      const p1 = chart.convertFromPixel({ seriesIndex: 0 }, [minX, 0]) as number[]
-      const p2 = chart.convertFromPixel({ seriesIndex: 0 }, [maxX, 0]) as number[]
-      if (p1 && p2) {
+      const p1 = chart.convertFromPixel({ seriesIndex: 0 }, [minX, midY]) as number[]
+      const p2 = chart.convertFromPixel({ seriesIndex: 0 }, [maxX, midY]) as number[]
+      if (p1 && p2 && !isNaN(p1[0]) && !isNaN(p2[0])) {
         startIdx = Math.round(p1[0])
         endIdx = Math.round(p2[0])
       }
-    } catch (err) {
+    } catch (err) {}
+
+    if (startIdx === -1 || endIdx === -1) {
       try {
-        const p1 = chart.convertFromPixel({ gridIndex: 0 }, [minX, 0]) as number[]
-        const p2 = chart.convertFromPixel({ gridIndex: 0 }, [maxX, 0]) as number[]
-        if (p1 && p2) {
+        const p1 = chart.convertFromPixel({ gridIndex: 0 }, [minX, midY]) as number[]
+        const p2 = chart.convertFromPixel({ gridIndex: 0 }, [maxX, midY]) as number[]
+        if (p1 && p2 && !isNaN(p1[0]) && !isNaN(p2[0])) {
           startIdx = Math.round(p1[0])
           endIdx = Math.round(p2[0])
         }
@@ -2420,13 +2428,29 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
     }
 
     const d = getData()
-    const uc = d?.unified_chart
+    let uc = d?.unified_chart
+    if (!uc) {
+      try {
+        const opt = chart.getOption() as any
+        const csSeries = opt && opt.series && opt.series.find((s: any) => s.type === 'candlestick')
+        const dates = (opt && opt.xAxis && opt.xAxis[0] && opt.xAxis[0].data) || []
+        if (csSeries && csSeries.data && dates.length > 0) {
+          uc = {
+            dates,
+            candles: csSeries.data,
+            volumes: [],
+            amounts: []
+          }
+        }
+      } catch (_) {}
+    }
+
     if (!uc || startIdx === -1 || endIdx === -1) {
       if (box) box.style.display = 'none'
       return
     }
 
-    const stats = calcRangeStatistics(uc, startIdx, endIdx, d.name || code.value, d.code || code.value)
+    const stats = calcRangeStatistics(uc, startIdx, endIdx, d?.name || code.value, d?.code || code.value)
     if (stats) {
       currentStat.value = stats
       let posX = e.clientX + 15

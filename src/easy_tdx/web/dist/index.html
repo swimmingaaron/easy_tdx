@@ -6723,6 +6723,7 @@
                                 if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
                                 if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
                                 if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
+                                if (typeof attachTdxSelectionToChanlunCharts === 'function') attachTdxSelectionToChanlunCharts();
                             }, 50);
                         } else if (t === 'etfdata') {
                             setTimeout(() => {
@@ -26925,44 +26926,61 @@
             const modal = document.getElementById('tdx-range-stat-modal');
             if (!modal) return;
 
-            document.getElementById('tdx-stat-title').innerText = `${stats.stockName} 区间统计(复权)`;
-            document.getElementById('tdx-stat-start-date').value = stats.startDate.split(' ')[0];
-            document.getElementById('tdx-stat-end-date').value = stats.endDate.split(' ')[0];
-            document.getElementById('tdx-stat-period-count').innerText = stats.periodCount;
-            document.getElementById('tdx-stat-calendar-days').innerText = stats.calendarDays;
+            try {
+                const titleEl = document.getElementById('tdx-stat-title');
+                if (titleEl) titleEl.innerText = `${stats.stockName || ''} 区间统计(复权)`;
+                
+                const sDate = document.getElementById('tdx-stat-start-date');
+                if (sDate) sDate.value = String(stats.startDate || '').split(' ')[0];
+                
+                const eDate = document.getElementById('tdx-stat-end-date');
+                if (eDate) eDate.value = String(stats.endDate || '').split(' ')[0];
+                
+                const pCnt = document.getElementById('tdx-stat-period-count');
+                if (pCnt) pCnt.innerText = stats.periodCount != null ? stats.periodCount : 0;
+                
+                const cDays = document.getElementById('tdx-stat-calendar-days');
+                if (cDays) cDays.innerText = stats.calendarDays != null ? stats.calendarDays : 0;
 
-            document.getElementById('tdx-stat-prev-close').value = stats.prevClose;
-            document.getElementById('tdx-stat-open').value = stats.openPrice;
-            document.getElementById('tdx-stat-high').value = stats.highPrice;
-            document.getElementById('tdx-stat-low').value = stats.lowPrice;
-            document.getElementById('tdx-stat-close').value = stats.closePrice;
-            document.getElementById('tdx-stat-volume').value = stats.totalVol;
-            document.getElementById('tdx-stat-amount').value = stats.totalAmtStr;
-            document.getElementById('tdx-stat-avg-close').value = stats.avgClose;
-            document.getElementById('tdx-stat-weighted-avg').value = stats.weightedAvg;
+                const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v != null ? v : ''); };
+                setVal('tdx-stat-prev-close', stats.prevClose);
+                setVal('tdx-stat-open', stats.openPrice);
+                setVal('tdx-stat-high', stats.highPrice);
+                setVal('tdx-stat-low', stats.lowPrice);
+                setVal('tdx-stat-close', stats.closePrice);
+                setVal('tdx-stat-volume', stats.totalVol);
+                setVal('tdx-stat-amount', stats.totalAmtStr);
+                setVal('tdx-stat-avg-close', stats.avgClose);
+                setVal('tdx-stat-weighted-avg', stats.weightedAvg);
 
-            const chgEl = document.getElementById('tdx-stat-chg');
-            chgEl.value = `${stats.chgDiff} (${stats.chgPct}%)`;
-            chgEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${Number(stats.chgPct) >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+                const chgEl = document.getElementById('tdx-stat-chg');
+                if (chgEl) {
+                    chgEl.value = `${stats.chgDiff || '0.00'} (${stats.chgPct || '0.00'}%)`;
+                    chgEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${Number(stats.chgPct || 0) >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+                }
 
-            document.getElementById('tdx-stat-amp').value = `${stats.ampDiff} (${stats.ampPct}%)`;
-            document.getElementById('tdx-stat-max-gain').value = `+${stats.maxGain}%`;
-            document.getElementById('tdx-stat-max-drawdown').value = `${stats.maxDrawdown}%`;
+                setVal('tdx-stat-amp', `${stats.ampDiff || '0.00'} (${stats.ampPct || '0.00'}%)`);
+                setVal('tdx-stat-max-gain', `+${stats.maxGain || '0.00'}%`);
+                setVal('tdx-stat-max-drawdown', `${stats.maxDrawdown || '0.00'}%`);
+                setVal('tdx-stat-total-turnover', stats.totalTurnover || '--');
+                setVal('tdx-stat-avg-turnover', stats.avgTurnover || '--');
 
-            document.getElementById('tdx-stat-total-turnover').value = stats.totalTurnover;
-            document.getElementById('tdx-stat-avg-turnover').value = stats.avgTurnover;
+                const annEl = document.getElementById('tdx-stat-annualized');
+                if (annEl) {
+                    annEl.value = stats.annualized || '--';
+                    annEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${String(stats.annualized || '').startsWith('+') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+                }
 
-            const annEl = document.getElementById('tdx-stat-annualized');
-            annEl.value = stats.annualized;
-            annEl.className = `w-24 px-1 text-right bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-bold ${stats.annualized.startsWith('+') ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
-
-            document.getElementById('tdx-stat-up-bars').innerText = `${stats.upBars}个`;
-            document.getElementById('tdx-stat-down-bars').innerText = `${stats.downBars}个`;
-            document.getElementById('tdx-stat-flat-bars').innerText = `${stats.flatBars}个`;
-
-            document.getElementById('tdx-stat-gain-days').innerText = `${stats.gainDays}个`;
-            document.getElementById('tdx-stat-lose-days').innerText = `${stats.loseDays}个`;
-            document.getElementById('tdx-stat-even-days').innerText = `${stats.evenDays}个`;
+                const setText = (id, t) => { const el = document.getElementById(id); if (el) el.innerText = t; };
+                setText('tdx-stat-up-bars', `${stats.upBars || 0}个`);
+                setText('tdx-stat-down-bars', `${stats.downBars || 0}个`);
+                setText('tdx-stat-flat-bars', `${stats.flatBars || 0}个`);
+                setText('tdx-stat-gain-days', `${stats.gainDays || 0}个`);
+                setText('tdx-stat-lose-days', `${stats.loseDays || 0}个`);
+                setText('tdx-stat-even-days', `${stats.evenDays || 0}个`);
+            } catch (err) {
+                console.error('[TDX Stat] Error filling modal elements:', err);
+            }
 
             if (clientX != null && clientY != null) {
                 let left = clientX + 15;
@@ -26976,12 +26994,16 @@
             }
 
             modal.classList.remove('hidden');
+            modal.style.display = 'block';
             initTdxDraggable('tdx-range-stat-modal', 'tdx-range-stat-header');
         }
 
         function closeTdxRangeStatModal() {
             const modal = document.getElementById('tdx-range-stat-modal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }
 
             const keepBox = document.getElementById('tdx-stat-keep-box');
             if (keepBox && !keepBox.checked && _currentActiveSelectionBox) {
@@ -27024,20 +27046,21 @@
 
         function bindChartRightClickSelection(dom, getChartInstance, getBarsFunc, getStockInfoFunc) {
             if (!dom) return;
+            dom._tdxGetChart = getChartInstance;
+            dom._tdxGetBars = getBarsFunc;
+            dom._tdxGetStockInfo = getStockInfoFunc;
             if (dom._tdxSelectionBound) return;
             dom._tdxSelectionBound = true;
 
-            const parent = dom.parentElement;
-            if (parent && getComputedStyle(parent).position === 'static') {
-                parent.style.position = 'relative';
-            }
+            // 确保 dom 具备 relative 定位，选框直接挂载在 dom 内部以保证 100% 绝对像素对齐
+            dom.style.position = 'relative';
 
-            let box = parent.querySelector('.tdx-chart-selection-box');
+            let box = dom.querySelector('.tdx-chart-selection-box');
             if (!box) {
                 box = document.createElement('div');
                 box.className = 'tdx-chart-selection-box';
-                box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.08); pointer-events: none; z-index: 45; display: none; box-shadow: 0 0 6px rgba(255,255,255,0.45);';
-                parent.appendChild(box);
+                box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.12); pointer-events: none; z-index: 99; display: none; box-shadow: 0 0 8px rgba(255,255,255,0.6);';
+                dom.appendChild(box);
             }
 
             let isSelecting = false;
@@ -27046,9 +27069,10 @@
 
             dom.addEventListener('mousedown', (e) => {
                 if (e.button !== 2) return;
+                e.preventDefault();
                 const rect = dom.getBoundingClientRect();
-                startX = e.clientX - rect.left;
-                startY = e.clientY - rect.top;
+                startX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                startY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
                 isSelecting = true;
                 hasDragged = false;
 
@@ -27058,13 +27082,13 @@
                 box.style.height = '0px';
                 box.style.display = 'block';
                 _currentActiveSelectionBox = box;
-            });
+            }, true);
 
             window.addEventListener('mousemove', (e) => {
                 if (!isSelecting) return;
                 const rect = dom.getBoundingClientRect();
-                const curX = e.clientX - rect.left;
-                const curY = e.clientY - rect.top;
+                const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
                 const left = Math.min(startX, curX);
                 const top = Math.min(startY, curY);
@@ -27093,39 +27117,75 @@
 
                 _suppressNextContextMenu = true;
 
-                const chart = (typeof getChartInstance === 'function') ? getChartInstance() : getChartInstance;
-                if (!chart) return;
+                const chartGetter = dom._tdxGetChart || getChartInstance;
+                const chart = (typeof chartGetter === 'function' ? chartGetter() : chartGetter) || (window.echarts && window.echarts.getInstanceByDom(dom));
+                if (!chart) {
+                    box.style.display = 'none';
+                    return;
+                }
 
                 const rect = dom.getBoundingClientRect();
-                const endX = e.clientX - rect.left;
+                const endX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
                 const minX = Math.min(startX, endX);
                 const maxX = Math.max(startX, endX);
 
                 let startIdx = -1;
                 let endIdx = -1;
 
+                // 核心：在主 K 线网格垂直中间位置换算像素坐标，严禁传入 y=0 导致越界返回 NaN
+                const midY = Math.max(10, rect.height * 0.4);
                 try {
-                    const p1 = chart.convertFromPixel({ seriesIndex: 0 }, [minX, 0]);
-                    const p2 = chart.convertFromPixel({ seriesIndex: 0 }, [maxX, 0]);
-                    if (p1 && p2) {
+                    const p1 = chart.convertFromPixel({ seriesIndex: 0 }, [minX, midY]);
+                    const p2 = chart.convertFromPixel({ seriesIndex: 0 }, [maxX, midY]);
+                    if (p1 && p2 && !isNaN(p1[0]) && !isNaN(p2[0])) {
                         startIdx = Math.round(p1[0]);
                         endIdx = Math.round(p2[0]);
                     }
-                } catch (err) {
+                } catch (err) {}
+
+                if (startIdx === -1 || endIdx === -1) {
                     try {
-                        const p1 = chart.convertFromPixel({ gridIndex: 0 }, [minX, 0]);
-                        const p2 = chart.convertFromPixel({ gridIndex: 0 }, [maxX, 0]);
-                        if (p1 && p2) {
+                        const p1 = chart.convertFromPixel({ gridIndex: 0 }, [minX, midY]);
+                        const p2 = chart.convertFromPixel({ gridIndex: 0 }, [maxX, midY]);
+                        if (p1 && p2 && !isNaN(p1[0]) && !isNaN(p2[0])) {
                             startIdx = Math.round(p1[0]);
                             endIdx = Math.round(p2[0]);
                         }
                     } catch (err2) {}
                 }
 
-                const rawBars = getBarsFunc();
-                const bars = normalizeBarsForTdxStat(rawBars);
+                const barsGetter = dom._tdxGetBars || getBarsFunc;
+                const rawBars = (typeof barsGetter === 'function') ? barsGetter() : null;
+                let bars = normalizeBarsForTdxStat(rawBars);
 
-                if (startIdx === -1 || endIdx === -1 || bars.length === 0) {
+                // 缠论图表兜底取数：从当前缓存或图表 option 自动提取完整 K 线与日期
+                if (!bars || bars.length === 0) {
+                    if (window._clLeftCachedData?.unified_chart) bars = normalizeBarsForTdxStat(window._clLeftCachedData.unified_chart);
+                    else if (window._clCachedData?.unified_chart) bars = normalizeBarsForTdxStat(window._clCachedData.unified_chart);
+                }
+                if (!bars || bars.length === 0) {
+                    try {
+                        const opt = chart.getOption();
+                        const csSeries = opt && opt.series && opt.series.find(s => s.type === 'candlestick');
+                        const dates = (opt && opt.xAxis && opt.xAxis[0] && opt.xAxis[0].data) || [];
+                        if (csSeries && csSeries.data && dates.length > 0) {
+                            bars = dates.map((d, i) => {
+                                const c = csSeries.data[i] || [0, 0, 0, 0];
+                                return {
+                                    datetime: d,
+                                    open: Number(c[0] || 0),
+                                    close: Number(c[1] || 0),
+                                    low: Number(c[2] || 0),
+                                    high: Number(c[3] || 0),
+                                    vol: 0,
+                                    amount: 0
+                                };
+                            });
+                        }
+                    } catch (_) {}
+                }
+
+                if (startIdx === -1 || endIdx === -1 || !bars || bars.length === 0) {
                     box.style.display = 'none';
                     return;
                 }
@@ -27133,7 +27193,12 @@
                 startIdx = Math.max(0, Math.min(bars.length - 1, startIdx));
                 endIdx = Math.max(0, Math.min(bars.length - 1, endIdx));
 
-                const stockInfo = getStockInfoFunc ? getStockInfoFunc() : { name: '', code: '' };
+                const infoGetter = dom._tdxGetStockInfo || getStockInfoFunc;
+                let stockInfo = (typeof infoGetter === 'function') ? infoGetter() : (infoGetter || { name: '', code: '' });
+                if (!stockInfo.name || !stockInfo.code) {
+                    stockInfo.code = stockInfo.code || window._clCurrentCode || currentKpSymbol || '';
+                    stockInfo.name = stockInfo.name || window._clCurrentName || stockInfo.code;
+                }
                 const stats = calcTdxRangeStatistics(bars, startIdx, endIdx, stockInfo.name, stockInfo.code);
                 if (stats) {
                     showTdxRangeStatModal(stats, e.clientX, e.clientY);
@@ -27141,6 +27206,16 @@
                     box.style.display = 'none';
                 }
             });
+
+            const stopContextMenu = (e) => {
+                if (isSelecting || hasDragged || _suppressNextContextMenu) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    _suppressNextContextMenu = false;
+                }
+            };
+            dom.addEventListener('contextmenu', stopContextMenu, true);
+            window.addEventListener('contextmenu', stopContextMenu, true);
         }
 
         // ==================== 形态匹配选股 逻辑 ====================
@@ -27312,36 +27387,36 @@
             if (domLeft) {
                 bindChartRightClickSelection(
                     domLeft,
-                    () => window.clChartLeft,
+                    () => window.chanlunChart || (window.echarts && window.echarts.getInstanceByDom(domLeft)),
                     () => (_clLeftCachedData?.unified_chart || _clCachedData?.unified_chart),
-                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                    () => ({ name: _clLeftCachedData?.name || window._clCurrentName || _clCurrentCode, code: _clLeftCachedData?.code || _clCurrentCode })
                 );
             }
             const domW2 = document.getElementById('chanlun-echart-w2');
             if (domW2) {
                 bindChartRightClickSelection(
                     domW2,
-                    () => window.clChartW2,
-                    () => (_clW2CachedData?.unified_chart),
-                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                    () => window.chanlunChartW2 || (window.echarts && window.echarts.getInstanceByDom(domW2)),
+                    () => (_clW2CachedData?.unified_chart || _clLeftCachedData?.unified_chart),
+                    () => ({ name: _clW2CachedData?.name || _clLeftCachedData?.name || _clCurrentCode, code: _clW2CachedData?.code || _clCurrentCode })
                 );
             }
             const domRight = document.getElementById('chanlun-echart-right');
             if (domRight) {
                 bindChartRightClickSelection(
                     domRight,
-                    () => window.clChartRight,
-                    () => (_clRightCachedData?.unified_chart),
-                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                    () => window.chanlunChartRight || (window.echarts && window.echarts.getInstanceByDom(domRight)),
+                    () => (_clRightCachedData?.unified_chart || _clLeftCachedData?.unified_chart),
+                    () => ({ name: _clRightCachedData?.name || _clLeftCachedData?.name || _clCurrentCode, code: _clRightCachedData?.code || _clCurrentCode })
                 );
             }
             const domW4 = document.getElementById('chanlun-echart-w4');
             if (domW4) {
                 bindChartRightClickSelection(
                     domW4,
-                    () => window.clChartW4,
-                    () => (_clW4CachedData?.unified_chart),
-                    () => ({ name: _clCurrentName || _clCurrentCode, code: _clCurrentCode })
+                    () => window.chanlunChartW4 || (window.echarts && window.echarts.getInstanceByDom(domW4)),
+                    () => (_clW4CachedData?.unified_chart || _clLeftCachedData?.unified_chart),
+                    () => ({ name: _clW4CachedData?.name || _clLeftCachedData?.name || _clCurrentCode, code: _clW4CachedData?.code || _clCurrentCode })
                 );
             }
         }
