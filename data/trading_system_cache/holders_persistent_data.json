@@ -230,9 +230,14 @@
     "holders_str": "6.33万"
   },
   "300750": {
-    "holder_ratio": 66.51,
+    "holder_ratio": 64.68,
     "holder_focus": "非常分散",
     "holders_changes": [
+      {
+        "date": "2026-09-30",
+        "ratio": 27.83,
+        "num": 345175
+      },
       {
         "date": "2026-06-30",
         "ratio": 32.04,
@@ -242,15 +247,10 @@
         "date": "2026-03-31",
         "ratio": -20.58,
         "num": 204504
-      },
-      {
-        "date": "2026-02-28",
-        "ratio": 3.09,
-        "num": 257489
       }
     ],
-    "holders_num": 270033,
-    "holders_str": "27.00万"
+    "holders_num": 345175,
+    "holders_str": "34.52万"
   },
   "600609": {
     "holder_ratio": 35.77,
@@ -276,9 +276,14 @@
     "holders_str": "5.59万"
   },
   "300240": {
-    "holder_ratio": 45.63,
+    "holder_ratio": 45.92,
     "holder_focus": "较集中",
     "holders_changes": [
+      {
+        "date": "2026-09-30",
+        "ratio": 4.57,
+        "num": 21439
+      },
       {
         "date": "2026-06-30",
         "ratio": -13.02,
@@ -288,15 +293,10 @@
         "date": "2026-03-31",
         "ratio": -8.36,
         "num": 23572
-      },
-      {
-        "date": "2025-12-31",
-        "ratio": -9.37,
-        "num": 25721
       }
     ],
-    "holders_num": 20503,
-    "holders_str": "2.05万"
+    "holders_num": 21439,
+    "holders_str": "2.14万"
   },
   "600568": {
     "holder_ratio": 54.36,
@@ -1647,9 +1647,14 @@
     "holders_str": "77.50万"
   },
   "600941": {
-    "holder_ratio": 95.88,
+    "holder_ratio": 95.79,
     "holder_focus": "非常分散",
     "holders_changes": [
+      {
+        "date": "2026-09-30",
+        "ratio": -16.39,
+        "num": 168977
+      },
       {
         "date": "2026-06-30",
         "ratio": -2.76,
@@ -1659,15 +1664,10 @@
         "date": "2026-03-31",
         "ratio": 2.38,
         "num": 207843
-      },
-      {
-        "date": "2026-02-28",
-        "ratio": 25.1,
-        "num": 203010
       }
     ],
-    "holders_num": 202106,
-    "holders_str": "20.21万"
+    "holders_num": 168977,
+    "holders_str": "16.90万"
   },
   "002032": {
     "holder_ratio": 89.63,
@@ -1969,9 +1969,14 @@
     "holders_str": "33.11万"
   },
   "600660": {
-    "holder_ratio": 65.29,
+    "holder_ratio": 65.72,
     "holder_focus": "非常分散",
     "holders_changes": [
+      {
+        "date": "2026-09-30",
+        "ratio": -14.48,
+        "num": 119439
+      },
       {
         "date": "2026-06-30",
         "ratio": 5.95,
@@ -1981,15 +1986,10 @@
         "date": "2026-03-31",
         "ratio": 11.79,
         "num": 131822
-      },
-      {
-        "date": "2026-02-28",
-        "ratio": 21.31,
-        "num": 117923
       }
     ],
-    "holders_num": 139665,
-    "holders_str": "13.97万"
+    "holders_num": 119439,
+    "holders_str": "11.94万"
   },
   "300274": {
     "holder_ratio": 42.52,
@@ -5831,5 +5831,28 @@
     ],
     "holders_num": 64833,
     "holders_str": "6.48万"
+  },
+  "603105": {
+    "holder_ratio": 47.39,
+    "holder_focus": "较分散",
+    "holders_changes": [
+      {
+        "date": "2026-06-30",
+        "ratio": -21.37,
+        "num": 48759
+      },
+      {
+        "date": "2026-03-31",
+        "ratio": 34.07,
+        "num": 62013
+      },
+      {
+        "date": "2025-12-31",
+        "ratio": 11.32,
+        "num": 46253
+      }
+    ],
+    "holders_num": 48759,
+    "holders_str": "4.88万"
   }
 }

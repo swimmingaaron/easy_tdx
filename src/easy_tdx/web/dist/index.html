@@ -3058,7 +3058,8 @@
                                     class="py-3 px-2 whitespace-nowrap text-left font-semibold cursor-pointer hover:text-indigo-400">
                                     所属板块 <span id="wl-sort-industry" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('buy_score')"
-                                    class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400"
+                                    title="点击按买入分排序 (单元格分值可直达该股票缠论系统)">
                                     买入分 <span id="wl-sort-buy_score" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('sell_score')"
                                     class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
@@ -3265,7 +3266,7 @@
                                     onclick="sortScreenerTable('industry')" title="点击按行业排序">行业<span id="screener-sort-industry"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('buy_score')" title="点击按买入分排序">买入分<span id="screener-sort-buy_score"
+                                    onclick="sortScreenerTable('buy_score')" title="点击按买入分排序 (单元格分值可直达该股票缠论系统)">买入分<span id="screener-sort-buy_score"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('sell_score')" title="点击按卖出分排序">卖出分<span id="screener-sort-sell_score"
@@ -15754,7 +15755,12 @@
                         bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">${bScore}分 观望</span>`;
                     }
                     if (q.star_buy) bBadge += `<span class="ml-1 text-rose-500 font-bold" title="红星共振">★</span>`;
-                    const buyTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${bBadge}</td>`;
+                    const cleanCode = (code || '').toString().trim().replace(/[^0-9]/g, '');
+                    const cleanName = (name || cleanCode).toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const buyLinkHtml = cleanCode
+                        ? `<a href="/#chanlun?code=${cleanCode}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${cleanName}', event)" class="inline-block cursor-pointer hover:opacity-80 transition transform hover:scale-105 no-underline" title="在新标签中打开【${cleanName}】(${cleanCode}) 缠论K线">${bBadge}</a>`
+                        : bBadge;
+                    const buyTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${buyLinkHtml}</td>`;
 
                     // 5. 卖出分
                     const sScore = Number(q.sell_score || 0);
@@ -18317,7 +18323,7 @@
                 const indLink = `<span ${indClick} class="${indClass} font-sans text-xs">${indName}</span>`;
 
                 // 6. 买入分 & 7. 卖出分
-                const buyScoreBadge = renderScoreBadgeTs(m.buy_score, 'buy');
+                const buyScoreBadge = renderScoreBadgeTs(m.buy_score, 'buy', cleanCode, name, chanPeriodsArg);
                 const sellScoreBadge = renderScoreBadgeTs(m.sell_score, 'sell');
 
                 // 8. 总市值
@@ -20082,13 +20088,23 @@
             return colored ? `<span class="${color}">${str}</span>` : str;
         }
 
-        function renderScoreBadgeTs(score, kind = 'buy') {
+        function renderScoreBadgeTs(score, kind = 'buy', code = '', name = '', periods = '') {
             score = Number(score) || 0;
             if (kind === 'buy') {
-                if (score >= 10) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">${score}分 强烈买入</span>`;
-                if (score >= 8) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-xs">${score}分 买入</span>`;
-                if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white shadow-xs">${score}分 关注</span>`;
-                return `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">${score}分 观望</span>`;
+                let badgeHtml = '';
+                if (score >= 10) badgeHtml = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">${score}分 强烈买入</span>`;
+                else if (score >= 8) badgeHtml = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-xs">${score}分 买入</span>`;
+                else if (score >= 5) badgeHtml = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/80 text-white shadow-xs">${score}分 关注</span>`;
+                else badgeHtml = `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">${score}分 观望</span>`;
+
+                if (code) {
+                    const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
+                    const cleanName = (name || cleanCode).toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
+                    const periodsArg = periods ? `, '${periods}'` : '';
+                    return `<a href="/#chanlun?code=${cleanCode}${pParam}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${cleanName}', event${periodsArg})" class="inline-block cursor-pointer hover:opacity-80 transition transform hover:scale-105 no-underline" title="在新标签中打开【${cleanName}】(${cleanCode}) 缠论K线">${badgeHtml}</a>`;
+                }
+                return badgeHtml;
             } else {
                 // 卖出分列 (高分危险，低分安全，不为空)
                 if (score >= 5) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-xs" title="卖出信号强烈，注意高位回调">▲ ${score}分 顶危</span>`;
@@ -20514,7 +20530,7 @@
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_code')">代码</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('stock_name')">名称</th>
                     <th class="py-2.5 px-2.5 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('industry')">行业</th>
-                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')">买入分 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')" title="点击按买入分排序 (单元格分值可直达该股票缠论系统)">买入分 ↕</th>
                     <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sell_score')">卖出分 ↕</th>
                     <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('mkt_capt')">总市值 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('close')">现价</th>
@@ -20550,7 +20566,7 @@
                     <th class="py-2.5 px-2 text-center font-semibold">4.MACD吸筹</th>
                     <th class="py-2.5 px-2 text-center font-semibold">5.布林护盘</th>
                     <th class="py-2.5 px-3 text-left font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('pattern_score')">形态特征 ↕</th>
-                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')">买入分 ↕</th>
+                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('buy_score')" title="点击按买入分排序 (单元格分值可直达该股票缠论系统)">买入分 ↕</th>
                     <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('sell_score')">卖出分 ↕</th>
                     <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('mkt_capt')">总市值 ↕</th>
                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" onclick="changeTsSort('close')">现价</th>
@@ -20715,7 +20731,7 @@
                         <td class="py-2.5 px-2.5 whitespace-nowrap">${codeLink}</td>
                         <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${nameLink}</td>
                         <td class="py-2.5 px-2.5 font-sans whitespace-nowrap">${indLink}</td>
-                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy')}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy', code, name)}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.sell_score, 'sell')}</td>
                         ${mktCaptTd}
                         <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-slate-900 dark:text-white">¥${r.close ? r.close.toFixed(2) : '-'}</td>
@@ -20753,7 +20769,7 @@
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r4)}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderRuleBadgeTs(r.r5)}</td>
                         <td class="py-2.5 px-3 text-left font-sans whitespace-nowrap">${renderPatternFeaturesTs(r)}</td>
-                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy')}</td>
+                        <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.buy_score, 'buy', code, name)}</td>
                         <td class="py-2.5 px-2 text-center whitespace-nowrap">${renderScoreBadgeTs(r.sell_score, 'sell')}</td>
                         ${mktCaptTd}
                         <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-slate-900 dark:text-white">¥${r.close ? r.close.toFixed(2) : '-'}</td>
