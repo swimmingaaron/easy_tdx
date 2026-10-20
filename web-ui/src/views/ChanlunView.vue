@@ -20,7 +20,15 @@ import type {
 const route = useRoute()
 
 // ── 标的与参数状态 ───────────────────────────────────────────────────────────
-const code = ref('000001')
+function getInitialChanlunCode(): string {
+  if (typeof window !== 'undefined') {
+    const raw = (window.location.hash || '') + '&' + (window.location.search || '')
+    const m = raw.match(/[?&#](?:code|symbol)=([0-9a-zA-Z]+)/i)
+    if (m && m[1]) return m[1].trim().replace(/[^0-9a-zA-Z]/g, '')
+  }
+  return '000001'
+}
+const code = ref(getInitialChanlunCode())
 const searchKeyword = ref('')
 const suggestList = ref<StockSuggestItem[]>([])
 const isSearching = ref(false)
@@ -2083,12 +2091,13 @@ function handleKeyDown(e: KeyboardEvent) {
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   let qCode = (route.query.code || route.query.symbol) as string | undefined
-  if (!qCode && typeof window !== 'undefined' && window.location.hash.includes('code=')) {
-    const m = window.location.hash.match(/[?&]code=([^&]+)/)
-    if (m) qCode = decodeURIComponent(m[1])
+  if (!qCode && typeof window !== 'undefined') {
+    const raw = (window.location.hash || '') + '&' + (window.location.search || '')
+    const m = raw.match(/[?&#](?:code|symbol)=([0-9a-zA-Z]+)/i)
+    if (m && m[1]) qCode = decodeURIComponent(m[1])
   }
   if (qCode) {
-    const clean = qCode.replace(/[^0-9]/g, '')
+    const clean = qCode.replace(/[^0-9a-zA-Z]/g, '')
     code.value = clean || qCode
     loadHotStocks()
   } else {

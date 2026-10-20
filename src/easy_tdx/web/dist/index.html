@@ -19570,8 +19570,8 @@
 
         window.addEventListener('DOMContentLoaded', async () => {
             initECharts();
-            await populateInitialData();
             restoreInitialTab();
+            await populateInitialData();
             const activeTab = (window.location.hash || '').replace('#', '').trim() || 'dashboard';
             if (activeTab === 'backtest') {
                 runBacktest();
@@ -22642,8 +22642,16 @@
         // ==============================================================================
         // 12. 缠论多周期立体同图共振 (Chanlun Resonance Engine) 前端驱动逻辑
         // ==============================================================================
-        let _clCurrentCode = window._clCurrentCode || '000001';
-        let _clCurrentCodeChangedByUser = window._clCurrentCodeChangedByUser || false;
+        function getChanlunUrlCode() {
+            const raw = (window.location.hash || '') + '&' + (window.location.search || '');
+            const m = raw.match(/[?&#](?:code|symbol)=([0-9a-zA-Z]+)/i);
+            return m && m[1] ? m[1].trim().replace(/[^0-9a-zA-Z]/g, '') : null;
+        }
+        const _initUrlCode = getChanlunUrlCode();
+        let _clCurrentCode = _initUrlCode || window._clCurrentCode || '000001';
+        let _clCurrentCodeChangedByUser = !!_initUrlCode || window._clCurrentCodeChangedByUser || false;
+        window._clCurrentCode = _clCurrentCode;
+        window._clCurrentCodeChangedByUser = _clCurrentCodeChangedByUser;
         let _clWindowMode = 'quad'; // 'quad' (四窗口) | 'dual' (双窗口) | 'single' (单窗口全屏)
         let _clLeftPeriods = 'DAY,30F,5F';   // 窗口 1: 日·30F·5F
         let _clW2Periods = '30F,5F,1F';      // 窗口 2: 30F·5F·1F
@@ -22861,6 +22869,16 @@
             const pElW2 = document.getElementById('cl-pill-w2');
             if (pElW2) pElW2.innerText = `窗2: ${_clW2Periods.replace(/,/g, '·')}`;
             initChanlunStockSearch();
+
+            // 若 URL 中携带了股票代码，始终强制同步并置为用户主动指定
+            const urlCode = getChanlunUrlCode();
+            if (urlCode) {
+                _clCurrentCode = urlCode;
+                window._clCurrentCode = urlCode;
+                _clCurrentCodeChangedByUser = true;
+                window._clCurrentCodeChangedByUser = true;
+            }
+
             renderChanlunPopularStocks();
             adjustChanlunLayoutHeight();
             if (!_clHasInitialized) {
@@ -22900,6 +22918,7 @@
         }
 
         let _clIsDataLoading = false;
+        let _clLoadingTargetCode = null;
         let _clPendingBacktrackDate = null;
         let _clBacktrackDebounceTimer = null;
         const _clBacktrackCache = new Map();
@@ -22913,7 +22932,10 @@
         }
 
         async function loadChanlunData(forceRefresh = false) {
-            if (_clIsDataLoading && !forceRefresh) return;
+            if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode) return;
+            _clLoadingTargetCode = _clCurrentCode;
+            _clIsDataLoading = true;
+            const reqCode = _clCurrentCode;
             const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
             const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
             const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
@@ -23035,6 +23057,9 @@
                         _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, results[1].summary.latest_date), results[1]);
                     }
                 }
+
+                // 若在异步请求返回时当前标的代码已被用户或路由切换，放弃本次过期数据
+                if (reqCode !== _clCurrentCode) return;
 
                 // 更新概览卡片、时间轴与表格
                 updateChanlunOverview(_clLeftCachedData);
