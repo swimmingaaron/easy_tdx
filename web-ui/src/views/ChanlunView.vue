@@ -2360,6 +2360,8 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
     hasDragged = false
 
     if (box) {
+      const oldHeader = box.querySelector('.tdx-box-header')
+      if (oldHeader) oldHeader.remove()
       box.style.left = `${startX}px`
       box.style.top = `${startY}px`
       box.style.width = '0px'
@@ -2390,6 +2392,10 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
 
     if (width > 5 || height > 5) {
       hasDragged = true
+      if (box) {
+        const oldH = box.querySelector('.tdx-box-header')
+        if (oldH) oldH.remove()
+      }
     }
   }, true)
 
@@ -2466,6 +2472,19 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
     const stats = calcRangeStatistics(uc, startIdx, endIdx, d?.name || code.value, d?.code || code.value)
     if (stats) {
       currentStat.value = stats
+      if (box) {
+        let header = box.querySelector('.tdx-box-header') as HTMLDivElement | null
+        if (!header) {
+          header = document.createElement('div')
+          header.className = 'tdx-box-header'
+          box.appendChild(header)
+        }
+        const isUp = (Number(stats.chgPct || 0) >= 0)
+        const colorHex = isUp ? '#f43f5e' : '#10b981'
+        const sign = isUp ? '+' : ''
+        header.innerHTML = `<span>周期: <strong style="color:#38bdf8">${stats.periodCount}</strong>根</span> <span style="opacity:0.5">|</span> <span>涨跌: <strong style="color:${colorHex}">${sign}${stats.chgPct}%</strong></span> <span style="opacity:0.5">|</span> <span>振幅: <strong style="color:#fbbf24">${stats.ampPct}%</strong></span>`
+        header.style.cssText = 'position: absolute; top: -28px; left: 0; background: rgba(15, 23, 42, 0.95); color: #e2e8f0; font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.7); white-space: nowrap; pointer-events: none; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; gap: 6px; align-items: center;'
+      }
       let posX = e.clientX + 15
       let posY = e.clientY + 15
       const modalW = 360
@@ -2502,6 +2521,8 @@ function closeRangeStatModal() {
   showRangeStatModal.value = false
   if (!statKeepBox.value && activeSelectionBoxEl) {
     activeSelectionBoxEl.style.display = 'none'
+    const h = activeSelectionBoxEl.querySelector('.tdx-box-header')
+    if (h) h.remove()
   }
 }
 
@@ -3015,16 +3036,17 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- ==================== 通达信风格 区间统计(复权) 弹窗 ==================== -->
-    <div
-      v-if="showRangeStatModal && currentStat"
-      id="tdx-range-stat-modal"
-      class="tdx-modal-window"
-      :style="{ left: statModalPos.x + 'px', top: statModalPos.y + 'px' }"
-    >
-      <div class="tdx-modal-header" @mousedown="onStatModalHeaderMousedown">
-        <span class="tdx-modal-title">{{ currentStat.stockName }} 区间统计(复权)</span>
-        <button class="tdx-modal-close" @click="closeRangeStatModal">&times;</button>
-      </div>
+    <Teleport to="body">
+      <div
+        v-if="showRangeStatModal && currentStat"
+        id="tdx-range-stat-modal"
+        class="tdx-modal-window"
+        :style="{ left: statModalPos.x + 'px', top: statModalPos.y + 'px' }"
+      >
+        <div class="tdx-modal-header" @mousedown="onStatModalHeaderMousedown">
+          <span class="tdx-modal-title">{{ currentStat.stockName }} 区间统计(复权)</span>
+          <button class="tdx-modal-close" @click="closeRangeStatModal">&times;</button>
+        </div>
 
       <div class="tdx-modal-body">
         <div class="tdx-row-between">
@@ -3092,12 +3114,14 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+  </Teleport>
 
     <!-- ==================== 形态匹配选股 弹窗 ==================== -->
-    <div v-if="showPatternMatchModal" class="tdx-pm-overlay" @click.self="showPatternMatchModal = false">
-      <div class="tdx-pm-modal">
-        <div class="tdx-pm-header">
-          <div class="tdx-pm-title-box">
+    <Teleport to="body">
+      <div v-if="showPatternMatchModal" class="tdx-pm-overlay" @click.self="showPatternMatchModal = false">
+        <div class="tdx-pm-modal">
+          <div class="tdx-pm-header">
+            <div class="tdx-pm-title-box">
             <span class="tdx-pm-icon">✨</span>
             <div>
               <div class="tdx-pm-title">
@@ -3182,6 +3206,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+  </Teleport>
   </div>
 </template>
 

@@ -6022,6 +6022,7 @@
                     style="top: 2px; transform: scale(0.82); transform-origin: left top; padding: 1.5px 6px;"
                     class="absolute left-[56px] z-30 pointer-events-none hidden items-center space-x-1 rounded bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/90 dark:border-slate-700/70 shadow-sm text-[11px] select-none transition-all">
                 </div>
+            </div>
         </div>
     </div>
 
@@ -26936,6 +26937,9 @@
 
             const modal = document.getElementById('tdx-range-stat-modal');
             if (!modal) return;
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
 
             try {
                 const titleEl = document.getElementById('tdx-stat-title');
@@ -27019,6 +27023,8 @@
             const keepBox = document.getElementById('tdx-stat-keep-box');
             if (keepBox && !keepBox.checked && _currentActiveSelectionBox) {
                 _currentActiveSelectionBox.style.display = 'none';
+                const h = _currentActiveSelectionBox.querySelector('.tdx-box-header');
+                if (h) h.remove();
             }
         }
 
@@ -27103,6 +27109,8 @@
                 hasDragged = false;
 
                 if (box) {
+                    const oldHeader = box.querySelector('.tdx-box-header');
+                    if (oldHeader) oldHeader.remove();
                     box.style.left = `${startX}px`;
                     box.style.top = `${startY}px`;
                     box.style.width = '0px';
@@ -27133,6 +27141,10 @@
 
                 if (width > 5 || height > 5) {
                     hasDragged = true;
+                    if (box) {
+                        const oldH = box.querySelector('.tdx-box-header');
+                        if (oldH) oldH.remove();
+                    }
                 }
             }, true);
 
@@ -27236,6 +27248,19 @@
                 }
                 const stats = calcTdxRangeStatistics(bars, startIdx, endIdx, stockInfo.name, stockInfo.code);
                 if (stats) {
+                    if (box) {
+                        let header = box.querySelector('.tdx-box-header');
+                        if (!header) {
+                            header = document.createElement('div');
+                            header.className = 'tdx-box-header';
+                            box.appendChild(header);
+                        }
+                        const isUp = (Number(stats.chgPct || 0) >= 0);
+                        const colorHex = isUp ? '#f43f5e' : '#10b981';
+                        const sign = isUp ? '+' : '';
+                        header.innerHTML = `<span>周期: <strong style="color:#38bdf8">${stats.periodCount}</strong>根</span> <span style="opacity:0.5">|</span> <span>涨跌: <strong style="color:${colorHex}">${sign}${stats.chgPct}%</strong></span> <span style="opacity:0.5">|</span> <span>振幅: <strong style="color:#fbbf24">${stats.ampPct}%</strong></span>`;
+                        header.style.cssText = 'position: absolute; top: -28px; left: 0; background: rgba(15, 23, 42, 0.95); color: #e2e8f0; font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.7); white-space: nowrap; pointer-events: none; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; gap: 6px; align-items: center;';
+                    }
                     showTdxRangeStatModal(stats, e.clientX, e.clientY);
                 } else {
                     if (box) box.style.display = 'none';
@@ -27276,6 +27301,9 @@
 
             const modal = document.getElementById('tdx-pattern-match-modal');
             if (!modal) return;
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
 
             document.getElementById('pm-target-badge').innerText = `模板: ${name || symbol} (${symbol}) · ${startDate} ~ ${endDate} (${prices.length}根K线)`;
             modal.classList.remove('hidden');
@@ -27458,6 +27486,11 @@
         // 在 DOMContentLoaded 与图表渲染处自动初始化绑定
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
+                [document.getElementById('tdx-range-stat-modal'), document.getElementById('tdx-pattern-match-modal')].forEach(m => {
+                    if (m && m.parentElement !== document.body) {
+                        document.body.appendChild(m);
+                    }
+                });
                 attachTdxSelectionToKpChart();
                 attachTdxSelectionToChanlunCharts();
                 const curTab = (typeof getActiveTabName === 'function') ? getActiveTabName() : ((window.location.hash || '').replace('#', '').trim() || 'dashboard');
