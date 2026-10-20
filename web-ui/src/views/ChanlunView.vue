@@ -2315,37 +2315,44 @@ function calcRangeStatistics(uc: any, startIdx: number, endIdx: number, name: st
   }
 }
 
-function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: () => echarts.ECharts | null, getData: () => any) {
-  if (!containerEl) return
-  if ((containerEl as any)._tdxSelectionBound) return
-  ;(containerEl as any)._tdxSelectionBound = true
-
+function ensureChartSelectionBoxVue(containerEl: HTMLElement | null): HTMLDivElement | null {
+  if (!containerEl) return null
   containerEl.style.position = 'relative'
-
   let box = containerEl.querySelector('.tdx-chart-selection-box') as HTMLDivElement | null
-  if (!box) {
+  if (!box || !containerEl.contains(box)) {
     box = document.createElement('div')
     box.className = 'tdx-chart-selection-box'
-    box.style.cssText = 'position: absolute; border: 1.5px solid #ffffff; background: rgba(255, 255, 255, 0.12); pointer-events: none; z-index: 99; display: none; box-shadow: 0 0 8px rgba(255,255,255,0.6);'
+    box.style.cssText = 'position: absolute; border: 1.5px dashed #38bdf8; background: rgba(56, 189, 248, 0.18); pointer-events: none; z-index: 999; display: none; box-shadow: 0 0 10px rgba(56, 189, 248, 0.5); border-radius: 2px;'
     containerEl.appendChild(box)
   }
+  return box
+}
+
+function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: () => echarts.ECharts | null, getData: () => any) {
+  if (!containerEl) return
+  ;(containerEl as any)._tdxGetInstance = getInstance
+  ;(containerEl as any)._tdxGetData = getData
+  ensureChartSelectionBoxVue(containerEl)
+
+  if ((containerEl as any)._tdxSelectionBound) return
+  ;(containerEl as any)._tdxSelectionBound = true
 
   let isSelecting = false
   let startX = 0, startY = 0
   let hasDragged = false
 
-  const stopContextMenu = (e: MouseEvent) => {
-    if (isSelecting || hasDragged) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-  }
-  containerEl.addEventListener('contextmenu', stopContextMenu, true)
-  window.addEventListener('contextmenu', stopContextMenu, true)
+  // 彻底拦截图表容器上的原生右键菜单，杜绝打断水平拖拽
+  containerEl.addEventListener('contextmenu', (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, true)
 
   containerEl.addEventListener('mousedown', (e) => {
     if (e.button !== 2) return
     e.preventDefault()
+    e.stopPropagation()
+
+    const box = ensureChartSelectionBoxVue(containerEl)
     const rect = containerEl.getBoundingClientRect()
     startX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
     startY = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
@@ -2360,10 +2367,11 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
       box.style.display = 'block'
       activeSelectionBoxEl = box
     }
-  })
+  }, true)
 
   window.addEventListener('mousemove', (e) => {
-    if (!isSelecting || !box) return
+    if (!isSelecting) return
+    const box = ensureChartSelectionBoxVue(containerEl)
     const rect = containerEl.getBoundingClientRect()
     const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
     const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
@@ -2373,26 +2381,30 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
     const width = Math.abs(curX - startX)
     const height = Math.abs(curY - startY)
 
-    box.style.left = `${left}px`
-    box.style.top = `${top}px`
-    box.style.width = `${width}px`
-    box.style.height = `${height}px`
+    if (box) {
+      box.style.left = `${left}px`
+      box.style.top = `${top}px`
+      box.style.width = `${width}px`
+      box.style.height = `${height}px`
+    }
 
-    if (width > 6 || height > 6) {
+    if (width > 5 || height > 5) {
       hasDragged = true
     }
-  })
+  }, true)
 
   window.addEventListener('mouseup', (e) => {
     if (!isSelecting || e.button !== 2) return
     isSelecting = false
+    const box = ensureChartSelectionBoxVue(containerEl)
 
     if (!hasDragged) {
       if (box) box.style.display = 'none'
       return
     }
 
-    const chart = getInstance() || (echarts.getInstanceByDom(containerEl) as any)
+    const instanceGetter = (containerEl as any)._tdxGetInstance || getInstance
+    const chart = (typeof instanceGetter === 'function' ? instanceGetter() : instanceGetter) || (echarts.getInstanceByDom(containerEl) as any)
     if (!chart) {
       if (box) box.style.display = 'none'
       return
@@ -2427,7 +2439,8 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
       } catch (err2) {}
     }
 
-    const d = getData()
+    const dataGetter = (containerEl as any)._tdxGetData || getData
+    const d = (typeof dataGetter === 'function') ? dataGetter() : dataGetter
     let uc = d?.unified_chart
     if (!uc) {
       try {
@@ -2464,7 +2477,14 @@ function bindRightClickSelection(containerEl: HTMLElement | null, getInstance: (
     } else {
       if (box) box.style.display = 'none'
     }
-  })
+  }, true)
+
+  window.addEventListener('contextmenu', (e: MouseEvent) => {
+    if (isSelecting || hasDragged) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }, true)
 }
 
 function attachSelectionToAllCharts() {
