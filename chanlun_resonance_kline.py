@@ -403,58 +403,20 @@ class ChanlunUnifiedResonancePlotter:
             return None
 
         # ----------------------------------------------------------------------
-        # ----------------------------------------------------------------------
-        # 智能聚焦：仅保证大周期 (日K) 上展示一根完成的线段 (或最近3笔标准线段)
-        # 裁剪掉过往历史无关数据，保证图面清爽、K线清晰可辨，彻底杜绝拥挤
+        # 智能聚焦：大周期 (日K) 保留有且仅有最新一笔日线笔
+        # 以日线最后一笔的起点对齐截取，彻底杜绝历史多余笔的视觉干扰，保证走势清晰
         # ----------------------------------------------------------------------
         cut_idx = 0
-        high_seg_info = None
+        latest_high_bi = res_high.bis[-1] if (hasattr(res_high, "bis") and res_high.bis) else None
 
-        # 1. 尝试从已完成的线段 res_high.xds 中寻找有效线段（跨度在 120 个交易日以内的最近一根线段）
-        if hasattr(res_high, "xds") and res_high.xds:
-            for xd in reversed(res_high.xds):
-                try:
-                    xd_s_dt = pd.to_datetime(xd.start.k.date)
-                    latest_dt = pd.to_datetime(base_df["datetime"].iloc[-1])
-                    if 2 <= (latest_dt - xd_s_dt).days <= 120:
-                        is_start_high = (getattr(xd.direction, "name", str(xd.direction)).upper() in ("DOWN", "DIRECTION.DOWN"))
-                        high_seg_info = {
-                            "start_date": xd.start.k.date,
-                            "start_val": float(xd.start.val),
-                            "end_date": xd.end.k.date,
-                            "end_val": float(xd.end.val),
-                            "is_start_high": is_start_high,
-                            "desc": f"{xd.start.val:.2f}→{xd.end.val:.2f}",
-                            "source": "xd",
-                        }
-                        break
-                except Exception:
-                    pass
-
-        # 2. 若未找到合适 xd（跨度过大或无 xd），按缠论公理（线段由至少连续 3 笔构成）：
-        # 取日线倒数第 3 笔起点到倒数第 1 笔终点，构成标准完成线段
-        if high_seg_info is None and hasattr(res_high, "bis") and len(res_high.bis) >= 3:
-            bi_start = res_high.bis[-3]
-            bi_end = res_high.bis[-1]
-            is_start_high = (bi_start.start.fx_type == FXType.DING)
-            high_seg_info = {
-                "start_date": bi_start.start.k.date,
-                "start_val": float(bi_start.start.val),
-                "end_date": bi_end.end.k.date,
-                "end_val": float(bi_end.end.val),
-                "is_start_high": is_start_high,
-                "desc": f"{bi_start.start.val:.2f}→{bi_end.end.val:.2f}",
-                "source": "bi3",
-            }
-
-        if high_seg_info:
-            target_start_dt = high_seg_info["start_date"]
+        if latest_high_bi is not None:
+            target_start_dt = latest_high_bi.start.k.date
             dt_series = pd.to_datetime(base_df["datetime"])
             matched_idxs = np.where(dt_series >= pd.to_datetime(target_start_dt))[0]
             if len(matched_idxs) > 0:
-                # 左侧预留 15 根小周期安全余量，保证线段端点清晰可见且不顶格
+                # 左侧预留 15 根小周期安全余量，保证日线笔起点端点清晰可见且不顶格
                 cut_idx = max(0, matched_idxs[0] - 15)
-                if len(base_df) - cut_idx >= 40:
+                if len(base_df) - cut_idx >= 30:
                     base_df = base_df.iloc[cut_idx:].copy().reset_index(drop=True)
                 else:
                     cut_idx = 0
@@ -547,107 +509,81 @@ class ChanlunUnifiedResonancePlotter:
             mid_x = (x_s + x_e) / 2
             ax_main.text(mid_x, zs.zg, f"[{high_name}紫色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
 
-        # 2.1 大级别完成线段高亮显示 (紫色粗虚线 + 专属气泡标签 + 菱形端点)
-        if high_seg_info:
+        # 2. 绘制大级别 (日线) 笔：保留有且仅有一笔大周期日线笔 (紫色粗实线)
+        if res_high.bis:
+            target_bi = res_high.bis[-1]
+            s_is_high = target_bi.start.fx_type == FXType.DING
+            e_is_high = target_bi.end.fx_type == FXType.DING
             s_idx = self._map_pivot_to_base(
-                high_seg_info["start_date"],
-                high_seg_info["start_val"],
-                high_seg_info["is_start_high"],
+                target_bi.start.k.date,
+                target_bi.start.val,
+                s_is_high,
                 self.p_high,
                 base_df,
                 base_dts,
+                fx_obj=target_bi.start,
             )
             e_idx = self._map_pivot_to_base(
-                high_seg_info["end_date"],
-                high_seg_info["end_val"],
-                not high_seg_info["is_start_high"],
+                target_bi.end.k.date,
+                target_bi.end.val,
+                e_is_high,
                 self.p_high,
                 base_df,
                 base_dts,
+                fx_obj=target_bi.end,
             )
             s_c = max(0, min(n_bars - 1, s_idx))
             e_c = max(0, min(n_bars - 1, e_idx))
+
             if s_c != e_c:
-                dir_arrow = "↘" if high_seg_info["start_val"] > high_seg_info["end_val"] else "↗"
+                dir_arrow = "↘" if target_bi.start.val > target_bi.end.val else "↗"
                 ax_main.plot(
                     [s_c, e_c],
-                    [high_seg_info["start_val"], high_seg_info["end_val"]],
-                    color="#d946ef",  # 鲜艳洋红色
-                    linewidth=4.5,
-                    linestyle="--",
-                    marker="D",
-                    markersize=8.0,
+                    [target_bi.start.val, target_bi.end.val],
+                    color=c_high,
+                    linewidth=3.8,
+                    linestyle="-",
+                    marker="o",
+                    markersize=7.5,
                     markerfacecolor="#ffffff",
-                    markeredgecolor="#c026d3",
+                    markeredgecolor=c_high,
                     alpha=0.95,
-                    label=f"大级别 ({high_name}) 紫色线段",
-                    zorder=10,
+                    label=f"大级别 ({high_name}) 紫线笔",
+                    zorder=8,
                 )
                 mid_x = (s_c + e_c) / 2
-                mid_y = (high_seg_info["start_val"] + high_seg_info["end_val"]) / 2
+                mid_y = (target_bi.start.val + target_bi.end.val) / 2
                 ax_main.text(
                     mid_x,
                     mid_y,
-                    f"[{high_name}完成线段 {high_seg_info['desc']} {dir_arrow}]",
+                    f"[{high_name}笔 {target_bi.start.val:.2f}→{target_bi.end.val:.2f} {dir_arrow}]",
                     color="#ffffff",
                     fontsize=9.0,
                     fontweight="bold",
                     ha="center",
                     va="center",
                     bbox=dict(
-                        boxstyle="round,pad=0.3",
-                        facecolor="#701a75",
-                        edgecolor="#f472b6",
+                        boxstyle="round,pad=0.28",
+                        facecolor="#581c87",
+                        edgecolor="#c084fc",
                         linewidth=1.2,
                         alpha=0.92,
                     ),
                     zorder=12,
                 )
 
-        # 2.2 大级别笔 (紫色实线粗折线)
-        high_bi_pts = []
-        prev_h_end = None
-        for bi in res_high.bis:
-            s_is_high = bi.start.fx_type == FXType.DING
-            e_is_high = bi.end.fx_type == FXType.DING
-            s_idx = self._map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, self.p_high, base_df, base_dts, fx_obj=bi.start)
-            e_idx = self._map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, self.p_high, base_df, base_dts, fx_obj=bi.end)
-            if s_idx < 0 and e_idx < 0:
-                continue
-            s_clamp = prev_h_end if prev_h_end is not None else max(0, s_idx)
-            e_clamp = max(0, min(n_bars - 1, e_idx))
-            high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
-            prev_h_end = e_clamp
-
-        # 若日线最新一笔正在延伸，绘制虚线延伸笔
-        if res_high.bis and prev_h_end is not None and prev_h_end < n_bars - 1:
-            last_bi = res_high.bis[-1]
-            last_close = float(base_df["close"].iloc[-1])
-            ax_main.plot(
-                [prev_h_end, n_bars - 1],
-                [last_bi.end.val, last_close],
-                color=c_high,
-                linewidth=2.5,
-                linestyle=":",
-                alpha=0.75,
-                zorder=7,
-            )
-
-        for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
-            lbl = f"大级别 ({high_name}) 紫线笔" if seg_i == 0 else ""
-            ax_main.plot(
-                [sx, ex], [sy, ey],
-                color=c_high,
-                linewidth=3.2,
-                linestyle="-",
-                marker="o",
-                markersize=6.5,
-                markerfacecolor="#ffffff",
-                markeredgecolor=c_high,
-                alpha=0.95,
-                label=lbl,
-                zorder=8,
-            )
+            # 若日线最新一笔已结束但距离现价还有空间，用虚线延伸到现价
+            if e_c < n_bars - 1:
+                last_close = float(base_df["close"].iloc[-1])
+                ax_main.plot(
+                    [e_c, n_bars - 1],
+                    [target_bi.end.val, last_close],
+                    color=c_high,
+                    linewidth=2.5,
+                    linestyle=":",
+                    alpha=0.75,
+                    zorder=7,
+                )
 
         # ----------------------------------------------------------------------
         # 3. 绘制中级别 (Level 2, 次级别如30F) 笔与中枢 (花姐标准：黄色，中粗)
