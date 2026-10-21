@@ -39,6 +39,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("watchlist_wecom")
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
 def load_env_webhook() -> str:

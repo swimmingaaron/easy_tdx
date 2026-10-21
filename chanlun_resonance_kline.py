@@ -234,9 +234,57 @@ from easy_tdx.chanlun.resonance import (
 
 
 
-# ==============================================================================
-# 3. 高清同图立体嵌套 K 线图绘制器 (以最小周期为基准，将 3 个周期画在同一图片中)
-# ==============================================================================
+_FONT_SETUP_DONE = False
+
+
+def setup_chinese_font() -> None:
+    """跨平台自适应检测中文字体并抑制 matplotlib 字体检索告警。"""
+    global _FONT_SETUP_DONE
+    if _FONT_SETUP_DONE:
+        return
+
+    import logging
+    # 彻底抑制 matplotlib.font_manager 刷屏告警
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+
+    import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+
+    # 跨平台中文字体候选池 (macOS / Windows / Linux)
+    candidates = [
+        # macOS 常见字体
+        "Hiragino Sans GB",
+        "PingFang SC",
+        "Heiti SC",
+        "STHeiti",
+        "Songti SC",
+        "Arial Unicode MS",
+        "Apple LiGothic Medium",
+        # Windows 常见字体
+        "Microsoft YaHei",
+        "SimHei",
+        "SimSun",
+        "KaiTi",
+        # Linux 常见字体
+        "Noto Sans CJK SC",
+        "WenQuanYi Micro Hei",
+        "WenQuanYi Zen Hei",
+        "DejaVu Sans",
+    ]
+
+    try:
+        installed = {f.name for f in font_manager.fontManager.ttflist}
+        available = [f for f in candidates if f in installed]
+        if available:
+            plt.rcParams["font.sans-serif"] = available + ["sans-serif"]
+        else:
+            plt.rcParams["font.sans-serif"] = candidates + ["sans-serif"]
+    except Exception:
+        plt.rcParams["font.sans-serif"] = candidates + ["sans-serif"]
+
+    plt.rcParams["axes.unicode_minus"] = False
+    _FONT_SETUP_DONE = True
 
 
 class ChanlunUnifiedResonancePlotter:
@@ -342,14 +390,7 @@ class ChanlunUnifiedResonancePlotter:
         import matplotlib.patches as patches
         import matplotlib.pyplot as plt
 
-        plt.rcParams["font.sans-serif"] = [
-            "Microsoft YaHei",
-            "SimHei",
-            "PingFang SC",
-            "WenQuanYi Micro Hei",
-            "sans-serif",
-        ]
-        plt.rcParams["axes.unicode_minus"] = False
+        setup_chinese_font()
 
         base_df = self.dfs[self.p_low].copy()
         base_res = self.results[self.p_low]
@@ -1023,10 +1064,7 @@ class ChanlunSplitResonancePlotter:
         import matplotlib.patches as patches
         import matplotlib.pyplot as plt
 
-        plt.rcParams["font.sans-serif"] = [
-            "Microsoft YaHei", "SimHei", "PingFang SC", "WenQuanYi Micro Hei", "sans-serif"
-        ]
-        plt.rcParams["axes.unicode_minus"] = False
+        setup_chinese_font()
 
         fig = plt.figure(figsize=(16, 23.4), facecolor="#131722")
         gs = fig.add_gridspec(
