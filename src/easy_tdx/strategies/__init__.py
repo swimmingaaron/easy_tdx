@@ -13,9 +13,10 @@ for pkg in ["technical", "pattern", "short_term", "alpha_quant", "daily_analysis
     except Exception:
         pass
 
-# Import chanlun strategy
+# Import chanlun strategies
 try:
     import easy_tdx.strategies.chanlun_strategy
+    import easy_tdx.strategies.chanlun_resonance
 except Exception:
     pass
 

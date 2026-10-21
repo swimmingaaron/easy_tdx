@@ -16,7 +16,7 @@ def get_strategy(name: str, **kwargs) -> BaseStrategy:
     return STRATEGY_REGISTRY[name](**kwargs)
 
 def list_all_strategies() -> list[dict[str, Any]]:
-    return [
+    strategies = [
         {
             "name": cls.name,
             "display_name": cls.display_name,
@@ -27,5 +27,9 @@ def list_all_strategies() -> list[dict[str, Any]]:
         }
         for cls in STRATEGY_REGISTRY.values()
     ]
+    # 置顶 chanlun_strategy (缠论主升3买与中枢突破策略) 为系统默认首选策略，其次为 chanlun_resonance
+    priority_order = {"chanlun_strategy": 0, "chanlun_resonance": 1}
+    strategies.sort(key=lambda s: (priority_order.get(s["name"], 99), s.get("category", ""), s["name"]))
+    return strategies
 
 list_strategies = list_all_strategies

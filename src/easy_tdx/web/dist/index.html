@@ -6698,10 +6698,9 @@
                         } else if (t === 'abnormal') {
                             loadAnomaliesData();
                         } else if (t === 'screener') {
-                            if (!window._HAS_SCREENED) {
-                                window._HAS_SCREENED = true;
-                                setTimeout(() => runScreenerScan(), 100);
-                            }
+                            setTimeout(() => {
+                                if (typeof onScreenerParamsChange === 'function') onScreenerParamsChange();
+                            }, 50);
                         } else if (t === 'tradingsystem') {
                             setTimeout(() => {
                                 if (typeof loadTradingSystemData === 'function') loadTradingSystemData();
