@@ -1196,12 +1196,12 @@ def scan_market_strategy(
 ) -> list[dict[str, Any]]:
     """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency."""
     if not strategy_name or strategy_name.strip() in ("", "default"):
-        strategy_name = "chanlun_strategy"
+        strategy_name = "chanlun_resonance"
 
-    if strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):
-        period = "DAY_30F_5F"
-    elif strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
+    if strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
         period = "ALL_CASCADE"
+    elif strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):
+        period = "DAY_30F_5F"
 
     st = get_strategy(strategy_name)
     

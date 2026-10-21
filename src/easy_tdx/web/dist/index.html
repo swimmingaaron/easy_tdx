@@ -17898,7 +17898,7 @@
                     const strategies = data.strategies || data.data || [];
                     window.ALL_STRATEGIES = strategies;
                     const optHtml = strategies.map(s => `<option value="${s.name}" ${s.name === 'td_sequential' ? 'selected' : ''}>[${s.category}] ${s.display_name} (${s.name})</option>`).join('');
-                    const screenerDefault = strategies.some(s => s.name === 'chanlun_strategy') ? 'chanlun_strategy' : (strategies.some(s => s.name === 'chan_theory_daily') ? 'chan_theory_daily' : 'td_sequential');
+                    const screenerDefault = strategies.some(s => s.name === 'chanlun_resonance') ? 'chanlun_resonance' : (strategies.some(s => s.name === 'chanlun_strategy') ? 'chanlun_strategy' : (strategies.some(s => s.name === 'chan_theory_daily') ? 'chan_theory_daily' : 'td_sequential'));
                     const scrSel = document.getElementById('screener-strategy-select');
                     if (scrSel) {
                         scrSel.innerHTML = optHtml;
@@ -17939,6 +17939,10 @@
         let activeScreenerTaskId = null;
         let screenerPollTimer = null;
 
+        const CHANLUN_RESONANCE_PERIOD_OPTIONS = [
+            { value: 'ALL_CASCADE', text: '💎 月周日+周日30M+日30M5F (三级联终极共振 · 默认)', selected: true }
+        ];
+
         const CHANLUN_PERIOD_OPTIONS = [
             { value: 'DAY_30F_5F', text: '📅 日 30F 5F (大周期日线大买 · 默认)', selected: true },
             { value: '30F_5F_1F', text: '⏱️ 30F 5F 1F (大周期30F大买)' },
@@ -17959,8 +17963,12 @@
         function updateScreenerPeriodOptions(strategy) {
             const periodSel = document.getElementById('screener-period-select');
             if (!periodSel) return;
-            const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
-            const targetOptions = isChanlun ? CHANLUN_PERIOD_OPTIONS : STANDARD_PERIOD_OPTIONS;
+            let targetOptions = STANDARD_PERIOD_OPTIONS;
+            if (strategy === 'chanlun_resonance') {
+                targetOptions = CHANLUN_RESONANCE_PERIOD_OPTIONS;
+            } else if (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily') {
+                targetOptions = CHANLUN_PERIOD_OPTIONS;
+            }
             
             const currentVal = periodSel.value;
             const hasCurrentVal = targetOptions.some(opt => opt.value === currentVal);
@@ -17979,7 +17987,7 @@
 
         function onScreenerStrategyChange() {
             const stSelect = document.getElementById('screener-strategy-select');
-            const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
+            const strategy = stSelect ? stSelect.value : 'chanlun_resonance';
             updateScreenerPeriodOptions(strategy);
         }
 
@@ -17988,8 +17996,9 @@
             const forceInput = document.getElementById('screener-force-refresh');
             const periodSel = document.getElementById('screener-period-select');
             const uni = uniSel ? uniSel.value : 'core';
-            const period = periodSel ? periodSel.value : 'DAY';
+            const period = periodSel ? periodSel.value : 'ALL_CASCADE';
             const periodMap = {
+                'ALL_CASCADE': '三级联终极共振',
                 '30F_5F_1F': '30F 5F 1F (大买)',
                 'DAY_30F_5F': '日 30F 5F (大买)',
                 'WEEK_DAY_30F': '周 日 30F (大买)',

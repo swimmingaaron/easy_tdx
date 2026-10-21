@@ -245,24 +245,24 @@ def test_evaluate_chanlun_strategy_filters_top_sell_downtrend():
 
 
 def test_screener_request_models_defaults():
-    """Verify router request models and discovery default to chanlun_strategy."""
+    """Verify router request models and discovery default to chanlun_resonance."""
     req_scan = ScreenerScanRequest()
-    assert req_scan.strategy == "chanlun_strategy"
-    assert req_scan.period == "DAY_30F_5F"
+    assert req_scan.strategy == "chanlun_resonance"
+    assert req_scan.period == "ALL_CASCADE"
 
     req_task = ScreenerTaskStartRequest(universe="core")
-    assert req_task.strategy == "chanlun_strategy"
-    assert req_task.period == "DAY_30F_5F"
+    assert req_task.strategy == "chanlun_resonance"
+    assert req_task.period == "ALL_CASCADE"
 
 
 def test_strategy_registry_includes_chanlun_resonance():
-    """Verify chanlun_strategy is top-priority default and chanlun_resonance is registered."""
+    """Verify chanlun_resonance is top-priority default and chanlun_strategy is #1."""
     from easy_tdx.strategies.registry import list_all_strategies
     all_strategies = list_all_strategies()
     assert len(all_strategies) > 1
-    # chanlun_strategy must be the very first strategy in the list (Default)
-    assert all_strategies[0]["name"] == "chanlun_strategy"
-    assert all_strategies[1]["name"] == "chanlun_resonance"
+    # chanlun_resonance must be the very first strategy in the list (Default)
+    assert all_strategies[0]["name"] == "chanlun_resonance"
+    assert all_strategies[1]["name"] == "chanlun_strategy"
 
     st = get_strategy("chanlun_resonance")
     assert st.name == "chanlun_resonance"

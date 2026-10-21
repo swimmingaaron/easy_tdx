@@ -29,17 +29,17 @@ _ASYNC_TASKS: dict[str, dict[str, Any]] = {}
 _TASKS_LOCK = threading.Lock()
 
 class ScreenerScanRequest(BaseModel):
-    strategy: str = "chanlun_strategy"
+    strategy: str = "chanlun_resonance"
     universe: str = "core"
-    period: str = "DAY_30F_5F"
+    period: str = "ALL_CASCADE"
     symbols: list[str] | None = None
     lookback_bars: int = 20
     force_refresh: bool = False
 
 class ScreenerTaskStartRequest(BaseModel):
-    strategy: str = "chanlun_strategy"
+    strategy: str = "chanlun_resonance"
     universe: str = "core"
-    period: str = "DAY_30F_5F"
+    period: str = "ALL_CASCADE"
     lookback_bars: int = 20
     force_refresh: bool = False
 
@@ -96,9 +96,9 @@ def api_clear_screener_cache():
 
 @router.get("/scan")
 def api_scan_get(
-    strategy: str = Query("chanlun_strategy", description="Strategy identifier name"),
+    strategy: str = Query("chanlun_resonance", description="Strategy identifier name"),
     universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all"),
-    period: str = Query("DAY_30F_5F", description="Period: DAY_30F_5F, 30F_5F_1F, WEEK_DAY_30F, MONTH_WEEK_DAY, DAY, etc."),
+    period: str = Query("ALL_CASCADE", description="Period: ALL_CASCADE, DAY_30F_5F, 30F_5F_1F, WEEK_DAY_30F, MONTH_WEEK_DAY, DAY, etc."),
     force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
 ):
     """Scan market against selected strategy synchronously (GET request)."""
