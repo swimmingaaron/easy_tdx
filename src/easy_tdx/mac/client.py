@@ -489,8 +489,8 @@ class MacClient:
         if has_bad_prices(out):
             _logger.warning("QFQ 本地重算后 %s %s 仍含非法价格，降级返回服务端 QFQ", market, code)
             return df
-        _logger.warning(
-            "QFQ 本地重算：%s %s 服务端深层历史返回负价，已用 NONE+XDXR 重算前复权",
+        _logger.debug(
+            "QFQ 本地重算：%s %s 服务端深层历史返回负价，已用 NONE+XDXR 自动纠偏为正规乘法前复权",
             market,
             code,
         )
@@ -1502,8 +1502,8 @@ class AsyncMacClient(AsyncHeartbeatMixin):
         if has_bad_prices(out):
             _logger.warning("QFQ 本地重算后 %s %s 仍含非法价格，降级返回服务端 QFQ", market, code)
             return df
-        _logger.warning(
-            "QFQ 本地重算：%s %s 服务端深层历史返回负价，已用 NONE+XDXR 重算前复权",
+        _logger.debug(
+            "QFQ 本地重算：%s %s 服务端深层历史返回负价，已用 NONE+XDXR 自动纠偏为正规乘法前复权",
             market,
             code,
         )

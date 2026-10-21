@@ -353,8 +353,14 @@ def fetch_security_kline(
             _CACHE[cache_key] = (now, res)
             return res
 
-    # 2. 磁盘无缓存或数量不足或 force_refresh：全量拉取 max(count, 800) 根填补磁盘
-    pull_count = max(count, 800)
+    # 2. 磁盘无缓存或数量不足或 force_refresh：根据周期自适应合理深度填补磁盘（避免月线/周线请求800根远古数据引发负价及分包超时）
+    if category == KlineCategory.MONTH:
+        pull_count = max(count, 120)
+    elif category == KlineCategory.WEEK:
+        pull_count = max(count, 250)
+    else:
+        pull_count = max(count, 800)
+
     raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
     if raw_df is not None and not raw_df.empty:
         disk_cache.write_cached(cache_sym, cache_suffix, raw_df, adj_val.name)
