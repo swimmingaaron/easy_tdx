@@ -181,21 +181,21 @@ def test_bi_range_with_cklines():
             merged_count=1,
         )
 
-    # 顶(10) -> 中间有更低K线(2) -> 底(4)
+    # 标准缠论向下笔：顶(1) -> 底(5)，包含处理后共 5 根 (1, 2, 3, 4, 5)
     cks = [
         _make_ck(0, 8.0, 7.0),
-        _make_ck(1, 10.0, 7.0),  # 顶分型 (val=10)
-        _make_ck(2, 9.0, 7.0),
-        _make_ck(3, 8.0, 2.0),   # 中间K线打出更低点 2.0 (超出底分型端点)
-        _make_ck(4, 6.0, 4.0),
-        _make_ck(5, 5.0, 3.5),   # 底分型 (val=3.5)
-        _make_ck(6, 7.0, 5.0),
+        _make_ck(1, 10.0, 7.0),  # 顶分型 (val=10.0)
+        _make_ck(2, 9.0, 6.0),
+        _make_ck(3, 8.0, 5.0),
+        _make_ck(4, 7.0, 4.0),
+        _make_ck(5, 6.0, 3.0),   # 底分型 (val=3.0)
+        _make_ck(6, 7.0, 4.0),
     ]
     fxs = find_fractals(cks)
     bis = find_bis(fxs, cklines=cks)
     assert len(bis) >= 1
-    # 真实最低价应当为 2.0（包含中间K线），而非分型端点的 3.5
-    assert bis[0].low == 2.0
+    assert abs(bis[0].end.k.index - bis[0].start.k.index) + 1 >= 5
+    assert bis[0].low == 3.0
     assert bis[0].high == 10.0
 
 

@@ -493,7 +493,7 @@ def test_http_get_json_builds_query_string(monkeypatch: pytest.MonkeyPatch) -> N
         def __exit__(self, *args: Any) -> None:
             pass
 
-    def _fake_urlopen(req: Any, timeout: float = 15.0) -> _FakeResp:
+    def _fake_urlopen(req: Any, timeout: float = 15.0, **kwargs: Any) -> _FakeResp:
         captured["url"] = req.full_url
         captured["headers"] = {k.lower(): v for k, v in req.header_items()}
         return _FakeResp()
@@ -522,5 +522,5 @@ def test_http_get_json_no_params(monkeypatch: pytest.MonkeyPatch) -> None:
         def __exit__(self, *args: Any) -> None:
             pass
 
-    monkeypatch.setattr(mod.urlrequest, "urlopen", lambda req, timeout=15.0: _FakeResp())
+    monkeypatch.setattr(mod.urlrequest, "urlopen", lambda req, timeout=15.0, **kwargs: _FakeResp())
     assert mod._http_get_json("https://example.com/x", {}) == {"ok": 1}

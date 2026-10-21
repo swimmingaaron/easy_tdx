@@ -41,6 +41,11 @@ def find_fractals(
     if len(cklines) < 3:
         return []
 
+    # 规范化：确保处理后 K 线的 index 与其在序列中的序号严格一致
+    for k_i, ck in enumerate(cklines):
+        if ck.index != k_i:
+            ck.index = k_i
+
     # Step 1: 扫描原始候选分型
     raw_candidates: list[FX] = []
     n = len(cklines)

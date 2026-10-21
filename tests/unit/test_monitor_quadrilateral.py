@@ -241,20 +241,20 @@ def test_wecom_rate_limit_and_retry():
             res = notifier._send_wecom_with_rate_limit({"msgtype": "text"})
             assert res.get("errcode") == 0
 
-        # After 20 sends, the 21st send must wait 60 seconds
+        # After 20 sends, the 21st send must wait 10 seconds
         mock_sleep.reset_mock()
         notifier._send_wecom_with_rate_limit({"msgtype": "text"})
-        mock_sleep.assert_called_with(60)
+        mock_sleep.assert_called_with(10)
 
-        # Case 2: 45009 error triggers 60s wait and retry
+        # Case 2: 45009 error triggers 10s wait and retry
         mock_sleep.reset_mock()
         mock_post.side_effect = [
             {"errcode": 45009, "errmsg": "Too many requests"},
             {"errcode": 0, "errmsg": "ok"},
         ]
         res = notifier._send_wecom_with_rate_limit({"msgtype": "text"})
+        mock_sleep.assert_called_with(10)
         assert res.get("errcode") == 0
-        mock_sleep.assert_called_with(60)
 
 
 
