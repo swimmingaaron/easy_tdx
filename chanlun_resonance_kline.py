@@ -298,6 +298,7 @@ class ChanlunUnifiedResonancePlotter:
         dfs: dict[str, pd.DataFrame],
         results: dict[str, ChanlunResult],
         resonances: list[ResonanceSignal],
+        include_sub: bool = True,
     ):
         self.code = code
         self.name = name
@@ -308,6 +309,7 @@ class ChanlunUnifiedResonancePlotter:
         self.dfs = dfs
         self.results = results
         self.resonances = resonances
+        self.include_sub = include_sub
 
     def _map_pivot_to_base(
         self,
@@ -424,23 +426,36 @@ class ChanlunUnifiedResonancePlotter:
         n_bars = len(base_df)
         base_dts = pd.to_datetime(base_df["datetime"], format="mixed", errors="coerce")
 
-        # 画布尺寸：宽 18 吋，高 15.6 吋 (高度增加 30%)
-        fig = plt.figure(figsize=(18, 15.6), facecolor="#131722")
-        gs = fig.add_gridspec(
-            2,
-            1,
-            height_ratios=[3.8, 1.0],
-            hspace=0.06,
-            left=0.04,
-            right=0.96,
-            top=0.93,
-            bottom=0.05,
-        )
-
-        ax_main = fig.add_subplot(gs[0, 0])
-        ax_main.set_facecolor("#181b27")
-        ax_macd = fig.add_subplot(gs[1, 0])
-        ax_macd.set_facecolor("#181b27")
+        # 画布尺寸：带副图高 15.6 吋，不带副图高 11.5 吋
+        if self.include_sub:
+            fig = plt.figure(figsize=(18, 15.6), facecolor="#131722")
+            gs = fig.add_gridspec(
+                2,
+                1,
+                height_ratios=[3.8, 1.0],
+                hspace=0.06,
+                left=0.04,
+                right=0.96,
+                top=0.93,
+                bottom=0.05,
+            )
+            ax_main = fig.add_subplot(gs[0, 0])
+            ax_main.set_facecolor("#181b27")
+            ax_macd = fig.add_subplot(gs[1, 0])
+            ax_macd.set_facecolor("#181b27")
+        else:
+            fig = plt.figure(figsize=(18, 11.5), facecolor="#131722")
+            gs = fig.add_gridspec(
+                1,
+                1,
+                left=0.04,
+                right=0.96,
+                top=0.91,
+                bottom=0.06,
+            )
+            ax_main = fig.add_subplot(gs[0, 0])
+            ax_main.set_facecolor("#181b27")
+            ax_macd = None
 
         # ----------------------------------------------------------------------
         # 1. 绘制基准最小周期 K 线 (Candlesticks)
@@ -852,19 +867,20 @@ class ChanlunUnifiedResonancePlotter:
         # 默认关闭主图共振信号图层，避免强遮挡K线走势
 
         # ----------------------------------------------------------------------
-        # 7. 绘制副图成交额 (Amount，基准小级别，默认成交额)
+        # 7. 绘制副图成交额 (Amount，基准小级别，仅在 include_sub 为 True 时绘制)
         # ----------------------------------------------------------------------
-        amts = base_df["amount"].values if "amount" in base_df.columns else (base_df["volume"].values * base_df["close"].values)
-        cl_arr = base_df["close"].values
-        op_arr = base_df["open"].values
-        for i in range(n_bars):
-            amt_val = float(amts[i]) / 1e8 if (pd.notna(amts[i]) and float(amts[i]) > 0) else (float(base_df["volume"].iloc[i] * cl_arr[i]) / 1e8)
-            c_amt = "#f23645" if cl_arr[i] >= op_arr[i] else "#089981"
-            ax_macd.bar(i, amt_val, color=c_amt, width=0.5, alpha=0.85)
+        if self.include_sub and ax_macd is not None:
+            amts = base_df["amount"].values if "amount" in base_df.columns else (base_df["volume"].values * base_df["close"].values)
+            cl_arr = base_df["close"].values
+            op_arr = base_df["open"].values
+            for i in range(n_bars):
+                amt_val = float(amts[i]) / 1e8 if (pd.notna(amts[i]) and float(amts[i]) > 0) else (float(base_df["volume"].iloc[i] * cl_arr[i]) / 1e8)
+                c_amt = "#f23645" if cl_arr[i] >= op_arr[i] else "#089981"
+                ax_macd.bar(i, amt_val, color=c_amt, width=0.5, alpha=0.85)
 
-        ax_macd.set_ylabel("成交额 (亿元)", color="#94a3b8", fontsize=8.5)
-        ax_macd.tick_params(axis="y", labelcolor="#94a3b8", labelsize=8)
-        ax_macd.grid(True, color="#242838", linestyle="--", alpha=0.5)
+            ax_macd.set_ylabel("成交额 (亿元)", color="#94a3b8", fontsize=8.5)
+            ax_macd.tick_params(axis="y", labelcolor="#94a3b8", labelsize=8)
+            ax_macd.grid(True, color="#242838", linestyle="--", alpha=0.5)
 
         # ----------------------------------------------------------------------
         # 8. 图例与美化
@@ -893,17 +909,24 @@ class ChanlunUnifiedResonancePlotter:
             str(base_df["datetime"].iloc[idx])[5:16] if is_intra else str(base_df["datetime"].iloc[idx])[:10]
             for idx in xticks
         ]
-        ax_macd.set_xticks(xticks)
-        ax_macd.set_xticklabels(xlabels, color="#9e9e9e", fontsize=8.5)
-        ax_main.set_xticks([])
+        if self.include_sub and ax_macd is not None:
+            ax_macd.set_xticks(xticks)
+            ax_macd.set_xticklabels(xlabels, color="#9e9e9e", fontsize=8.5)
+            ax_main.set_xticks([])
+            ax_macd.yaxis.tick_right()
+            ax_macd.tick_params(colors="#9e9e9e", labelsize=8.5)
+            ax_macd.grid(True, color="#252936", linestyle=":", linewidth=0.6, alpha=0.7)
+            for spine in ax_macd.spines.values():
+                spine.set_color("#2d313f")
+        else:
+            ax_main.set_xticks(xticks)
+            ax_main.set_xticklabels(xlabels, color="#9e9e9e", fontsize=8.5)
 
         ax_main.yaxis.tick_right()
-        ax_macd.yaxis.tick_right()
-        for ax in (ax_main, ax_macd):
-            ax.tick_params(colors="#9e9e9e", labelsize=8.5)
-            ax.grid(True, color="#252936", linestyle=":", linewidth=0.6, alpha=0.7)
-            for spine in ax.spines.values():
-                spine.set_color("#2d313f")
+        ax_main.tick_params(colors="#9e9e9e", labelsize=8.5)
+        ax_main.grid(True, color="#252936", linestyle=":", linewidth=0.6, alpha=0.7)
+        for spine in ax_main.spines.values():
+            spine.set_color("#2d313f")
 
         # 顶部 Header 状态信息
         last_c = float(base_df["close"].iloc[-1])
@@ -1743,6 +1766,7 @@ def analyze_and_plot_resonance(
     show_window: bool = False,
     output_png_path: str | Path | None = None,
     output_html_path: str | Path | None = None,
+    include_sub: bool = True,
 ) -> dict[str, Any]:
     """多周期立体共振分析与图表生成主函数。
 
@@ -1846,7 +1870,9 @@ def analyze_and_plot_resonance(
         if split_panels:
             plotter = ChanlunSplitResonancePlotter(clean_code, name, p_list, dfs, results, resonances)
         else:
-            plotter = ChanlunUnifiedResonancePlotter(clean_code, name, p_list, dfs, results, resonances)
+            plotter = ChanlunUnifiedResonancePlotter(
+                clean_code, name, p_list, dfs, results, resonances, include_sub=include_sub
+            )
         png_path = plotter.plot(save_path=output_png_path, show=show_window)
 
     # 生成 HTML

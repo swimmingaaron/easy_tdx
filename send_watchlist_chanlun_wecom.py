@@ -269,7 +269,7 @@ def push_watchlist_chanlun(
         final_img_path = out_dir / f"chanlun_{code}_triple.jpg"
 
         try:
-            # 1. 生成超长线区间套：《月线 · 周线 · 日线》
+            # 1. 生成超长线区间套：《月线 · 周线 · 日线》（保留交易额副图）
             ret_super = analyze_and_plot_resonance(
                 code=code,
                 periods="MONTH,WEEK,DAY",
@@ -277,9 +277,10 @@ def push_watchlist_chanlun(
                 save_png=True,
                 output_png_path=str(png_super),
                 show_window=False,
+                include_sub=True,
             )
 
-            # 2. 生成中长线区间套：《周线 · 日线 · 30F》
+            # 2. 生成中长线区间套：《周线 · 日线 · 30F》（仅针对微信去除副图，突出K线笔中枢）
             ret_macro = analyze_and_plot_resonance(
                 code=code,
                 periods="WEEK,DAY,30F",
@@ -287,9 +288,10 @@ def push_watchlist_chanlun(
                 save_png=True,
                 output_png_path=str(png_macro),
                 show_window=False,
+                include_sub=False,
             )
 
-            # 3. 生成微观操盘区间套：《日线 · 30F · 5F》
+            # 3. 生成微观操盘区间套：《日线 · 30F · 5F》（仅针对微信去除副图，突出K线笔中枢）
             ret_micro = analyze_and_plot_resonance(
                 code=code,
                 periods="DAY,30F,5F",
@@ -297,6 +299,7 @@ def push_watchlist_chanlun(
                 save_png=True,
                 output_png_path=str(png_micro),
                 show_window=False,
+                include_sub=False,
             )
 
             if not (png_super.is_file() and png_macro.is_file() and png_micro.is_file()):
