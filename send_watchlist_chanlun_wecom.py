@@ -166,13 +166,51 @@ def format_period_state(res: Any, period_name: str) -> str:
     return f"{bi_text} | {mmd_text}"
 
 
+def combine_two_resonance_charts(
+    path_macro: Path,
+    path_micro: Path,
+    target_path: Path,
+) -> Path:
+    """将《周·日·30F》宏观与《日·30F·5F》微观两张区间套图垂直无缝合并为单张高清长图。
+
+    自动优化图片体积，严格保证在企业微信 2MB 限制内。
+    """
+    from PIL import Image
+
+    img1 = Image.open(path_macro)
+    img2 = Image.open(path_micro)
+
+    w1, h1 = img1.size
+    w2, h2 = img2.size
+    target_w = w1
+    if w2 != target_w:
+        new_h2 = int(h2 * (target_w / w2))
+        img2 = img2.resize((target_w, new_h2), Image.Resampling.LANCZOS)
+        h2 = new_h2
+
+    combined_img = Image.new("RGB", (target_w, h1 + h2), (19, 23, 34))
+    combined_img.paste(img1, (0, 0))
+    combined_img.paste(img2, (0, h1))
+
+    # 以优质 JPEG 格式保存，质量 88
+    combined_img.save(target_path, format="JPEG", quality=88, optimize=True)
+    if target_path.stat().st_size > 1900 * 1024:
+        # 若超过 1.9MB，自适应缩放以确保企业微信可靠发送
+        scale = 0.82
+        nw, nh = int(target_w * scale), int((h1 + h2) * scale)
+        small_img = combined_img.resize((nw, nh), Image.Resampling.BILINEAR)
+        small_img.save(target_path, format="JPEG", quality=82, optimize=True)
+
+    return target_path
+
+
 def push_watchlist_chanlun(
     watchlist_path: Path | None = None,
     webhook_url: str | None = None,
-    periods: str = "DAY,30F,5F",
+    periods: str | None = None,
     limit: int | None = None,
 ) -> None:
-    """核心逻辑：遍历自选股生成缠论走势图并推送至企业微信。"""
+    """核心逻辑：遍历自选股生成包含两个区间套《周·日·30F》与《日·30F·5F》的高清立体走势长图并推送至企业微信。"""
     from chanlun_resonance_kline import analyze_and_plot_resonance
 
     webhook = webhook_url or load_env_webhook()
@@ -199,20 +237,17 @@ def push_watchlist_chanlun(
 
     # 1. 推送一次汇总报头
     header_md = (
-        f"### 📈 自选股缠论多周期立体走势监测\n"
+        f"### 📈 自选股缠论多周期立体走势监测 (双区间套)\n"
         f"> **监测时间**: <font color=\"comment\">{now_str}</font>\n"
-        f"> **区间套周期**: <font color=\"info\">{periods} (日·30F·5F)</font>\n"
+        f"> **宏观区间套**: <font color=\"info\">周线 · 日线 · 30F (大级别波段视角)</font>\n"
+        f"> **微观区间套**: <font color=\"info\">日线 · 30F · 5F (微观买卖点视角)</font>\n"
         f"> **标的数量**: {len(stocks)} 只\n"
-        f"> 正在逐一输出多周期同图走势快照，请查阅下方图表..."
+        f"> 正在逐一输出包含两个区间套的立体同图长卷，请查阅下方图表..."
     )
     send_wecom_markdown(webhook, header_md)
     time.sleep(1.0)
 
     success_count = 0
-    p_items = [p.strip().upper() for p in periods.split(",") if p.strip()]
-    p_high = p_items[0] if len(p_items) > 0 else "DAY"
-    p_mid = p_items[1] if len(p_items) > 1 else "30F"
-    p_low = p_items[2] if len(p_items) > 2 else "5F"
 
     for idx, item in enumerate(stocks, 1):
         code = str(item.get("code", "")).strip().zfill(6)
@@ -220,44 +255,62 @@ def push_watchlist_chanlun(
         if not code or len(code) != 6:
             continue
 
-        logger.info(f"[{idx}/{len(stocks)}] 正在生成 {code} {name} 缠论多周期K线图...")
-        png_target = out_dir / f"chanlun_{code}.png"
+        logger.info(f"[{idx}/{len(stocks)}] 正在生成 {code} {name} 缠论双区间套走势长图...")
+        png_macro = out_dir / f"chanlun_{code}_WEEK_DAY_30F.png"
+        png_micro = out_dir / f"chanlun_{code}_DAY_30F_5F.png"
+        final_img_path = out_dir / f"chanlun_{code}_dual.jpg"
 
         try:
-            ret = analyze_and_plot_resonance(
+            # 1. 生成宏观区间套：《周 · 日 · 30F》
+            ret_macro = analyze_and_plot_resonance(
                 code=code,
-                periods=periods,
+                periods="WEEK,DAY,30F",
                 bars_count=None,
                 save_png=True,
-                output_png_path=str(png_target),
+                output_png_path=str(png_macro),
                 show_window=False,
             )
 
-            png_path = ret.get("png_path")
-            if not png_path or not Path(png_path).is_file():
-                logger.warning(f"未能生成 {code} 的 K 线图片")
+            # 2. 生成微观区间套：《日 · 30F · 5F》
+            ret_micro = analyze_and_plot_resonance(
+                code=code,
+                periods="DAY,30F,5F",
+                bars_count=None,
+                save_png=True,
+                output_png_path=str(png_micro),
+                show_window=False,
+            )
+
+            if not png_macro.is_file() or not png_micro.is_file():
+                logger.warning(f"未能生成 {code} 的双区间套图片")
                 continue
 
-            results = ret.get("results", {})
-            dfs = ret.get("dfs", {})
-            res_high = results.get(p_high)
-            res_mid = results.get(p_mid)
-            res_low = results.get(p_low)
+            # 3. 垂直拼合成一张包含两个区间套的高清长图
+            combine_two_resonance_charts(png_macro, png_micro, final_img_path)
 
-            # 获取最新价格与涨跌状态
+            # 4. 提取双区间套状态信息与买卖点
+            res_macro = ret_macro.get("results", {})
+            res_micro = ret_micro.get("results", {})
+            dfs_micro = ret_micro.get("dfs", {})
+
+            # 获取最新价格
             price_str = "--"
-            base_df = dfs.get(p_low)
+            base_df = dfs_micro.get("5F")
             if base_df is not None and not base_df.empty and "close" in base_df.columns:
                 last_price = float(base_df["close"].iloc[-1])
                 price_str = f"¥{last_price:.2f}"
 
-            # 提取三级别买卖点标识
-            high_state = format_period_state(res_high, p_high)
-            mid_state = format_period_state(res_mid, p_mid)
-            low_state = format_period_state(res_low, p_low)
+            # 状态提取
+            state_week = format_period_state(res_macro.get("WEEK"), "WEEK")
+            state_day_macro = format_period_state(res_macro.get("DAY"), "DAY")
+            state_m30_macro = format_period_state(res_macro.get("30F"), "30F")
 
-            # 区间套立体共振与顶底买卖点研判
-            resonances = ret.get("resonances", [])
+            state_day_micro = format_period_state(res_micro.get("DAY"), "DAY")
+            state_m30_micro = format_period_state(res_micro.get("30F"), "30F")
+            state_m5_micro = format_period_state(res_micro.get("5F"), "5F")
+
+            # 买卖点共振识别 (优先微观买卖点或宏观共振)
+            resonances = ret_micro.get("resonances", []) or ret_macro.get("resonances", [])
             if resonances:
                 latest_r = resonances[-1]
                 dir_label = "买点 ▲" if latest_r.direction == "BUY" else "卖点 ▼"
@@ -267,70 +320,68 @@ def push_watchlist_chanlun(
                     f"{latest_r.pattern_name} ({dir_label}) @ ¥{latest_r.price:.2f}</font>"
                 )
             else:
-                # 检查低级别是否刚出现顶底买卖点
-                low_mmds = getattr(res_low, "mmds", []) if res_low else []
+                low_mmds = getattr(res_micro.get("5F"), "mmds", []) if res_micro.get("5F") else []
                 if low_mmds:
                     last_low = low_mmds[-1]
                     mval = last_low.mmd_type.value
                     if "buy" in mval:
-                        res_summary = (
-                            f"<font color=\"warning\">▲ [微观买点关注] "
-                            f"{p_low}级别刚刚触发 {mval.upper()} 买点</font>"
-                        )
+                        res_summary = f"<font color=\"warning\">▲ [5F买点] 刚刚触发 {mval.upper()} 买点</font>"
                     elif "sell" in mval:
-                        res_summary = (
-                            f"<font color=\"info\">▼ [微观顶部警戒] "
-                            f"{p_low}级别刚刚触发 {mval.upper()} 卖点，防范回调</font>"
-                        )
+                        res_summary = f"<font color=\"info\">▼ [5F卖点] 刚刚触发 {mval.upper()} 卖点，注意减仓</font>"
                     else:
                         res_summary = "多周期中枢震荡整理中"
                 else:
                     res_summary = "多周期中枢震荡整理中"
 
             stock_md = (
-                f"### 📊 【{name} ({code})】缠论立体走势\n"
-                f"> **现价**: <font color=\"comment\">{price_str}</font> | "
-                f"**区间套**: {p_high} -> {p_mid} -> {p_low}\n"
+                f"### 📊 【{name} ({code})】缠论双区间套立体走势\n"
+                f"> **最新现价**: <font color=\"comment\">{price_str}</font>\n"
                 f"> ───────────────\n"
-                f"> 🟣 **{p_high}级别**: {high_state}\n"
-                f"> 🟡 **{p_mid}级别**: {mid_state}\n"
-                f"> 🔵 **{p_low}级别**: {low_state}\n"
+                f"> 🔭 **宏观区间套 [周线·日线·30F]**:\n"
+                f"> • 🟣 **周线**: {state_week}\n"
+                f"> • 🟡 **日线**: {state_day_macro}\n"
+                f"> • 🔵 **30F**: {state_m30_macro}\n"
                 f"> ───────────────\n"
-                f"> 🎯 **顶底买卖研判**: {res_summary}\n"
+                f"> 🔬 **微观区间套 [日线·30F·5F]**:\n"
+                f"> • 🟣 **日线**: {state_day_micro}\n"
+                f"> • 🟡 **30F**: {state_m30_micro}\n"
+                f"> • 🔵 **5F**: {state_m5_micro}\n"
+                f"> ───────────────\n"
+                f"> 🎯 **立体买卖研判**: {res_summary}\n"
                 f"> ⏰ **快照时间**: {datetime.now().strftime('%H:%M:%S')}"
             )
             send_wecom_markdown(webhook, stock_md)
             time.sleep(0.8)
 
-            # 读取图片并发送
-            with open(png_path, "rb") as f:
+            # 读取合并后的长图并发送
+            with open(final_img_path, "rb") as f:
                 img_data = f.read()
             img_ok = send_wecom_image(webhook, img_data)
             if img_ok:
                 success_count += 1
-                logger.info(f"✓ {name} ({code}) 缠论K线快照已成功推送到企业微信")
+                logger.info(f"✓ {name} ({code}) 双区间套长图已成功推送到企业微信")
             else:
                 logger.error(f"✗ {name} ({code}) 图片发送失败")
 
-            # 遵守企业微信 20条/分钟 限流（发送 1 条文本+1 条图片，间隔 2 秒）
+            # 遵守企业微信限流
             time.sleep(2.0)
 
         except Exception as e:
             logger.error(f"处理 {name} ({code}) 失败: {e}")
             time.sleep(1.0)
 
-    logger.info(f"自选股缠论K线推送完成，成功发送 {success_count}/{len(stocks)} 张走势图。")
+    logger.info(f"自选股缠论双区间套推送完成，成功发送 {success_count}/{len(stocks)} 张长图。")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="自选股缠论多周期K线图推送企业微信工具")
+    parser = argparse.ArgumentParser(description="自选股缠论双区间套走势长图推送企业微信工具")
     parser.add_argument("--watchlist", "-w", type=str, default=None, help="watchlist.json 路径")
     parser.add_argument("--webhook", type=str, default=None, help="企业微信 Webhook 地址")
     parser.add_argument(
         "--periods", "-p",
         type=str,
-        default="DAY,30F,5F",
-        help="分析周期组合 (默认: DAY,30F,5F)",
+        default=None,
+        help="自选指定单个区间套（默认自动包含《周·日·30F》和《日·30F·5F》双区间套）",
     )
     parser.add_argument(
         "--limit", "-n",
