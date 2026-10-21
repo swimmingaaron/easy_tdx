@@ -139,3 +139,99 @@ def save_watchlist(symbols: list[Any], allow_empty: bool = False) -> list[str]:
 def reset_watchlist() -> list[str]:
     """Reset watchlist to factory default and persist to disk."""
     return save_watchlist(DEFAULT_WATCHLIST)
+
+
+def parse_watchlist_data(raw_data: Any) -> list[dict[str, str]]:
+    """将任意输入（文件路径、JSON字符串、字典列表、字符串列表）解析为标准的 [{"code": "...", "name": "..."}] 列表。"""
+    from easy_tdx.stock_lookup import get_stock_name
+
+    if isinstance(raw_data, (str, Path)):
+        p = Path(raw_data)
+        if p.is_file():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    raw_data = json.load(f)
+            except Exception as e:
+                logger.warning(f"读取自选股文件 {p} 失败: {e}")
+                return []
+        else:
+            try:
+                raw_data = json.loads(str(raw_data))
+            except Exception:
+                raw_data = [s.strip() for s in str(raw_data).replace("\n", ",").split(",") if s.strip()]
+
+    items: list[dict[str, str]] = []
+    seen = set()
+    if isinstance(raw_data, list):
+        for s in raw_data:
+            if isinstance(s, dict):
+                c = str(s.get("code") or s.get("symbol") or "").strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+                n = str(s.get("name") or "").strip()
+            elif isinstance(s, str):
+                c = s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+                n = ""
+            else:
+                continue
+
+            if c and c not in seen and len(c) == 6 and c.isdigit():
+                seen.add(c)
+                if not n or n.startswith("标的_"):
+                    n = get_stock_name(c) or c
+                items.append({"code": c, "name": n})
+    return items
+
+
+def merge_watchlist_items(base_items: list[Any], incoming_items: list[Any]) -> list[dict[str, str]]:
+    """将两组自选股智能无损合并并去重，保留全部并集，并按代码去重补全名称。"""
+    from easy_tdx.stock_lookup import get_stock_name
+
+    base_list = parse_watchlist_data(base_items)
+    inc_list = parse_watchlist_data(incoming_items)
+
+    merged: list[dict[str, str]] = []
+    seen = set()
+
+    for it in base_list:
+        c = it["code"]
+        n = it["name"]
+        if c not in seen:
+            seen.add(c)
+            if not n or n == c or n.startswith("标的_"):
+                n = get_stock_name(c) or n
+            merged.append({"code": c, "name": n})
+
+    for it in inc_list:
+        c = it["code"]
+        n = it["name"]
+        if c not in seen:
+            seen.add(c)
+            if not n or n == c or n.startswith("标的_"):
+                n = get_stock_name(c) or n
+            merged.append({"code": c, "name": n})
+        else:
+            if n and n != c and not n.startswith("标的_"):
+                for m in merged:
+                    if m["code"] == c and (not m["name"] or m["name"] == c or m["name"].startswith("标的_")):
+                        m["name"] = n
+                        break
+
+    return merged
+
+
+def merge_watchlist_file(target_file: str | Path, source_file_or_data: Any) -> list[dict[str, str]]:
+    """将源数据（文件/列表）合并至目标 watchlist.json 文件中，并写回保存。"""
+    t_path = Path(target_file)
+    existing = []
+    if t_path.is_file():
+        existing = parse_watchlist_data(t_path)
+    incoming = parse_watchlist_data(source_file_or_data)
+    merged = merge_watchlist_items(existing, incoming)
+
+    with _lock:
+        t_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(t_path, "w", encoding="utf-8") as f:
+            json.dump(merged, f, ensure_ascii=False, indent=2)
+        logger.info(f"✓ 已将自选股安全合并至 {t_path.resolve()} (总计 {len(merged)} 只)")
+
+    return merged
+
