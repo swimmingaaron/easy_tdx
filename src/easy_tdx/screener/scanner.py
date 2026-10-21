@@ -1217,7 +1217,8 @@ def scan_market_strategy(
     use_cache: bool = True,
     force_refresh: bool = False,
     progress_callback: Callable[[int, int, int, float], None] | None = None,
-    stop_event: threading.Event | None = None
+    stop_event: threading.Event | None = None,
+    max_workers: int | None = None
 ) -> list[dict[str, Any]]:
     """Scan market universe against strategy using real TDX historical bars with multi-threaded concurrency."""
     if not strategy_name or strategy_name.strip() in ("", "default"):
@@ -1247,16 +1248,19 @@ def scan_market_strategy(
 
     matched: list[dict[str, Any]] = []
 
-    # Dynamic thread pool sizing
-    if total_count <= 40:
-        max_workers = min(8, total_count)
-    elif total_count <= 500:
-        max_workers = 16
+    # Dynamic thread pool sizing (if not explicitly specified)
+    if max_workers is None or max_workers <= 0:
+        if total_count <= 40:
+            pool_workers = min(8, total_count)
+        elif total_count <= 500:
+            pool_workers = 16
+        else:
+            pool_workers = 32
     else:
-        max_workers = 32
+        pool_workers = max(1, min(int(max_workers), 128))
 
     processed = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=pool_workers) as executor:
         futures = {
             executor.submit(_evaluate_stock_for_strategy, sym, strategy_name, st, lookback_bars, period, force_refresh): sym
             for sym in symbols
