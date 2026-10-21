@@ -4,8 +4,8 @@
 
 功能特性：
 1. 交互式菜单：按序号快速选择战略（策略）、周期、选股范围（支持直接回车默认运行）；
-2. 默认模式：缠论三级联共振校验规则 (chanlun_resonance, ALL_CASCADE, 全市场全部股票 all, 32 线程)；
-3. 多线程并发：支持动态指定线程数 (默认 32 线程并发快速扫描)；
+2. 默认模式：缠论三级联共振校验规则 (chanlun_resonance, ALL_CASCADE, 全市场全部股票 all, CPU最大线程数)；
+3. 多线程并发：支持动态指定线程数 (默认程序自适应判断当前系统CPU最大线程数)；
 4. 缓存加速：从通达信行情服务器拉取数据并自动持久化保存在本地 cache 中，二次运行秒级复用；
 5. 结果导出：自动在终端格式化输出命中列表，并生成 CSV 和 JSON 结果报表；
 6. 命令行支持：支持非交互式 CLI 参数快速启动。
@@ -224,12 +224,16 @@ def display_concurrency_menu() -> tuple[int, bool]:
     print(_colored("【第四步：多线程并发与缓存设置】", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
 
-    # 1. 线程数
-    prompt_threads = _colored("请输入并发工作线程数 [8-64] (直接回车默认: 32 线程): ", Colors.BOLD + Colors.GREEN)
+    # 1. 线程数（动态读取当前系统 CPU 逻辑核心/最大线程数）
+    cpu_threads = max(1, os.cpu_count() or 4)
+    prompt_threads = _colored(
+        f"请输入并发工作线程数 [1-64] (直接回车默认当前系统CPU最大线程数: {cpu_threads} 线程): ",
+        Colors.BOLD + Colors.GREEN,
+    )
     threads_input = input(prompt_threads).strip()
-    workers = 32
+    workers = cpu_threads
     if threads_input.isdigit():
-        workers = max(4, min(int(threads_input), 64))
+        workers = max(1, min(int(threads_input), 128))
 
     # 2. 缓存策略
     prompt_refresh = _colored("是否穿透缓存从行情服务器强制重新下载全部数据？[y/N] (直接回车默认 N 优先读取/复用本地有效缓存): ", Colors.BOLD + Colors.YELLOW)
@@ -333,7 +337,8 @@ def main() -> None:
     parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略）")
     parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: ALL_CASCADE 全级别共振 / DAY）")
     parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/代码列表（默认: all）")
-    parser.add_argument("-w", "--workers", type=int, default=0, help="并发线程数（默认: 32）")
+    cpu_threads = max(1, os.cpu_count() or 4)
+    parser.add_argument("-w", "--workers", type=int, default=0, help=f"并发线程数（默认: 当前CPU最大线程数 {cpu_threads}）")
     parser.add_argument("--refresh", action="store_true", help="强制从行情服务器穿透下载全量数据")
     parser.add_argument("--no-interactive", action="store_true", help="禁用交互式菜单，完全依靠命令行参数执行")
 
@@ -369,7 +374,7 @@ def main() -> None:
         if "," in universe_choice:
             custom_symbols = [c.strip().zfill(6) for c in universe_choice.split(",") if c.strip()]
             universe_choice = "custom"
-        max_workers = args.workers if args.workers > 0 else 32
+        max_workers = args.workers if args.workers > 0 else cpu_threads
         force_refresh = args.refresh
 
     # 解析标的股票列表
