@@ -47,18 +47,22 @@ def load_env_webhook() -> str:
     if webhook:
         return webhook
 
-    env_path = PROJECT_ROOT / ".env"
-    if env_path.is_file():
-        try:
-            with open(env_path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("WECHAT_WEBHOOK_URL="):
-                        webhook = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if webhook:
-                            return webhook
-        except Exception as e:
-            logger.debug(f"读取 .env 异常: {e}")
+    # 检查 .env 以及可能的手误命名 .evn
+    candidates = [PROJECT_ROOT / ".env", PROJECT_ROOT / ".evn"]
+    for env_path in candidates:
+        if env_path.is_file():
+            try:
+                with open(env_path, encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("WECHAT_WEBHOOK_URL="):
+                            webhook = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if webhook:
+                                if env_path.name == ".evn":
+                                    logger.warning("检测到环境变量配置文件命名为 .evn (建议重命名为标准 .env)")
+                                return webhook
+            except Exception as e:
+                logger.debug(f"读取 {env_path.name} 异常: {e}")
     return ""
 
 
