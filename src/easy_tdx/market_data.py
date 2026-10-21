@@ -330,41 +330,54 @@ def fetch_security_kline(
     cache_sym = f"SH_{clean_sym}" if (market == Market.SH and clean_sym.startswith("00")) else clean_sym
     cached_df = disk_cache.read_cached(cache_sym, cache_suffix, adj_val.name)
 
+    # 周期特性深度规划：
+    # 月线 (MONTH)：最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
+    # 周线 (WEEK)：最大安全拉取 250 根（覆盖约 5 年）；
+    # 日线 ： 维持 500~800 根；
+    # 30M 5F 1F 分钟线 ： 维持 3000 根
+    effective_req_count = count
+    if category == KlineCategory.MONTH:
+        effective_req_count = min(count, 120)
+        pull_count = 120
+    elif category == KlineCategory.WEEK:
+        effective_req_count = min(count, 250)
+        pull_count = 250
+    elif category == KlineCategory.DAY:
+        effective_req_count = min(max(count, 500), 800) if count <= 800 else count
+        pull_count = max(count, 800)
+    elif category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30):
+        pull_count = max(count, 3000)
+    else:
+        pull_count = max(count, 800)
+
     # 1.1 若已有本地缓存，且数量已满足需求，且非强制刷新
-    if cached_df is not None and not cached_df.empty and len(cached_df) >= count and not force_refresh:
+    if cached_df is not None and not cached_df.empty and len(cached_df) >= effective_req_count and not force_refresh:
         # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
         if disk_cache.is_up_to_date(cached_df, cache_suffix):
-            res = cached_df.iloc[-count:].copy().reset_index(drop=True)
+            res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
             _CACHE[cache_key] = (now, res)
             return res
 
         # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
         try:
-            delta_cnt = min(80, count)
+            delta_cnt = min(80, effective_req_count)
             delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
             if delta_df is not None and not delta_df.empty:
                 merged_df = disk_cache.merge_and_update(cache_sym, cache_suffix, cached_df, delta_df, adj_val.name)
-                res = merged_df.iloc[-count:].copy().reset_index(drop=True)
+                res = merged_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
                 _CACHE[cache_key] = (now, res)
                 return res
         except Exception as e:
             logger.debug(f"增量同步异常，使用磁盘缓存: {e}")
-            res = cached_df.iloc[-count:].copy().reset_index(drop=True)
+            res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
             _CACHE[cache_key] = (now, res)
             return res
 
-    # 2. 磁盘无缓存或数量不足或 force_refresh：根据周期自适应合理深度填补磁盘（避免月线/周线请求800根远古数据引发负价及分包超时）
-    if category == KlineCategory.MONTH:
-        pull_count = max(count, 120)
-    elif category == KlineCategory.WEEK:
-        pull_count = max(count, 250)
-    else:
-        pull_count = max(count, 800)
-
+    # 2. 磁盘无缓存或数量不足或 force_refresh：根据周期自适应配置拉取深度填补磁盘
     raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
     if raw_df is not None and not raw_df.empty:
         disk_cache.write_cached(cache_sym, cache_suffix, raw_df, adj_val.name)
-        res = raw_df.iloc[-count:].copy().reset_index(drop=True)
+        res = raw_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
         _CACHE[cache_key] = (now, res)
         return res
 
@@ -372,7 +385,7 @@ def fetch_security_kline(
     if force_refresh:
         logger.warning(f"Failed to fetch live K-lines for {clean_sym}, returning empty DataFrame.")
         return pd.DataFrame()
-    return _generate_fallback_bars(clean_sym, n_bars=count)
+    return _generate_fallback_bars(clean_sym, n_bars=effective_req_count)
 
 
 def _fetch_raw_tdx_kline(

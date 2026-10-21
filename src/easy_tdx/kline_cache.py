@@ -13,10 +13,10 @@ import datetime
 import logging
 import pathlib
 import threading
-import time
-from typing import Any
-import pandas as pd
 import zoneinfo
+from typing import Any
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,32 @@ def is_trade_session() -> bool:
     morning = datetime.time(9, 15) <= t <= datetime.time(11, 35)
     afternoon = datetime.time(12, 55) <= t <= datetime.time(15, 5)
     return morning or afternoon
+
+
+def get_expected_last_trading_day(now: datetime.datetime | None = None) -> datetime.date:
+    """获取当前时刻理论上应该已经完全收盘的最近交易日日期（扣除周末，支持自定义 now）。"""
+    if now is None:
+        now = datetime.datetime.now(_SH_TZ)
+    d = now.date()
+    t = now.time()
+
+    # 周一到周五
+    if now.weekday() < 5:
+        if t >= datetime.time(15, 5):
+            # 今天 15:05 之后，今天已正式收盘
+            return d
+        else:
+            # 今天尚未收盘（盘前或盘中），上一个已收盘交易日是昨天
+            d -= datetime.timedelta(days=1)
+    elif now.weekday() == 5:  # 周六
+        d -= datetime.timedelta(days=1)
+    elif now.weekday() == 6:  # 周日
+        d -= datetime.timedelta(days=2)
+
+    # 往前跳过周末
+    while d.weekday() in (5, 6):
+        d -= datetime.timedelta(days=1)
+    return d
 
 
 class KlineDiskCache:
@@ -131,28 +157,75 @@ class KlineDiskCache:
         if dt_col not in df.columns:
             return False
         latest_str = str(df[dt_col].iloc[-1]).strip()
+        latest_date_str = latest_str.split()[0].split("T")[0]
 
-        # 1. 周末判断：最后一条日期应为周五或更近
-        if now.weekday() in (5, 6):
-            return True
+        expected_closed_date = get_expected_last_trading_day(now)
+        expected_closed_str = expected_closed_date.strftime("%Y-%m-%d")
 
-        # 2. 工作日收盘后 (15:10 之后)
+        p_upper = str(period).strip().upper()
+
+        # 1. 周线 (WEEK)
+        if "WEEK" in p_upper or p_upper == "W":
+            try:
+                latest_d = datetime.date.fromisoformat(latest_date_str)
+                latest_year, latest_week, _ = latest_d.isocalendar()
+                exp_year, exp_week, _ = expected_closed_date.isocalendar()
+                if (latest_year, latest_week) < (exp_year, exp_week):
+                    return False
+                # 若正处于交易时段且当周尚未最终收盘，周线仍在跳动，非最终状态
+                return not is_trade_session()
+            except Exception:
+                return False
+
+        # 2. 月线 (MONTH)
+        if "MONTH" in p_upper or p_upper == "M":
+            try:
+                cur_ym = (latest_d.year, latest_d.month)
+                exp_ym = (expected_closed_date.year, expected_closed_date.month)
+                if cur_ym < exp_ym:
+                    return False
+                return not is_trade_session()
+            except Exception:
+                return False
+
+        # 3. 日线及分钟线核心核验：
+        # 如果缓存中最新一条日期落后于理论已收盘交易日，直接判定未更新！
+        if latest_date_str < expected_closed_str:
+            return False
+
+        # 4. 如果当前在交易时段（盘中），行情在实时跳动，磁盘历史缓存不能代替实时盘中数据
+        if is_trade_session():
+            return False
+
+        # 5. 非交易时段（盘后、中午休市、盘前或周末）：
         t = now.time()
         today_str = now.strftime("%Y-%m-%d")
-        if t >= datetime.time(15, 10):
-            if latest_str.startswith(today_str):
-                return True
+        is_today = (latest_date_str == today_str)
 
-        # 3. 工作日开盘前 (09:15 之前)
-        if t < datetime.time(9, 15):
+        is_min_bar = any(m in p_upper for m in ["1F", "5F", "15F", "30F", "60F", "120F", "MIN"])
+
+        # 5.1 工作日收盘后 (15:05 之后)
+        if now.weekday() < 5 and t >= datetime.time(15, 5):
+            if not is_today:
+                return False
+            if is_min_bar:
+                # 分钟线收盘时必须覆盖到 15:00 附近
+                return ("15:00" in latest_str) or ("14:55" in latest_str)
             return True
 
-        # 4. 工作日中午休市 (11:35 - 12:55)
-        if datetime.time(11, 35) <= t <= datetime.time(12, 55):
-            if latest_str.startswith(today_str) and ("11:30" in latest_str or "11:25" in latest_str):
-                return True
+        # 5.2 工作日中午休市 (11:35 - 12:55)
+        if now.weekday() < 5 and datetime.time(11, 35) <= t <= datetime.time(12, 55):
+            if not is_today:
+                return False
+            if is_min_bar:
+                return ("11:30" in latest_str) or ("11:25" in latest_str)
+            return True
 
-        return False
+        # 5.3 周末或盘前
+        # 只要最新日期已经达到预期收盘交易日且分钟线已经收在 15:00
+        if is_min_bar:
+            return ("15:00" in latest_str) or ("14:55" in latest_str)
+        return True
 
 
 _GLOBAL_DISK_CACHE: KlineDiskCache | None = None

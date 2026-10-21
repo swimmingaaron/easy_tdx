@@ -874,25 +874,27 @@ def analyze_multi_period_resonance(
                 )
                 return _RESONANCE_BACKTRACK_ANALYSIS_CACHE[backtrack_cache_key]
 
-    # 请求 K 线基准根数
-    # 4.1 请求 K 线基准根数（选股模式下更精简快速）
-    multiplier = 2 if is_backtracking else 1
+    # 4.1 请求 K 线基准根数（严格对齐周期特性深度规划）:
+    # 月线 (MONTH): 最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
+    # 周线 (WEEK): 最大安全拉取 250 根（覆盖约 5 年）；
+    # 日线 : 维持 500~800 根；
+    # 30M 5F 1F 分钟线 : 维持 3000 根
     if screener_mode:
         req_counts = {
-            high_p: 80 if high_p == "MONTH" else (120 if high_p == "WEEK" else 200),
-            mid_p: 120 if mid_p == "WEEK" else 200,
-            low_p: 200,
+            high_p: 120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 500),
+            mid_p: 250 if mid_p == "WEEK" else 500,
+            low_p: 500,
         }
     else:
         req_counts = {
-            high_p: max(100, (count // 3) * multiplier),
-            mid_p: max(160, int(count * 0.7) * multiplier),
-            low_p: max(200, count * multiplier),
+            high_p: 120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 800),
+            mid_p: 250 if mid_p == "WEEK" else 800,
+            low_p: 800,
         }
-    # 5F / 1F 级别：回溯时预留 3000 根供时间轴自由拖动，实时与选股时使用 300~600 根
+    # 30M / 5F / 1F 分钟线：统一维持 3000 根
     for p in p_list:
-        if p in ("5F", "5M", "1F", "1M"):
-            req_counts[p] = max(req_counts.get(p, 0), 3000 if is_backtracking else (300 if screener_mode else 800))
+        if p in ("30F", "30M", "15F", "15M", "5F", "5M", "1F", "1M"):
+            req_counts[p] = 3000
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
     effective_force_refresh = False if is_backtracking else force_refresh
@@ -915,14 +917,15 @@ def analyze_multi_period_resonance(
         spec_item = PERIOD_SPECS[p_name]
         needed_cnt = req_counts[p_name]
         if p_name == "MONTH":
-            default_floor = 100 if screener_mode else 120
+            target_cnt = 120  # 最大安全拉取 120 根
         elif p_name == "WEEK":
-            default_floor = 140 if screener_mode else 180
-        elif p_name in ("DAY", "120M", "60M", "30M", "30F"):
-            default_floor = 200 if screener_mode else 300
+            target_cnt = 250  # 最大安全拉取 250 根
+        elif p_name in ("DAY", "120M", "60M"):
+            target_cnt = 500 if screener_mode else 800  # 日线维持 500~800 根
+        elif p_name in ("30F", "30M", "15F", "15M", "5F", "5M", "1F", "1M"):
+            target_cnt = 3000  # 30M 5F 1F 分钟线维持 3000 根
         else:
-            default_floor = 3500 if is_backtracking else (300 if screener_mode else 800)
-        target_cnt = max(needed_cnt, default_floor)
+            target_cnt = max(needed_cnt, 800)
 
         # 1. 检查内存缓存
         if not effective_force_refresh:
@@ -937,24 +940,57 @@ def analyze_multi_period_resonance(
         disk_cache = get_global_kline_disk_cache()
         cached_df = disk_cache.read_cached(clean_code, p_name)
         if cached_df is not None and not cached_df.empty and len(cached_df) >= target_cnt and not effective_force_refresh:
-            from easy_tdx.market_overview import is_trading_time
-            if not is_trading_time() or screener_mode:
+            # 严格检查磁盘缓存是否已到达最新理论收盘状态
+            if disk_cache.is_up_to_date(cached_df, p_name):
                 with _RESONANCE_CACHE_LOCK:
                     _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, cached_df)
                 return p_name, cached_df
+
             try:
-                # 交易时间内仅拉取最新 60 根增量，与本地历史快速合并去重，大幅节省带宽与延时
+                # 缓存存在但非最新（如盘中需要实时更新，或盘后首次访问时缓存仍停留在旧交易日）
+                # 估算落后自然日天数，动态分配足够安全的增量条数，彻底防止分钟线断层
+                dt_col = "date" if "date" in cached_df.columns else "datetime"
+                last_dt_str = str(cached_df[dt_col].iloc[-1]).strip() if dt_col in cached_df.columns else ""
+                lag_days = 1
+                try:
+                    last_d = datetime.date.fromisoformat(last_dt_str.split()[0].split("T")[0])
+                    cur_d = datetime.datetime.now(_SH_TZ).date()
+                    lag_days = max(1, (cur_d - last_d).days)
+                except Exception:
+                    pass
+
+                p_upper = p_name.upper()
+                if "1F" in p_upper:
+                    delta_cnt = lag_days * 240 + 60
+                elif "5F" in p_upper:
+                    delta_cnt = lag_days * 48 + 48
+                elif "15F" in p_upper:
+                    delta_cnt = lag_days * 16 + 20
+                elif "30F" in p_upper:
+                    delta_cnt = lag_days * 8 + 16
+                elif "60F" in p_upper:
+                    delta_cnt = lag_days * 4 + 8
+                else:
+                    # 日线、周线、月线
+                    delta_cnt = lag_days + 10
+
+                delta_cnt = max(delta_cnt, 80)
+                delta_cnt = min(delta_cnt, target_cnt)
+
                 delta_df = fetch_security_kline(
                     clean_code,
                     category=spec_item["market_cat"],
-                    count=min(60, target_cnt),
+                    count=delta_cnt,
                     force_refresh=True,
                 )
-                merged = disk_cache.merge_and_update(clean_code, p_name, cached_df, delta_df)
-                with _RESONANCE_CACHE_LOCK:
-                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, merged)
-                return p_name, merged
-            except Exception:
+                if delta_df is not None and not delta_df.empty:
+                    merged = disk_cache.merge_and_update(clean_code, p_name, cached_df, delta_df)
+                    with _RESONANCE_CACHE_LOCK:
+                        _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, merged)
+                    return p_name, merged
+                return p_name, cached_df
+            except Exception as e:
+                logger.debug("增量同步更新异常 %s %s: %s", clean_code, p_name, e)
                 return p_name, cached_df
 
         # 3. 磁盘无缓存或数量不足，或 force_refresh：向 TDX 全量拉取
