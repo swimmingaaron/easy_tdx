@@ -362,34 +362,58 @@ class ChanlunUnifiedResonancePlotter:
             return None
 
         # ----------------------------------------------------------------------
+        # ----------------------------------------------------------------------
         # 智能聚焦：仅保证大周期 (日K) 上展示一根完成的线段 (或最近3笔标准线段)
         # 裁剪掉过往历史无关数据，保证图面清爽、K线清晰可辨，彻底杜绝拥挤
         # ----------------------------------------------------------------------
         cut_idx = 0
-        target_start_dt = None
-        # 1. 尝试从日线已完成线段中定位最近一根完成线段的起点
+        high_seg_info = None
+
+        # 1. 尝试从已完成的线段 res_high.xds 中寻找有效线段（跨度在 120 个交易日以内的最近一根线段）
         if hasattr(res_high, "xds") and res_high.xds:
-            last_xd = res_high.xds[-1]
-            try:
-                xd_dt = pd.to_datetime(last_xd.start.k.date)
-                latest_dt = pd.to_datetime(base_df["datetime"].iloc[-1])
-                # 若线段在 60 个交易日内，采用其起点
-                if 2 <= (latest_dt - xd_dt).days <= 80:
-                    target_start_dt = last_xd.start.k.date
-            except Exception:
-                pass
+            for xd in reversed(res_high.xds):
+                try:
+                    xd_s_dt = pd.to_datetime(xd.start.k.date)
+                    latest_dt = pd.to_datetime(base_df["datetime"].iloc[-1])
+                    if 2 <= (latest_dt - xd_s_dt).days <= 120:
+                        is_start_high = (getattr(xd.direction, "name", str(xd.direction)).upper() in ("DOWN", "DIRECTION.DOWN"))
+                        high_seg_info = {
+                            "start_date": xd.start.k.date,
+                            "start_val": float(xd.start.val),
+                            "end_date": xd.end.k.date,
+                            "end_val": float(xd.end.val),
+                            "is_start_high": is_start_high,
+                            "desc": f"{xd.start.val:.2f}→{xd.end.val:.2f}",
+                            "source": "xd",
+                        }
+                        break
+                except Exception:
+                    pass
 
-        # 2. 若未找到合适线段，按线段至少由 3 笔构成的公理，取日线倒数第 3 笔起点
-        if target_start_dt is None and hasattr(res_high, "bis") and len(res_high.bis) >= 3:
-            target_start_dt = res_high.bis[-3].start.k.date
+        # 2. 若未找到合适 xd（跨度过大或无 xd），按缠论公理（线段由至少连续 3 笔构成）：
+        # 取日线倒数第 3 笔起点到倒数第 1 笔终点，构成标准完成线段
+        if high_seg_info is None and hasattr(res_high, "bis") and len(res_high.bis) >= 3:
+            bi_start = res_high.bis[-3]
+            bi_end = res_high.bis[-1]
+            is_start_high = (bi_start.start.fx_type == FXType.DING)
+            high_seg_info = {
+                "start_date": bi_start.start.k.date,
+                "start_val": float(bi_start.start.val),
+                "end_date": bi_end.end.k.date,
+                "end_val": float(bi_end.end.val),
+                "is_start_high": is_start_high,
+                "desc": f"{bi_start.start.val:.2f}→{bi_end.end.val:.2f}",
+                "source": "bi3",
+            }
 
-        if target_start_dt:
+        if high_seg_info:
+            target_start_dt = high_seg_info["start_date"]
             dt_series = pd.to_datetime(base_df["datetime"])
             matched_idxs = np.where(dt_series >= pd.to_datetime(target_start_dt))[0]
             if len(matched_idxs) > 0:
-                # 左侧预留 12 根小周期安全余量
-                cut_idx = max(0, matched_idxs[0] - 12)
-                if len(base_df) - cut_idx >= 60:
+                # 左侧预留 15 根小周期安全余量，保证线段端点清晰可见且不顶格
+                cut_idx = max(0, matched_idxs[0] - 15)
+                if len(base_df) - cut_idx >= 40:
                     base_df = base_df.iloc[cut_idx:].copy().reset_index(drop=True)
                 else:
                     cut_idx = 0
@@ -447,7 +471,7 @@ class ChanlunUnifiedResonancePlotter:
             ax_main.add_patch(rect)
 
         # ----------------------------------------------------------------------
-        # 2. 绘制大级别 (Level 1, 如日线) 笔与中枢 (花姐标准：紫色，最粗)
+        # 2. 绘制大级别 (Level 1, 如日线) 笔、线段与中枢 (紫色走势)
         # ----------------------------------------------------------------------
         high_name = PERIOD_SPECS[self.p_high]["short_name"]
         c_high = "#c084fc"  # 紫色走势笔
@@ -482,7 +506,64 @@ class ChanlunUnifiedResonancePlotter:
             mid_x = (x_s + x_e) / 2
             ax_main.text(mid_x, zs.zg, f"[{high_name}紫色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
 
-        # 大级别笔
+        # 2.1 大级别完成线段高亮显示 (紫色粗虚线 + 专属气泡标签 + 菱形端点)
+        if high_seg_info:
+            s_idx = self._map_pivot_to_base(
+                high_seg_info["start_date"],
+                high_seg_info["start_val"],
+                high_seg_info["is_start_high"],
+                self.p_high,
+                base_df,
+                base_dts,
+            )
+            e_idx = self._map_pivot_to_base(
+                high_seg_info["end_date"],
+                high_seg_info["end_val"],
+                not high_seg_info["is_start_high"],
+                self.p_high,
+                base_df,
+                base_dts,
+            )
+            s_c = max(0, min(n_bars - 1, s_idx))
+            e_c = max(0, min(n_bars - 1, e_idx))
+            if s_c != e_c:
+                dir_arrow = "↘" if high_seg_info["start_val"] > high_seg_info["end_val"] else "↗"
+                ax_main.plot(
+                    [s_c, e_c],
+                    [high_seg_info["start_val"], high_seg_info["end_val"]],
+                    color="#d946ef",  # 鲜艳洋红色
+                    linewidth=4.5,
+                    linestyle="--",
+                    marker="D",
+                    markersize=8.0,
+                    markerfacecolor="#ffffff",
+                    markeredgecolor="#c026d3",
+                    alpha=0.95,
+                    label=f"大级别 ({high_name}) 紫色线段",
+                    zorder=10,
+                )
+                mid_x = (s_c + e_c) / 2
+                mid_y = (high_seg_info["start_val"] + high_seg_info["end_val"]) / 2
+                ax_main.text(
+                    mid_x,
+                    mid_y,
+                    f"[{high_name}完成线段 {high_seg_info['desc']} {dir_arrow}]",
+                    color="#ffffff",
+                    fontsize=9.0,
+                    fontweight="bold",
+                    ha="center",
+                    va="center",
+                    bbox=dict(
+                        boxstyle="round,pad=0.3",
+                        facecolor="#701a75",
+                        edgecolor="#f472b6",
+                        linewidth=1.2,
+                        alpha=0.92,
+                    ),
+                    zorder=12,
+                )
+
+        # 2.2 大级别笔 (紫色实线粗折线)
         high_bi_pts = []
         prev_h_end = None
         for bi in res_high.bis:
@@ -497,53 +578,35 @@ class ChanlunUnifiedResonancePlotter:
             high_bi_pts.append((s_clamp, bi.start.val, e_clamp, bi.end.val))
             prev_h_end = e_clamp
 
+        # 若日线最新一笔正在延伸，绘制虚线延伸笔
+        if res_high.bis and prev_h_end is not None and prev_h_end < n_bars - 1:
+            last_bi = res_high.bis[-1]
+            last_close = float(base_df["close"].iloc[-1])
+            ax_main.plot(
+                [prev_h_end, n_bars - 1],
+                [last_bi.end.val, last_close],
+                color=c_high,
+                linewidth=2.5,
+                linestyle=":",
+                alpha=0.75,
+                zorder=7,
+            )
+
         for seg_i, (sx, sy, ex, ey) in enumerate(high_bi_pts):
             lbl = f"大级别 ({high_name}) 紫线笔" if seg_i == 0 else ""
             ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_high,
-                linewidth=3.6,
+                linewidth=3.2,
                 linestyle="-",
                 marker="o",
-                markersize=7.5,
+                markersize=6.5,
                 markerfacecolor="#ffffff",
                 markeredgecolor=c_high,
                 alpha=0.95,
                 label=lbl,
-                zorder=7,
+                zorder=8,
             )
-
-        # 大级别完成线段高亮显示 (紫色粗虚线 + 专属标签)
-        if hasattr(res_high, "xds") and res_high.xds:
-            last_xd = res_high.xds[-1]
-            is_start_high = (getattr(last_xd.direction, "name", str(last_xd.direction)).upper() in ("DOWN", "DIRECTION.DOWN"))
-            s_idx = self._map_pivot_to_base(last_xd.start.k.date, last_xd.start.val, is_start_high, self.p_high, base_df, base_dts)
-            e_idx = self._map_pivot_to_base(last_xd.end.k.date, last_xd.end.val, not is_start_high, self.p_high, base_df, base_dts)
-            s_c = max(0, min(n_bars - 1, s_idx))
-            e_c = max(0, min(n_bars - 1, e_idx))
-            if s_c != e_c:
-                ax_main.plot(
-                    [s_c, e_c], [last_xd.start.val, last_xd.end.val],
-                    color="#e879f9",
-                    linewidth=4.5,
-                    linestyle="--",
-                    alpha=0.85,
-                    label=f"大级别 ({high_name}) 完成线段",
-                    zorder=6,
-                )
-                mid_x = (s_c + e_c) / 2
-                mid_y = (last_xd.start.val + last_xd.end.val) / 2
-                ax_main.text(
-                    mid_x, mid_y,
-                    f"[{high_name}完成线段]",
-                    color="#e879f9",
-                    fontsize=8.5,
-                    fontweight="bold",
-                    ha="center",
-                    va="center",
-                    bbox=dict(boxstyle="round,pad=0.2", facecolor="#581c87", edgecolor="#e879f9", alpha=0.8),
-                    zorder=8,
-                )
 
         # ----------------------------------------------------------------------
         # 3. 绘制中级别 (Level 2, 次级别如30F) 笔与中枢 (花姐标准：黄色，中粗)
@@ -763,9 +826,17 @@ class ChanlunUnifiedResonancePlotter:
                     zorder=10,
                 )
 
-        # 5.3 基准小级别买卖点标注 (红绿高对比胶囊)
+        # 5.3 基准小级别买卖点标注 (仅标注近期关键微观买卖点，避免历史微观密集堆叠)
         low_name = PERIOD_SPECS[self.p_low]["short_name"].replace("线", "")
-        for mmd in base_res.mmds:
+        # 筛选距离当前最新 150 根以内的小级别买卖点，或最近 5 个
+        recent_mmds = [
+            m for m in base_res.mmds
+            if m.bi and (m.bi.end.k.k_index - cut_idx) >= max(0, n_bars - 180)
+        ]
+        if not recent_mmds and base_res.mmds:
+            recent_mmds = base_res.mmds[-5:]
+
+        for mmd in recent_mmds:
             if not mmd.bi:
                 continue
             k_idx = mmd.bi.end.k.k_index - cut_idx
@@ -795,7 +866,7 @@ class ChanlunUnifiedResonancePlotter:
                     color="#ffffff",
                     bbox=dict(boxstyle="round,pad=0.22", facecolor=c_tag, edgecolor="#ffffff", linewidth=1.2, alpha=0.95),
                     arrowprops=dict(facecolor=c_tag, edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
-                    zorder=10,
+                    zorder=11,
                 )
 
         # ----------------------------------------------------------------------
@@ -1744,12 +1815,22 @@ def analyze_and_plot_resonance(
             base_period: bars_count,
         }
 
-    # 5F / 1F 级别控制合理数量：默认 800 根 (约 16 个交易日，刚好覆盖日线一根完成线段)
-    # 若用户指定则尊重设定
+    # 分钟级别控制充足数量：5F/1F默认 2500 根 (约 52 个交易日，确保覆盖日线最近一根完成线段)
+    # 随后由绘图引擎智能裁剪对齐到日线线段起点
     for p in p_list:
         if p in ("5F", "5M", "1F", "1M"):
             if bars_count is None:
-                req_counts[p] = 800
+                req_counts[p] = 2500
+            else:
+                req_counts[p] = max(req_counts.get(p, 0), bars_count)
+        elif p in ("15F", "15M"):
+            if bars_count is None:
+                req_counts[p] = 1000
+            else:
+                req_counts[p] = max(req_counts.get(p, 0), bars_count)
+        elif p in ("30F", "30M"):
+            if bars_count is None:
+                req_counts[p] = 400
             else:
                 req_counts[p] = max(req_counts.get(p, 0), bars_count)
 

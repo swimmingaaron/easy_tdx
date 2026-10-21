@@ -221,7 +221,7 @@ def push_watchlist_chanlun(
             ret = analyze_and_plot_resonance(
                 code=code,
                 periods=periods,
-                bars_count=200,
+                bars_count=None,
                 save_png=True,
                 output_png_path=str(png_target),
                 show_window=False,
