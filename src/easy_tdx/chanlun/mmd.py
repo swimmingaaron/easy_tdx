@@ -138,15 +138,13 @@ def _check_buy_point(
                 msg=f"中枢下方动力背驰，一类买点 (low={bi.low:.2f} < zd={zs.zd:.2f})",
             )
 
-    # ── 3. 二类买点：一买之后或中枢下方探底后，回踩不创新低
-    # 要求：1) 高于前一个向下笔低点；2) 发生在中枢下沿或中枢建立/突破初期的第一折回踩
+    # ── 3. 二类买点：一买之后或中枢下方探底后，回踩不创新低（兼容平底/双底）
+    # 要求：1) 高于或平于前一个向下笔低点；2) 发生在中枢下沿或中枢建立/突破初期的第一折回踩
     bi_idx = bi.index
     if bi_idx >= 2:
         prev_down_bi = all_bis[bi_idx - 2] if bi_idx - 2 < len(all_bis) else None
         if prev_down_bi and prev_down_bi.direction == Direction.DOWN:
-            # 严格回踩不创新低
-            if bi.low > prev_down_bi.low:
-                # 且前一个向下笔必须是处于低位或中枢下沿（非中枢内普通延伸）
+            if bi.low >= prev_down_bi.low * 0.998:
                 is_valid_2buy = False
                 if prev_down_bi.low <= zs.zd or bi.low >= zs.zd:
                     is_valid_2buy = True
@@ -155,7 +153,7 @@ def _check_buy_point(
                         mmd_type=MMDType.BUY_2,
                         zs=zs,
                         bi=bi,
-                        msg=f"次级别回踩不创新低，二类买点 (low={bi.low:.2f} > prev_low={prev_down_bi.low:.2f})",
+                        msg=f"次级别回踩不创新低，二类买点 (low={bi.low:.2f} >= prev_low={prev_down_bi.low:.2f})",
                     )
 
     return None
@@ -198,12 +196,12 @@ def _check_sell_point(
                 msg=f"中枢上方动力背驰，一类卖点 (high={bi.high:.2f} > zg={zs.zg:.2f})",
             )
 
-    # ── 3. 二类卖点：一卖之后或中枢冲顶后，反弹不创新高
+    # ── 3. 二类卖点：一卖之后或中枢冲顶后，反弹不创新高（兼容双顶/平顶滞涨受阻）
     bi_idx = bi.index
     if bi_idx >= 2:
         prev_up_bi = all_bis[bi_idx - 2] if bi_idx - 2 < len(all_bis) else None
         if prev_up_bi and prev_up_bi.direction == Direction.UP:
-            if bi.high < prev_up_bi.high:
+            if bi.high <= prev_up_bi.high * 1.002:
                 is_valid_2sell = False
                 if prev_up_bi.high >= zs.zg or bi.high <= zs.zg:
                     is_valid_2sell = True
@@ -212,7 +210,7 @@ def _check_sell_point(
                         mmd_type=MMDType.SELL_2,
                         zs=zs,
                         bi=bi,
-                        msg=f"次级别反弹不创新高，二类卖点 (high={bi.high:.2f} < prev_high={prev_up_bi.high:.2f})",
+                        msg=f"次级别反弹不创新高，二类卖点 (high={bi.high:.2f} <= prev_high={prev_up_bi.high:.2f})",
                     )
 
     return None
@@ -227,29 +225,32 @@ def _check_force_decreasing(
     macd_hist: list[float] | None = None,
     force_cache: dict[int, float] | None = None,
 ) -> bool:
-    """检查同向走势力度是否衰减（结合 MACD hist 柱面积与价格极值突破）。"""
+    """检查同向走势力度是否衰减（结合 MACD hist 柱面积与波峰/波谷背驰对比）。"""
     bi_idx = bi.index
     if bi_idx < 2 or bi_idx >= len(all_bis):
         return False
 
-    # 寻找前一个同向有效笔
-    for j in range(bi_idx - 1, -1, -1):
+    from easy_tdx.chanlun.beichi import _calc_bi_force
+
+    curr_force = _calc_bi_force(
+        bi, closes, config, macd_hist=macd_hist, force_cache=force_cache
+    )
+
+    # 缠论背驰核心定义：离开段不仅可以和紧邻前一笔比，更要回溯比对中枢进入段及同向峰值笔 (a段与c段比较)
+    for j in range(bi_idx - 1, max(-1, bi_idx - 10), -1):
         prev = all_bis[j]
         if prev.direction == direction:
-            from easy_tdx.chanlun.beichi import _calc_bi_force
-
-            curr_force = _calc_bi_force(
-                bi, closes, config, macd_hist=macd_hist, force_cache=force_cache
-            )
             prev_force = _calc_bi_force(
                 prev, closes, config, macd_hist=macd_hist, force_cache=force_cache
             )
 
             if direction == Direction.DOWN:
-                # 价格创新低且力度衰竭
-                return curr_force < prev_force and bi.low < prev.low
+                # 价格创新低且力度衰竭 (底背驰)
+                if bi.low <= prev.low and curr_force < prev_force:
+                    return True
             else:
-                # 价格创新高且力度衰竭
-                return curr_force < prev_force and bi.high > prev.high
+                # 价格创新高且力度衰竭 (顶背驰)
+                if bi.high >= prev.high and curr_force < prev_force:
+                    return True
 
     return False

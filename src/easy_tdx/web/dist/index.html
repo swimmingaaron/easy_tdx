@@ -23823,10 +23823,10 @@
                 let symbolSize = 28;
 
                 if (isBig) {
-                    color = '#9333ea';
-                    symbolSize = 32;
+                    color = m.is_buy ? '#9333ea' : '#059669';
+                    symbolSize = 34;
                 } else if (isMid) {
-                    color = m.is_buy ? (isSteady2Buy ? '#f59e0b' : '#ea580c') : (isDefense2Sell ? '#d97706' : '#059669');
+                    color = m.is_buy ? (isSteady2Buy ? '#f59e0b' : '#ea580c') : (isDefense2Sell ? '#d97706' : '#10b981');
                     symbolSize = 28;
                 } else {
                     if (isNested1Buy) {
@@ -23839,13 +23839,13 @@
                         color = '#e11d48';
                         symbolSize = 27;
                     } else if (isNested1Sell) {
-                        color = '#10b981';
+                        color = '#047857';
                         symbolSize = 32;
                     } else if (isDefense2Sell) {
                         color = '#d97706';
                         symbolSize = 29;
                     } else if (isBreakdown3Sell) {
-                        color = '#059669';
+                        color = '#10b981';
                         symbolSize = 27;
                     }
                 }
@@ -23854,7 +23854,7 @@
 
                 let textColor, textBorderColor;
                 if (isDark) {
-                    textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5');
+                    textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#fef08a' : (m.is_buy ? '#ffffff' : '#a7f3d0');
                     textBorderColor = 'rgba(0, 0, 0, 0.95)';
                 } else {
                     textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#78350f' : (m.is_buy ? '#991b1b' : '#064e3b');
@@ -23867,12 +23867,13 @@
                     value: displayText,
                     symbol: m.is_buy ? 'pin' : 'arrow',
                     symbolRotate: m.is_buy ? 0 : 180,
+                    symbolOffset: m.is_buy ? [0, '-20%'] : [0, '20%'],
                     symbolSize: symbolSize,
                     itemStyle: { 
                         color: color,
-                        borderColor: isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.25)',
-                        borderWidth: 1.2,
-                        shadowBlur: (isNested1Buy || isNested1Sell || isBig) ? 6 : 0,
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.35)',
+                        borderWidth: 1.5,
+                        shadowBlur: (isNested1Buy || isNested1Sell || isBig) ? 8 : 2,
                         shadowColor: color
                     },
                     label: {

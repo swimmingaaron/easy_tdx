@@ -831,6 +831,7 @@ def analyze_multi_period_resonance(
     count: int = 300,
     cutoff_date: str | None = None,
     force_refresh: bool = False,
+    screener_mode: bool = False,
 ) -> dict[str, Any]:
     """执行三周期缠论立体共振分析，支持历史回溯与实时计算。
 
@@ -840,6 +841,7 @@ def analyze_multi_period_resonance(
         count: 基准最小周期 K 线根数（默认 300）
         cutoff_date: 回溯截止日期时间（若提供则只计算 <= 该时间的数据，模拟历史当下）
         force_refresh: 是否强制穿透缓存获取最新实时行情
+        screener_mode: 选股极速模式（跳过图表与技术指标组装，专注于中枢与买卖点判定）
     """
     clean_code = (
         str(code)
@@ -873,17 +875,24 @@ def analyze_multi_period_resonance(
                 return _RESONANCE_BACKTRACK_ANALYSIS_CACHE[backtrack_cache_key]
 
     # 请求 K 线基准根数
-    # 4.1 请求 K 线基准根数
+    # 4.1 请求 K 线基准根数（选股模式下更精简快速）
     multiplier = 2 if is_backtracking else 1
-    req_counts = {
-        high_p: max(100, (count // 3) * multiplier),
-        mid_p: max(160, int(count * 0.7) * multiplier),
-        low_p: max(200, count * multiplier),
-    }
-    # 5F / 1F 级别：回溯时预留 3000 根供时间轴自由拖动，实时与选股时使用 800 根 (单包极速传输)
+    if screener_mode:
+        req_counts = {
+            high_p: 80 if high_p == "MONTH" else (120 if high_p == "WEEK" else 200),
+            mid_p: 120 if mid_p == "WEEK" else 200,
+            low_p: 200,
+        }
+    else:
+        req_counts = {
+            high_p: max(100, (count // 3) * multiplier),
+            mid_p: max(160, int(count * 0.7) * multiplier),
+            low_p: max(200, count * multiplier),
+        }
+    # 5F / 1F 级别：回溯时预留 3000 根供时间轴自由拖动，实时与选股时使用 300~600 根
     for p in p_list:
         if p in ("5F", "5M", "1F", "1M"):
-            req_counts[p] = max(req_counts.get(p, 0), 3000 if is_backtracking else 800)
+            req_counts[p] = max(req_counts.get(p, 0), 3000 if is_backtracking else (300 if screener_mode else 800))
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
     effective_force_refresh = False if is_backtracking else force_refresh
@@ -894,9 +903,6 @@ def analyze_multi_period_resonance(
     needed_fetch_periods: list[str] = [low_p]
 
     for p in (mid_p, high_p):
-        # 仅在非回溯模式或数据足够时启用内存重采样合成（例如 5F 合成 15F/30F/60F/120F）
-        # 1F/1M 作为基准周期时，由于历史长度有限（通常仅覆盖数日），不应作为 30F/60F/120F 等大级别重采样源，
-        # 直接拉取独立大级别原生 K 线可获得数月完整中枢历史
         if low_p in ("1F", "1M") and p in ("30F", "30M", "60F", "60M", "120F", "120M", "DAY"):
             if p not in needed_fetch_periods:
                 needed_fetch_periods.append(p)
@@ -908,7 +914,15 @@ def analyze_multi_period_resonance(
     def _fetch_one_period(p_name: str) -> tuple[str, pd.DataFrame]:
         spec_item = PERIOD_SPECS[p_name]
         needed_cnt = req_counts[p_name]
-        target_cnt = max(needed_cnt, 3500 if (p_name in ("5F", "5M", "1F", "1M") and is_backtracking) else 800)
+        if p_name == "MONTH":
+            default_floor = 100 if screener_mode else 120
+        elif p_name == "WEEK":
+            default_floor = 140 if screener_mode else 180
+        elif p_name in ("DAY", "120M", "60M", "30M", "30F"):
+            default_floor = 200 if screener_mode else 300
+        else:
+            default_floor = 3500 if is_backtracking else (300 if screener_mode else 800)
+        target_cnt = max(needed_cnt, default_floor)
 
         # 1. 检查内存缓存
         if not effective_force_refresh:
@@ -923,12 +937,17 @@ def analyze_multi_period_resonance(
         disk_cache = get_global_kline_disk_cache()
         cached_df = disk_cache.read_cached(clean_code, p_name)
         if cached_df is not None and not cached_df.empty and len(cached_df) >= target_cnt and not effective_force_refresh:
+            from easy_tdx.market_overview import is_trading_time
+            if not is_trading_time() or screener_mode:
+                with _RESONANCE_CACHE_LOCK:
+                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, cached_df)
+                return p_name, cached_df
             try:
-                # 仅拉取最新 120 根增量，与本地历史快速合并去重，大幅节省带宽与延时
+                # 交易时间内仅拉取最新 60 根增量，与本地历史快速合并去重，大幅节省带宽与延时
                 delta_df = fetch_security_kline(
                     clean_code,
                     category=spec_item["market_cat"],
-                    count=min(120, target_cnt),
+                    count=min(60, target_cnt),
                     force_refresh=True,
                 )
                 merged = disk_cache.merge_and_update(clean_code, p_name, cached_df, delta_df)
