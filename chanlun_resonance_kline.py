@@ -627,6 +627,7 @@ class ChanlunUnifiedResonancePlotter:
         offset = max(price_span * 0.04, 0.15)
 
         # 5.1 大级别买卖点同图标注 (紫色胶囊)
+        high_name = PERIOD_SPECS[self.p_high]["short_name"].replace("线", "")
         for mmd in (res_high.mmds or []):
             if not mmd.bi:
                 continue
@@ -635,9 +636,15 @@ class ChanlunUnifiedResonancePlotter:
                 val = mmd.bi.end.val
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
-                tag_name = "大级别走势1买" if mtype == "1buy" else ("大级别2买" if mtype == "2buy" else f"大级别{mtype}")
-                if not is_buy:
-                    tag_name = "大级别1卖" if mtype == "1sell" else ("大级别2卖" if mtype == "2sell" else f"大级别{mtype}")
+                type_map = {
+                    "1buy": f"[{high_name}] 1买(底背)",
+                    "2buy": f"[{high_name}] 2买",
+                    "3buy": f"[{high_name}] 3买",
+                    "1sell": f"[{high_name}] 1卖(顶背)",
+                    "2sell": f"[{high_name}] 2卖",
+                    "3sell": f"[{high_name}] 3卖",
+                }
+                tag_name = type_map.get(mtype, f"[{high_name}] {mtype}")
                 ax_main.annotate(
                     f"▲ {tag_name}" if is_buy else f"▼ {tag_name}",
                     xy=(idx, val),
@@ -653,6 +660,7 @@ class ChanlunUnifiedResonancePlotter:
                 )
 
         # 5.2 次级别买卖点同图标注 (金黄胶囊)
+        mid_name = PERIOD_SPECS[self.p_mid]["short_name"].replace("线", "")
         for mmd in (res_mid.mmds or []):
             if not mmd.bi:
                 continue
@@ -661,9 +669,15 @@ class ChanlunUnifiedResonancePlotter:
                 val = mmd.bi.end.val
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
-                tag_name = "次二买" if mtype == "2buy" else ("次一买" if mtype == "1buy" else f"次{mtype}")
-                if not is_buy:
-                    tag_name = "可能的三卖" if mtype == "3sell" else ("次二卖" if mtype == "2sell" else f"次{mtype}")
+                type_map = {
+                    "1buy": f"[{mid_name}] 1买(底背)",
+                    "2buy": f"[{mid_name}] 2买",
+                    "3buy": f"[{mid_name}] 3买",
+                    "1sell": f"[{mid_name}] 1卖(顶背)",
+                    "2sell": f"[{mid_name}] 2卖",
+                    "3sell": f"[{mid_name}] 3卖",
+                }
+                tag_name = type_map.get(mtype, f"[{mid_name}] {mtype}")
                 ax_main.annotate(
                     f"▲ {tag_name}" if is_buy else f"▼ {tag_name}",
                     xy=(idx, val),
@@ -678,7 +692,8 @@ class ChanlunUnifiedResonancePlotter:
                     zorder=10,
                 )
 
-        # 5.3 基准小级别买卖点标注 (花姐区间套精细命名：底背驰 T1 / 顶背驰 T1 / 2买 / 3买)
+        # 5.3 基准小级别买卖点标注 (红绿高对比胶囊)
+        low_name = PERIOD_SPECS[self.p_low]["short_name"].replace("线", "")
         for mmd in base_res.mmds:
             if not mmd.bi:
                 continue
@@ -687,24 +702,19 @@ class ChanlunUnifiedResonancePlotter:
                 val = mmd.bi.end.val
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
-                if mtype == "1buy":
-                    short_tag = "底背驰 T1"
-                elif mtype == "2buy":
-                    short_tag = "2买"
-                elif mtype == "3buy":
-                    short_tag = "3买"
-                elif mtype == "1sell":
-                    short_tag = "顶背驰 T1"
-                elif mtype == "2sell":
-                    short_tag = "2卖"
-                elif mtype == "3sell":
-                    short_tag = "3卖"
-                else:
-                    short_tag = mtype.upper()
+                type_map = {
+                    "1buy": f"[{low_name}] 1买(底背)",
+                    "2buy": f"[{low_name}] 2买",
+                    "3buy": f"[{low_name}] 3买",
+                    "1sell": f"[{low_name}] 1卖(顶背)",
+                    "2sell": f"[{low_name}] 2卖",
+                    "3sell": f"[{low_name}] 3卖",
+                }
+                short_tag = type_map.get(mtype, f"[{low_name}] {mtype}")
 
                 c_tag = "#f23645" if is_buy else "#089981"
                 ax_main.annotate(
-                    f"▲{short_tag}" if is_buy else f"▼{short_tag}",
+                    f"▲ {short_tag}" if is_buy else f"▼ {short_tag}",
                     xy=(k_idx, val),
                     xytext=(k_idx, val - offset * 1.0 if is_buy else val + offset * 1.0),
                     ha="center",

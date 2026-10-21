@@ -123,10 +123,47 @@ def load_watchlist(watchlist_path: Path) -> list[dict[str, str]]:
     return []
 
 
+def format_period_state(res: Any, period_name: str) -> str:
+    """提取单个级别的笔走势方向与最新顶底买卖点标识。"""
+    if res is None:
+        return "数据暂缺"
+
+    # 1. 笔方向
+    bi_text = "震荡中"
+    if hasattr(res, "bis") and res.bis:
+        last_bi = res.bis[-1]
+        is_up = getattr(last_bi, "is_up", False)
+        bi_text = "向上笔 ↗" if is_up else "向下笔 ↘"
+
+    # 2. 最新买卖点
+    mmd_text = "中枢延伸"
+    if hasattr(res, "mmds") and res.mmds:
+        last_mmd = res.mmds[-1]
+        mtype = getattr(last_mmd, "mmd_type", None)
+        mval = mtype.value if hasattr(mtype, "value") else str(mtype)
+        type_map = {
+            "1buy": "1买(底背驰拐点) ▲",
+            "2buy": "2买(回调确认) ▲",
+            "3buy": "3买(中枢突破) ▲",
+            "1sell": "1卖(极高顶背驰) ▼",
+            "2sell": "2卖(反抽破位) ▼",
+            "3sell": "3卖(破位杀跌) ▼",
+        }
+        raw_label = type_map.get(mval, mval.upper())
+        if "buy" in mval:
+            mmd_text = f"<font color=\"warning\">{raw_label}</font>"
+        elif "sell" in mval:
+            mmd_text = f"<font color=\"info\">{raw_label}</font>"
+        else:
+            mmd_text = raw_label
+
+    return f"{bi_text} | {mmd_text}"
+
+
 def push_watchlist_chanlun(
     watchlist_path: Path | None = None,
     webhook_url: str | None = None,
-    periods: str = "WEEK,DAY,30F",
+    periods: str = "DAY,30F,5F",
     limit: int | None = None,
 ) -> None:
     """核心逻辑：遍历自选股生成缠论走势图并推送至企业微信。"""
@@ -154,11 +191,11 @@ def push_watchlist_chanlun(
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"开始执行自选股缠论K线推送，共 {len(stocks)} 只标的，当前时间: {now_str}")
 
-    # 1. 先推送一次汇总报头
+    # 1. 推送一次汇总报头
     header_md = (
         f"### 📈 自选股缠论多周期立体走势监测\n"
         f"> **监测时间**: <font color=\"comment\">{now_str}</font>\n"
-        f"> **监控周期**: <font color=\"info\">{periods}</font>\n"
+        f"> **区间套周期**: <font color=\"info\">{periods} (日·30F·5F)</font>\n"
         f"> **标的数量**: {len(stocks)} 只\n"
         f"> 正在逐一输出多周期同图走势快照，请查阅下方图表..."
     )
@@ -166,6 +203,11 @@ def push_watchlist_chanlun(
     time.sleep(1.0)
 
     success_count = 0
+    p_items = [p.strip().upper() for p in periods.split(",") if p.strip()]
+    p_high = p_items[0] if len(p_items) > 0 else "DAY"
+    p_mid = p_items[1] if len(p_items) > 1 else "30F"
+    p_low = p_items[2] if len(p_items) > 2 else "5F"
+
     for idx, item in enumerate(stocks, 1):
         code = str(item.get("code", "")).strip().zfill(6)
         name = str(item.get("name", "")).strip() or code
@@ -190,9 +232,26 @@ def push_watchlist_chanlun(
                 logger.warning(f"未能生成 {code} 的 K 线图片")
                 continue
 
-            # 构建标的简报文字
+            results = ret.get("results", {})
+            dfs = ret.get("dfs", {})
+            res_high = results.get(p_high)
+            res_mid = results.get(p_mid)
+            res_low = results.get(p_low)
+
+            # 获取最新价格与涨跌状态
+            price_str = "--"
+            base_df = dfs.get(p_low)
+            if base_df is not None and not base_df.empty and "close" in base_df.columns:
+                last_price = float(base_df["close"].iloc[-1])
+                price_str = f"¥{last_price:.2f}"
+
+            # 提取三级别买卖点标识
+            high_state = format_period_state(res_high, p_high)
+            mid_state = format_period_state(res_mid, p_mid)
+            low_state = format_period_state(res_low, p_low)
+
+            # 区间套立体共振与顶底买卖点研判
             resonances = ret.get("resonances", [])
-            res_summary = "中枢震荡观察中"
             if resonances:
                 latest_r = resonances[-1]
                 dir_label = "买点 ▲" if latest_r.direction == "BUY" else "卖点 ▼"
@@ -201,12 +260,38 @@ def push_watchlist_chanlun(
                     f"<font color=\"{c_tag}\">★ [{latest_r.grade}级共振] "
                     f"{latest_r.pattern_name} ({dir_label}) @ ¥{latest_r.price:.2f}</font>"
                 )
+            else:
+                # 检查低级别是否刚出现顶底买卖点
+                low_mmds = getattr(res_low, "mmds", []) if res_low else []
+                if low_mmds:
+                    last_low = low_mmds[-1]
+                    mval = last_low.mmd_type.value
+                    if "buy" in mval:
+                        res_summary = (
+                            f"<font color=\"warning\">▲ [微观买点关注] "
+                            f"{p_low}级别刚刚触发 {mval.upper()} 买点</font>"
+                        )
+                    elif "sell" in mval:
+                        res_summary = (
+                            f"<font color=\"info\">▼ [微观顶部警戒] "
+                            f"{p_low}级别刚刚触发 {mval.upper()} 卖点，防范回调</font>"
+                        )
+                    else:
+                        res_summary = "多周期中枢震荡整理中"
+                else:
+                    res_summary = "多周期中枢震荡整理中"
 
             stock_md = (
-                f"**【{name} ({code})】缠论多周期走势**\n"
-                f"> **周期**: {periods}\n"
-                f"> **共振形态**: {res_summary}\n"
-                f"> **快照时间**: {datetime.now().strftime('%H:%M:%S')}"
+                f"### 📊 【{name} ({code})】缠论立体走势\n"
+                f"> **现价**: <font color=\"comment\">{price_str}</font> | "
+                f"**区间套**: {p_high} -> {p_mid} -> {p_low}\n"
+                f"> ───────────────\n"
+                f"> 🟣 **{p_high}级别**: {high_state}\n"
+                f"> 🟡 **{p_mid}级别**: {mid_state}\n"
+                f"> 🔵 **{p_low}级别**: {low_state}\n"
+                f"> ───────────────\n"
+                f"> 🎯 **顶底买卖研判**: {res_summary}\n"
+                f"> ⏰ **快照时间**: {datetime.now().strftime('%H:%M:%S')}"
             )
             send_wecom_markdown(webhook, stock_md)
             time.sleep(0.8)
@@ -238,8 +323,8 @@ def main() -> None:
     parser.add_argument(
         "--periods", "-p",
         type=str,
-        default="WEEK,DAY,30F",
-        help="分析周期组合 (默认: WEEK,DAY,30F)",
+        default="DAY,30F,5F",
+        help="分析周期组合 (默认: DAY,30F,5F)",
     )
     parser.add_argument(
         "--limit", "-n",
