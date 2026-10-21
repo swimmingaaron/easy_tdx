@@ -78,7 +78,7 @@ def test_evaluate_chanlun_strategy_month_week_day():
             "symbol": "600519",
             "name": "贵州茅台",
             "summary": {
-                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2},
+                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"},
                 "mid_state": {"is_bearish": False},
                 "low_state": {"is_bearish": False},
             },
@@ -123,7 +123,7 @@ def test_evaluate_chanlun_strategy_week_day_30f():
             "symbol": "000001",
             "name": "平安银行",
             "summary": {
-                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 3},
+                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 3, "bi_direction": "down"},
                 "mid_state": {"is_bearish": False},
                 "low_state": {"is_bearish": False},
             },
@@ -167,7 +167,7 @@ def test_evaluate_chanlun_strategy_day_30f_5f_default():
             "symbol": "600000",
             "name": "浦发银行",
             "summary": {
-                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1},
+                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"},
                 "mid_state": {"is_bearish": False},
                 "low_state": {"is_bearish": False},
             },
@@ -288,7 +288,7 @@ def test_evaluate_chanlun_resonance_strategy_all_satisfied():
         p_tuple = tuple(periods)
         if p_tuple == ("MONTH", "WEEK", "DAY"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1}, "mid_state": {"is_bearish": False}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}, "mid_state": {"is_bearish": False}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-09", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high"},
@@ -298,7 +298,7 @@ def test_evaluate_chanlun_resonance_strategy_all_satisfied():
             }
         elif p_tuple == ("WEEK", "DAY", "30F"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-10-10", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "high"},
@@ -308,7 +308,7 @@ def test_evaluate_chanlun_resonance_strategy_all_satisfied():
             }
         elif p_tuple == ("DAY", "30F", "5F"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-10-20", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high"},
@@ -353,7 +353,7 @@ def test_evaluate_chanlun_resonance_strategy_fails_when_condition_missing():
         p_tuple = tuple(periods)
         if p_tuple == ("MONTH", "WEEK", "DAY"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1}, "mid_state": {"is_bearish": False}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}, "mid_state": {"is_bearish": False}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-09", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high"},
@@ -363,7 +363,7 @@ def test_evaluate_chanlun_resonance_strategy_fails_when_condition_missing():
             }
         elif p_tuple == ("WEEK", "DAY", "30F"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-10-10", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "high"},
@@ -373,7 +373,7 @@ def test_evaluate_chanlun_resonance_strategy_fails_when_condition_missing():
             }
         elif p_tuple == ("DAY", "30F", "5F"):
             return {
-                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1}},
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
                 "unified_chart": {
                     "mmd_marks": [
                         {"date": "2026-10-20", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high"},
@@ -432,7 +432,7 @@ def test_evaluate_chanlun_strategy_displays_daily_price_and_change_pct():
          patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance") as mock_resonance:
         mock_resonance.return_value = {
             "summary": {
-                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1},
+                "high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"},
                 "mid_state": {"is_bearish": False},
                 "low_state": {"is_bearish": False},
             },
@@ -458,5 +458,101 @@ def test_evaluate_chanlun_strategy_displays_daily_price_and_change_pct():
         assert res["change_pct"] == 2.07
         assert res["latest_change_pct"] == 2.07
         assert res["volume"] == 75000
+
+
+def test_chanlun_resonance_rejects_up_bi_strictly():
+    """Verify chanlun_resonance rejects stock if month/week/day high bi is UP instead of DOWN."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # Case: Month bi is 'up' instead of 'down'
+    def mock_month_up_bi(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("MONTH", "WEEK", "DAY"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "up"}, "mid_state": {"is_bearish": False}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-09", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high"},
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "low"},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_month_up_bi):
+        res = _evaluate_stock_for_strategy(
+            sym="002463",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="ALL_CASCADE"
+        )
+        assert res is None, "Must be vetoed when month bi is UP!"
+
+
+def test_chanlun_resonance_002463_strictly_vetoed():
+    """Verify 002463.SZ is vetoed because month bi is UP, week is bearish, and 5M is not 2BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # Exact state of 002463
+    def mock_002463_state(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("MONTH", "WEEK", "DAY"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 17, "bi_direction": "up"}, "mid_state": {"is_bearish": True}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2025-04", "type": "2BUY", "label": "月线2买", "is_buy": True, "level": "high"},
+                        {"date": "2026-10-19", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "low"},
+                    ]
+                }
+            }
+        elif p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": True, "recent_mmd_bars_ago": 7, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-09", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "high"},
+                        {"date": "2026-10-20", "type": "2BUY", "label": "30M 2买", "is_buy": True, "level": "low"},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-19", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high"},
+                        {"date": "2026-10-21", "type": "3BUY", "label": "5M 3买", "is_buy": True, "level": "low"},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_002463_state):
+        res = _evaluate_stock_for_strategy(
+            sym="002463",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="ALL_CASCADE"
+        )
+        assert res is None, "002463.SZ must return None under strict resonance conditions!"
 
 

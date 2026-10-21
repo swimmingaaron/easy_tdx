@@ -506,9 +506,10 @@ def _evaluate_stock_for_strategy(
         if strategy_name == "chanlun_resonance":
             # -------------------------------------------------------------
             # 缠论共振策略：必须全部同时满足下列三个条件：
-            # 1. 月周日区间套上最近一次转折是大买，月线保持上升趋势，同时日线出现1买；
-            # 2. 周日30M区间套上最近一次转折是大买，周线保持上升趋势，同时30M出现1买；
-            # 3. 日30M5F区间套上最近一次转折是大买，同时5M出现2买。
+            # 1. 月周日区间套：月线最近一次转折是大买，月线保持上升趋势（非空头，无月线见顶大卖杀跌破位，周线非空头），月线最近一笔是向下笔，同时日线出现 1买；
+            # 2. 周日30M区间套：周线最近一次转折是大买，周线保持上升趋势（排除周线见顶杀跌），周线最近一笔是向下笔，同时 30M 出现 1买；
+            # 3. 日30M5F区间套：日线最近一次转折是大买，日线最近一笔是向下笔，同时 5M 出现 2买。
+            # 任何一个条件不满足均一票否决（如 002463.SZ 返回 None）。
             # -------------------------------------------------------------
             from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
 
@@ -535,15 +536,21 @@ def _evaluate_stock_for_strategy(
 
             # 1.1 月线最近一次转折是大买
             last_m_high = high_mwd[-1]
-            if not last_m_high.get("is_buy", False) or "SELL" in str(last_m_high.get("type", "")).upper():
+            if not last_m_high.get("is_buy", False) or "SELL" in str(last_m_high.get("type", "")).upper() or "卖" in str(last_m_high.get("label", "")):
                 return None
             m_bars_ago = high_state_m.get("recent_mmd_bars_ago")
-            if m_bars_ago is not None and int(m_bars_ago) > 6:
+            if m_bars_ago is not None and int(m_bars_ago) > 8:
                 return None
-            # 1.2 月线保持上升趋势
+            # 1.2 月线保持上升趋势 (月线非空头，排除见顶杀跌，周线非空头)
             if high_state_m.get("is_bearish", False) or mid_state_w.get("is_bearish", False):
                 return None
-            # 1.3 同时日线出现 1买
+            if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                return None
+            # 1.3 月线最近一笔是向下笔
+            m_bi_dir = str(high_state_m.get("bi_direction", "")).lower()
+            if m_bi_dir not in ("down", "向下", "向下笔"):
+                return None
+            # 1.4 同时日线出现 1买
             day_1buys = [
                 m for m in low_mwd
                 if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
@@ -573,15 +580,19 @@ def _evaluate_stock_for_strategy(
 
             # 2.1 周线最近一次转折是大买
             last_w_high = high_wd30[-1]
-            if not last_w_high.get("is_buy", False) or "SELL" in str(last_w_high.get("type", "")).upper():
+            if not last_w_high.get("is_buy", False) or "SELL" in str(last_w_high.get("type", "")).upper() or "卖" in str(last_w_high.get("label", "")):
                 return None
             w_bars_ago = high_state_w.get("recent_mmd_bars_ago")
             if w_bars_ago is not None and int(w_bars_ago) > 8:
                 return None
-            # 2.2 周线保持上升趋势
+            # 2.2 周线保持上升趋势 (排除周线见顶杀跌)
             if high_state_w.get("is_bearish", False):
                 return None
-            # 2.3 同时 30M 出现 1买
+            # 2.3 周线最近一笔是向下笔
+            w_bi_dir = str(high_state_w.get("bi_direction", "")).lower()
+            if w_bi_dir not in ("down", "向下", "向下笔"):
+                return None
+            # 2.4 同时 30M 出现 1买
             f30_1buys = [
                 m for m in low_wd30
                 if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
@@ -609,12 +620,16 @@ def _evaluate_stock_for_strategy(
 
             # 3.1 日线最近一次转折是大买
             last_d_high = high_d30f5[-1]
-            if not last_d_high.get("is_buy", False) or "SELL" in str(last_d_high.get("type", "")).upper():
+            if not last_d_high.get("is_buy", False) or "SELL" in str(last_d_high.get("type", "")).upper() or "卖" in str(last_d_high.get("label", "")):
                 return None
             d_bars_ago = high_state_d.get("recent_mmd_bars_ago")
             if d_bars_ago is not None and int(d_bars_ago) > 15:
                 return None
-            # 3.2 同时 5M 出现 2买
+            # 3.2 日线最近一笔是向下笔
+            d_bi_dir = str(high_state_d.get("bi_direction", "")).lower()
+            if d_bi_dir not in ("down", "向下", "向下笔"):
+                return None
+            # 3.3 同时 5M 出现 2买
             f5_2buys = [
                 m for m in low_d30f5
                 if m.get("is_buy") and ("2BUY" in str(m.get("type", "")).upper() or "2买" in str(m.get("label", "")))
@@ -711,12 +726,15 @@ def _evaluate_stock_for_strategy(
 
             # 2. 根据各级联区间套策略，严格检验大周期趋势维持与小级别买点
             if preset_key == "MONTH_WEEK_DAY":
-                # 月周日区间套上最近一次转折是大买，月线保持上升趋势，同时日线出现1买
+                # 月周日区间套上最近一次转折是大买，月线保持上升趋势，月线最近一笔是向下笔，同时日线出现1买
                 if high_state.get("is_bearish", False):
                     return None
                 if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
                     return None
                 if mid_state.get("is_bearish", False):
+                    return None
+                m_bi_dir = str(high_state.get("bi_direction", "")).lower()
+                if m_bi_dir not in ("down", "向下", "向下笔"):
                     return None
 
                 day_1buys = [
@@ -732,10 +750,13 @@ def _evaluate_stock_for_strategy(
                 chan_tag = "[月周日]大买共振·日线1买"
 
             elif preset_key == "WEEK_DAY_30F":
-                # 周日30M 区间套上最近一次转折是大买，周线保持上升趋势，同时30M出现1买
+                # 周日30M 区间套上最近一次转折是大买，周线保持上升趋势，周线最近一笔是向下笔，同时30M出现1买
                 if high_state.get("is_bearish", False):
                     return None
                 if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                    return None
+                w_bi_dir = str(high_state.get("bi_direction", "")).lower()
+                if w_bi_dir not in ("down", "向下", "向下笔"):
                     return None
 
                 f30_1buys = [
@@ -750,7 +771,11 @@ def _evaluate_stock_for_strategy(
                 chan_tag = "[周日30M]大买共振·30M1买"
 
             elif preset_key == "DAY_30F_5F":
-                # 日30M5F 区间套上最近一次转折是大买，同时5M出现2买
+                # 日30M5F 区间套上最近一次转折是大买，日线最近一笔是向下笔，同时5M出现2买
+                d_bi_dir = str(high_state.get("bi_direction", "")).lower()
+                if d_bi_dir not in ("down", "向下", "向下笔"):
+                    return None
+
                 f5_2buys = [
                     m for m in low_mmds
                     if m.get("is_buy") and ("2BUY" in str(m.get("type", "")).upper() or "2买" in str(m.get("label", "")))
