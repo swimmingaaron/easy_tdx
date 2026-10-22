@@ -69,12 +69,40 @@ def _load_local_etf_data() -> Dict[str, Any] | None:
     return None
 
 
+_REMOTE_URL = "https://etf.maomaoci-a.com/data/data.json"
+
+
+def _fetch_remote_etf_data() -> Dict[str, Any] | None:
+    """Fetch authoritative official historical ETF shares & futures tracking data from remote source."""
+    try:
+        import httpx
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            )
+        }
+        with httpx.Client(timeout=10.0, follow_redirects=True, headers=headers) as client:
+            resp = client.get(f"{_REMOTE_URL}?t={int(time.time())}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict) and "dates" in data and "series" in data:
+                    logger.info("Successfully fetched remote ETF base data, latest date: %s", data.get("dates", [])[-1:])
+                    return data
+    except Exception as e:
+        logger.warning("Remote ETF data source unavailable (%s), falling back to local cached data", e)
+    return None
+
+
 def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
-    """Fetch authoritative ETF quotes and daily K-lines purely from local easy_tdx market data interface."""
+    """Fetch authoritative ETF quotes and daily K-lines via easy_tdx and merge with official share data."""
     try:
         from easy_tdx.market_data import fetch_realtime_pool_quotes, fetch_security_kline, KlineCategory
 
-        local_data = _load_local_etf_data() or {}
+        # 优先尝试从远端获取权威基金公司已披露的历史总份额与期货持仓，若网络受限则优雅降级沿用本地缓存
+        remote_data = _fetch_remote_etf_data()
+        local_data = remote_data if remote_data else (_load_local_etf_data() or {})
 
         symbols = [f"{cfg['code']}.{cfg['exch']}" for cfg in ETF_CONFIGS]
         quotes = fetch_realtime_pool_quotes(symbols)
@@ -109,14 +137,14 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
             closes = [date_to_close.get(d) for d in master_dates]
 
             # Preserve & align shares
-            old_s = local_data.get("series", {}).get(code, {})
-            old_shares = old_s.get("shares", [])
-            old_dates = local_data.get("dates", [])
-            old_date_to_share = {d: s for d, s in zip(old_dates, old_shares)}
+            base_s = local_data.get("series", {}).get(code, {})
+            base_shares = base_s.get("shares", [])
+            base_dates = local_data.get("dates", [])
+            base_date_to_share = {d: s for d, s in zip(base_dates, base_shares) if s is not None}
 
             shares: List[float | None] = []
             for d in master_dates:
-                shares.append(old_date_to_share.get(d))
+                shares.append(base_date_to_share.get(d))
 
             # Update latest share from real-time quote
             q = quote_map.get(code)
