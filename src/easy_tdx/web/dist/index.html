@@ -1756,7 +1756,53 @@
             font-weight: 700;
         }
 
-        /* 移动端 / 手机导航栏自动隐藏与紧凑折叠样式 */
+        /* 导航栏在 PC 端与移动端统一：默认隐藏，折叠至超薄顶栏 */
+        #main-nav-bar {
+            display: none !important;
+            width: 100% !important;
+        }
+
+        /* 展开抽屉面板 (PC 与移动端通用) */
+        #main-nav-bar.mobile-open {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            gap: 8px !important;
+            width: 100% !important;
+            margin-top: 6px !important;
+            padding: 10px 14px !important;
+            background: rgba(15, 23, 42, 0.96) !important;
+            backdrop-filter: blur(20px) !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(56, 189, 248, 0.35) !important;
+            box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.8), 0 0 15px rgba(56, 189, 248, 0.12) !important;
+            animation: mobileNavFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+
+        html.light #main-nav-bar.mobile-open {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border: 1px solid rgba(203, 213, 225, 0.95) !important;
+            box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.12) !important;
+        }
+
+        #main-nav-bar.mobile-open .tab-btn {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 6px 12px !important;
+            font-size: 12px !important;
+            border-radius: 8px !important;
+            white-space: nowrap !important;
+            cursor: pointer !important;
+            transition: all 0.15s ease !important;
+        }
+
+        #main-nav-bar.mobile-open .tab-btn i {
+            margin-right: 4px !important;
+            width: 14px !important;
+            height: 14px !important;
+        }
+
         @media (max-width: 768px) {
             #main-app-header {
                 padding: 6px 12px !important;
@@ -1770,41 +1816,16 @@
                 pointer-events: none !important;
             }
 
-            #main-nav-bar {
-                display: none;
-                width: 100% !important;
-            }
-
             #main-nav-bar.mobile-open {
                 display: grid !important;
                 grid-template-columns: repeat(3, 1fr) !important;
                 gap: 6px !important;
-                width: 100% !important;
-                margin-top: 6px !important;
                 padding: 8px !important;
-                background: rgba(15, 23, 42, 0.96) !important;
-                backdrop-filter: blur(16px) !important;
-                border-radius: 12px !important;
-                border: 1px solid rgba(56, 189, 248, 0.3) !important;
-                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8) !important;
-                animation: mobileNavFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            }
-
-            html.light #main-nav-bar.mobile-open {
-                background: rgba(255, 255, 255, 0.98) !important;
-                border: 1px solid rgba(203, 213, 225, 0.9) !important;
-                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
             }
 
             #main-nav-bar.mobile-open .tab-btn {
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
                 padding: 8px 4px !important;
                 font-size: 11px !important;
-                border-radius: 8px !important;
-                white-space: nowrap !important;
-                text-align: center !important;
             }
 
             #main-nav-bar.mobile-open .tab-btn i {
@@ -1812,6 +1833,7 @@
                 width: 12px !important;
                 height: 12px !important;
             }
+        }
 
             #mobile-floating-nav-btn {
                 position: fixed;
@@ -1860,40 +1882,58 @@
 </head>
 
 <body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
-    <!-- Header -->
+    <!-- Header (PC 端与手机端统一：默认超薄紧凑，导航栏默认隐藏) -->
     <header id="main-app-header"
-        class="sticky top-0 z-40 glass-card border-b border-slate-800/80 px-4 md:px-6 py-2 md:py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+        class="sticky top-0 z-40 glass-card border-b border-slate-800/80 px-4 md:px-6 py-2 flex flex-col justify-between gap-1.5 transition-all duration-200">
         
-        <!-- Mobile Compact Bar (Visible on mobile <= 768px) -->
-        <div class="flex md:hidden items-center justify-between w-full">
-            <button onclick="toggleMobileNav()" id="mobile-nav-toggle-btn"
-                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs text-white border border-slate-700/80 shadow-sm transition cursor-pointer select-none">
-                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                <span id="mobile-active-tab-name" class="font-bold text-cyan-300">大盘全景</span>
-                <i data-lucide="chevron-down" id="mobile-nav-arrow" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200"></i>
-            </button>
+        <!-- Top Compact Bar (PC 端与手机端统一常驻展示) -->
+        <div class="flex items-center justify-between w-full">
+            <!-- 左侧：当前模块指示胶囊与导航开关 -->
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleMobileNav()" id="mobile-nav-toggle-btn"
+                    class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs text-white border border-slate-700/80 shadow-sm transition cursor-pointer select-none"
+                    title="点击展开/收起导航栏">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <span id="mobile-active-tab-name" class="font-bold text-cyan-300">大盘全景</span>
+                    <i data-lucide="chevron-down" id="mobile-nav-arrow" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200"></i>
+                </button>
 
-            <div class="flex items-center space-x-1.5">
-                <button onclick="toggleTheme()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700/60 cursor-pointer" title="切换暗色/亮色">
-                    <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
-                </button>
-                <button onclick="toggleTTS()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700/60 cursor-pointer" title="语音播报开关">
-                    <i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i>
-                </button>
-                <button onclick="openServerModal()" class="flex items-center space-x-1 text-[11px] bg-emerald-950/80 text-emerald-400 border border-emerald-800 px-2 py-1.5 rounded-lg font-mono cursor-pointer" title="服务器状态">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span class="hidden sm:inline">直连</span>
-                </button>
                 <button onclick="toggleMobileNav()" id="mobile-menu-btn"
-                    class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-xs text-cyan-300 border border-cyan-500/40 font-medium transition cursor-pointer select-none">
+                    class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-xs text-cyan-300 border border-cyan-500/40 font-medium transition cursor-pointer select-none"
+                    title="点击展开/收起全部功能导航">
                     <i data-lucide="menu" id="mobile-menu-icon" class="w-3.5 h-3.5"></i>
                     <span id="mobile-menu-text">导航</span>
                 </button>
             </div>
+
+            <!-- 右侧：全局操作与状态指示 -->
+            <div class="flex items-center space-x-2">
+                <button onclick="toggleTheme()" id="theme-toggle-btn"
+                    class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white border border-slate-700/60 cursor-pointer shadow-sm transition"
+                    title="切换暗色/亮色">
+                    <i id="theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
+                    <span id="theme-toggle-text" class="hidden sm:inline font-medium">暗色</span>
+                </button>
+
+                <button onclick="toggleTTS()" id="tts-btn"
+                    class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white border border-slate-700/60 cursor-pointer transition"
+                    title="语音播报开关">
+                    <i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <span id="tts-text" class="hidden sm:inline">语音: 关</span>
+                </button>
+
+                <button onclick="openServerModal()" id="top-server-badge"
+                    class="flex items-center space-x-1.5 text-[11px] bg-emerald-950/80 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/90 px-2.5 py-1.5 rounded-lg font-mono cursor-pointer transition shadow-sm group"
+                    title="点击查看所有服务器、测速与切换">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="top-server-text">easy_tdx 直连正常</span>
+                    <i data-lucide="sliders-horizontal" class="w-3 h-3 text-emerald-400/80 group-hover:text-emerald-300 hidden sm:inline"></i>
+                </button>
+            </div>
         </div>
 
-        <!-- Desktop Navigation Bar & Mobile Dropdown Drawer -->
-        <nav id="main-nav-bar" class="hidden md:flex flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+        <!-- 全局功能导航面板 (PC 与移动端统一：默认隐藏，点击后展开) -->
+        <nav id="main-nav-bar" class="hidden flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
             <button onclick="switchTab('dashboard')" id="tab-dashboard"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i
                     data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
@@ -1934,32 +1974,6 @@
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layers"
                     class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>ETF数据</button>
         </nav>
-
-        <!-- Desktop Action Buttons -->
-        <div id="desktop-header-actions" class="hidden md:flex items-center space-x-2.5">
-            <!-- Theme Toggle Button (TickFlow Stock Panel Style) -->
-            <button onclick="toggleTheme()" id="theme-toggle-btn"
-                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white transition cursor-pointer border border-slate-700/60 shadow-sm"
-                title="切换亮色/暗色模式">
-                <i id="theme-toggle-icon" data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
-                <span id="theme-toggle-text" class="hidden sm:inline font-medium">暗色</span>
-            </button>
-
-            <button onclick="toggleTTS()" id="tts-btn"
-                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700 transition cursor-pointer"
-                title="点击开关语音播报"><i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i><span
-                    id="tts-text">语音: 关</span></button>
-
-            <!-- Clickable Server Status Badge -->
-            <button onclick="openServerModal()" id="top-server-badge"
-                class="flex items-center space-x-2 text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800 hover:bg-emerald-900/90 px-3 py-1.5 rounded-lg font-mono transition shadow-sm cursor-pointer group"
-                title="点击查看所有服务器、测速与切换">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span id="top-server-text">easy_tdx 直连正常</span>
-                <i data-lucide="sliders-horizontal"
-                    class="w-3.5 h-3.5 text-emerald-400/80 group-hover:text-emerald-300"></i>
-            </button>
-        </div>
     </header>
 
     <!-- Mobile Floating Quick-Nav Capsule (Auto-shown when scrolled down on mobile) -->
@@ -4649,8 +4663,8 @@
                             <span id="cl-watchlist-text">加入</span>
                         </button>
 
-                        <button onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        <button id="cl-btn-refresh-all" onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
+                            <i id="cl-btn-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         </button>
 
                         <span class="text-slate-700 mx-0.5 select-none">|</span>
@@ -6765,10 +6779,8 @@
             if (mobileActiveName && TAB_NAME_MAP[tId]) {
                 mobileActiveName.textContent = TAB_NAME_MAP[tId];
             }
-            // 移动设备上选中任意功能后，自动收起隐藏导航栏，避免遮挡图表
-            if (window.innerWidth <= 768) {
-                closeMobileNav();
-            }
+            // 移动端/PC端选中任意功能后，自动收起隐藏导航栏，彻底释放屏幕空间给主工作区
+            closeMobileNav();
 
             lucide.createIcons();
         }
@@ -6817,6 +6829,20 @@
         function closeMobileNav() {
             toggleMobileNav(false);
         }
+
+        // 点击页面非导航栏区域或按下 ESC 键时，自动收起隐藏导航栏 (PC 与移动端统一)
+        document.addEventListener('click', function (e) {
+            const header = document.getElementById('main-app-header');
+            const navBar = document.getElementById('main-nav-bar');
+            if (navBar && navBar.classList.contains('mobile-open') && header && !header.contains(e.target)) {
+                closeMobileNav();
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                closeMobileNav();
+            }
+        });
 
         function revealMobileHeaderAndToggleNav() {
             const header = document.getElementById('main-app-header');
@@ -22888,10 +22914,16 @@
         }
 
         async function refreshChanlunAll(force = true) {
-            await Promise.allSettled([
-                loadChanlunData(force),
-                loadChanlunHotStocks()
-            ]);
+            const icon = document.getElementById('cl-btn-refresh-icon');
+            if (icon) icon.classList.add('animate-spin');
+            try {
+                await Promise.allSettled([
+                    loadChanlunData(force),
+                    loadChanlunHotStocks()
+                ]);
+            } finally {
+                if (icon) icon.classList.remove('animate-spin');
+            }
         }
 
         async function initChanlun() {
@@ -23015,11 +23047,16 @@
             const loadingOverlayW2 = document.getElementById('cl-loading-overlay-w2');
             const loadingOverlayRight = document.getElementById('cl-loading-overlay-right');
             const loadingOverlayW4 = document.getElementById('cl-loading-overlay-w4');
-            // 回溯切片时不显示全屏强遮罩，避免画面闪烁，保持沉浸推演
-            if (loadingOverlay && !_clIsBacktracking) loadingOverlay.style.display = 'flex';
-            if (loadingOverlayW2 && _clWindowMode === 'quad' && !_clIsBacktracking) loadingOverlayW2.style.display = 'flex';
-            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad') && !_clIsBacktracking) loadingOverlayRight.style.display = 'flex';
-            if (loadingOverlayW4 && _clWindowMode === 'quad' && !_clIsBacktracking) loadingOverlayW4.style.display = 'flex';
+            // 优化视觉体验：刷新时不要显示动态遮罩打断看盘，仅在初始冷启动完全无图表数据时才显示加载遮罩
+            const hasLeftData = !!(_clLeftCachedData && _clLeftCachedData.unified_chart);
+            const hasW2Data = !!(_clW2CachedData && _clW2CachedData.unified_chart);
+            const hasRightData = !!(_clRightCachedData && _clRightCachedData.unified_chart);
+            const hasW4Data = !!(_clW4CachedData && _clW4CachedData.unified_chart);
+
+            if (loadingOverlay) loadingOverlay.style.display = (!hasLeftData && !_clIsBacktracking) ? 'flex' : 'none';
+            if (loadingOverlayW2 && _clWindowMode === 'quad') loadingOverlayW2.style.display = (!hasW2Data && !_clIsBacktracking) ? 'flex' : 'none';
+            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) loadingOverlayRight.style.display = (!hasRightData && !_clIsBacktracking) ? 'flex' : 'none';
+            if (loadingOverlayW4 && _clWindowMode === 'quad') loadingOverlayW4.style.display = (!hasW4Data && !_clIsBacktracking) ? 'flex' : 'none';
 
             try {
                 async function fetchResonance(periods) {
