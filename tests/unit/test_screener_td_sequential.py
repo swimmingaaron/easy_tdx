@@ -74,7 +74,8 @@ def test_td_sequential_starts_at_third_bar():
         assert res4 is not None
         assert res4["status_label"] == "高4序列 (1日前启动)"
         assert res4["days_ago"] == 1
-        assert "高4序列" in res4["patterns"]
+        assert "高3序列" in res4["patterns"]
+        assert "高4序列" in res4["latest_patterns"]
         assert "高3序列" in res4["trigger_patterns"]
 
     # Sequence len 9: Selected as '高9序列 (见顶警示)'
@@ -83,7 +84,8 @@ def test_td_sequential_starts_at_third_bar():
         assert res9 is not None
         assert res9["status_label"] == "高9序列 (见顶警示)"
         assert res9["days_ago"] == 6
-        assert "高9序列(见顶)" in res9["patterns"]
+        assert "高3序列" in res9["patterns"]
+        assert "高9序列(见顶)" in res9["latest_patterns"]
         assert "高3序列" in res9["trigger_patterns"]
 
 

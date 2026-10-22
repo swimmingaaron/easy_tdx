@@ -958,7 +958,7 @@ def _evaluate_stock_for_strategy(
                     if last_c < ma10_last and ma5_last < ma10_last:
                         return None
 
-        # 优化：筛选结果的价格、涨跌幅、成交量和成交额统一显示为日线 (DAY)
+        # 优化：筛选结果的价格、涨跌幅、成交量和成交额统一显示为触发日当日的日线行情
         if eval_period == "DAY":
             day_df = sig_df
         else:
@@ -971,7 +971,7 @@ def _evaluate_stock_for_strategy(
         stock_name = get_stock_name(sym)
 
         close_price = round(float(day_last_bar["close"]), 2)
-        trigger_price = round(float(trigger_bar["close"]), 2)
+        raw_trigger_price = round(float(trigger_bar["close"]), 2)
         vol = int(day_last_bar.get("volume", 0))
         amt_wan = round(float(day_last_bar.get("amount", 0.0)) / 10000.0, 1)
 
@@ -982,22 +982,55 @@ def _evaluate_stock_for_strategy(
         else:
             latest_change_pct = 0.0
 
-        if trigger_loc > 0:
-            trigger_prev_close = float(sig_df.iloc[trigger_loc - 1]["close"])
-            signal_change_pct = round((trigger_price - trigger_prev_close) / trigger_prev_close * 100.0, 2) if trigger_prev_close > 0 else 0.0
-        elif "change_pct" in trigger_bar and pd.notna(trigger_bar["change_pct"]):
-            signal_change_pct = round(float(trigger_bar["change_pct"]), 2)
-        else:
-            signal_change_pct = 0.0
-
-        # 自信号触发以来的涨跌幅 (以日线最新现价相对于触发价计算)
-        since_signal_pct = round((close_price - trigger_price) / trigger_price * 100.0, 2) if trigger_price > 0 else 0.0
-
         signal_date = str(trigger_bar.get("datetime", ""))
         if " " in signal_date:
             signal_date = signal_date.split(" ")[0]
         elif len(signal_date) == 8 and signal_date.isdigit():
             signal_date = f"{signal_date[:4]}-{signal_date[4:6]}-{signal_date[6:]}"
+
+        # ── 定位触发日当日的日K线 ──────────────────────────────────────────
+        s_date_str = signal_date[:10] if signal_date else ""
+        day_dt_strs = day_df["datetime"].astype(str)
+        matched_day_indices = day_df.index[day_dt_strs.str.startswith(s_date_str)].tolist() if s_date_str else []
+
+        if matched_day_indices:
+            trigger_day_bar = day_df.loc[matched_day_indices[-1]]
+            trigger_day_pos = day_df.index.get_loc(matched_day_indices[-1])
+        elif days_ago == 0:
+            trigger_day_bar = day_last_bar
+            trigger_day_pos = len(day_df) - 1
+        elif eval_period == "DAY" and 0 <= trigger_loc < len(day_df):
+            trigger_day_bar = day_df.iloc[trigger_loc]
+            trigger_day_pos = trigger_loc
+        elif days_ago > 0 and days_ago < len(day_df):
+            trigger_day_bar = day_df.iloc[-1 - days_ago]
+            trigger_day_pos = len(day_df) - 1 - days_ago
+        else:
+            trigger_day_bar = trigger_bar
+            trigger_day_pos = trigger_loc
+
+        # 触发日当日价格 (日K线收盘价)
+        trigger_day_close = round(float(trigger_day_bar.get("close", raw_trigger_price)), 2)
+
+        # 触发日当日涨跌幅 (相对于触发日前一交易日收盘价)
+        if trigger_day_pos > 0 and len(day_df) > trigger_day_pos:
+            t_prev_close = float(day_df.iloc[trigger_day_pos - 1]["close"])
+            trigger_day_change_pct = round((trigger_day_close - t_prev_close) / t_prev_close * 100.0, 2) if t_prev_close > 0 else 0.0
+        elif "change_pct" in trigger_day_bar and pd.notna(trigger_day_bar["change_pct"]):
+            trigger_day_change_pct = round(float(trigger_day_bar["change_pct"]), 2)
+        elif trigger_loc > 0 and len(sig_df) > trigger_loc:
+            sig_prev_close = float(sig_df.iloc[trigger_loc - 1]["close"])
+            trigger_day_change_pct = round((raw_trigger_price - sig_prev_close) / sig_prev_close * 100.0, 2) if sig_prev_close > 0 else 0.0
+        else:
+            trigger_day_change_pct = 0.0
+
+        # 触发日当日成交量与成交额
+        trigger_day_vol = int(trigger_day_bar.get("volume", 0))
+        trigger_day_amt = float(trigger_day_bar.get("amount", 0.0))
+        trigger_day_amt_wan = round(trigger_day_amt / 10000.0, 1)
+
+        # 自信号触发以来的涨跌幅 (以日线最新现价相对于触发价计算)
+        since_signal_pct = round((close_price - trigger_day_close) / trigger_day_close * 100.0, 2) if trigger_day_close > 0 else 0.0
 
         p_clean = str(period).strip().upper()
         period_unit_map = {
@@ -1167,25 +1200,35 @@ def _evaluate_stock_for_strategy(
             "strategy_id": strategy_name,
             "period": p_clean,
             "period_name": p_name,
-            "price": close_price,
-            "change_pct": latest_change_pct,
-            "signal_change_pct": signal_change_pct,
-            "since_signal_pct": since_signal_pct,
+            # 统一展示为触发日当日的指标
+            "price": trigger_day_close,
+            "close": trigger_day_close,
+            "trigger_price": trigger_day_close,
+            "change_pct": trigger_day_change_pct,
+            "pct": trigger_day_change_pct,
+            "signal_change_pct": trigger_day_change_pct,
+            "volume": trigger_day_vol,
+            "amount_wan": trigger_day_amt_wan,
+            "amount": trigger_day_amt,
+            "patterns": trigger_patterns,
+            "pattern_status": trigger_pattern_status,
+            "status": trigger_pattern_status,
+            "trigger_patterns": trigger_patterns,
+            "trigger_pattern_status": trigger_pattern_status,
+            # 最新收盘与历史变动辅助信息
+            "latest_price": close_price,
             "latest_change_pct": latest_change_pct,
-            "trigger_price": trigger_price,
-            "volume": vol,
-            "amount_wan": amt_wan,
+            "latest_volume": vol,
+            "latest_amount_wan": amt_wan,
+            "latest_patterns": patterns,
+            "latest_pattern_status": pattern_status,
+            "since_signal_pct": since_signal_pct,
             "days_ago": days_ago,
             "trigger_days_ago": days_ago,
             "status_label": status_label,
             "signal_date": signal_date or "最新交易日",
             "trigger_date": signal_date or "最新交易日",
             "latest_date": latest_date or "最新收盘",
-            "patterns": patterns,
-            "pattern_status": pattern_status,
-            "trigger_patterns": trigger_patterns,
-            "trigger_pattern_status": trigger_pattern_status,
-            "status": pattern_status,
             "total_mv_yi": 0.0,
             "market_cap_yi": 0.0,
             "market_cap_str": "--",

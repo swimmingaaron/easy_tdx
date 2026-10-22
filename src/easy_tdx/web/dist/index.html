@@ -3278,10 +3278,10 @@
                                     onclick="sortScreenerTable('cap')" title="点击按总市值排序">总市值<span id="screener-sort-cap"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('price')" title="点击按现价排序">现价<span id="screener-sort-price"
+                                    onclick="sortScreenerTable('price')" title="点击按触发日收盘价排序 (悬停单元格可查看最新收盘与自触发累计涨幅)">现价<span id="screener-sort-price"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('chg')" title="点击按涨幅排序">涨幅%<span id="screener-sort-chg"
+                                    onclick="sortScreenerTable('chg')" title="点击按触发日当日涨幅%排序 (悬停单元格可查看累计涨跌幅)">涨幅%<span id="screener-sort-chg"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('net_1d')" title="点击按主力净流入排序">主力净流入<span id="screener-sort-net_1d"
@@ -3293,7 +3293,7 @@
                                     onclick="sortScreenerTable('t_rate')" title="点击按换手%排序">换手%<span id="screener-sort-t_rate"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('amount')" title="点击按成交额排序">成交额<span id="screener-sort-amount"
+                                    onclick="sortScreenerTable('amount')" title="点击按触发日当日成交额排序">成交额<span id="screener-sort-amount"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('days')" title="点击按连涨天数排序">连涨<span id="screener-sort-days"
@@ -18315,7 +18315,7 @@
                     if (tr.holders_changes && Array.isArray(tr.holders_changes) && tr.holders_changes.length > 0) m.holders_changes = tr.holders_changes;
                     if (tr.pattern_score !== undefined && tr.pattern_score !== null) m.pattern_score = tr.pattern_score;
                     if (tr.mkt_capt && !m.mkt_capt) m.mkt_capt = tr.mkt_capt;
-                    if (tr.price && !m.price) m.price = tr.price;
+                    if (tr.price && !m.price && !m.trigger_price) m.price = tr.price;
                     if (tr.board_code && !m.board_code) m.board_code = tr.board_code;
                     if (tr.industry && tr.industry !== '--' && (!m.industry || m.industry === '--')) {
                         m.industry = tr.industry;
@@ -18358,15 +18358,25 @@
                 const mktCaptVal = Number(m.mkt_capt || (m.total_mv_yi ? m.total_mv_yi * 1e8 : (m.total_mv ? m.total_mv * 1e8 : 0)));
                 const mktCaptStr = mktCaptVal > 0 ? fmtMoneyTs(mktCaptVal) : (m.market_cap_str || '-');
 
-                // 9. 现价
-                const priceVal = Number(m.price ?? m.close ?? 0);
+                // 9. 触发日价格 (若有 since_signal_pct 或 latest_price，支持 tooltip 展示最新现价与累计涨跌)
+                const priceVal = Number(m.price ?? m.trigger_price ?? m.close ?? 0);
                 const priceStr = priceVal > 0 ? priceVal.toFixed(2) : '-';
+                const latestPriceVal = Number(m.latest_price ?? 0);
+                const sincePctVal = Number(m.since_signal_pct ?? 0);
+                let priceTip = `【触发日行情】\n触发日期: ${m.signal_date || '当日'}\n触发收盘价: ¥${priceStr}`;
+                if (latestPriceVal > 0 && m.days_ago > 0) {
+                    priceTip += `\n\n【最新收盘对比】\n最新日期: ${m.latest_date || '最新'}\n最新收盘价: ¥${latestPriceVal.toFixed(2)}\n自触发以来累计: ${sincePctVal >= 0 ? '+' : ''}${sincePctVal.toFixed(2)}%`;
+                }
 
-                // 10. 涨幅%
-                const pctVal = Number(m.pct ?? m.signal_change_pct ?? m.change_pct ?? 0);
+                // 10. 触发日涨幅%
+                const pctVal = Number(m.change_pct ?? m.pct ?? m.signal_change_pct ?? 0);
                 const pctClass = pctVal >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
                 const pctPrefix = pctVal >= 0 ? '+' : '';
                 const pctStr = `${pctPrefix}${pctVal.toFixed(2)}%`;
+                let pctTip = `【触发日涨跌幅】: ${pctStr}`;
+                if (m.days_ago > 0 && m.since_signal_pct !== undefined) {
+                    pctTip += `\n自触发以来累计涨幅: ${sincePctVal >= 0 ? '+' : ''}${sincePctVal.toFixed(2)}%`;
+                }
 
                 // 11. 主力净流入
                 const ddeVal = Number(m.dde_net ?? m.main_net_amount ?? 0);
@@ -18390,9 +18400,13 @@
                 const tRateClass = tRateVal >= 10.0 ? 'text-rose-400 font-bold' : 'text-slate-300';
                 const tRateStr = tRateVal > 0 ? tRateVal.toFixed(2) + '%' : '-';
 
-                // 14. 成交额
+                // 14. 触发日成交额
                 const amtVal = Number(m.amount ? m.amount : (m.amount_wan ? m.amount_wan * 10000 : 0));
                 const amtStr = amtVal > 0 ? fmtMoneyTs(amtVal) : (m.amount_wan ? Number(m.amount_wan).toLocaleString() + '万' : '-');
+                let amtTip = `【触发日成交额】: ${amtStr}`;
+                if (m.latest_amount_wan && m.days_ago > 0) {
+                    amtTip += `\n最新日成交额: ${Number(m.latest_amount_wan).toLocaleString()}万`;
+                }
 
                 // 15. 连涨
                 const daysVal = (m.days !== undefined && m.days !== null) ? Number(m.days) : 0;
@@ -18461,12 +18475,14 @@
                     <a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-200 hover:text-cyan-400 hover:underline cursor-pointer" title="点击在雪球查看【${name}】股东人数及筹码变动详情">${holdersNumText}</a>${holdersChangesHtml}
                 </div>`;
 
-                // 22. 形态特征
+                // 22. 形态特征：全部统一展示触发日当日形态特征
                 let patternHtml = '';
-                if (m.patterns && Array.isArray(m.patterns) && m.patterns.length > 0 && typeof m.patterns[0] === 'object') {
+                const displayPatterns = (m.trigger_patterns && m.trigger_patterns.length > 0) ? m.trigger_patterns : m.patterns;
+                const displayStatus = m.trigger_pattern_status || m.pattern_status || m.status;
+                if (displayPatterns && Array.isArray(displayPatterns) && displayPatterns.length > 0 && typeof displayPatterns[0] === 'object') {
                     patternHtml = renderPatternFeaturesTs(m);
                 } else {
-                    patternHtml = renderPatternBadges(m.patterns, m.status || m.pattern_status, m.trigger_patterns, m.days_ago, m.signal_date, m.latest_date);
+                    patternHtml = renderPatternBadges(displayPatterns, displayStatus, displayPatterns, 0, m.signal_date, m.latest_date);
                 }
 
                 return `
@@ -18479,12 +18495,12 @@
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${buyScoreBadge}</td>
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${sellScoreBadge}</td>
                     <td class="py-2.5 px-2.5 text-right font-mono text-slate-300 whitespace-nowrap">${mktCaptStr}</td>
-                    <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-white">¥${priceStr}</td>
-                    <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${pctClass}">${pctStr}</td>
+                    <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-white cursor-help" title="${priceTip}">¥${priceStr}</td>
+                    <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${pctClass} cursor-help" title="${pctTip}">${pctStr}</td>
                     <td class="py-2.5 px-2.5 text-right font-mono whitespace-nowrap ${ddeClass}">${ddeStr}</td>
                     <td class="py-2.5 px-2.5 text-right whitespace-nowrap">${consecHtml}</td>
                     <td class="py-2.5 px-2 text-right font-mono font-medium ${tRateClass} whitespace-nowrap">${tRateStr}${starSellHtml}</td>
-                    <td class="py-2.5 px-2.5 text-right font-mono text-slate-300 whitespace-nowrap">${amtStr}</td>
+                    <td class="py-2.5 px-2.5 text-right font-mono text-slate-300 whitespace-nowrap cursor-help" title="${amtTip}">${amtStr}</td>
                     <td class="py-2.5 px-2 text-center font-mono whitespace-nowrap ${daysClass}">${daysStr}</td>
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>
                     <td class="py-2.5 px-2 text-right whitespace-nowrap">${ystzHtml}</td>
@@ -18553,7 +18569,7 @@
                                         if (r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0) item.holders_changes = r.holders_changes;
                                         if (r.pattern_score !== undefined && r.pattern_score !== null) item.pattern_score = r.pattern_score;
                                         if (r.mkt_capt && !item.mkt_capt) item.mkt_capt = r.mkt_capt;
-                                        if (r.price && !item.price) item.price = r.price;
+                                        if (r.price && !item.price && !item.trigger_price) item.price = r.price;
                                         if (r.board_code && !item.board_code) item.board_code = r.board_code;
                                         if (r.industry && r.industry !== '--' && (!item.industry || item.industry === '--')) {
                                             item.industry = r.industry;
