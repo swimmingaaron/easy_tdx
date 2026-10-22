@@ -23029,6 +23029,9 @@
             }
 
             _clIsDataLoading = true;
+            const refreshIcon = document.getElementById('cl-btn-refresh-icon');
+            if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
             const loadingOverlay = document.getElementById('cl-loading-overlay');
             const loadingOverlayW2 = document.getElementById('cl-loading-overlay-w2');
             const loadingOverlayRight = document.getElementById('cl-loading-overlay-right');
@@ -23138,6 +23141,11 @@
                 }
             } finally {
                 _clIsDataLoading = false;
+                if (refreshIcon) {
+                    setTimeout(() => {
+                        refreshIcon.classList.remove('animate-spin');
+                    }, 400);
+                }
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
                 if (loadingOverlayW2) loadingOverlayW2.style.display = 'none';
                 if (loadingOverlayRight) loadingOverlayRight.style.display = 'none';
