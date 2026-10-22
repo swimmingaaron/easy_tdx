@@ -1887,11 +1887,11 @@
         class="sticky top-0 z-40 glass-card border-b border-slate-800/80 px-4 md:px-6 py-2 flex flex-col justify-between gap-1.5 transition-all duration-200">
         
         <!-- Top Compact Bar (PC 端与手机端统一常驻展示) -->
-        <div class="flex items-center justify-between w-full">
-            <!-- 左侧：当前模块指示胶囊与导航开关 -->
-            <div class="flex items-center space-x-2">
+        <div class="flex items-center justify-between w-full gap-2">
+            <!-- 左侧：当前模块指示胶囊与导航开关 (极简纯图标，无冗余label) -->
+            <div class="flex items-center space-x-1.5 shrink-0">
                 <button onclick="toggleMobileNav()" id="mobile-nav-toggle-btn"
-                    class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs text-white border border-slate-700/80 shadow-sm transition cursor-pointer select-none"
+                    class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-xs text-white border border-slate-700/80 shadow-sm transition cursor-pointer select-none"
                     title="点击展开/收起导航栏">
                     <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                     <span id="mobile-active-tab-name" class="font-bold text-cyan-300">大盘全景</span>
@@ -1899,11 +1899,34 @@
                 </button>
 
                 <button onclick="toggleMobileNav()" id="mobile-menu-btn"
-                    class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-xs text-cyan-300 border border-cyan-500/40 font-medium transition cursor-pointer select-none"
-                    title="点击展开/收起全部功能导航">
+                    class="flex items-center justify-center p-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 transition cursor-pointer select-none"
+                    title="展开/收起全部功能导航">
                     <i data-lucide="menu" id="mobile-menu-icon" class="w-3.5 h-3.5"></i>
-                    <span id="mobile-menu-text">导航</span>
                 </button>
+            </div>
+
+            <!-- 中间：A股全市场宏观全景与实时行情监控 状态行 (在所有屏幕下优雅呈现) -->
+            <div id="header-market-panorama" class="flex-1 min-w-0 flex items-center space-x-2.5 px-2 py-0.5">
+                <div class="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0 hidden sm:flex">
+                    <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                </div>
+                <div class="flex items-center space-x-2 overflow-hidden">
+                    <h2 class="text-xs sm:text-sm font-bold text-white tracking-wide truncate whitespace-nowrap">A股全市场宏观全景与实时行情监控</h2>
+                    <div class="hidden md:flex items-center space-x-1.5 shrink-0">
+                        <span class="relative flex h-2 w-2">
+                            <span id="dashboard-pulse-dot"
+                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span id="dashboard-static-dot"
+                                class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span id="dashboard-status-badge"
+                            class="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[10.5px] font-bold cursor-pointer"
+                            title="点击可手动刷新大盘数据">5s 自动刷新</span>
+                    </div>
+                    <span class="text-[10.5px] text-slate-400 font-mono truncate hidden lg:inline">
+                        更新：<span id="dashboard-refresh-ts" class="text-cyan-400 font-semibold">正在同步...</span>
+                    </span>
+                </div>
             </div>
 
             <!-- 右侧：全局操作与状态指示 -->
@@ -2631,43 +2654,16 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6">
-            <!-- 顶部大盘全景控制条 (5s 自动刷新状态指示器与时段切换) -->
+            <!-- 顶部大盘全景控制条 (交易时段与手动立即刷新) -->
             <div
-                class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-slate-800 backdrop-blur-md">
-                <div class="flex items-center space-x-3">
-                    <div
-                        class="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                        <i data-lucide="activity" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <h2 class="text-sm font-bold text-white tracking-wide">A股全市场宏观全景与实时行情监控</h2>
-                            <div class="flex items-center space-x-1.5">
-                                <span class="relative flex h-2.5 w-2.5">
-                                    <span id="dashboard-pulse-dot"
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span id="dashboard-static-dot"
-                                        class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                                </span>
-                                <span id="dashboard-status-badge"
-                                    class="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/80 font-mono text-[11px] font-bold">5s
-                                    自动刷新</span>
-                            </div>
-                        </div>
-                        <p class="text-[11px] text-slate-400 font-mono mt-0.5">
-                            数据更新时间：<span id="dashboard-refresh-ts" class="text-cyan-400 font-semibold">正在同步...</span>
-                        </p>
-                    </div>
+                class="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/60 p-2.5 sm:px-3 sm:py-2 rounded-xl border border-slate-800/80 backdrop-blur-md">
+                <div class="flex items-center space-x-2 text-xs text-slate-400 font-mono select-none">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+                    <span class="text-xs">A股交易时段：09:15-11:30 / 13:00-15:05 (时段内每5秒后台无感自动同步)</span>
                 </div>
                 <div class="flex items-center space-x-3 text-xs">
-                    <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-400 text-xs font-mono select-none"
-                        title="系统严格在A股交易时段内（周一至周五 09:15-11:30、13:00-15:05）执行后台5s自动刷新，休市期间自动暂停">
-                        <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
-                        <span class="hidden sm:inline">交易时段：09:15-11:30 / 13:00-15:05</span>
-                        <span class="sm:hidden">09:15-15:05</span>
-                    </div>
                     <button onclick="manualRefreshDashboard()" id="btn-manual-refresh-dashboard"
-                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer text-xs"
                         title="立即手动刷新大盘数据">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
                         <span>立即刷新</span>
@@ -6804,25 +6800,22 @@
         function toggleMobileNav(forceState) {
             const navBar = document.getElementById('main-nav-bar');
             const arrow = document.getElementById('mobile-nav-arrow');
-            const menuBtn = document.getElementById('mobile-menu-btn');
+            const menuIcon = document.getElementById('mobile-menu-icon');
             if (!navBar) return;
 
             const isOpen = typeof forceState === 'boolean' ? forceState : !navBar.classList.contains('mobile-open');
             if (isOpen) {
                 navBar.classList.add('mobile-open');
                 if (arrow) arrow.style.transform = 'rotate(180deg)';
-                if (menuBtn) {
-                    menuBtn.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i><span id="mobile-menu-text">收起</span>';
+                if (menuIcon) {
+                    menuIcon.innerHTML = '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
                 }
             } else {
                 navBar.classList.remove('mobile-open');
                 if (arrow) arrow.style.transform = 'rotate(0deg)';
-                if (menuBtn) {
-                    menuBtn.innerHTML = '<i data-lucide="menu" class="w-3.5 h-3.5"></i><span id="mobile-menu-text">导航</span>';
+                if (menuIcon) {
+                    menuIcon.innerHTML = '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>';
                 }
-            }
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-                window.lucide.createIcons();
             }
         }
 
