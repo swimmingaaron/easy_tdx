@@ -96,8 +96,8 @@ def find_zss(
                 # 若还有后续笔，说明中枢已被打破完成；否则进行中
                 zs.done = (curr_idx < n)
                 zss.append(zs)
-                # 下一个中枢候选从最后两笔开始探索（保持形态连接）
-                i = max(i + 1, curr_idx - 1)
+                # 下一个中枢候选从离开笔（或突破笔）之后开始探索，杜绝将离开段重叠进新中枢
+                i = max(i + 1, curr_idx)
             else:
                 i += 1
         else:
