@@ -918,10 +918,10 @@ def _evaluate_stock_for_strategy(
                     trigger_loc = len(sig_df) - 1
                     days_ago = 0
 
-            # 1. 严格时效性控制：买点必须发生在近期
+            # 1. 严格时效性控制：买点必须发生在近期（回溯22个实际交易日，即保证一个月的自然交易日，排除节假日干扰）
             is_min_period = cl_preset["kline_period"] in ("30M", "60M", "120M", "15M", "5M")
-            default_limit = 30 if is_min_period else 15
-            effective_lookback = min(lookback_bars, default_limit) if lookback_bars > 0 else default_limit
+            default_limit = 44 if is_min_period else 22
+            effective_lookback = lookback_bars if lookback_bars > 0 else default_limit
             if days_ago > effective_lookback:
                 return None
 
@@ -1009,7 +1009,7 @@ def _evaluate_stock_for_strategy(
 
             # 均线四边形加速专项时效与风控控制:
             if strategy_name == "ma_quadrilateral":
-                if days_ago > max(20, lookback_bars):
+                if days_ago > max(22, lookback_bars):
                     return None
                 # 1. 信号触发后若已经触发过离场/止损 (sell_signal)，则不可再作为有效标的推荐
                 if trigger_loc < len(sig_df) - 1:
@@ -1338,7 +1338,7 @@ def scan_market_strategy(
     symbols: list[str] | None = None,
     universe: str = "core",
     period: str = "DAY",
-    lookback_bars: int = 20,
+    lookback_bars: int = 22,
     use_cache: bool = True,
     force_refresh: bool = False,
     progress_callback: Callable[[int, int, int, float], None] | None = None,

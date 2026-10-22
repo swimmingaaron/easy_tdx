@@ -73,7 +73,8 @@ def run_screener(
     universe: str = "core",
     period: str = "DAY_30F_5F",
     force_refresh: bool = False,
-    output_dir: str | Path | None = None
+    output_dir: str | Path | None = None,
+    lookback_bars: int = 22
 ) -> list[dict]:
     """执行缠论全自动选股并输出结构化结果。"""
     t0 = time.time()
@@ -85,6 +86,7 @@ def run_screener(
     print(f"  * 策略名称: 缠论1/2/3类买卖点与笔背驰策略 (chanlun_strategy)")
     print(f"  * 选股周期: {preset['label']} ({preset['desc']})")
     print(f"  * 立体组合: 大周期={preset['high_name']} ({preset['high_p']}) | 跨周期三级套={preset['periods']}")
+    print(f"  * 回溯周期: {lookback_bars}个实际交易日 (保证满1个月交易日，排除节假日干扰)")
     print(f"  * 股票池  : {universe} (共计 {len(symbols)} 只)")
     print(f"  * 刷新模式: {'强制刷新 (忽略缓存)' if force_refresh else '智能缓存加速'}")
     print(f"  * 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -99,7 +101,7 @@ def run_screener(
         strategy_name="chanlun_strategy",
         universe=universe,
         period=period,
-        lookback_bars=20,
+        lookback_bars=lookback_bars,
         use_cache=True,
         force_refresh=force_refresh,
         progress_callback=on_progress
@@ -244,6 +246,12 @@ def main():
         help="强制绕过本地缓存重新拉取行情扫描"
     )
     parser.add_argument(
+        "--lookback-bars", "-l",
+        type=int,
+        default=22,
+        help="选股信号回溯交易日天数 (默认: 22 实际交易日，保证一个月的自然交易日并排除节假日干扰)"
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="输出详细调试日志"
@@ -254,7 +262,8 @@ def main():
     run_screener(
         universe=args.universe,
         period=args.period,
-        force_refresh=args.force_refresh
+        force_refresh=args.force_refresh,
+        lookback_bars=args.lookback_bars
     )
 
 

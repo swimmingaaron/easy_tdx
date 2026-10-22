@@ -33,14 +33,14 @@ class ScreenerScanRequest(BaseModel):
     universe: str = "core"
     period: str = "ALL_CASCADE"
     symbols: list[str] | None = None
-    lookback_bars: int = 20
+    lookback_bars: int = 22
     force_refresh: bool = False
 
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str = "chanlun_resonance"
     universe: str = "core"
     period: str = "ALL_CASCADE"
-    lookback_bars: int = 20
+    lookback_bars: int = 22
     force_refresh: bool = False
 
 class PatternMatchRequest(BaseModel):
@@ -134,7 +134,7 @@ def api_scan_post(req: ScreenerScanRequest):
         "data": matches
     }
 
-def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "DAY_30F_5F", lookback_bars: int = 20, force_refresh: bool = False):
+def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "DAY_30F_5F", lookback_bars: int = 22, force_refresh: bool = False):
     """Background worker for long-running screening tasks (e.g. all 5,200+ A-shares)."""
     with _TASKS_LOCK:
         task = _ASYNC_TASKS.get(task_id)

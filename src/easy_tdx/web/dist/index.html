@@ -5421,9 +5421,9 @@
                     style="-webkit-overflow-scrolling: touch; touch-action: pan-x;">
                     <!-- Range Presets -->
                     <div class="flex bg-slate-900/90 p-0.5 rounded border border-slate-800 shrink-0">
-                        <button onclick="setKpMonths(2)" id="kp-btn-2m"
+                        <button onclick="setKpMonths(1)" id="kp-btn-1m"
                             class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0"
-                            title="近2个月K线">月</button>
+                            title="近1个月K线">月</button>
                         <button onclick="setKpMonths(6)" id="kp-btn-6m"
                             class="h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0"
                             title="近半年K线">半年</button>
@@ -7132,9 +7132,97 @@
         let currentKpHoverIndex = null;
         let currentKpHoverDate = null;
         let currentKpCutoffDate = null;
+        let _kpNeedsResetZoom = true;
+
+        function updateKpMonthsButtonsUI(m) {
+            const activeM = (m <= 1) ? 1 : m;
+            [1, 2, 6, 12].forEach(val => {
+                const btn = document.getElementById(`kp-btn-${val}m`);
+                if (btn) {
+                    const isActive = (val === activeM || (activeM === 1 && val === 2) || (activeM === 2 && val === 1));
+                    btn.className = isActive
+                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0'
+                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+                }
+            });
+        }
+
+        function getKpZoomRangeForMonths(months, bars, period) {
+            if (!bars || bars.length === 0) return { start: 40, end: 100 };
+            const totalBars = bars.length;
+            const m = Number(months) || 6;
+            const p = (period || 'DAY').toUpperCase();
+
+            // Default target bars based on period and months
+            let targetBars = 0;
+            if (p === 'DAY') {
+                if (m <= 1) targetBars = 22;        // 月: 1 month (~22 trading days)
+                else if (m === 2) targetBars = 44;  // 2 months (~44 trading days)
+                else if (m === 6) targetBars = 125; // 半年 (~125 trading days)
+                else if (m >= 12) targetBars = 250; // 年 / 1年 (~250 trading days)
+                else targetBars = Math.round(m * 21);
+            } else if (p === 'WEEK') {
+                if (m <= 1) targetBars = 5;
+                else if (m === 2) targetBars = 9;
+                else if (m === 6) targetBars = 26;
+                else if (m >= 12) targetBars = 52;
+                else targetBars = Math.round(m * 4.3);
+            } else if (p === 'MONTH' || p === 'SEASON' || p === 'YEAR') {
+                targetBars = Math.max(12, m);
+            } else {
+                // Intraday minute bars
+                const days = (m <= 1 ? 22 : (m === 2 ? 44 : (m === 6 ? 125 : 250)));
+                let barsPerDay = 4;
+                if (p === '120M') barsPerDay = 2;
+                else if (p === '60M') barsPerDay = 4;
+                else if (p === '30M') barsPerDay = 8;
+                else if (p === '15M') barsPerDay = 16;
+                else if (p === '5M') barsPerDay = 48;
+                else if (p === '1M') barsPerDay = 240;
+                targetBars = days * barsPerDay;
+            }
+
+            // Calibrate with actual date range backwards if datetime is available
+            if (bars[0] && bars[bars.length - 1] && bars[bars.length - 1].datetime) {
+                try {
+                    const lastBar = bars[bars.length - 1];
+                    const lastDtStr = (lastBar.datetime || '').split(' ')[0];
+                    const ymParts = lastDtStr.split('-');
+                    if (ymParts.length === 3) {
+                        const y = parseInt(ymParts[0], 10);
+                        const mo = parseInt(ymParts[1], 10) - 1;
+                        const d = parseInt(ymParts[2], 10);
+                        const numM = (m <= 1) ? 1 : m;
+                        const targetDt = new Date(y, mo - numM, d);
+                        const targetYMD = targetDt.toISOString().split('T')[0];
+
+                        let matchIdx = -1;
+                        for (let i = bars.length - 1; i >= 0; i--) {
+                            const bDate = (bars[i].datetime || '').split(' ')[0];
+                            if (bDate < targetYMD) {
+                                matchIdx = i + 1;
+                                break;
+                            }
+                        }
+                        if (matchIdx >= 0) {
+                            const dateBars = bars.length - matchIdx;
+                            if (dateBars > 0) {
+                                targetBars = dateBars;
+                            }
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            targetBars = Math.max(5, Math.min(totalBars, targetBars));
+            const pct = (targetBars / totalBars) * 100;
+            const start = Math.max(0, Math.min(99, 100 - pct));
+            return { start: Number(start.toFixed(2)), end: 100 };
+        }
 
         function setKpPeriod(p) {
             currentKpPeriod = p;
+            _kpNeedsResetZoom = true;
             currentKpHoverIndex = null;
             currentKpHoverDate = null;
             if (typeof kpDrawFirstPoint !== 'undefined') kpDrawFirstPoint = null;
@@ -7844,15 +7932,10 @@
             updateTradingStatusUI();
             startDashboardAutoRefresh();
 
-            // Reset range months buttons state
-            [2, 6, 12].forEach(val => {
-                const btn = document.getElementById(`kp-btn-${val}m`);
-                if (btn) {
-                    btn.className = (val === currentKpMonths)
-                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0'
-                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
-                }
-            });
+            // Reset range months buttons state to default 6 months (半年)
+            currentKpMonths = 6;
+            _kpNeedsResetZoom = true;
+            updateKpMonthsButtonsUI(6);
 
             // Reset period buttons state with unified standards
             const periods = ['DAY', 'WEEK', 'MONTH', 'SEASON', 'YEAR', '120M', '60M', '30M', '15M', '5M', '1M'];
@@ -8362,15 +8445,25 @@
 
         function setKpMonths(m) {
             currentKpMonths = m;
-            stopKpReplay();
-            [2, 6, 12].forEach(val => {
-                const btn = document.getElementById(`kp-btn-${val}m`);
-                if (btn) {
-                    btn.className = (val === m)
-                        ? 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-cyan-300 bg-cyan-950 border border-cyan-800 transition cursor-pointer shrink-0'
-                        : 'h-6 px-2 py-0.5 rounded text-[11px] font-sans font-medium text-slate-400 hover:text-slate-200 border border-transparent hover:bg-slate-800/60 transition cursor-pointer shrink-0';
+            if (typeof stopKpReplay === 'function') stopKpReplay();
+            updateKpMonthsButtonsUI(m);
+
+            if (kpEchart) {
+                const bars = (currentKpData && currentKpData.data && currentKpData.data.length > 0)
+                    ? currentKpData.data
+                    : (currentKpFullBars || []);
+                if (bars.length > 0) {
+                    const zRange = getKpZoomRangeForMonths(m, bars, currentKpPeriod);
+                    kpEchart.dispatchAction({
+                        type: 'dataZoom',
+                        start: zRange.start,
+                        end: zRange.end
+                    });
+                    _kpNeedsResetZoom = false;
+                    return;
                 }
-            });
+            }
+            _kpNeedsResetZoom = true;
             loadKlinePreviewData(false, currentKpCutoffDate);
         }
 
@@ -12098,7 +12191,7 @@
 
             // Preserve current zoom state across 5s background refreshes
             let prevDataZoom = null;
-            if (kpEchart) {
+            if (kpEchart && !_kpNeedsResetZoom) {
                 try {
                     const curOpt = kpEchart.getOption();
                     if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
@@ -12109,6 +12202,11 @@
                     }
                 } catch (e) { }
             }
+            _kpNeedsResetZoom = false;
+
+            const initialZoom = getKpZoomRangeForMonths(currentKpMonths, bars, currentKpPeriod);
+            const zoomStart = (prevDataZoom && prevDataZoom.start !== undefined) ? prevDataZoom.start : initialZoom.start;
+            const zoomEnd = (prevDataZoom && prevDataZoom.end !== undefined) ? prevDataZoom.end : initialZoom.end;
 
             // 8. K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
             const patternInfo = getKpLatestPatterns(bars, json);
@@ -12317,14 +12415,14 @@
                     {
                         type: 'inside',
                         xAxisIndex: [0, 1, 2],
-                        start: prevDataZoom ? prevDataZoom.start : 40,
-                        end: prevDataZoom ? prevDataZoom.end : 100
+                        start: zoomStart,
+                        end: zoomEnd
                     },
                     {
                         type: 'slider',
                         xAxisIndex: [0, 1, 2],
-                        start: prevDataZoom ? prevDataZoom.start : 40,
-                        end: prevDataZoom ? prevDataZoom.end : 100,
+                        start: zoomStart,
+                        end: zoomEnd,
                         height: isMobile ? 10 : 14,
                         bottom: 2,
                         borderColor: axisColor,
@@ -18917,6 +19015,7 @@
                         strategy: strategy,
                         universe: universe,
                         period: period,
+                        lookback_bars: 22,
                         force_refresh: forceRefresh
                     })
                 });

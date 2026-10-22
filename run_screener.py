@@ -481,7 +481,7 @@ def main() -> None:
             symbols=symbols_to_scan,
             universe=universe_choice if not custom_symbols else "custom",
             period=period,
-            lookback_bars=20,
+            lookback_bars=22,
             use_cache=not force_refresh,
             force_refresh=force_refresh,
             progress_callback=progress_callback,
