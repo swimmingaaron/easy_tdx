@@ -565,6 +565,7 @@ export interface LevelChartData {
   kdj?: KdjData
   expma?: ExpmaData
   inflow?: InflowData
+  merged_chart?: UnifiedChartData
 }
 
 export interface BacktrackTimeline {
@@ -598,6 +599,7 @@ export interface ChanlunResonanceResponse {
   }
   resonances: ChanlunResonanceSignal[]
   unified_chart: UnifiedChartData
+  merged_chart?: UnifiedChartData
   levels_data: Record<string, LevelChartData>
   backtrack_timeline: BacktrackTimeline
 }

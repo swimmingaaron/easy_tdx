@@ -4702,14 +4702,14 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
                             <select id="cl-select-main-layers" onchange="toggleChanlunLayerFromSelect(this)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="" disabled selected id="cl-opt-summary">图层开关 (7/8)</option>
+                                <option value="" disabled selected id="cl-opt-summary">图层开关 (6/8)</option>
                                 <option value="highBi" id="cl-opt-highBi">大笔(紫) √</option>
                                 <option value="highZs" id="cl-opt-highZs">大中枢 √</option>
                                 <option value="midBi" id="cl-opt-midBi">中笔(黄) √</option>
                                 <option value="midZs" id="cl-opt-midZs">中中枢 √</option>
                                 <option value="lowBi" id="cl-opt-lowBi">小笔(蓝) √</option>
                                 <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
-                                <option value="mmd" id="cl-opt-mmd">买卖点 √</option>
+                                <option value="mmd" id="cl-opt-mmd">买卖点</option>
                                 <option value="res" id="cl-opt-res">★共振信号</option>
                                 <option value="__ALL_ON__">── 全部开启 √ ──</option>
                                 <option value="__ALL_OFF__">── 全部关闭 ──</option>
@@ -4729,6 +4729,14 @@
                                 <option value="expma">EXPMA</option>
                                 <option value="none">关闭副图</option>
                             </select>
+                        </div>
+
+                        <!-- 4. K线合并开关 (严格按缠论包含关系标准合并K线，默认关闭) -->
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
+                            <label class="flex items-center space-x-1 cursor-pointer select-none text-[10px] text-slate-500 font-sans px-1 font-medium" title="开启后，所有K线窗口严格按照缠论包含关系标准显示合并后的K线图">
+                                <input id="cl-toggle-kline-merge" type="checkbox" onchange="toggleChanlunKlineMerge(this.checked)" class="rounded w-3.5 h-3.5 text-purple-600 cursor-pointer">
+                                <span class="text-slate-700 dark:text-slate-200 text-[11px]">K线合并</span>
+                            </label>
                         </div>
                     </div>
 
@@ -23121,15 +23129,18 @@
             midZs: true,
             lowBi: true,
             lowZs: true,
-            mmd: true,
+            mmd: false,
             res: false
         };
         let _clSubIndicator = 'amount'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
+        let _clMergeKlines = false; // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 
         function updateChanlunLayerButtons() {
-            // 同步副图下拉菜单
+            // 同步副图下拉菜单与K线合并开关
             const selectSub = document.getElementById('cl-select-sub-indicator');
             if (selectSub) selectSub.value = _clSubIndicator;
+            const toggleMerge = document.getElementById('cl-toggle-kline-merge');
+            if (toggleMerge) toggleMerge.checked = _clMergeKlines;
 
             // 8个元素名称映射: 带 √ 表示 enable显示，否则 disable不显示
             const layerNames = {
@@ -23215,6 +23226,14 @@
             if (selectSub) selectSub.value = sub;
             renderChanlunChart();
         }
+
+        function toggleChanlunKlineMerge(enabled) {
+            _clMergeKlines = !!enabled;
+            const chk = document.getElementById('cl-toggle-kline-merge');
+            if (chk && chk.checked !== _clMergeKlines) chk.checked = _clMergeKlines;
+            renderChanlunChart();
+        }
+        window.toggleChanlunKlineMerge = toggleChanlunKlineMerge;
 
         // ==================== 缠论标的快速搜索与自动补全 ==================== //
         let clSearchTimer = null;
@@ -23723,7 +23742,9 @@
 
         function buildChanlunEchartOption(d, isDark, prevDataZoom, side) {
             if (!d || !d.unified_chart) return null;
-            const uc = d.unified_chart;
+            const uc = (_clMergeKlines && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
+                ? d.merged_chart
+                : d.unified_chart;
             const dates = uc.dates || [];
             const candles = uc.candles || []; // [open, close, low, high]
             const volumes = uc.volumes || [];
@@ -24917,13 +24938,21 @@
                                     <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${openColor}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: ${highColor}; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: ${lowColor}; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
-                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
+                                    ${_clMergeKlines ? `
+                                        <span style="color: #c084fc; font-weight: 700; grid-column: span 2; padding-bottom: 2px; border-bottom: 1px dashed ${splitColor}; font-size: 10.5px;">⚡ 缠论K线 (无上下影线)</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: ${highColor}; font-weight: 700; text-align: right;">${high.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: ${lowColor}; font-weight: 700; text-align: right;">${low.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
+                                    ` : `
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${openColor}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: ${highColor}; font-weight: 600; text-align: right;">${high.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: ${lowColor}; font-weight: 600; text-align: right;">${low.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
+                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
+                                    `}
                                 </div>
                                 ${mmdHtml}
                                 ${resHtml}
@@ -25129,7 +25158,9 @@
                 window[instanceProp] = instance;
             }
 
-            const uc = d.unified_chart;
+            const uc = (_clMergeKlines && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
+                ? d.merged_chart
+                : d.unified_chart;
             const dates = uc.dates || [];
             if (dates.length === 0) {
                 instance.clear();
@@ -25323,7 +25354,7 @@
             // 同步绑定通达信右键拖选
             if (chartDom) {
                 chartDom._tdxGetChart = () => window[instanceProp] || (window.echarts && window.echarts.getInstanceByDom(chartDom));
-                chartDom._tdxGetBars = () => d.unified_chart;
+                chartDom._tdxGetBars = () => uc;
                 chartDom._tdxGetStockInfo = () => ({ name: d.name || _clCurrentName || _clCurrentCode, code: d.code || _clCurrentCode });
                 if (typeof ensureChartSelectionBox === 'function') ensureChartSelectionBox(chartDom);
                 if (typeof bindChartRightClickSelection === 'function') {

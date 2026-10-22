@@ -762,3 +762,114 @@ class TestChanlunAnalyser:
         assert "── 背驰 ──" in out
         # 中枢行格式：[idx] <start> → <end> zg=...
         assert "→" in out
+
+
+class TestChanlunMergedChart:
+    """测试缠论多周期引擎严格K线包含合并输出。"""
+
+    def test_merged_chart_structure_and_indicators(self) -> None:
+        import pandas as pd
+        from easy_tdx.chanlun.resonance import build_merged_chart_data
+        from easy_tdx.chanlun.analyser import ChanlunAnalyser
+
+        # 构造含包含关系的 K 线
+        dates = [f"2025-01-{i+1:02d}" for i in range(30)]
+        opens = [10.0 + i for i in range(30)]
+        closes = [10.5 + i for i in range(30)]
+        highs = [12.0 + i for i in range(30)]
+        lows = [9.0 + i for i in range(30)]
+        # 制造几对包含关系
+        highs[2] = highs[1] - 0.5
+        lows[2] = lows[1] + 0.5
+        highs[5] = highs[4] + 1.0
+        lows[5] = lows[4] - 1.0
+
+        df = pd.DataFrame({
+            "datetime": dates,
+            "open": opens,
+            "close": closes,
+            "high": highs,
+            "low": lows,
+            "volume": [1000] * 30,
+            "amount": [10000] * 30,
+        })
+        res = ChanlunAnalyser(code="TEST", frequency="DAILY").process_klines(df)
+        mc = build_merged_chart_data(
+            low_res=res,
+            base_df=df,
+            dates=dates,
+            high_bis=[],
+            high_zss=[],
+            mid_bis=[],
+            mid_zss=[],
+            mmd_marks=[],
+            res_marks=[],
+        )
+        assert len(mc["candles"]) < len(df)  # 包含合并后 K 线数量少于原始 K 线
+        assert len(mc["candles"]) == len(mc["dates"])
+        assert len(mc["volumes"]) == len(mc["dates"])
+        assert len(mc["amounts"]) == len(mc["dates"])
+        assert len(mc["macd"]["hist"]) == len(mc["dates"])
+        assert len(mc["macd"]["dif"]) == len(mc["dates"])
+        assert len(mc["macd"]["dea"]) == len(mc["dates"])
+        assert len(mc["rsi"]["rsi6"]) == len(mc["dates"])
+        assert len(mc["kdj"]["k"]) == len(mc["dates"])
+        assert len(mc["expma"]["exp12"]) == len(mc["dates"])
+
+        # 严格验证缠论标准：只有最高和最低，绝无上下影线
+        for candle in mc["candles"]:
+            o, c, l, h = candle
+            upper_shadow = round(h - max(o, c), 4)
+            lower_shadow = round(min(o, c) - l, 4)
+            assert upper_shadow == 0.0, f"Upper shadow must be 0, got {upper_shadow} for candle {candle}"
+            assert lower_shadow == 0.0, f"Lower shadow must be 0, got {lower_shadow} for candle {candle}"
+            assert (o == l and c == h) or (o == h and c == l)
+
+    def test_consecutive_included_upward_merge(self) -> None:
+        """测试准则2：前面是非包含、向上（前高抬高） → 整串连续包含统一「向上合并：取高高」且方向全程锁定。"""
+        from easy_tdx.chanlun.kline_merge import merge_klines
+
+        # K0: [10, 15] 基准非包含
+        # K1: [12, 18] 相对K0前高抬高 (18 > 15) -> 确立整串向上合并!
+        # K2: [13, 16] 被K1包含 (16 <= 18 且 13 >= 12) -> 向上合并取高高: high=max(18,16)=18, low=max(12,13)=13
+        # K3: [14, 17] 被合并后[13, 18]包含 -> 保持向上合并取高高: high=max(18,17)=18, low=max(13,14)=14
+        # K4: [15, 20] 与[14, 18]无包含 (20 > 18 且 15 > 14) -> 连续包含结束!
+        klines = [
+            _k(0, "2025-01-01", 11, 14, 15, 10, 100),
+            _k(1, "2025-01-02", 13, 17, 18, 12, 100),
+            _k(2, "2025-01-03", 14, 15, 16, 13, 100),
+            _k(3, "2025-01-04", 15, 16, 17, 14, 100),
+            _k(4, "2025-01-05", 16, 19, 20, 15, 100),
+        ]
+        res = merge_klines(klines)
+        # 应合并为 3 根 K 线: K0, 合并后的(K1+K2+K3), K4
+        assert len(res) == 3
+        mid = res[1]
+        assert mid.merged_count == 3
+        assert mid.direction == "up"
+        assert mid.high == 18.0  # 高点取最大: max(18, 16, 17) = 18
+        assert mid.low == 14.0   # 低点取较高: max(12, 13, 14) = 14
+
+    def test_consecutive_included_downward_merge(self) -> None:
+        """测试准则2：前面是非包含、向下（前高降低） → 整串连续包含统一「向下合并：取低低」且方向全程锁定。"""
+        from easy_tdx.chanlun.kline_merge import merge_klines
+
+        # K0: [15, 20] 基准非包含
+        # K1: [12, 17] 相对K0前高降低 (17 < 20) -> 确立整串向下合并!
+        # K2: [13, 16] 被K1包含 (16 <= 17 且 13 >= 12) -> 向下合并取低低: high=min(17,16)=16, low=min(12,13)=12
+        # K3: [14, 15] 被合并后[12, 16]包含 -> 保持向下合并取低低: high=min(16,15)=15, low=min(12,14)=12
+        # K4: [9, 11] 与[12, 15]无包含 (11 < 15 且 9 < 12) -> 连续包含结束!
+        klines = [
+            _k(0, "2025-01-01", 16, 19, 20, 15, 100),
+            _k(1, "2025-01-02", 13, 16, 17, 12, 100),
+            _k(2, "2025-01-03", 14, 15, 16, 13, 100),
+            _k(3, "2025-01-04", 14, 14.5, 15, 14, 100),
+            _k(4, "2025-01-05", 10, 10.5, 11, 9, 100),
+        ]
+        res = merge_klines(klines)
+        assert len(res) == 3
+        mid = res[1]
+        assert mid.merged_count == 3
+        assert mid.direction == "down"
+        assert mid.high == 15.0  # 高点取较低: min(17, 16, 15) = 15
+        assert mid.low == 12.0   # 低点取最小: min(12, 13, 14) = 12

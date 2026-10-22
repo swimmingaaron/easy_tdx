@@ -99,6 +99,7 @@ const showLowZs = ref(true)
 const showMmdMarks = ref(false)
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
+const isKlineMerged = ref(false) // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 const activeLayersCount = computed(() => {
   let c = 0
   if (showHighBi.value) c++
@@ -790,7 +791,9 @@ function stopReplay() {
 
 // ── ECharts 配置生成 ─────────────────────────────────────────────────────────
 function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' | 'right' | 'w4'): any {
-  const uc = d.unified_chart
+  const uc = (isKlineMerged.value && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
+    ? d.merged_chart
+    : d.unified_chart
 
   if (!uc || !uc.dates || uc.dates.length === 0) {
     return {}
@@ -1481,12 +1484,22 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             else if (winKey === 'w4') hoverCandleW4.value = info
           }
 
-          html += `<div style="color:${color}; margin-bottom:4px;">
-            开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
-            <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
-            <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
-            <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
-          </div>`
+          if (isKlineMerged.value) {
+            html += `<div style="color:${color}; margin-bottom:4px;">
+              <span style="background:rgba(192,132,252,0.2); color:#d8b4fe; border:1px solid rgba(192,132,252,0.4); border-radius:3px; padding:1px 4px; font-size:10px; margin-right:6px;">缠论K线(无影线)</span>
+              高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b>
+              <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
+              <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
+              <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
+            </div>`
+          } else {
+            html += `<div style="color:${color}; margin-bottom:4px;">
+              开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
+              <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
+              <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
+              <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
+            </div>`
+          }
         }
         // 匹配缠论买卖点 (区间套极值买卖点、次级别稳健买卖点、大级别趋势买卖点)
         const matchedMmds = (uc.mmd_marks || []).filter((m) => m.date === dateStr)
@@ -1937,6 +1950,14 @@ function extractChanlunDblclickDate(
   return null
 }
 
+function getChartDates(data?: ChanlunResonanceResponse | null): string[] {
+  if (!data) return []
+  if (isKlineMerged.value && data.merged_chart && data.merged_chart.dates && data.merged_chart.dates.length > 0) {
+    return data.merged_chart.dates
+  }
+  return data.unified_chart?.dates || []
+}
+
 function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
@@ -1944,14 +1965,14 @@ function renderChart() {
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('updateAxisPointer', (event: any) => {
-        const dates = chanDataLeft.value?.unified_chart?.dates || []
+        const dates = getChartDates(chanDataLeft.value)
         if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
           const dStr = String(dates[event.dataIndex]).trim()
           if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateLeft.value = dStr
         }
       })
       chartInstanceLeft.on('dblclick', (params: any) => {
-        const dates = chanDataLeft.value?.unified_chart?.dates || []
+        const dates = getChartDates(chanDataLeft.value)
         const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateLeft.value, chartInstanceLeft)
         if (targetDate) setBacktrackDateToBar(targetDate)
       })
@@ -1968,14 +1989,14 @@ function renderChart() {
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('updateAxisPointer', (event: any) => {
-          const dates = chanDataW2.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataW2.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
             const dStr = String(dates[event.dataIndex]).trim()
             if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateW2.value = dStr
           }
         })
         chartInstanceW2.on('dblclick', (params: any) => {
-          const dates = chanDataW2.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataW2.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW2.value, chartInstanceW2)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
@@ -1989,14 +2010,14 @@ function renderChart() {
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('updateAxisPointer', (event: any) => {
-          const dates = chanDataRight.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataRight.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
             const dStr = String(dates[event.dataIndex]).trim()
             if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateRight.value = dStr
           }
         })
         chartInstanceRight.on('dblclick', (params: any) => {
-          const dates = chanDataRight.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataRight.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateRight.value, chartInstanceRight)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
@@ -2010,14 +2031,14 @@ function renderChart() {
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('updateAxisPointer', (event: any) => {
-          const dates = chanDataW4.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataW4.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
             const dStr = String(dates[event.dataIndex]).trim()
             if (/^\d{4}[-/]\d{2}/.test(dStr)) hoverCandleDateW4.value = dStr
           }
         })
         chartInstanceW4.on('dblclick', (params: any) => {
-          const dates = chanDataW4.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataW4.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW4.value, chartInstanceW4)
           if (targetDate) setBacktrackDateToBar(targetDate)
         })
@@ -2032,7 +2053,7 @@ function renderChart() {
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('dblclick', (params: any) => {
-          const dates = chanDataRight.value?.unified_chart?.dates || []
+          const dates = getChartDates(chanDataRight.value)
           let targetDate: string | null = null
           if (params && params.name) targetDate = String(params.name).trim()
           else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
@@ -2877,6 +2898,16 @@ onBeforeUnmount(() => {
             <option value="none">关闭副图</option>
           </select>
         </div>
+
+        <span class="sub-sep">|</span>
+
+        <!-- 4. K线合并开关 (严格按缠论包含关系标准合并K线，默认关闭) -->
+        <div class="control-group">
+          <label class="merge-toggle-label" title="开启后，所有K线窗口严格按照缠论包含关系标准显示合并后的K线图">
+            <input type="checkbox" v-model="isKlineMerged" @change="renderChart" class="merge-checkbox" />
+            <span class="merge-label-text">K线合并</span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -3242,6 +3273,31 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   padding: 8px 14px;
   flex-shrink: 0;
+}
+.merge-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: #e2e8f0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+.merge-toggle-label:hover {
+  background-color: rgba(147, 51, 234, 0.15);
+}
+.merge-checkbox {
+  cursor: pointer;
+  accent-color: #9333ea;
+  width: 13px;
+  height: 13px;
+}
+.merge-label-text {
+  font-size: 11px;
 }
 .toolbar-left, .toolbar-right {
   display: flex;

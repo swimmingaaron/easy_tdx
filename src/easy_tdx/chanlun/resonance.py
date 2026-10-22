@@ -31,7 +31,7 @@ from easy_tdx.chanlun.resample import convert_kline_frequency, can_resample_from
 from easy_tdx.chanlun.kline_cache import get_global_kline_disk_cache
 from easy_tdx.market_data import fetch_security_kline
 from easy_tdx.stock_lookup import get_stock_name
-from easy_tdx.MyTT import RSI, KDJ, EXPMA, MA
+from easy_tdx.MyTT import RSI, KDJ, EXPMA, MA, MACD
 
 
 def safe_float(val: Any, default: float | None = None) -> float | None:
@@ -84,6 +84,270 @@ def calculate_inflow_data(df: pd.DataFrame) -> dict[str, list[float | None]]:
         "ma3": [safe_float(v_val) for v_val in inflow_ma3],
         "ma5": [safe_float(v_val) for v_val in inflow_ma5],
         "ma10": [safe_float(v_val) for v_val in inflow_ma10],
+    }
+
+
+def build_merged_chart_data(
+    low_res: ChanlunResult,
+    base_df: pd.DataFrame,
+    dates: list[str],
+    high_bis: list[dict],
+    high_zss: list[dict],
+    mid_bis: list[dict],
+    mid_zss: list[dict],
+    mmd_marks: list[dict],
+    res_marks: list[dict],
+) -> dict[str, Any]:
+    """严格按照缠论标准包含关系，构建合并后的 K 线图及关联的笔、中枢、买卖点、指标数据。"""
+    cklines = getattr(low_res, "cklines", []) or []
+    n_ck = len(cklines)
+    n_base = len(base_df)
+
+    if n_ck == 0 or n_base == 0:
+        return {
+            "dates": [],
+            "candles": [],
+            "volumes": [],
+            "amounts": [],
+            "high_bis": [],
+            "high_zss": [],
+            "mid_bis": [],
+            "mid_zss": [],
+            "low_bis": [],
+            "low_zss": [],
+            "mmd_marks": [],
+            "res_marks": [],
+            "macd": {"hist": [], "dif": [], "dea": [], "marks": []},
+            "macd_marks": [],
+            "macd_div_lines": [],
+            "rsi": {"rsi6": [], "rsi12": [], "rsi24": []},
+            "kdj": {"k": [], "d": [], "j": []},
+            "expma": {"exp12": [], "exp50": []},
+            "inflow": {"net_inflow": [], "ma3": [], "ma5": [], "ma10": []},
+        }
+
+    raw_to_ck_idx: dict[int, int] = {}
+    date_to_ck_idx: dict[str, int] = {}
+    ck_dates: list[str] = []
+    ck_candles: list[list[float]] = []
+    ck_volumes: list[list[Any]] = []
+    ck_amounts: list[list[Any]] = []
+
+    base_vols = base_df["volume"].values if "volume" in base_df.columns else np.zeros(n_base)
+    base_amts = base_df["amount"].values if "amount" in base_df.columns else None
+    base_closes = base_df["close"].values if "close" in base_df.columns else np.zeros(n_base)
+
+    for ck_i, ck in enumerate(cklines):
+        # 记录每根 raw kline 所属的 ck_i
+        for k in ck.klines:
+            raw_to_ck_idx[k.index] = ck_i
+            if 0 <= k.index < len(dates):
+                date_to_ck_idx[dates[k.index]] = ck_i
+
+        # 确定该根合并 K 线的坐标日期 (取末根原始 K 线日期)
+        last_k_idx = ck.klines[-1].index if ck.klines else ck.k_index
+        if 0 <= last_k_idx < len(dates):
+            d_str = dates[last_k_idx]
+        else:
+            d_str = low_res._fmt_dt(ck.date)
+        ck_dates.append(d_str)
+
+        # 按照缠论理论合并：基于缠论的 K 线只有最高和最低，没有上下影线
+        # 向上实体：open=low, close=high（从最低填满到最高，上影线=0，下影线=0）
+        # 向下实体：open=high, close=low（从最高填满到最低，上影线=0，下影线=0）
+        c_low = round(float(ck.low), 2)
+        c_high = round(float(ck.high), 2)
+        is_up = (ck.direction == "up") if ck.direction else (ck.close >= ck.open)
+
+        if is_up:
+            ck_candles.append([c_low, c_high, c_low, c_high])
+        else:
+            ck_candles.append([c_high, c_low, c_low, c_high])
+
+        # 成交量与成交额累加
+        v_sum = sum(float(base_vols[k.index]) for k in ck.klines if k.index < len(base_vols))
+        if base_amts is not None:
+            a_sum = sum(
+                float(base_amts[k.index])
+                if pd.notna(base_amts[k.index]) and float(base_amts[k.index]) > 0
+                else float(base_vols[k.index] * base_closes[k.index])
+                for k in ck.klines
+                if k.index < len(base_amts)
+            )
+        else:
+            a_sum = v_sum * float(ck.close)
+
+        is_up = 1 if ck.close >= ck.open else -1
+        ck_volumes.append([ck_i, round(v_sum, 2), is_up])
+        ck_amounts.append([ck_i, round(a_sum, 2), is_up])
+
+    # 1. 当前基准级别的笔与中枢（严格依据包含合并后的 cklines 索引）
+    ck_low_bis = [
+        {
+            "start": [ck_dates[bi.start.k.index], round(bi.start.val, 2)],
+            "end": [ck_dates[bi.end.k.index], round(bi.end.val, 2)],
+            "direction": bi.direction.value,
+            "done": bi.is_done(),
+        }
+        for bi in low_res.bis
+        if 0 <= bi.start.k.index < n_ck and 0 <= bi.end.k.index < n_ck
+    ]
+
+    ck_low_zss = [
+        {
+            "start_date": ck_dates[zs.start.k.index],
+            "end_date": ck_dates[zs.end.k.index],
+            "zg": round(zs.zg, 2),
+            "zd": round(zs.zd, 2),
+            "gg": round(zs.gg, 2),
+            "dd": round(zs.dd, 2),
+        }
+        for zs in low_res.zss
+        if zs.start and zs.end
+        and 0 <= zs.start.k.index < n_ck
+        and 0 <= zs.end.k.index < n_ck
+    ]
+
+    # 日期映射辅助函数：将 raw 日期映射为最匹配的 ck_date
+    def map_raw_date_to_ck_date(d_val: str) -> str:
+        if not ck_dates or not d_val:
+            return d_val
+        if d_val in date_to_ck_idx:
+            return ck_dates[date_to_ck_idx[d_val]]
+        idx = bisect.bisect_right(ck_dates, d_val) - 1
+        idx = max(0, min(n_ck - 1, idx))
+        return ck_dates[idx]
+
+    # 2. 映射大级别与中级别笔到合并 K 线坐标系
+    ck_high_bis = []
+    for b in high_bis:
+        s_date = map_raw_date_to_ck_date(b["start"][0])
+        e_date = map_raw_date_to_ck_date(b["end"][0])
+        ck_high_bis.append({
+            "start": [s_date, b["start"][1]],
+            "end": [e_date, b["end"][1]],
+            "direction": b.get("direction", ""),
+            "done": b.get("done", True),
+        })
+
+    ck_mid_bis = []
+    for b in mid_bis:
+        s_date = map_raw_date_to_ck_date(b["start"][0])
+        e_date = map_raw_date_to_ck_date(b["end"][0])
+        ck_mid_bis.append({
+            "start": [s_date, b["start"][1]],
+            "end": [e_date, b["end"][1]],
+            "direction": b.get("direction", ""),
+            "done": b.get("done", True),
+        })
+
+    # 3. 映射大级别与中级别中枢
+    ck_high_zss = [
+        {
+            **zs,
+            "start_date": map_raw_date_to_ck_date(zs["start_date"]),
+            "end_date": map_raw_date_to_ck_date(zs["end_date"]),
+        }
+        for zs in high_zss
+    ]
+
+    ck_mid_zss = [
+        {
+            **zs,
+            "start_date": map_raw_date_to_ck_date(zs["start_date"]),
+            "end_date": map_raw_date_to_ck_date(zs["end_date"]),
+        }
+        for zs in mid_zss
+    ]
+
+    # 4. 买卖点与共振标记映射
+    ck_mmd_marks = []
+    for m in mmd_marks:
+        raw_d = m.get("date") or (m.get("coord")[0] if m.get("coord") else "")
+        ck_d = map_raw_date_to_ck_date(raw_d)
+        m_copy = dict(m)
+        m_copy["date"] = ck_d
+        if "coord" in m_copy and len(m_copy["coord"]) == 2:
+            m_copy["coord"] = [ck_d, m_copy["coord"][1]]
+        ck_mmd_marks.append(m_copy)
+
+    ck_res_marks = []
+    for r in res_marks:
+        raw_d = r.get("date") or (r.get("coord")[0] if r.get("coord") else "")
+        ck_d = map_raw_date_to_ck_date(raw_d)
+        r_copy = dict(r)
+        r_copy["date"] = ck_d
+        if "coord" in r_copy and len(r_copy["coord"]) == 2:
+            r_copy["coord"] = [ck_d, r_copy["coord"][1]]
+        ck_res_marks.append(r_copy)
+
+    # 5. 副图技术指标重算（严格基于 cklines 数据序列）
+    ck_c = np.array([ck.close for ck in cklines], dtype=float)
+    ck_h = np.array([ck.high for ck in cklines], dtype=float)
+    ck_l = np.array([ck.low for ck in cklines], dtype=float)
+
+    dif_s, dea_s, hist_s = MACD(ck_c, 12, 26, 9)
+    ck_macd_dif = [round(float(v), 3) if pd.notna(v) else 0.0 for v in dif_s]
+    ck_macd_dea = [round(float(v), 3) if pd.notna(v) else 0.0 for v in dea_s]
+    ck_macd_hist = [round(float(v), 3) for v in hist_s]
+
+    r6 = RSI(ck_c, 6)
+    r12 = RSI(ck_c, 12)
+    r24 = RSI(ck_c, 24)
+    ck_rsi = {
+        "rsi6": [safe_float(v) for v in r6],
+        "rsi12": [safe_float(v) for v in r12],
+        "rsi24": [safe_float(v) for v in r24],
+    }
+
+    kv, dv, jv = KDJ(ck_c, ck_h, ck_l, 9, 3, 3)
+    ck_kdj = {
+        "k": [safe_float(v) for v in kv],
+        "d": [safe_float(v) for v in dv],
+        "j": [safe_float(v) for v in jv],
+    }
+
+    e12, e50 = EXPMA(ck_c, 12, 50)
+    ck_expma = {
+        "exp12": [safe_float(v) for v in e12],
+        "exp50": [safe_float(v) for v in e50],
+    }
+
+    ck_df = pd.DataFrame({
+        "close": ck_c,
+        "open": [ck.open for ck in cklines],
+        "high": ck_h,
+        "low": ck_l,
+        "volume": [v[1] for v in ck_volumes],
+        "amount": [a[1] for a in ck_amounts],
+    })
+    ck_inflow = calculate_inflow_data(ck_df)
+
+    return {
+        "dates": ck_dates,
+        "candles": ck_candles,
+        "volumes": ck_volumes,
+        "amounts": ck_amounts,
+        "high_bis": ck_high_bis,
+        "high_zss": ck_high_zss,
+        "mid_bis": ck_mid_bis,
+        "mid_zss": ck_mid_zss,
+        "low_bis": ck_low_bis,
+        "low_zss": ck_low_zss,
+        "mmd_marks": ck_mmd_marks,
+        "res_marks": ck_res_marks,
+        "macd": {
+            "hist": ck_macd_hist,
+            "dif": ck_macd_dif,
+            "dea": ck_macd_dea,
+            "marks": [],
+        },
+        "macd_marks": [],
+        "macd_div_lines": [],
+        "rsi": ck_rsi,
+        "kdj": ck_kdj,
+        "expma": ck_expma,
+        "inflow": ck_inflow,
     }
 
 
@@ -1729,6 +1993,17 @@ def analyze_multi_period_resonance(
             "kdj": p_kdj,
             "expma": p_expma,
             "inflow": calculate_inflow_data(p_df),
+            "merged_chart": build_merged_chart_data(
+                low_res=p_res,
+                base_df=p_df,
+                dates=p_dates,
+                high_bis=[],
+                high_zss=[],
+                mid_bis=[],
+                mid_zss=[],
+                mmd_marks=[],
+                res_marks=[],
+            ),
         }
 
     # 最新价格与涨跌
@@ -1783,6 +2058,17 @@ def analyze_multi_period_resonance(
             "expma": expma_data,
             "inflow": calculate_inflow_data(base_df),
         },
+        "merged_chart": build_merged_chart_data(
+            low_res=low_res,
+            base_df=base_df,
+            dates=dates,
+            high_bis=high_bis,
+            high_zss=high_zss,
+            mid_bis=mid_bis,
+            mid_zss=mid_zss,
+            mmd_marks=mmd_marks,
+            res_marks=res_marks,
+        ),
         "levels_data": levels_data,
         "backtrack_timeline": {
             "min_date": min_date,
