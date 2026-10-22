@@ -11,7 +11,7 @@ import urllib.request
 from easy_tdx._http_utils import urlopen_safe
 from concurrent.futures import ThreadPoolExecutor
 from easy_tdx.market_data import fetch_security_kline, _get_or_create_client
-from easy_tdx.market_ladder import fetch_realtime_limit_up_ladder
+from easy_tdx.market_ladder import get_market_ladder_and_matrix, fetch_realtime_limit_up_ladder
 
 logger = logging.getLogger(__name__)
 
@@ -782,18 +782,26 @@ def _build_market_summary() -> dict[str, Any]:
     up_count = live_data["up_count"]
     down_count = live_data["down_count"]
     flat_count = live_data["flat_count"]
-    zt_count = 58
+    # 2. Ladder height & limit stats from real-time market ladder engine
+    zt_count = 34
     dt_count = 11
-
-    # 2. Ladder height from real TDX limit-up scanner
+    broken_ratio_str = "0.0%"
     max_consecutive = "3 连板"
+
     try:
-        ladder = fetch_realtime_limit_up_ladder()
-        if ladder and len(ladder) > 0:
-            max_consecutive = ladder[0].get("tier", "3 连板")
-            zt_count = max(zt_count, sum(len(tier.get("stocks", [])) for tier in ladder))
-    except Exception:
-        pass
+        ladder_result = get_market_ladder_and_matrix()
+        ladder_stats = ladder_result.get("stats", {})
+        ladder_tiers = ladder_result.get("ladder", [])
+        if ladder_stats:
+            zt_count = ladder_stats.get("zt_count", zt_count)
+            dt_count = ladder_stats.get("dt_count", dt_count)
+            broken_ratio_str = ladder_stats.get("zb_rate", broken_ratio_str)
+            max_consecutive = ladder_stats.get("max_lbc", max_consecutive)
+        elif ladder_tiers:
+            max_consecutive = ladder_tiers[0].get("tier", "3 连板")
+            zt_count = sum(len(tier.get("stocks", [])) for tier in ladder_tiers)
+    except Exception as e:
+        logger.debug(f"Failed to fetch market ladder stats in overview: {e}")
 
     # 3. Sentiment & Market Phase calculation
     total_valid = max(1, up_count + down_count + flat_count)
@@ -878,7 +886,7 @@ def _build_market_summary() -> dict[str, Any]:
         "limit_stats": {
             "zt_count": zt_count,
             "dt_count": dt_count,
-            "broken_ratio": "12.5%",
+            "broken_ratio": broken_ratio_str,
             "max_consecutive": max_consecutive
         },
         "turnover": {
