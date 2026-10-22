@@ -51,7 +51,7 @@ git pull origin dev || git pull
 # 6. 恢复暂存的工作区文件（如有）
 git stash pop >/dev/null 2>&1 || true
 
-# 6. 核心步骤：将本地新增的自选股与远端拉取下来的 watchlist.json 智能无损合并
+# 7. 核心步骤：将本地新增的自选股与远端拉取下来的 watchlist.json 智能无损合并
 if [ -f "$BACKUP_WL" ] && [ -n "$PYTHON_BIN" ]; then
     echo "正在智能合并本地自选股与远端自选股 (无损并集去重)..."
     "$PYTHON_BIN" scripts/merge_watchlist.py "$BACKUP_WL"
@@ -60,7 +60,7 @@ fi
 
 echo "✅ 自选股与代码更新完成！"
 
-# 7. 重启服务（若已配置 LaunchDaemon）
+# 8. 重启服务（若已配置 LaunchDaemon）
 if [ -f "/Library/LaunchDaemons/com.easytdx.service.plist" ]; then
     echo "正在平滑重启 easy_tdx 守护服务..."
     sudo launchctl kickstart -k system/com.easytdx.service 2>/dev/null || {
