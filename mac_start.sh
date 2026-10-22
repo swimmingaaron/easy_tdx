@@ -30,14 +30,25 @@ if [ -f "watchlist.json" ]; then
     cp watchlist.json "$BACKUP_WL"
 fi
 
-# 3. 暂存所有本地工作区变动（安全可靠，不需要 git checkout）
+# 3. 自动平息行情/缓存文件的冲突（数据随时可自动重绘，代码与自选股绝对优先）
+if git status --porcelain 2>/dev/null | grep -q "^U\|^.U\|^U."; then
+    echo "⚠️ 检测到未解决的文件冲突，正在自动以远端为准平息缓存冲突..."
+    git checkout --theirs data/ 2>/dev/null || true
+    git add data/ 2>/dev/null || true
+    git commit -m "fix: auto resolve data conflicts on pull" 2>/dev/null || git merge --abort 2>/dev/null || true
+fi
+
+# 重置本地运行时对 data/ 缓存目录的变动，杜绝冲突
+git checkout HEAD -- data/ 2>/dev/null || true
+
+# 4. 暂存所有本地工作区变动（安全可靠，不遗失任何修改）
 git stash --include-untracked >/dev/null 2>&1 || true
 
-# 4. 安全拉取远端代码
+# 5. 安全拉取远端代码
 echo "正在拉取远端最新代码 (git pull origin dev)..."
 git pull origin dev || git pull
 
-# 5. 恢复暂存的工作区文件（如有）
+# 6. 恢复暂存的工作区文件（如有）
 git stash pop >/dev/null 2>&1 || true
 
 # 6. 核心步骤：将本地新增的自选股与远端拉取下来的 watchlist.json 智能无损合并
