@@ -178,9 +178,18 @@ def combine_three_resonance_charts(
     """
     from PIL import Image
 
-    im_super = Image.open(path_super)
-    im_macro = Image.open(path_macro)
-    im_micro = Image.open(path_micro)
+    def _load_and_convert(p: Path) -> Image.Image:
+        im = Image.open(p)
+        if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+            bg = Image.new("RGB", im.size, (19, 23, 34))
+            alpha = im.split()[-1] if im.mode in ("RGBA", "LA") else None
+            bg.paste(im, mask=alpha)
+            return bg
+        return im.convert("RGB")
+
+    im_super = _load_and_convert(path_super)
+    im_macro = _load_and_convert(path_macro)
+    im_micro = _load_and_convert(path_micro)
 
     target_w = im_super.width
     imgs = [im_super]

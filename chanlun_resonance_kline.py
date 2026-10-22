@@ -463,6 +463,10 @@ class ChanlunUnifiedResonancePlotter:
         bar_width = 0.5
         price_span = base_df["high"].max() - base_df["low"].min()
         min_body = price_span * 0.002 or 0.01
+        offset = max(price_span * 0.04, 0.15)
+        y_min = float(base_df["low"].min()) - offset * 3.2
+        y_max = float(base_df["high"].max()) + offset * 3.2
+        ax_main.set_ylim(bottom=y_min, top=y_max)
 
         for i in range(n_bars):
             row = base_df.iloc[i]
@@ -499,6 +503,9 @@ class ChanlunUnifiedResonancePlotter:
         for zs in res_high.zss:
             if not zs.start or not zs.end:
                 continue
+            # 若中枢完全在可视价格区间之外，跳过，避免高位历史中枢破坏图表纵横比
+            if zs.zd > y_max or zs.zg < y_min:
+                continue
             x_s = self._map_pivot_to_base(zs.start.k.date, zs.zd, False, self.p_high, base_df, base_dts)
             x_e = self._map_pivot_to_base(zs.end.k.date, zs.zg, True, self.p_high, base_df, base_dts)
             if x_e < 0 or x_s >= n_bars:
@@ -506,10 +513,12 @@ class ChanlunUnifiedResonancePlotter:
             x_s = max(0, x_s)
             x_e = min(n_bars - 1, x_e)
             zs_w = max(1.0, x_e - x_s)
-            zs_h = max(0.01, zs.zg - zs.zd)
+            draw_zd = max(y_min, zs.zd)
+            draw_zg = min(y_max, zs.zg)
+            zs_h = max(0.01, draw_zg - draw_zd)
 
             rect = patches.Rectangle(
-                (x_s, zs.zd),
+                (x_s, draw_zd),
                 zs_w,
                 zs_h,
                 facecolor=bg_high,
@@ -519,10 +528,15 @@ class ChanlunUnifiedResonancePlotter:
                 linewidth=1.6,
                 zorder=2,
             )
+            rect.set_clip_on(True)
             ax_main.add_patch(rect)
-            ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_high, linestyles="-.", linewidths=1.2, alpha=0.8, zorder=2)
+            if draw_zg <= y_max:
+                ax_main.hlines(draw_zg, xmin=x_s, xmax=x_e, colors=c_high, linestyles="-.", linewidths=1.2, alpha=0.8, zorder=2)
+            if draw_zd >= y_min:
+                ax_main.hlines(draw_zd, xmin=x_s, xmax=x_e, colors=c_high, linestyles="-.", linewidths=1.2, alpha=0.8, zorder=2)
             mid_x = (x_s + x_e) / 2
-            ax_main.text(mid_x, zs.zg, f"[{high_name}紫色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+            y_text = min(draw_zg, y_max - offset * 0.5)
+            ax_main.text(mid_x, y_text, f"[{high_name}紫色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_high, fontsize=8.5, ha="center", va="bottom", alpha=0.9, zorder=5, clip_on=True)
 
         # 2. 绘制大级别 (日线) 笔：保留有且仅有一笔大周期日线笔 (紫色粗实线)
         if res_high.bis:
@@ -552,7 +566,7 @@ class ChanlunUnifiedResonancePlotter:
 
             if s_c != e_c:
                 dir_arrow = "↘" if target_bi.start.val > target_bi.end.val else "↗"
-                ax_main.plot(
+                l_artist, = ax_main.plot(
                     [s_c, e_c],
                     [target_bi.start.val, target_bi.end.val],
                     color=c_high,
@@ -566,11 +580,13 @@ class ChanlunUnifiedResonancePlotter:
                     label=f"大级别 ({high_name}) 紫线笔",
                     zorder=8,
                 )
+                l_artist.set_clip_on(True)
                 mid_x = (s_c + e_c) / 2
                 mid_y = (target_bi.start.val + target_bi.end.val) / 2
+                y_text = max(y_min + offset * 0.5, min(y_max - offset * 0.5, mid_y))
                 ax_main.text(
                     mid_x,
-                    mid_y,
+                    y_text,
                     f"[{high_name}笔 {target_bi.start.val:.2f}→{target_bi.end.val:.2f} {dir_arrow}]",
                     color="#ffffff",
                     fontsize=9.0,
@@ -585,12 +601,13 @@ class ChanlunUnifiedResonancePlotter:
                         alpha=0.92,
                     ),
                     zorder=12,
+                    clip_on=True,
                 )
 
             # 若日线最新一笔已结束但距离现价还有空间，用虚线延伸到现价
             if e_c < n_bars - 1:
                 last_close = float(base_df["close"].iloc[-1])
-                ax_main.plot(
+                l_ext, = ax_main.plot(
                     [e_c, n_bars - 1],
                     [target_bi.end.val, last_close],
                     color=c_high,
@@ -599,6 +616,7 @@ class ChanlunUnifiedResonancePlotter:
                     alpha=0.75,
                     zorder=7,
                 )
+                l_ext.set_clip_on(True)
 
         # ----------------------------------------------------------------------
         # 3. 绘制中级别 (Level 2, 次级别如30F) 笔与中枢 (花姐标准：黄色，中粗)
@@ -611,6 +629,8 @@ class ChanlunUnifiedResonancePlotter:
         for zs in res_mid.zss:
             if not zs.start or not zs.end:
                 continue
+            if zs.zd > y_max or zs.zg < y_min:
+                continue
             x_s = self._map_pivot_to_base(zs.start.k.date, zs.zd, False, self.p_mid, base_df, base_dts)
             x_e = self._map_pivot_to_base(zs.end.k.date, zs.zg, True, self.p_mid, base_df, base_dts)
             if x_e < 0 or x_s >= n_bars:
@@ -618,10 +638,12 @@ class ChanlunUnifiedResonancePlotter:
             x_s = max(0, x_s)
             x_e = min(n_bars - 1, x_e)
             zs_w = max(1.0, x_e - x_s)
-            zs_h = max(0.01, zs.zg - zs.zd)
+            draw_zd = max(y_min, zs.zd)
+            draw_zg = min(y_max, zs.zg)
+            zs_h = max(0.01, draw_zg - draw_zd)
 
             rect = patches.Rectangle(
-                (x_s, zs.zd),
+                (x_s, draw_zd),
                 zs_w,
                 zs_h,
                 facecolor=bg_mid,
@@ -631,10 +653,15 @@ class ChanlunUnifiedResonancePlotter:
                 linewidth=1.4,
                 zorder=2,
             )
+            rect.set_clip_on(True)
             ax_main.add_patch(rect)
-            ax_main.hlines([zs.zg, zs.zd], xmin=x_s, xmax=x_e, colors=c_mid, linestyles="--", linewidths=1.0, alpha=0.8, zorder=2)
+            if draw_zg <= y_max:
+                ax_main.hlines(draw_zg, xmin=x_s, xmax=x_e, colors=c_mid, linestyles="--", linewidths=1.0, alpha=0.8, zorder=2)
+            if draw_zd >= y_min:
+                ax_main.hlines(draw_zd, xmin=x_s, xmax=x_e, colors=c_mid, linestyles="--", linewidths=1.0, alpha=0.8, zorder=2)
             mid_x = (x_s + x_e) / 2
-            ax_main.text(mid_x, zs.zd, f"[{mid_name}黄色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_mid, fontsize=8.0, ha="center", va="top", alpha=0.9, zorder=5)
+            y_text = max(draw_zd, y_min + offset * 0.5)
+            ax_main.text(mid_x, y_text, f"[{mid_name}黄色中枢 {zs.zd:.2f}~{zs.zg:.2f}]", color=c_mid, fontsize=8.0, ha="center", va="top", alpha=0.9, zorder=5, clip_on=True)
 
         # 中级别笔
         mid_bi_pts = []
@@ -653,7 +680,7 @@ class ChanlunUnifiedResonancePlotter:
 
         for seg_i, (sx, sy, ex, ey) in enumerate(mid_bi_pts):
             lbl = f"次级别 ({mid_name}) 黄线笔" if seg_i == 0 else ""
-            ax_main.plot(
+            l_mid, = ax_main.plot(
                 [sx, ex], [sy, ey],
                 color=c_mid,
                 linewidth=2.4,
@@ -666,6 +693,7 @@ class ChanlunUnifiedResonancePlotter:
                 label=lbl,
                 zorder=8,
             )
+            l_mid.set_clip_on(True)
 
         # ----------------------------------------------------------------------
         # 4. 绘制小级别 (Level 3, 基准 5F) 笔与中枢 (花姐标准：蓝色细线)
@@ -678,14 +706,18 @@ class ChanlunUnifiedResonancePlotter:
         for zs in base_res.zss:
             if not zs.start or not zs.end:
                 continue
+            if zs.zd > y_max or zs.zg < y_min:
+                continue
             s_idx = max(0, zs.start.k.k_index - cut_idx)
             e_idx = min(n_bars - 1, zs.end.k.k_index - cut_idx)
             if e_idx < 0 or s_idx >= n_bars or e_idx < s_idx:
                 continue
             zs_w = max(1.0, e_idx - s_idx)
-            zs_h = max(0.01, zs.zg - zs.zd)
+            draw_zd = max(y_min, zs.zd)
+            draw_zg = min(y_max, zs.zg)
+            zs_h = max(0.01, draw_zg - draw_zd)
             rect = patches.Rectangle(
-                (s_idx, zs.zd),
+                (s_idx, draw_zd),
                 zs_w,
                 zs_h,
                 facecolor=bg_low,
@@ -695,10 +727,15 @@ class ChanlunUnifiedResonancePlotter:
                 linewidth=1.2,
                 zorder=2,
             )
+            rect.set_clip_on(True)
             ax_main.add_patch(rect)
-            ax_main.hlines([zs.zg, zs.zd], xmin=s_idx, xmax=e_idx, colors="#38bdf8", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
+            if draw_zg <= y_max:
+                ax_main.hlines(draw_zg, xmin=s_idx, xmax=e_idx, colors="#38bdf8", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
+            if draw_zd >= y_min:
+                ax_main.hlines(draw_zd, xmin=s_idx, xmax=e_idx, colors="#38bdf8", linestyles=":", linewidths=0.9, alpha=0.85, zorder=2)
             mid_x = (s_idx + e_idx) / 2
-            ax_main.text(mid_x, zs.zg, f"[{low_name}微观中枢]", color="#38bdf8", fontsize=7.5, ha="center", va="bottom", alpha=0.9, zorder=5)
+            y_text = min(draw_zg, y_max - offset * 0.5)
+            ax_main.text(mid_x, y_text, f"[{low_name}微观中枢]", color="#38bdf8", fontsize=7.5, ha="center", va="bottom", alpha=0.9, zorder=5, clip_on=True)
 
         # 小级别笔
         if base_res.bis:
@@ -732,7 +769,7 @@ class ChanlunUnifiedResonancePlotter:
                 low_bi_y.append(last_bi.end.val)
 
             if len(low_bi_x) >= 2:
-                ax_main.plot(
+                l_low, = ax_main.plot(
                     low_bi_x,
                     low_bi_y,
                     color=c_low,
@@ -746,12 +783,11 @@ class ChanlunUnifiedResonancePlotter:
                     label=f"小级别 ({low_name}) 蓝线笔",
                     zorder=9,
                 )
+                l_low.set_clip_on(True)
 
         # ----------------------------------------------------------------------
         # 5. 绘制多级别买卖点标签 (小级别、次级别、大级别立体同图标注)
         # ----------------------------------------------------------------------
-        offset = max(price_span * 0.04, 0.15)
-
         # 5.1 大级别买卖点同图标注 (紫色胶囊)
         high_name = PERIOD_SPECS[self.p_high]["short_name"].replace("线", "")
         for mmd in (res_high.mmds or []):
@@ -760,6 +796,8 @@ class ChanlunUnifiedResonancePlotter:
             idx = self._map_pivot_to_base(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, self.p_high, base_df, base_dts)
             if 0 <= idx < n_bars:
                 val = mmd.bi.end.val
+                if val < y_min or val > y_max:
+                    continue
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
                 type_map = {
@@ -783,6 +821,7 @@ class ChanlunUnifiedResonancePlotter:
                     bbox=dict(boxstyle="round,pad=0.28", facecolor="#9333ea", edgecolor="#c084fc", linewidth=1.2, alpha=0.92),
                     arrowprops=dict(facecolor="#c084fc", edgecolor="#ffffff", shrink=0.1, width=0.9, headwidth=4.0),
                     zorder=11,
+                    clip_on=True,
                 )
 
         # 5.2 次级别买卖点同图标注 (金黄胶囊)
@@ -793,6 +832,8 @@ class ChanlunUnifiedResonancePlotter:
             idx = self._map_pivot_to_base(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, self.p_mid, base_df, base_dts)
             if 0 <= idx < n_bars:
                 val = mmd.bi.end.val
+                if val < y_min or val > y_max:
+                    continue
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
                 type_map = {
@@ -816,6 +857,7 @@ class ChanlunUnifiedResonancePlotter:
                     bbox=dict(boxstyle="round,pad=0.25", facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", linewidth=1.2, alpha=0.92),
                     arrowprops=dict(facecolor="#facc15" if is_buy else "#d97706", edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
                     zorder=10,
+                    clip_on=True,
                 )
 
         # 5.3 基准小级别买卖点标注 (仅标注近期关键微观买卖点，避免历史微观密集堆叠)
@@ -834,6 +876,8 @@ class ChanlunUnifiedResonancePlotter:
             k_idx = mmd.bi.end.k.k_index - cut_idx
             if 0 <= k_idx < n_bars:
                 val = mmd.bi.end.val
+                if val < y_min or val > y_max:
+                    continue
                 mtype = mmd.mmd_type.value
                 is_buy = "buy" in mtype
                 type_map = {
@@ -859,6 +903,7 @@ class ChanlunUnifiedResonancePlotter:
                     bbox=dict(boxstyle="round,pad=0.22", facecolor=c_tag, edgecolor="#ffffff", linewidth=1.2, alpha=0.95),
                     arrowprops=dict(facecolor=c_tag, edgecolor="#ffffff", shrink=0.1, width=0.8, headwidth=3.5),
                     zorder=11,
+                    clip_on=True,
                 )
 
         # ----------------------------------------------------------------------
@@ -894,10 +939,7 @@ class ChanlunUnifiedResonancePlotter:
             framealpha=0.88,
         )
 
-        ax_main.set_ylim(
-            bottom=base_df["low"].min() - offset * 3.2,
-            top=base_df["high"].max() + offset * 3.2,
-        )
+        ax_main.set_ylim(bottom=y_min, top=y_max)
 
         step = max(1, n_bars // 8)
         xticks = list(range(0, n_bars, step))
