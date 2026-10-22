@@ -246,28 +246,29 @@ def display_concurrency_menu() -> tuple[int, bool]:
 
 def print_results_table(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, elapsed_sec: float) -> None:
     """以精美表格形式格式化输出最终选股命中结果"""
-    print("\n" + "=" * 105)
+    print("\n" + "=" * 118)
     header_title = f"【选股完成】策略: {strategy_name} | 周期: {period} | 范围: {universe} | 命中: {len(results)} 只 | 耗时: {elapsed_sec:.2f}s"
     print(_colored(header_title, Colors.BOLD + Colors.GREEN))
-    print("=" * 105)
+    print("=" * 118)
 
     if not results:
         print(_colored(" [!] 当前筛选条件下无满足条件的股票（全满足强约束一票否决有效滤除假信号）。", Colors.YELLOW))
-        print("=" * 105 + "\n")
+        print("=" * 118 + "\n")
         return
 
     # 按涨跌幅倒序排列
     sorted_res = sorted(results, key=lambda x: float(x.get("change_pct") or 0.0), reverse=True)
 
-    header = f"{'序号':^4} | {'代码':^8} | {'股票名称':^10} | {'最新价':^8} | {'日涨跌幅':^10} | {'触发信号/买卖点':^28} | {'触发日期':^12} | {'距今'}"
+    header = f"{'序号':^4} | {'代码':^8} | {'股票名称':^10} | {'触发价':^8} | {'触发日涨跌':^10} | {'自触发涨幅':^10} | {'触发信号/买卖点':^28} | {'触发日期':^12} | {'距今'}"
     print(_colored(header, Colors.BOLD))
-    print("-" * 105)
+    print("-" * 118)
 
     for i, r in enumerate(sorted_res, 1):
         sym = r.get("code") or r.get("symbol") or "--"
         name = r.get("name") or "--"
         price = float(r.get("price") or 0.0)
         chg = float(r.get("change_pct") or r.get("latest_change_pct") or 0.0)
+        since_chg = float(r.get("since_signal_pct") or 0.0)
         pat = r.get("status_label") or r.get("pattern_status") or r.get("trigger_patterns") or "--"
         if isinstance(pat, list):
             pat = " · ".join(pat)
@@ -283,29 +284,64 @@ def print_results_table(results: list[dict[str, Any]], strategy_name: str, perio
         else:
             chg_colored = f"{chg_str:>9}"
 
-        print(f"{i:4d} | {sym:8s} | {name:10s} | {price:8.2f} | {chg_colored} | {pat:28s} | {sig_date:12s} | {days}天前")
+        since_str = f"{since_chg:+.2f}%"
+        if since_chg > 0:
+            since_colored = _colored(f"{since_str:>10}", Colors.RED)
+        elif since_chg < 0:
+            since_colored = _colored(f"{since_str:>10}", Colors.GREEN)
+        else:
+            since_colored = f"{since_str:>10}"
 
-    print("-" * 105)
+        print(f"{i:4d} | {sym:8s} | {name:10s} | {price:8.2f} | {chg_colored} | {since_colored} | {pat:28s} | {sig_date:12s} | {days}天前")
+
+    print("-" * 118)
     print(_colored(f"总计选出 {len(sorted_res)} 只标的资产，全部信号已严格通过三级联区间套与大趋势防线校验！", Colors.GREEN + Colors.BOLD))
-    print("=" * 105 + "\n")
+    print("=" * 118 + "\n")
 
 
-def export_results(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str) -> tuple[Path, Path]:
-    """将选股结果导出为 CSV 与 JSON 持久化报告"""
+def export_results(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, total_scanned: int = 0) -> tuple[Path, Path]:
+    """将选股结果导出为 CSV 与 JSON 持久化报告，并同步写入 data/screener_cache 确保 48 大策略选股系统直接无缝复用"""
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     today_str = date.today().strftime("%Y%m%d")
-    base_name = f"screener_{strategy_name}_{universe}_{period}_{today_str}"
+    p_clean = str(period).strip().upper()
+    base_name = f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}"
     csv_file = output_dir / f"{base_name}.csv"
     json_file = output_dir / f"{base_name}.json"
 
-    # 1. 导出 JSON
+    # 统一标准缓存结构 (与 48 大策略全市场选股系统完全一致)
+    total_cnt = total_scanned if total_scanned > 0 else len(results)
+    if total_cnt == 0 and universe != "custom":
+        try:
+            total_cnt = len(get_universe_symbols(universe))
+        except Exception:
+            total_cnt = len(results)
+
+    report_payload = {
+        "strategy": strategy_name,
+        "universe": universe,
+        "period": p_clean,
+        "total_count": total_cnt,
+        "date": today_str,
+        "timestamp": time.time(),
+        "matches_count": len(results),
+        "matches": results,
+    }
+
+    # 1. 导出 output/ 目录 JSON 报告 (标准字典结构)
     try:
         with open(json_file, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+            json.dump(report_payload, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.warning(f"Failed to export JSON: {e}")
+
+    # 2. 同步写入 data/screener_cache 供 Web UI 48大策略系统直接秒级复用
+    try:
+        from easy_tdx.screener.scanner import _save_cache
+        _save_cache(strategy_name, universe, total_cnt, results, period=p_clean)
+    except Exception as e:
+        logger.warning(f"Failed to sync screener cache: {e}")
 
     # 2. 导出 CSV
     try:
@@ -313,14 +349,25 @@ def export_results(results: list[dict[str, Any]], strategy_name: str, period: st
         if results:
             clean_rows = []
             for r in results:
+                days = r.get("days_ago") or 0
+                latest_chg = r.get("latest_change_pct") if r.get("latest_change_pct") is not None else float(r.get("change_pct") or 0.0)
+                since_chg = float(r.get("since_signal_pct") or 0.0)
+                latest_pat = r.get("latest_pattern_status") or r.get("pattern_status") or "--"
+                trig_pat = r.get("trigger_pattern_status") or r.get("pattern_status") or r.get("status_label") or "--"
+                trig_dt = str(r.get("signal_date") or r.get("trigger_date") or "--")[:10]
+                pat_desc = r.get("pattern_full_desc") or (f"当日:{latest_chg:+.2f}% | 今日触发 | 形态:{latest_pat}" if days == 0 else f"当日:{latest_chg:+.2f}%(形态:{latest_pat}) 自触发:{since_chg:+.2f}% | 触发:{trig_dt}({days}天前,形态:{trig_pat})")
+
                 clean_rows.append({
                     "代码": r.get("code") or r.get("symbol"),
                     "名称": r.get("name"),
-                    "最新收盘价": r.get("price"),
-                    "日涨跌幅%": r.get("change_pct") or r.get("latest_change_pct"),
+                    "触发价": r.get("price"),
+                    "触发日涨跌%": r.get("change_pct"),
+                    "当日涨跌%": latest_chg,
+                    "自触发涨幅%": since_chg,
                     "触发信号形态": r.get("status_label") or r.get("pattern_status"),
                     "触发日期": r.get("signal_date") or r.get("trigger_date"),
-                    "距今交易日": r.get("days_ago"),
+                    "距今交易日": days,
+                    "形态特征全景": pat_desc,
                     "策略": r.get("strategy"),
                     "周期": r.get("period"),
                 })
@@ -452,13 +499,13 @@ def main() -> None:
     # 格式化打印结果表格
     print_results_table(results, strategy_name, period, universe_choice, elapsed_total)
 
-    # 导出报表
+    # 导出报表与同步缓存 (无论是否命中皆生成标准结构，确保 48 大策略系统直接无缝复用)
+    csv_p, json_p = export_results(results, strategy_name, period, universe_choice, total_scanned=len(symbols_to_scan))
+    print(_colored(f"[+] 选股结果报表与系统缓存已自动同步更新 (与 48 大策略选股系统完全一致):", Colors.BOLD + Colors.CYAN))
     if results:
-        csv_p, json_p = export_results(results, strategy_name, period, universe_choice)
-        print(_colored(f"[+] 选股结果报表已自动导出保存:", Colors.BOLD + Colors.CYAN))
         print(f"   CSV 报表 : {_colored(str(csv_p), Colors.GREEN)}")
-        print(f"   JSON 数据: {_colored(str(json_p), Colors.GREEN)}")
-        print(f"   磁盘缓存 : {_colored('data/screener_cache/ (已自动更新)', Colors.YELLOW)}\n")
+    print(f"   JSON 数据: {_colored(str(json_p), Colors.GREEN)}")
+    print(f"   磁盘缓存 : {_colored('data/screener_cache/ (48 大策略选股系统已可直接秒级复用)', Colors.YELLOW)}\n")
 
 
 if __name__ == "__main__":

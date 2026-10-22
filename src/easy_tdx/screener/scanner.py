@@ -49,39 +49,64 @@ def _get_cache_file(strategy_name: str, universe: str, period: str = "DAY") -> P
 def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
     if force_refresh:
         return None
+    today_str = date.today().strftime("%Y%m%d")
+    p_clean = str(period).strip().upper()
     cache_f = _get_cache_file(strategy_name, universe, period=period)
+
+    # 1. 若今日默认缓存不存在，尝试在 data/screener_cache 以及 output 目录下寻找对应候选
     if not cache_f.exists():
-        p_clean = str(period).strip().upper()
         cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
         if not cands and p_clean == "DAY":
             cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+        
+        # 兼容读取 run_screener.py 导出到 output/ 下的缓存
+        if not cands:
+            output_dir = Path.cwd() / "output"
+            if output_dir.exists():
+                cands = sorted(output_dir.glob(f"screener_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
+                if not cands and p_clean == "DAY":
+                    cands = sorted(output_dir.glob(f"screener_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+        
         if cands:
             cache_f = cands[0]
-            logger.info(f"Fallback to most recent screener cache: {cache_f.name}")
+            logger.info(f"Fallback to screener cache: {cache_f.name}")
 
     if cache_f.exists():
         try:
             mtime = os.path.getmtime(cache_f)
             age = time.time() - mtime
-            # During trading hours, strategy match cache expires quickly (120s)
-            # Outside trading hours, valid for up to 12 hours on the same trading day
-            from easy_tdx.market_overview import is_trading_time
-            max_age = INTRADAY_CACHE_TTL_SEC if is_trading_time() else POST_MARKET_CACHE_TTL_SEC
-            if age < max_age:
-                with open(cache_f, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict) and "matches" in data and "total_count" in data:
-                        cached_total = data.get("total_count", 0)
-                        # Strict universe scope validation: cached total must match expected total (e.g. 5222 vs 159/300)
-                        if expected_total > 0 and (cached_total <= 0 or abs(cached_total - expected_total) > max(10, int(expected_total * 0.10))):
-                            logger.info(f"Cache {cache_f.name} total_count mismatch ({cached_total} vs expected {expected_total}), discarding stale cache.")
-                            return None
-                        matches = data["matches"]
-                        logger.info(f"Loaded {len(matches)} cached screener results from {cache_f.name} (age={age:.1f}s, scanned={cached_total})")
-                        return matches
-                    else:
-                        logger.info(f"Cache {cache_f.name} is missing total_count metadata, discarding legacy cache.")
-                        return None
+            
+            with open(cache_f, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 结构解析兼容：支持标准字典包装结构与纯数组结构
+            matches = None
+            cached_total = 0
+            cached_date = ""
+
+            if isinstance(data, dict):
+                matches = data.get("matches") if "matches" in data else data.get("data")
+                cached_total = data.get("total_count", 0)
+                cached_date = str(data.get("date") or "")
+            elif isinstance(data, list):
+                matches = data
+                cached_total = len(data)
+
+            if matches is not None:
+                # 检查是否为当日生成的缓存 (同日扫描结果具有高度复用价值)
+                is_same_day = (cached_date == today_str) or (today_str in cache_f.name)
+                
+                # 在非强制刷新模式下，当日生成的缓存可直接复用，免去盘中 5200+ 只标的耗时重复计算
+                if is_same_day:
+                    logger.info(f"Directly reusing today's screener cache from {cache_f.name} (age={age:.1f}s, matches={len(matches)})")
+                    return matches
+                
+                # 盘后/周末非同日缓存，允许 12 小时内有效
+                from easy_tdx.market_overview import is_trading_time
+                max_age = POST_MARKET_CACHE_TTL_SEC if not is_trading_time() else INTRADAY_CACHE_TTL_SEC
+                if age < max_age:
+                    logger.info(f"Loaded {len(matches)} cached screener results from {cache_f.name} (age={age:.1f}s)")
+                    return matches
         except Exception as e:
             logger.warning(f"Failed to read cache {cache_f}: {e}")
     return None
@@ -101,7 +126,7 @@ def _save_cache(strategy_name: str, universe: str, total_count: int, matches: li
         }
         with open(cache_f, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved {len(matches)} screener matches (total={total_count}, period={period}) to cache {cache_f.name}")
+        logger.info(f"Saved {len(matches)} matches to screener cache {cache_f.name} (scanned={total_count})")
     except Exception as e:
         logger.warning(f"Failed to save screener cache: {e}")
 
@@ -1191,6 +1216,12 @@ def _evaluate_stock_for_strategy(
         elif len(latest_date) == 8 and latest_date.isdigit():
             latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
 
+        # 构建统一形态特征全景描述 (包含当日涨幅、当日形态、自触发涨幅、触发日及触发形态)
+        if days_ago == 0:
+            pattern_full_desc = f"当日:{latest_change_pct:+.2f}% | 今日触发 | 形态:{pattern_status}"
+        else:
+            pattern_full_desc = f"当日:{latest_change_pct:+.2f}%(形态:{pattern_status}) 自触发:{since_signal_pct:+.2f}% | 触发日:{signal_date}({days_ago}天前,形态:{trigger_pattern_status})"
+
         res_dict = {
             "symbol": sym,
             "code": sym,
@@ -1215,6 +1246,7 @@ def _evaluate_stock_for_strategy(
             "status": trigger_pattern_status,
             "trigger_patterns": trigger_patterns,
             "trigger_pattern_status": trigger_pattern_status,
+            "pattern_full_desc": pattern_full_desc,
             # 最新收盘与历史变动辅助信息
             "latest_price": close_price,
             "latest_change_pct": latest_change_pct,

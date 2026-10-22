@@ -123,9 +123,9 @@ def run_screener(
     print(f"【选股结果报告】共扫描 {len(symbols)} 只标的，成功捕获 {len(matches)} 只符合【{preset['label']}】大买条件的优质标的 (耗时: {cost_sec:.2f}s)")
     print("=" * 110)
 
-    header = f"{'序号':<4} | {'代码':<6} | {'股票名称':<8} | {'最新价':<7} | {'涨跌幅':<7} | {'缠论信号标签':<18} | {'触发日期':<10} | {'主力净流入(1D)':<12} | {'形态特征'}"
+    header = f"{'序号':<4} | {'代码':<6} | {'股票名称':<8} | {'触发价':<7} | {'触发涨跌':<8} | {'缠论信号标签':<18} | {'触发日期':<10} | {'主力净流入(1D)':<12} | {'形态特征 (当日/自触发/触发日及形态)'}"
     print(header)
-    print("-" * 110)
+    print("-" * 130)
 
     if not matches:
         print("  当前未扫描到符合大周期大买信号的个股，建议扩大股票池或盘中实时监控。")
@@ -139,12 +139,21 @@ def run_screener(
             dt = m.get("trigger_date") or m.get("signal_date") or "--"
             net_amt = m.get("main_net_amount")
             net_str = format_amount_wan(net_amt) if net_amt is not None else "--"
-            pat = m.get("trigger_pattern_status") or m.get("pattern_status") or "--"
-            if len(pat) > 22:
-                pat = pat[:20] + "..."
-            print(f"{idx:<4} | {code:<6} | {name:<8} | {price:<7} | {chg:<7} | {status:<18} | {dt:<10} | {net_str:<12} | {pat}")
+            
+            # 形态特征列：增加当日涨幅、自触发涨幅、当日形态特征、触发日及形态特征
+            days = m.get("days_ago") or 0
+            latest_chg = m.get("latest_change_pct") if m.get("latest_change_pct") is not None else float(m.get("change_pct") or 0.0)
+            since_chg = float(m.get("since_signal_pct") or 0.0)
+            latest_pat = m.get("latest_pattern_status") or m.get("pattern_status") or "--"
+            trig_pat = m.get("trigger_pattern_status") or m.get("pattern_status") or "--"
+            trig_dt = str(m.get("trigger_date") or m.get("signal_date") or "--")[:10]
+            if days == 0:
+                pat = f"当日:{latest_chg:+.2f}% | 今日触发 | 形态:{latest_pat}"
+            else:
+                pat = f"当日:{latest_chg:+.2f}%(形态:{latest_pat}) 自触发:{since_chg:+.2f}% | 触发:{trig_dt}({days}天前,形态:{trig_pat})"
+            print(f"{idx:<4} | {code:<6} | {name:<8} | {price:<7} | {chg:<8} | {status:<18} | {dt:<10} | {net_str:<12} | {pat}")
 
-    print("-" * 110)
+    print("-" * 130)
 
     # 保存结果到本地文件 (JSON + CSV)
     if output_dir is None:
@@ -185,9 +194,9 @@ def run_screener(
         import pandas as pd
         if matches:
             export_cols = [
-                "symbol", "name", "price", "change_pct", "status_label", 
-                "trigger_date", "days_ago", "volume", "amount_wan", 
-                "pattern_status", "trigger_pattern_status"
+                "symbol", "name", "price", "change_pct", "latest_change_pct", "since_signal_pct",
+                "status_label", "trigger_date", "days_ago", "volume", "amount_wan", 
+                "pattern_status", "trigger_pattern_status", "pattern_full_desc"
             ]
             df = pd.DataFrame(matches)
             sub_cols = [c for c in export_cols if c in df.columns]

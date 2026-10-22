@@ -3277,11 +3277,17 @@
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('cap')" title="点击按总市值排序">总市值<span id="screener-sort-cap"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
-                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('price')" title="点击按触发日收盘价排序 (悬停单元格可查看最新收盘与自触发累计涨幅)">现价<span id="screener-sort-price"
+                                <th class="py-2.5 px-2 text-center font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
+                                    onclick="sortScreenerTable('signal_date')" title="点击按触发日期/距今天数排序">触发日<span id="screener-sort-signal_date"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('chg')" title="点击按触发日当日涨幅%排序 (悬停单元格可查看累计涨跌幅)">涨幅%<span id="screener-sort-chg"
+                                    onclick="sortScreenerTable('price')" title="点击按触发日收盘价排序 (悬停单元格可查看最新收盘与自触发累计涨幅)">触发价<span id="screener-sort-price"
+                                        class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
+                                    onclick="sortScreenerTable('chg')" title="点击按触发日当日涨幅%排序">触发涨幅%<span id="screener-sort-chg"
+                                        class="ml-1 text-[10px] text-slate-500"></span></th>
+                                <th class="py-2.5 px-2 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
+                                    onclick="sortScreenerTable('since_chg')" title="点击按自触发以来的累计涨幅排序 (自触发日收盘至最新收盘)">自触发涨幅%<span id="screener-sort-since_chg"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-2.5 text-right font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
                                     onclick="sortScreenerTable('net_1d')" title="点击按主力净流入排序">主力净流入<span id="screener-sort-net_1d"
@@ -3317,13 +3323,13 @@
                                     onclick="sortScreenerTable('holders_num')" title="点击按股东人数排序">股东人数<span id="screener-sort-holders_num"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                                 <th class="py-2.5 px-3 text-left font-semibold cursor-pointer hover:text-cyan-400 select-none transition"
-                                    onclick="sortScreenerTable('pattern_score')" title="点击按形态特征/得分排序">形态特征<span id="screener-sort-pattern_score"
+                                    onclick="sortScreenerTable('pattern_score')" title="点击按形态特征排序 (包含当日涨幅、自触发累计涨幅、触发日及形态特征)">形态特征<span id="screener-sort-pattern_score"
                                         class="ml-1 text-[10px] text-slate-500"></span></th>
                             </tr>
                         </thead>
                         <tbody id="screener-results-table" class="divide-y divide-slate-800/60 font-mono">
                             <tr>
-                                <td colspan="22" class="py-8 text-center text-slate-500 text-xs">
+                                <td colspan="24" class="py-8 text-center text-slate-500 text-xs">
                                     请选择战法策略与选股范围后，点击上方「开始选股」</td>
                             </tr>
                         </tbody>
@@ -15668,6 +15674,121 @@
             `;
         }
 
+        // 48大策略选股器形态特征列复合渲染器：整合当日涨跌幅、触发日以来的涨幅、当日形态特征、触发日及形态特征
+        function renderScreenerPatternCell(m) {
+            if (!m) return '<span class="text-slate-400 font-mono text-xs">-</span>';
+
+            const daysAgo = (m.days_ago !== undefined && m.days_ago !== null) ? Number(m.days_ago) : 0;
+            const sigDateRaw = String(m.signal_date || m.trigger_date || '--');
+            const sigDateStr = sigDateRaw.length > 10 ? sigDateRaw.slice(0, 10) : sigDateRaw;
+            const sigDateShort = sigDateStr.length > 5 ? sigDateStr.slice(5) : sigDateStr;
+
+            // 1. 当日涨跌幅 (优先取最新交易日涨跌幅 latest_change_pct，若无则取 change_pct)
+            const latestPctVal = Number((m.latest_change_pct !== undefined && m.latest_change_pct !== null) 
+                ? m.latest_change_pct 
+                : (m.change_pct ?? m.pct ?? 0));
+            const latestPctClass = latestPctVal > 0 ? 'text-rose-500 font-bold' : (latestPctVal < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400 font-medium');
+            const latestPctSign = latestPctVal > 0 ? '+' : '';
+            const latestPctStr = `${latestPctSign}${latestPctVal.toFixed(2)}%`;
+
+            // 2. 触发日以来的累计涨跌幅
+            const sincePctVal = Number(m.since_signal_pct ?? 0);
+            const sincePctClass = sincePctVal > 0 ? 'text-rose-500 font-bold' : (sincePctVal < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400 font-medium');
+            const sincePctSign = sincePctVal > 0 ? '+' : '';
+            const sincePctStr = `${sincePctSign}${sincePctVal.toFixed(2)}%`;
+
+            // 3. 提取触发日形态列表
+            let trigPats = [];
+            if (m.trigger_patterns && Array.isArray(m.trigger_patterns) && m.trigger_patterns.length > 0) {
+                trigPats = m.trigger_patterns;
+            } else if (m.patterns && Array.isArray(m.patterns) && m.patterns.length > 0) {
+                trigPats = m.patterns;
+            } else {
+                const s = m.trigger_pattern_status || m.pattern_status || m.status || '震荡整理';
+                trigPats = String(s).split(' · ').map(x => x.trim()).filter(Boolean);
+            }
+            if (trigPats.length === 0) trigPats = ['震荡整理'];
+            const trigPatStrings = trigPats.map(p => typeof p === 'object' ? (p.name || String(p)) : String(p));
+            const trigBadgesHtml = trigPatStrings.map(formatSinglePattern).join('');
+            const trigPatsText = trigPatStrings.join(' · ');
+
+            // 4. 提取当日最新形态列表
+            let latestPats = [];
+            if (m.latest_patterns && Array.isArray(m.latest_patterns) && m.latest_patterns.length > 0) {
+                latestPats = m.latest_patterns;
+            } else if (m.latest_pattern_status) {
+                latestPats = String(m.latest_pattern_status).split(' · ').map(x => x.trim()).filter(Boolean);
+            } else {
+                latestPats = trigPats;
+            }
+            if (latestPats.length === 0) latestPats = ['震荡整理'];
+            const latestPatStrings = latestPats.map(p => typeof p === 'object' ? (p.name || String(p)) : String(p));
+            const latestBadgesHtml = latestPatStrings.map(formatSinglePattern).join('');
+            const latestPatsText = latestPatStrings.join(' · ');
+
+            // 构建全景 hover tooltip
+            let hoverTip = `【形态特征与涨幅全景】&#10;` +
+                `当日形态: ${latestPatsText}&#10;` +
+                `当日涨跌幅: ${latestPctStr}&#10;` +
+                `自触发日累计涨幅: ${sincePctStr}&#10;` +
+                `触发日期: ${sigDateStr} (${daysAgo === 0 ? '今日触发' : daysAgo + '天前'})&#10;` +
+                `触发日形态: ${trigPatsText}`;
+
+            // 若为今日触发：当日形态与触发形态一致，合并展示避免重复
+            if (daysAgo === 0) {
+                return `
+                    <div class="flex flex-col justify-center gap-1 min-w-[210px] py-0.5 cursor-help" title="${hoverTip}">
+                        <div class="flex items-center gap-2 font-mono whitespace-nowrap text-xs">
+                            <div class="inline-flex items-center gap-1">
+                                <span class="text-[10px] text-slate-400 select-none scale-95">当日:</span>
+                                <span class="${latestPctClass}">${latestPctStr}</span>
+                            </div>
+                            <span class="text-slate-600 select-none text-[10px]">|</span>
+                            <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-cyan-950 text-cyan-400 border border-cyan-800">今日触发</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-slate-800/50">
+                            <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-slate-800 text-slate-300 border border-slate-700/80">当日形态</span>
+                            <div class="inline-flex flex-wrap items-center gap-1">
+                                ${latestBadgesHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 历史触发 (daysAgo > 0)：清晰区分展示当日形态与触发日形态
+            return `
+                <div class="flex flex-col justify-center gap-1 min-w-[230px] py-0.5 cursor-help" title="${hoverTip}">
+                    <!-- 1. 当日涨幅 与 自触发累计涨幅 -->
+                    <div class="flex items-center gap-2 font-mono whitespace-nowrap text-xs">
+                        <div class="inline-flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400 select-none scale-95">当日:</span>
+                            <span class="${latestPctClass}">${latestPctStr}</span>
+                        </div>
+                        <span class="text-slate-600 select-none text-[10px]">|</span>
+                        <div class="inline-flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400 select-none scale-95">自触发:</span>
+                            <span class="${sincePctClass}">${sincePctStr}</span>
+                        </div>
+                    </div>
+                    <!-- 2. 当日形态特征 -->
+                    <div class="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-slate-800/50">
+                        <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-cyan-950/80 text-cyan-300 border border-cyan-800/70">当日</span>
+                        <div class="inline-flex flex-wrap items-center gap-1">
+                            ${latestBadgesHtml}
+                        </div>
+                    </div>
+                    <!-- 3. 触发日及形态特征 -->
+                    <div class="flex flex-wrap items-center gap-1.5 opacity-90">
+                        <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-indigo-950/80 text-indigo-300 border border-indigo-800/70">触发(${sigDateShort})</span>
+                        <div class="inline-flex flex-wrap items-center gap-1">
+                            ${trigBadgesHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         let _watchlistSortCol = null;
         let _watchlistSortAsc = false;
         let _cachedWatchlistRows = [];
@@ -18087,7 +18208,7 @@
         let screenerSortAsc = false;
 
         const screenerSortableCols = [
-            'code', 'name', 'industry', 'buy_score', 'sell_score', 'cap', 'price', 'chg',
+            'code', 'name', 'industry', 'buy_score', 'sell_score', 'cap', 'signal_date', 'price', 'chg', 'since_chg',
             'net_1d', 'consec_days', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz',
             'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'
         ];
@@ -18139,12 +18260,19 @@
                 } else if (col === 'cap') {
                     va = Number(a.mkt_capt || (a.total_mv_yi ? a.total_mv_yi * 1e8 : (a.total_mv ? a.total_mv * 1e8 : 0)));
                     vb = Number(b.mkt_capt || (b.total_mv_yi ? b.total_mv_yi * 1e8 : (b.total_mv ? b.total_mv * 1e8 : 0)));
+                } else if (col === 'signal_date') {
+                    va = Number(a.days_ago || 0);
+                    vb = Number(b.days_ago || 0);
+                    return screenerSortAsc ? va - vb : vb - va;
                 } else if (col === 'price') {
                     va = Number(a.price ?? a.close ?? 0);
                     vb = Number(b.price ?? b.close ?? 0);
                 } else if (col === 'chg') {
                     va = Number(a.pct ?? a.signal_change_pct ?? a.change_pct ?? 0);
                     vb = Number(b.pct ?? b.signal_change_pct ?? b.change_pct ?? 0);
+                } else if (col === 'since_chg') {
+                    va = Number(a.since_signal_pct ?? 0);
+                    vb = Number(b.since_signal_pct ?? 0);
                 } else if (col === 'net_1d') {
                     va = Number(a.dde_net ?? a.main_net_amount ?? 0);
                     vb = Number(b.dde_net ?? b.main_net_amount ?? 0);
@@ -18179,8 +18307,8 @@
                     va = Number(a.holders_num || 0);
                     vb = Number(b.holders_num || 0);
                 } else if (col === 'pattern_score') {
-                    va = Number(a.pattern_score || 0);
-                    vb = Number(b.pattern_score || 0);
+                    va = Number(a.pattern_score ?? a.since_signal_pct ?? 0);
+                    vb = Number(b.pattern_score ?? b.since_signal_pct ?? 0);
                 } else {
                     va = 0; vb = 0;
                 }
@@ -18270,7 +18398,7 @@
             const tbody = document.getElementById('screener-results-table');
             if (!tbody) return;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="22" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="24" class="py-10 text-center text-slate-400 text-xs">在【${universeDesc}】中暂无触发【${strategyName}】战法买入信号的标的，可切换范围或战法重试。</td></tr>`;
                 updateScreenerPaginationUI(0, 0, 1, 1, 0, 0);
                 return;
             }
@@ -18358,25 +18486,46 @@
                 const mktCaptVal = Number(m.mkt_capt || (m.total_mv_yi ? m.total_mv_yi * 1e8 : (m.total_mv ? m.total_mv * 1e8 : 0)));
                 const mktCaptStr = mktCaptVal > 0 ? fmtMoneyTs(mktCaptVal) : (m.market_cap_str || '-');
 
-                // 9. 触发日价格 (若有 since_signal_pct 或 latest_price，支持 tooltip 展示最新现价与累计涨跌)
+                // 9. 触发日信息
+                const sigDateRaw = String(m.signal_date || m.trigger_date || '--');
+                const sigDateStr = sigDateRaw.length > 10 ? sigDateRaw.slice(0, 10) : sigDateRaw;
+                const daysAgo = (m.days_ago !== undefined && m.days_ago !== null) ? Number(m.days_ago) : 0;
+                const daysAgoTag = daysAgo === 0
+                    ? `<span class="text-[10px] px-1 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-bold leading-none">今日</span>`
+                    : `<span class="text-[10px] text-slate-400 font-mono leading-none">${daysAgo}天前</span>`;
+                const trigDateHtml = `
+                    <div class="flex flex-col items-center justify-center whitespace-nowrap leading-tight cursor-help" title="触发日期: ${sigDateStr} (${daysAgo === 0 ? '今日触发' : daysAgo + '天前'})">
+                        <span class="text-xs font-mono font-medium text-slate-200">${sigDateStr.length > 5 ? sigDateStr.slice(5) : sigDateStr}</span>
+                        ${daysAgoTag}
+                    </div>
+                `;
+
+                // 10. 触发日价格 (若有 since_signal_pct 或 latest_price，支持 tooltip 展示最新现价与累计涨跌)
                 const priceVal = Number(m.price ?? m.trigger_price ?? m.close ?? 0);
                 const priceStr = priceVal > 0 ? priceVal.toFixed(2) : '-';
                 const latestPriceVal = Number(m.latest_price ?? 0);
                 const sincePctVal = Number(m.since_signal_pct ?? 0);
-                let priceTip = `【触发日行情】\n触发日期: ${m.signal_date || '当日'}\n触发收盘价: ¥${priceStr}`;
-                if (latestPriceVal > 0 && m.days_ago > 0) {
+                let priceTip = `【触发日行情】\n触发日期: ${sigDateStr}\n触发收盘价: ¥${priceStr}`;
+                if (latestPriceVal > 0 && daysAgo > 0) {
                     priceTip += `\n\n【最新收盘对比】\n最新日期: ${m.latest_date || '最新'}\n最新收盘价: ¥${latestPriceVal.toFixed(2)}\n自触发以来累计: ${sincePctVal >= 0 ? '+' : ''}${sincePctVal.toFixed(2)}%`;
                 }
 
-                // 10. 触发日涨幅%
+                // 11. 触发日涨幅%
                 const pctVal = Number(m.change_pct ?? m.pct ?? m.signal_change_pct ?? 0);
                 const pctClass = pctVal >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
                 const pctPrefix = pctVal >= 0 ? '+' : '';
                 const pctStr = `${pctPrefix}${pctVal.toFixed(2)}%`;
                 let pctTip = `【触发日涨跌幅】: ${pctStr}`;
-                if (m.days_ago > 0 && m.since_signal_pct !== undefined) {
+                if (daysAgo > 0 && m.since_signal_pct !== undefined) {
                     pctTip += `\n自触发以来累计涨幅: ${sincePctVal >= 0 ? '+' : ''}${sincePctVal.toFixed(2)}%`;
                 }
+
+                // 12. 自触发以来累计涨幅%
+                const sinceClass = sincePctVal > 0 ? 'text-rose-500 font-bold' : (sincePctVal < 0 ? 'text-emerald-400 font-bold' : 'text-slate-400 font-semibold');
+                const sincePrefix = sincePctVal > 0 ? '+' : '';
+                const sinceStr = `${sincePrefix}${sincePctVal.toFixed(2)}%`;
+                const sinceTip = `自触发日 (${sigDateStr}) 收盘价 ¥${priceStr} 以来：\n最新收盘: ¥${(latestPriceVal || priceVal).toFixed(2)}\n累计涨跌: ${sinceStr}`;
+                const sinceHtml = `<span class="${sinceClass} font-mono cursor-help" title="${sinceTip}">${sinceStr}</span>`;
 
                 // 11. 主力净流入
                 const ddeVal = Number(m.dde_net ?? m.main_net_amount ?? 0);
@@ -18475,15 +18624,8 @@
                     <a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-200 hover:text-cyan-400 hover:underline cursor-pointer" title="点击在雪球查看【${name}】股东人数及筹码变动详情">${holdersNumText}</a>${holdersChangesHtml}
                 </div>`;
 
-                // 22. 形态特征：全部统一展示触发日当日形态特征
-                let patternHtml = '';
-                const displayPatterns = (m.trigger_patterns && m.trigger_patterns.length > 0) ? m.trigger_patterns : m.patterns;
-                const displayStatus = m.trigger_pattern_status || m.pattern_status || m.status;
-                if (displayPatterns && Array.isArray(displayPatterns) && displayPatterns.length > 0 && typeof displayPatterns[0] === 'object') {
-                    patternHtml = renderPatternFeaturesTs(m);
-                } else {
-                    patternHtml = renderPatternBadges(displayPatterns, displayStatus, displayPatterns, 0, m.signal_date, m.latest_date);
-                }
+                // 22. 形态特征：展示当日涨幅、自触发涨幅、触发日及形态特征全景
+                const patternHtml = renderScreenerPatternCell(m);
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition border-b border-slate-800/60">
@@ -18495,8 +18637,10 @@
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${buyScoreBadge}</td>
                     <td class="py-2.5 px-2 text-center whitespace-nowrap">${sellScoreBadge}</td>
                     <td class="py-2.5 px-2.5 text-right font-mono text-slate-300 whitespace-nowrap">${mktCaptStr}</td>
+                    <td class="py-2.5 px-2 text-center whitespace-nowrap">${trigDateHtml}</td>
                     <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap text-white cursor-help" title="${priceTip}">¥${priceStr}</td>
                     <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap ${pctClass} cursor-help" title="${pctTip}">${pctStr}</td>
+                    <td class="py-2.5 px-2 font-bold font-mono text-right whitespace-nowrap">${sinceHtml}</td>
                     <td class="py-2.5 px-2.5 text-right font-mono whitespace-nowrap ${ddeClass}">${ddeStr}</td>
                     <td class="py-2.5 px-2.5 text-right whitespace-nowrap">${consecHtml}</td>
                     <td class="py-2.5 px-2 text-right font-mono font-medium ${tRateClass} whitespace-nowrap">${tRateStr}${starSellHtml}</td>
