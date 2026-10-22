@@ -1612,7 +1612,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             const absV = Math.abs(val)
             const sign = val > 0 ? '+' : (val < 0 ? '-' : '')
             if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(2)}亿`
-            if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(1)}万`
+            if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(2)}万`
             return `${sign}${absV.toFixed(0)}元`
           }
           const flowColor = flowVal > 0 ? '#ef4444' : (flowVal < 0 ? '#10b981' : (isDark ? '#cbd5e1' : '#64748b'))

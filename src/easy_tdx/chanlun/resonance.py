@@ -40,8 +40,13 @@ def safe_float(val: Any, default: float | None = None) -> float | None:
     return round(float(val), 2)
 
 
-def calculate_inflow_data(df: pd.DataFrame) -> dict[str, list[float | None]]:
-    """参考 K 线弹窗 (quotes.py) 算法计算逐根 K 线主力资金净流入及移动平均线。"""
+def calculate_inflow_data(
+    df: pd.DataFrame,
+    clean_code: str | None = None,
+    is_backtracking: bool = False,
+    is_daily: bool = True,
+) -> dict[str, list[float | None]]:
+    """参考 K 线弹窗 (quotes.py) 算法计算逐根 K 线主力资金净流入及移动平均线，并在日线实时态用 Level-2 官方主力净流入校准。"""
     if df.empty or len(df) == 0:
         return {"net_inflow": [], "ma3": [], "ma5": [], "ma10": []}
 
@@ -75,6 +80,82 @@ def calculate_inflow_data(df: pd.DataFrame) -> dict[str, list[float | None]]:
         flow_r = max(-0.20, min(0.20, body_r * 0.08 + pos_r * 0.06 + chg_r * 0.10))
         net_inflows[idx] = round(amt_i * flow_r, 2)
 
+    # 仅在非历史回溯且日线模式下，使用通达信 Level-2 官方主力净流入进行权威校准（与 quotes.py 弹窗逻辑完全保持一致）
+    if not is_backtracking and is_daily and clean_code and n_len > 0:
+        m1_real = 0.0
+        m3_real = 0.0
+        m5_real = 0.0
+        try:
+            from easy_tdx.web.routers.quotes import _STOCK_MAC_CACHE, _STOCK_MAC_LOCK
+            now_q = time.time()
+            with _STOCK_MAC_LOCK:
+                if clean_code in _STOCK_MAC_CACHE:
+                    ts_q, c_val = _STOCK_MAC_CACHE[clean_code]
+                    if now_q - ts_q < 3600.0:
+                        m1_real = float(c_val.get("main_net_amount") or 0.0)
+                        m3_real = float(c_val.get("main_net_3d_amount") or 0.0)
+                        m5_real = float(c_val.get("main_net_5d_amount") or 0.0)
+        except Exception:
+            pass
+
+        if m1_real == 0.0 and m3_real == 0.0 and m5_real == 0.0:
+            try:
+                from easy_tdx.market_data import _get_or_create_mac_client
+                from easy_tdx.codec.bitmap import FieldBit, PresetField
+                mac = _get_or_create_mac_client()
+                fields = (
+                    PresetField.BASIC
+                    + FieldBit.AMOUNT
+                    + FieldBit.MAIN_NET_AMOUNT
+                    + FieldBit.MAIN_NET_3D_AMOUNT
+                    + FieldBit.MAIN_NET_5D_AMOUNT
+                )
+                mac_mkt = 1 if (clean_code.startswith(("6", "9")) or clean_code.startswith("sh")) else 0
+                df_q = mac.get_stock_quotes([(mac_mkt, clean_code)], fields=fields)
+                if df_q is not None and not df_q.empty:
+                    row_q = df_q.iloc[0]
+                    m1_real = float(row_q.get("main_net_amount") or 0.0)
+                    m3_real = float(row_q.get("main_net_3d_amount") or 0.0)
+                    m5_real = float(row_q.get("main_net_5d_amount") or 0.0)
+                    try:
+                        from easy_tdx.web.routers.quotes import _STOCK_MAC_CACHE, _STOCK_MAC_LOCK
+                        with _STOCK_MAC_LOCK:
+                            _STOCK_MAC_CACHE[clean_code] = (
+                                time.time(),
+                                {
+                                    "main_net_amount": m1_real,
+                                    "main_net_3d_amount": m3_real,
+                                    "main_net_5d_amount": m5_real,
+                                },
+                            )
+                    except Exception:
+                        pass
+            except Exception as e_calib:
+                logging.getLogger("chanlun.resonance").debug("Level-2 inflow calib fetch failed: %s", e_calib)
+
+        if m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0:
+            net_inflows[-1] = round(m1_real, 2)
+
+            # Calibrate 3-day window
+            if n_len >= 3 and m3_real != 0.0:
+                diff_3 = m3_real - m1_real
+                w3_idx = [-2, -3]
+                tot_a_3 = max(1.0, float(amt_vals[w3_idx[0]]) + float(amt_vals[w3_idx[1]]))
+                sum_r_3 = float(net_inflows[w3_idx[0]]) + float(net_inflows[w3_idx[1]])
+                for i in w3_idx:
+                    w = float(amt_vals[i]) / tot_a_3
+                    net_inflows[i] = round(w * diff_3 + (net_inflows[i] - w * sum_r_3), 2)
+
+            # Calibrate 5-day window
+            if n_len >= 5 and m5_real != 0.0:
+                diff_5 = m5_real - (m3_real if m3_real != 0.0 else (m1_real * 3.0))
+                w5_idx = [-4, -5]
+                tot_a_5 = max(1.0, float(amt_vals[w5_idx[0]]) + float(amt_vals[w5_idx[1]]))
+                sum_r_5 = float(net_inflows[w5_idx[0]]) + float(net_inflows[w5_idx[1]])
+                for i in w5_idx:
+                    w = float(amt_vals[i]) / tot_a_5
+                    net_inflows[i] = round(w * diff_5 + (net_inflows[i] - w * sum_r_5), 2)
+
     inflow_ma3 = MA(net_inflows, 3)
     inflow_ma5 = MA(net_inflows, 5)
     inflow_ma10 = MA(net_inflows, 10)
@@ -97,6 +178,9 @@ def build_merged_chart_data(
     mid_zss: list[dict],
     mmd_marks: list[dict],
     res_marks: list[dict],
+    clean_code: str | None = None,
+    is_backtracking: bool = False,
+    is_daily: bool = True,
 ) -> dict[str, Any]:
     """严格按照缠论标准包含关系，构建合并后的 K 线图及关联的笔、中枢、买卖点、指标数据。"""
     cklines = getattr(low_res, "cklines", []) or []
@@ -321,7 +405,12 @@ def build_merged_chart_data(
         "volume": [v[1] for v in ck_volumes],
         "amount": [a[1] for a in ck_amounts],
     })
-    ck_inflow = calculate_inflow_data(ck_df)
+    ck_inflow = calculate_inflow_data(
+        ck_df,
+        clean_code=clean_code,
+        is_backtracking=is_backtracking,
+        is_daily=is_daily,
+    )
 
     return {
         "dates": ck_dates,
@@ -1992,7 +2081,12 @@ def analyze_multi_period_resonance(
             "rsi": p_rsi,
             "kdj": p_kdj,
             "expma": p_expma,
-            "inflow": calculate_inflow_data(p_df),
+            "inflow": calculate_inflow_data(
+                p_df,
+                clean_code=clean_code,
+                is_backtracking=is_backtracking,
+                is_daily=(p == "DAY"),
+            ),
             "merged_chart": build_merged_chart_data(
                 low_res=p_res,
                 base_df=p_df,
@@ -2003,6 +2097,9 @@ def analyze_multi_period_resonance(
                 mid_zss=[],
                 mmd_marks=[],
                 res_marks=[],
+                clean_code=clean_code,
+                is_backtracking=is_backtracking,
+                is_daily=(p == "DAY"),
             ),
         }
 
@@ -2056,7 +2153,12 @@ def analyze_multi_period_resonance(
             "rsi": rsi_data,
             "kdj": kdj_data,
             "expma": expma_data,
-            "inflow": calculate_inflow_data(base_df),
+            "inflow": calculate_inflow_data(
+                base_df,
+                clean_code=clean_code,
+                is_backtracking=is_backtracking,
+                is_daily=(low_p == "DAY"),
+            ),
         },
         "merged_chart": build_merged_chart_data(
             low_res=low_res,
@@ -2068,6 +2170,9 @@ def analyze_multi_period_resonance(
             mid_zss=mid_zss,
             mmd_marks=mmd_marks,
             res_marks=res_marks,
+            clean_code=clean_code,
+            is_backtracking=is_backtracking,
+            is_daily=(low_p == "DAY"),
         ),
         "levels_data": levels_data,
         "backtrack_timeline": {
