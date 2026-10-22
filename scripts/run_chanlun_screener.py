@@ -148,7 +148,7 @@ def run_screener(
             trig_pat = m.get("trigger_pattern_status") or m.get("pattern_status") or "--"
             trig_dt = str(m.get("trigger_date") or m.get("signal_date") or "--")[:10]
             if days == 0:
-                pat = f"当日:{latest_chg:+.2f}% | 今日触发 | 形态:{latest_pat}"
+                pat = f"当日:{latest_chg:+.2f}% | 自触发:{since_chg:+.2f}% | 形态:{latest_pat}"
             else:
                 pat = f"当日:{latest_chg:+.2f}%(形态:{latest_pat}) 自触发:{since_chg:+.2f}% | 触发:{trig_dt}({days}天前,形态:{trig_pat})"
             print(f"{idx:<4} | {code:<6} | {name:<8} | {price:<7} | {chg:<8} | {status:<18} | {dt:<10} | {net_str:<12} | {pat}")
@@ -188,6 +188,14 @@ def run_screener(
         json.dump(report_payload, f, ensure_ascii=False, indent=2)
     with open(latest_json, "w", encoding="utf-8") as f:
         json.dump(report_payload, f, ensure_ascii=False, indent=2)
+
+    # 同步写入 data/screener_cache 供 Web UI 48大策略选股器及 run_screener.py 直接秒级复用
+    try:
+        from easy_tdx.screener.scanner import _save_cache
+        p_name = preset.get("key") or period
+        _save_cache("chanlun_strategy", universe, len(symbols), matches, period=p_name)
+    except Exception as e:
+        pass
 
     # 导出 CSV 便于 Excel 打开研判
     try:

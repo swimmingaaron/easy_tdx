@@ -354,8 +354,7 @@ def export_results(results: list[dict[str, Any]], strategy_name: str, period: st
                 since_chg = float(r.get("since_signal_pct") or 0.0)
                 latest_pat = r.get("latest_pattern_status") or r.get("pattern_status") or "--"
                 trig_pat = r.get("trigger_pattern_status") or r.get("pattern_status") or r.get("status_label") or "--"
-                trig_dt = str(r.get("signal_date") or r.get("trigger_date") or "--")[:10]
-                pat_desc = r.get("pattern_full_desc") or (f"当日:{latest_chg:+.2f}% | 今日触发 | 形态:{latest_pat}" if days == 0 else f"当日:{latest_chg:+.2f}%(形态:{latest_pat}) 自触发:{since_chg:+.2f}% | 触发:{trig_dt}({days}天前,形态:{trig_pat})")
+                pat_desc = r.get("pattern_full_desc") or (f"当日:{latest_chg:+.2f}% | 自触发:{since_chg:+.2f}% | 形态:{latest_pat}" if days == 0 else f"当日:{latest_chg:+.2f}%(形态:{latest_pat}) 自触发:{since_chg:+.2f}% | 触发:{trig_dt}({days}天前,形态:{trig_pat})")
 
                 clean_rows.append({
                     "代码": r.get("code") or r.get("symbol"),

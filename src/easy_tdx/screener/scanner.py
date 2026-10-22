@@ -61,11 +61,14 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
         
         # 兼容读取 run_screener.py 导出到 output/ 下的缓存
         if not cands:
-            output_dir = Path.cwd() / "output"
-            if output_dir.exists():
-                cands = sorted(output_dir.glob(f"screener_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
-                if not cands and p_clean == "DAY":
-                    cands = sorted(output_dir.glob(f"screener_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+            repo_root = Path(__file__).resolve().parents[3]
+            for out_cand in [repo_root / "output", Path.cwd() / "output"]:
+                if out_cand.exists():
+                    cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
+                    if not cands and p_clean == "DAY":
+                        cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+                    if cands:
+                        break
         
         if cands:
             cache_f = cands[0]
@@ -113,13 +116,15 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
 
 def _save_cache(strategy_name: str, universe: str, total_count: int, matches: list[dict[str, Any]], period: str = "DAY") -> None:
     try:
+        p_clean = str(period).strip().upper()
+        today_str = date.today().strftime("%Y%m%d")
         cache_f = _get_cache_file(strategy_name, universe, period=period)
         payload = {
             "strategy": strategy_name,
             "universe": universe,
-            "period": str(period).strip().upper(),
+            "period": p_clean,
             "total_count": total_count,
-            "date": date.today().strftime("%Y%m%d"),
+            "date": today_str,
             "timestamp": time.time(),
             "matches_count": len(matches),
             "matches": matches
@@ -127,6 +132,51 @@ def _save_cache(strategy_name: str, universe: str, total_count: int, matches: li
         with open(cache_f, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved {len(matches)} matches to screener cache {cache_f.name} (scanned={total_count})")
+
+        # 同步写入 output/ 目录供 run_screener.py 及外部工具直接双向复用
+        repo_root = Path(__file__).resolve().parents[3]
+        output_dir = repo_root / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out_json = output_dir / f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}.json"
+        with open(out_json, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        # 同步导出对应 CSV 报表
+        if matches:
+            try:
+                import pandas as pd
+                out_csv = output_dir / f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}.csv"
+                clean_rows = []
+                for r in matches:
+                    days = r.get("days_ago") or 0
+                    latest_chg = r.get("latest_change_pct") if r.get("latest_change_pct") is not None else float(r.get("change_pct") or 0.0)
+                    since_chg = float(r.get("since_signal_pct") or 0.0)
+                    latest_pat = r.get("latest_pattern_status") or r.get("pattern_status") or "--"
+                    trig_pat = r.get("trigger_pattern_status") or r.get("pattern_status") or r.get("status_label") or "--"
+                    trig_dt = str(r.get("signal_date") or r.get("trigger_date") or "--")[:10]
+                    pat_desc = r.get("pattern_full_desc") or (
+                        f"当日:{latest_chg:+.2f}% | 自触发:{since_chg:+.2f}% | {latest_pat}" 
+                        if days == 0 
+                        else f"当日:{latest_chg:+.2f}% | 自触发:{since_chg:+.2f}% | {latest_pat} | 触发:{trig_dt}({days}天前,形态:{trig_pat})"
+                    )
+                    clean_rows.append({
+                        "代码": r.get("code") or r.get("symbol"),
+                        "名称": r.get("name"),
+                        "触发价": r.get("price"),
+                        "触发日涨跌%": r.get("change_pct"),
+                        "当日涨跌%": latest_chg,
+                        "自触发涨幅%": since_chg,
+                        "触发信号形态": r.get("status_label") or r.get("pattern_status"),
+                        "触发日期": r.get("signal_date") or r.get("trigger_date"),
+                        "距今交易日": days,
+                        "形态特征全景": pat_desc,
+                        "策略": r.get("strategy") or strategy_name,
+                        "周期": r.get("period") or p_clean,
+                    })
+                df_out = pd.DataFrame(clean_rows)
+                df_out.to_csv(out_csv, index=False, encoding="utf-8-sig")
+            except Exception:
+                pass
     except Exception as e:
         logger.warning(f"Failed to save screener cache: {e}")
 
@@ -1216,11 +1266,11 @@ def _evaluate_stock_for_strategy(
         elif len(latest_date) == 8 and latest_date.isdigit():
             latest_date = f"{latest_date[:4]}-{latest_date[4:6]}-{latest_date[6:]}"
 
-        # 构建统一形态特征全景描述 (包含当日涨幅、当日形态、自触发涨幅、触发日及触发形态)
+        # 构建统一形态特征全景描述 (包含当日涨幅、自触发涨幅、当日形态、触发日及触发形态)
         if days_ago == 0:
-            pattern_full_desc = f"当日:{latest_change_pct:+.2f}% | 今日触发 | 形态:{pattern_status}"
+            pattern_full_desc = f"当日:{latest_change_pct:+.2f}% | 自触发:{since_signal_pct:+.2f}% | {pattern_status}"
         else:
-            pattern_full_desc = f"当日:{latest_change_pct:+.2f}%(形态:{pattern_status}) 自触发:{since_signal_pct:+.2f}% | 触发日:{signal_date}({days_ago}天前,形态:{trigger_pattern_status})"
+            pattern_full_desc = f"当日:{latest_change_pct:+.2f}% | 自触发:{since_signal_pct:+.2f}% | {pattern_status} | 触发日:{signal_date}({days_ago}天前,形态:{trigger_pattern_status})"
 
         res_dict = {
             "symbol": sym,

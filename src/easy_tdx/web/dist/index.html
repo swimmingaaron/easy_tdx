@@ -15734,33 +15734,10 @@
                 `触发日期: ${sigDateStr} (${daysAgo === 0 ? '今日触发' : daysAgo + '天前'})&#10;` +
                 `触发日形态: ${trigPatsText}`;
 
-            // 若为今日触发：当日形态与触发形态一致，合并展示避免重复
+            // 若为当日触发：简洁单行展示 当日: +X.XX% | 自触发: +0.00% | [形态标签...]
             if (daysAgo === 0) {
                 return `
-                    <div class="flex flex-col justify-center gap-1 min-w-[210px] py-0.5 cursor-help" title="${hoverTip}">
-                        <div class="flex items-center gap-2 font-mono whitespace-nowrap text-xs">
-                            <div class="inline-flex items-center gap-1">
-                                <span class="text-[10px] text-slate-400 select-none scale-95">当日:</span>
-                                <span class="${latestPctClass}">${latestPctStr}</span>
-                            </div>
-                            <span class="text-slate-600 select-none text-[10px]">|</span>
-                            <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-cyan-950 text-cyan-400 border border-cyan-800">今日触发</span>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-slate-800/50">
-                            <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-slate-800 text-slate-300 border border-slate-700/80">当日形态</span>
-                            <div class="inline-flex flex-wrap items-center gap-1">
-                                ${latestBadgesHtml}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 历史触发 (daysAgo > 0)：清晰区分展示当日形态与触发日形态
-            return `
-                <div class="flex flex-col justify-center gap-1 min-w-[230px] py-0.5 cursor-help" title="${hoverTip}">
-                    <!-- 1. 当日涨幅 与 自触发累计涨幅 -->
-                    <div class="flex items-center gap-2 font-mono whitespace-nowrap text-xs">
+                    <div class="flex flex-wrap items-center gap-1.5 font-mono whitespace-nowrap text-xs py-0.5 cursor-help" title="${hoverTip}">
                         <div class="inline-flex items-center gap-1">
                             <span class="text-[10px] text-slate-400 select-none scale-95">当日:</span>
                             <span class="${latestPctClass}">${latestPctStr}</span>
@@ -15770,16 +15747,37 @@
                             <span class="text-[10px] text-slate-400 select-none scale-95">自触发:</span>
                             <span class="${sincePctClass}">${sincePctStr}</span>
                         </div>
-                    </div>
-                    <!-- 2. 当日形态特征 -->
-                    <div class="flex flex-wrap items-center gap-1.5 pt-0.5 border-t border-slate-800/50">
-                        <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-cyan-950/80 text-cyan-300 border border-cyan-800/70">当日</span>
+                        <span class="text-slate-600 select-none text-[10px]">|</span>
                         <div class="inline-flex flex-wrap items-center gap-1">
                             ${latestBadgesHtml}
                         </div>
                     </div>
-                    <!-- 3. 触发日及形态特征 -->
-                    <div class="flex flex-wrap items-center gap-1.5 opacity-90">
+                `;
+            }
+
+            // 历史触发 (daysAgo > 0)：
+            // 第1行：当日涨幅、自触发涨幅 与 当日形态特征同行并列
+            // 第2行：触发日及形态特征
+            return `
+                <div class="flex flex-col justify-center gap-1 min-w-[230px] py-0.5 cursor-help" title="${hoverTip}">
+                    <!-- 1. 当日涨幅、自触发累计涨幅 与 当日形态特征同行 -->
+                    <div class="flex flex-wrap items-center gap-1.5 font-mono whitespace-nowrap text-xs">
+                        <div class="inline-flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400 select-none scale-95">当日:</span>
+                            <span class="${latestPctClass}">${latestPctStr}</span>
+                        </div>
+                        <span class="text-slate-600 select-none text-[10px]">|</span>
+                        <div class="inline-flex items-center gap-1">
+                            <span class="text-[10px] text-slate-400 select-none scale-95">自触发:</span>
+                            <span class="${sincePctClass}">${sincePctStr}</span>
+                        </div>
+                        <span class="text-slate-600 select-none text-[10px]">|</span>
+                        <div class="inline-flex flex-wrap items-center gap-1">
+                            ${latestBadgesHtml}
+                        </div>
+                    </div>
+                    <!-- 2. 触发日及形态特征 -->
+                    <div class="flex flex-wrap items-center gap-1.5 font-mono whitespace-nowrap text-xs pt-0.5 border-t border-slate-800/50">
                         <span class="text-[10px] px-1 py-0.2 rounded font-mono select-none bg-indigo-950/80 text-indigo-300 border border-indigo-800/70">触发(${sigDateShort})</span>
                         <div class="inline-flex flex-wrap items-center gap-1">
                             ${trigBadgesHtml}
