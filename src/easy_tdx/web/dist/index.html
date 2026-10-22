@@ -1926,11 +1926,21 @@
                     <span class="text-[10.5px] text-slate-400 font-mono truncate hidden lg:inline">
                         更新：<span id="dashboard-refresh-ts" class="text-cyan-400 font-semibold">正在同步...</span>
                     </span>
+                    <span class="text-[10.5px] text-slate-500 font-mono hidden xl:inline" title="交易时段：09:15-11:30 / 13:00-15:05">
+                        (09:15-11:30 / 13:00-15:05)
+                    </span>
                 </div>
             </div>
 
-            <!-- 右侧：全局操作与状态指示 -->
-            <div class="flex items-center space-x-2">
+            <!-- 右侧：立即刷新 + 全局操作与状态指示 -->
+            <div class="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+                <button onclick="manualRefreshDashboard()" id="btn-manual-refresh-dashboard"
+                    class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800/80 hover:border-cyan-700 transition cursor-pointer text-xs shadow-sm font-medium"
+                    title="立即手动刷新大盘数据">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <span class="hidden sm:inline">立即刷新</span>
+                </button>
+
                 <button onclick="toggleTheme()" id="theme-toggle-btn"
                     class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 hover:text-white border border-slate-700/60 cursor-pointer shadow-sm transition"
                     title="切换暗色/亮色">
@@ -2654,23 +2664,6 @@
 
         <!-- 2. Dashboard View -->
         <section id="view-dashboard" class="space-y-6">
-            <!-- 顶部大盘全景控制条 (交易时段与手动立即刷新) -->
-            <div
-                class="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/60 p-2.5 sm:px-3 sm:py-2 rounded-xl border border-slate-800/80 backdrop-blur-md">
-                <div class="flex items-center space-x-2 text-xs text-slate-400 font-mono select-none">
-                    <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                    <span class="text-xs">A股交易时段：09:15-11:30 / 13:00-15:05 (时段内每5秒后台无感自动同步)</span>
-                </div>
-                <div class="flex items-center space-x-3 text-xs">
-                    <button onclick="manualRefreshDashboard()" id="btn-manual-refresh-dashboard"
-                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition cursor-pointer text-xs"
-                        title="立即手动刷新大盘数据">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i>
-                        <span>立即刷新</span>
-                    </button>
-                </div>
-            </div>
-
             <!-- 核心交易所与主要指数一览 (上交所·上证指数, 深交所·深证成指, 创业板·创业板指, 科创板·科创50, 核心宽基·沪深300) -->
             <div id="exchange-indices-row" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
 
