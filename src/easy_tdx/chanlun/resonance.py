@@ -1228,7 +1228,17 @@ def analyze_multi_period_resonance(
 
     is_backtracking = bool(cutoff_date and str(cutoff_date).strip())
     cutoff_str = str(cutoff_date).strip() if is_backtracking else ""
-    cutoff_dt = _to_dt(cutoff_str) if is_backtracking else None
+    if is_backtracking:
+        parsed_dt = _to_dt(cutoff_str)
+        # 若只提供了日期部分 (例如 '2026-09-11' 或长度 <= 10，不包含具体时分秒)，
+        # 表示回溯至该交易日全天（收盘态）。需将截断时点扩展至当天 23:59:59，
+        # 避免分钟级子周期 (30F, 5F, 1F 等) 因 00:00:00 早于 09:30 开盘时间而被全部错误过滤。
+        if len(cutoff_str) <= 10 or (" " not in cutoff_str and "T" not in cutoff_str):
+            cutoff_dt = parsed_dt.replace(hour=23, minute=59, second=59)
+        else:
+            cutoff_dt = parsed_dt
+    else:
+        cutoff_dt = None
     now_ts = time.time()
 
     # 历史回溯极速缓存：相同标的、周期组合、截断点 100% 内存瞬时返回，彻底避免重复向行情服务器与缠论管道计算

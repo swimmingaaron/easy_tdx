@@ -60,7 +60,7 @@ const periodPresets = [
   { label: '周 (单周期)', value: 'WEEK' },
   { label: '月 (单周期)', value: 'MONTH' },
 ]
-// 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 左右分屏对比) | 'single' (单窗口全屏)
+// 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 上下分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
 
 // 窗口 1 周期 (默认: 周·日·30F)
@@ -2004,7 +2004,7 @@ function adjustLayoutHeight() {
     targetH = Math.max(380, window.innerHeight - 230)
   }
   const baseH = Math.max(360, Math.floor(targetH))
-  if (splitMode.value === 'quad') {
+  if (splitMode.value === 'quad' || splitMode.value === 'dual') {
     cardHeight.value = Math.max(330, Math.floor((baseH - 12) / 2))
   } else {
     cardHeight.value = baseH
@@ -2922,9 +2922,9 @@ onBeforeUnmount(() => {
             class="mode-btn"
             :class="{ active: splitMode === 'dual' }"
             @click="setSplitMode('dual')"
-            title="左右双窗口对比 (左: 日·30F·5F，右: 周·日·30F)"
+            title="上下双窗口对比 (上: 窗1，下: 窗3)"
           >
-            ◫ 双窗口
+            ⬒ 双窗口
           </button>
           <button
             class="mode-btn"
@@ -3005,7 +3005,7 @@ onBeforeUnmount(() => {
           <span class="label">窗口:</span>
           <select v-model="splitMode" class="cascading-select" @change="setSplitMode(splitMode)">
             <option value="quad">⊞ 四窗口 (日·30F·周·月)</option>
-            <option value="dual">◫ 双窗口 (左日·右周)</option>
+            <option value="dual">⬒ 双窗口 (上下对比)</option>
             <option value="single">⬜ 单窗口 (全宽显示)</option>
           </select>
         </div>
@@ -4070,13 +4070,17 @@ onBeforeUnmount(() => {
 }
 @media (min-width: 1200px) {
   .charts-split-container.is-dual {
-    flex-direction: row;
+    flex-direction: column;
   }
   .charts-split-container.is-quad {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
+}
+.charts-split-container.is-dual .chart-window-card,
+.charts-split-container.is-quad .chart-window-card {
+  min-height: 280px;
 }
 .chart-window-card {
   position: relative;
