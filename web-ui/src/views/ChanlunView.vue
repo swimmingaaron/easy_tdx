@@ -51,6 +51,7 @@ const periodPresets = [
   { label: '长线 (月·周·日)', value: 'MONTH,WEEK,DAY' },
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
   { label: '短线 (60F·30F·5F)', value: '60F,30F,5F' },
+  { label: '1F (单周期)', value: '1F' },
   { label: '5F (单周期)', value: '5F' },
   { label: '15F (单周期)', value: '15F' },
   { label: '30F (单周期)', value: '30F' },
