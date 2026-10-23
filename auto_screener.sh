@@ -5,9 +5,13 @@
 # 功能规则：
 # 1. 交易时间内 (09:25-11:30, 12:55-15:00)：
 #    每 30 分钟执行一次，将 watchlist.json 的 code 生成缠论立体K线图并推送至企业微信；
-# 2. 11时31分 (11:31-11:35) 与 15时01分 (15:01-15:05)：
-#    自动执行全市场地毯式扫描，注意：【不发送缠论K线图至微信】；
-# 3. 自动排除周末（周六/周日），使用 caffeinate 防止 macOS 深度睡眠。
+# 2. 11时31分 (11:31-11:35) 与 15时01分 (15:01-15:05) 收盘全市场扫描：
+#    自动执行全市场地毯式扫描，依次并发执行：
+#    - 任务 1: 缠论三级联共振 (chanlun_resonance, ALL_CASCADE)
+#    - 任务 2: 缠论二级共振 (chanlun_dual_resonance, DUAL_CASCADE, 周日30F周线1买+日30F5F日线1买+次级别2/3买)
+#    注意：【全市场扫描不发送缠论K线图至微信】；
+# 3. 自动排除周末（周六/周日），使用 caffeinate 防止 macOS 深度睡眠；
+# 4. 命令行支持指定：--full-scan (三级+二级)、--dual-scan (仅二级)、--tri-scan (仅三级)、--watchlist (仅盘中推送)。
 # ==============================================================================
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -37,7 +41,7 @@ CURRENT_M=$(date +%-M)
 CURRENT_MINUTES=$((CURRENT_H * 60 + CURRENT_M))
 CURRENT_TIME=$(date '+%Y-%m-%d %H:%M:%S')
 
-# 3. 支持命令行显式强制模式：--full-scan 或 --watchlist
+# 3. 支持命令行显式强制模式：--full-scan、--dual-scan、--tri-scan 或 --watchlist
 FORCE_MODE="$1"
 
 # 4. 时间界限定义 (单位: 分钟)
@@ -47,9 +51,10 @@ FORCE_MODE="$1"
 # 下午交易时段 12:55 ~ 15:00 -> 775 ~ 900 分钟
 
 # ==============================================================================
-# 分支 A: 11时31分 / 15时01分 收盘全市场扫描 (不发送缠论K线图至微信)
+# 分支 A: 11时31分 / 15时01分 收盘全市场扫描 (三级联共振 + 二级共振)
+# (不发送缠论K线图至微信)
 # ==============================================================================
-if [ "$FORCE_MODE" = "--full-scan" ] || \
+if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--dual-scan" ] || [ "$FORCE_MODE" = "--tri-scan" ] || \
    ( [ "$CURRENT_MINUTES" -ge 691 ] && [ "$CURRENT_MINUTES" -le 695 ] ) || \
    ( [ "$CURRENT_MINUTES" -ge 901 ] && [ "$CURRENT_MINUTES" -le 905 ] ); then
 
@@ -61,43 +66,91 @@ if [ "$FORCE_MODE" = "--full-scan" ] || \
     fi
 
     LOG_FILE="$PROJECT_DIR/output/screener_market_${LOG_DATE}.log"
-    echo "============================================================" >> "$LOG_FILE"
-    echo "【${SCAN_TAG} 全市场选股扫描启动】 $CURRENT_TIME" >> "$LOG_FILE"
-    echo "参数: -s chanlun_resonance -p ALL_CASCADE -u all -w 16 --refresh" >> "$LOG_FILE"
-    echo "注意: 按照预设规则，全市场扫描结果不发送K线图至微信" >> "$LOG_FILE"
-    echo "============================================================" >> "$LOG_FILE"
+    OVERALL_EXIT_CODE=0
 
-    # 执行全市场并发选股
-    if command -v caffeinate >/dev/null 2>&1; then
-        caffeinate -i "$PYTHON_BIN" run_screener.py \
-            -s chanlun_resonance \
-            -p ALL_CASCADE \
-            -u all \
-            -w 16 \
-            --refresh \
-            --no-interactive >> "$LOG_FILE" 2>&1
-    else
-        "$PYTHON_BIN" run_screener.py \
-            -s chanlun_resonance \
-            -p ALL_CASCADE \
-            -u all \
-            -w 16 \
-            --refresh \
-            --no-interactive >> "$LOG_FILE" 2>&1
+    # --------------------------------------------------------------------------
+    # 任务 1: 全市场缠论三级联共振选股 (chanlun_resonance, ALL_CASCADE)
+    # --------------------------------------------------------------------------
+    if [ "$FORCE_MODE" != "--dual-scan" ]; then
+        echo "============================================================" >> "$LOG_FILE"
+        echo "【${SCAN_TAG} 全市场三级联共振选股扫描启动】 $CURRENT_TIME" >> "$LOG_FILE"
+        echo "策略: chanlun_resonance (ALL_CASCADE: 月周日+周日30M+日30M5F+5M 2买)" >> "$LOG_FILE"
+        echo "参数: -s chanlun_resonance -p ALL_CASCADE -u all -w 16 --refresh" >> "$LOG_FILE"
+        echo "注意: 按照预设规则，全市场扫描结果不发送K线图至微信" >> "$LOG_FILE"
+        echo "============================================================" >> "$LOG_FILE"
+
+        if command -v caffeinate >/dev/null 2>&1; then
+            caffeinate -i "$PYTHON_BIN" run_screener.py \
+                -s chanlun_resonance \
+                -p ALL_CASCADE \
+                -u all \
+                -w 16 \
+                --refresh \
+                --no-interactive >> "$LOG_FILE" 2>&1
+        else
+            "$PYTHON_BIN" run_screener.py \
+                -s chanlun_resonance \
+                -p ALL_CASCADE \
+                -u all \
+                -w 16 \
+                --refresh \
+                --no-interactive >> "$LOG_FILE" 2>&1
+        fi
+
+        EXIT_CODE_TRI=$?
+        echo "【全市场三级联共振选股完成】 $(date '+%Y-%m-%d %H:%M:%S') Exit Code: $EXIT_CODE_TRI" >> "$LOG_FILE"
+        if [ $EXIT_CODE_TRI -ne 0 ]; then
+            OVERALL_EXIT_CODE=$EXIT_CODE_TRI
+        fi
     fi
 
-    EXIT_CODE=$?
-    echo "【全市场选股完成】 $(date '+%Y-%m-%d %H:%M:%S') Exit Code: $EXIT_CODE" >> "$LOG_FILE"
-    
+    # --------------------------------------------------------------------------
+    # 任务 2: 全市场缠论二级共振选股 (chanlun_dual_resonance, DUAL_CASCADE)
+    # 条件: 周日30F(周线向下笔且周线1买) + 日30F5F(日线向下笔且日线1买) + 次级别2/3买
+    # --------------------------------------------------------------------------
+    if [ "$FORCE_MODE" != "--tri-scan" ]; then
+        CURRENT_TIME_DUAL=$(date '+%Y-%m-%d %H:%M:%S')
+        echo "============================================================" >> "$LOG_FILE"
+        echo "【${SCAN_TAG} 全市场二级共振选股扫描启动】 $CURRENT_TIME_DUAL" >> "$LOG_FILE"
+        echo "策略: chanlun_dual_resonance (DUAL_CASCADE: 周日30F周线1买+日30F5F日线1买+次级别2/3买)" >> "$LOG_FILE"
+        echo "参数: -s chanlun_dual_resonance -p DUAL_CASCADE -u all -w 16 --refresh" >> "$LOG_FILE"
+        echo "注意: 按照预设规则，全市场扫描结果不发送K线图至微信" >> "$LOG_FILE"
+        echo "============================================================" >> "$LOG_FILE"
+
+        if command -v caffeinate >/dev/null 2>&1; then
+            caffeinate -i "$PYTHON_BIN" run_screener.py \
+                -s chanlun_dual_resonance \
+                -p DUAL_CASCADE \
+                -u all \
+                -w 16 \
+                --refresh \
+                --no-interactive >> "$LOG_FILE" 2>&1
+        else
+            "$PYTHON_BIN" run_screener.py \
+                -s chanlun_dual_resonance \
+                -p DUAL_CASCADE \
+                -u all \
+                -w 16 \
+                --refresh \
+                --no-interactive >> "$LOG_FILE" 2>&1
+        fi
+
+        EXIT_CODE_DUAL=$?
+        echo "【全市场二级共振选股完成】 $(date '+%Y-%m-%d %H:%M:%S') Exit Code: $EXIT_CODE_DUAL" >> "$LOG_FILE"
+        if [ $EXIT_CODE_DUAL -ne 0 ]; then
+            OVERALL_EXIT_CODE=$EXIT_CODE_DUAL
+        fi
+    fi
+
     # macOS 桌面横幅提醒
     if command -v osascript >/dev/null 2>&1; then
-        if [ $EXIT_CODE -eq 0 ]; then
-            osascript -e "display notification \"A股全市场缠论共振扫描(${SCAN_TAG})已完成，报表已生成！\" with title \"easy_tdx 选股提醒\""
+        if [ $OVERALL_EXIT_CODE -eq 0 ]; then
+            osascript -e "display notification \"A股全市场缠论共振扫描(${SCAN_TAG}: 三级联+二级共振)已完成，报表已生成！\" with title \"easy_tdx 选股提醒\""
         else
             osascript -e "display notification \"全市场选股执行异常(${SCAN_TAG})，请查看日志！\" with title \"easy_tdx 异常提醒\""
         fi
     fi
-    exit $EXIT_CODE
+    exit $OVERALL_EXIT_CODE
 
 # ==============================================================================
 # 分支 B: 交易时间内 (09:25-11:30, 12:55-15:00) 盘中推送 watchlist 缠论K线至微信
