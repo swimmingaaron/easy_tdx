@@ -63,33 +63,33 @@ const periodPresets = [
 // 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 左右分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
 
-// 窗口 1 周期 (默认: 日·30F·5F)
-const leftPeriods = ref('DAY,30F,5F')
-const leftActivePreset = ref('DAY,30F,5F')
-const leftPeriodHigh = ref('DAY')
-const leftPeriodMid = ref('30F')
-const leftPeriodLow = ref('5F')
+// 窗口 1 周期 (默认: 周·日·30F)
+const leftPeriods = ref('WEEK,DAY,30F')
+const leftActivePreset = ref('WEEK,DAY,30F')
+const leftPeriodHigh = ref('WEEK')
+const leftPeriodMid = ref('DAY')
+const leftPeriodLow = ref('30F')
 
-// 窗口 2 周期 (默认: 30F·5F·1F)
-const w2Periods = ref('30F,5F,1F')
-const w2ActivePreset = ref('30F,5F,1F')
-const w2PeriodHigh = ref('30F')
-const w2PeriodMid = ref('5F')
-const w2PeriodLow = ref('1F')
+// 窗口 2 周期 (默认: 月·周·日)
+const w2Periods = ref('MONTH,WEEK,DAY')
+const w2ActivePreset = ref('MONTH,WEEK,DAY')
+const w2PeriodHigh = ref('MONTH')
+const w2PeriodMid = ref('WEEK')
+const w2PeriodLow = ref('DAY')
 
-// 窗口 3 周期 (默认: 周·日·30F)
-const rightPeriods = ref('WEEK,DAY,30F')
-const rightActivePreset = ref('WEEK,DAY,30F')
-const rightPeriodHigh = ref('WEEK')
-const rightPeriodMid = ref('DAY')
-const rightPeriodLow = ref('30F')
+// 窗口 3 周期 (默认: 日·30F·5F)
+const rightPeriods = ref('DAY,30F,5F')
+const rightActivePreset = ref('DAY,30F,5F')
+const rightPeriodHigh = ref('DAY')
+const rightPeriodMid = ref('30F')
+const rightPeriodLow = ref('5F')
 
-// 窗口 4 周期 (默认: 月·周·日)
-const w4Periods = ref('MONTH,WEEK,DAY')
-const w4ActivePreset = ref('MONTH,WEEK,DAY')
-const w4PeriodHigh = ref('MONTH')
-const w4PeriodMid = ref('WEEK')
-const w4PeriodLow = ref('DAY')
+// 窗口 4 周期 (默认: 30F·5F·1F)
+const w4Periods = ref('30F,5F,1F')
+const w4ActivePreset = ref('30F,5F,1F')
+const w4PeriodHigh = ref('30F')
+const w4PeriodMid = ref('5F')
+const w4PeriodLow = ref('1F')
 
 // 兼容单窗口时的主周期双向绑定 (代理到左窗)
 const periodLow = computed({
@@ -3002,11 +3002,11 @@ onBeforeUnmount(() => {
 
     <!-- 主图表区 (支持单窗口 / 双窗口 / 四窗口) -->
     <div class="charts-split-container" :class="{ 'is-quad': splitMode === 'quad', 'is-dual': splitMode === 'dual' }">
-      <!-- 窗口 1: 日·30F·5F (左窗/第1窗) -->
+      <!-- 窗口 1: 周·日·30F (左窗/第1窗) -->
       <div class="chart-window-card left-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill left-pill">窗1: {{ chanDataLeft?.periods.high.name || '日' }}·{{ chanDataLeft?.periods.mid.name || '30F' }}·{{ chanDataLeft?.periods.low.name || '5F' }}</span>
+            <span class="win-pill left-pill">窗1: {{ chanDataLeft?.periods.high.name || '周' }}·{{ chanDataLeft?.periods.mid.name || '日' }}·{{ chanDataLeft?.periods.low.name || '30F' }}</span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }}</span>
               <span v-if="candleInfoLeft" class="win-stock-price" :class="candleInfoLeft.colorClass">{{ candleInfoLeft.priceStr }}</span>
@@ -3035,11 +3035,11 @@ onBeforeUnmount(() => {
         <div ref="chartContainerLeft" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 2: 30F·5F·1F (四窗口模式激活时显示) -->
+      <!-- 窗口 2: 月·周·日 (四窗口模式激活时显示) -->
       <div v-if="splitMode === 'quad'" class="chart-window-card w2-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '30F' }}·{{ chanDataW2?.periods.mid.name || '5F' }}·{{ chanDataW2?.periods.low.name || '1F' }}</span>
+            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '月' }}·{{ chanDataW2?.periods.mid.name || '周' }}·{{ chanDataW2?.periods.low.name || '日' }}</span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }}</span>
               <span v-if="candleInfoW2" class="win-stock-price" :class="candleInfoW2.colorClass">{{ candleInfoW2.priceStr }}</span>
@@ -3065,11 +3065,11 @@ onBeforeUnmount(() => {
         <div ref="chartContainerW2" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 3: 周·日·30F (双窗口或四窗口激活时显示) -->
+      <!-- 窗口 3: 日·30F·5F (双窗口或四窗口激活时显示) -->
       <div v-if="splitMode === 'dual' || splitMode === 'quad'" class="chart-window-card right-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill right-pill">窗3: {{ chanDataRight?.periods.high.name || '周' }}·{{ chanDataRight?.periods.mid.name || '日' }}·{{ chanDataRight?.periods.low.name || '30F' }}</span>
+            <span class="win-pill right-pill">窗3: {{ chanDataRight?.periods.high.name || '日' }}·{{ chanDataRight?.periods.mid.name || '30F' }}·{{ chanDataRight?.periods.low.name || '5F' }}</span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }}</span>
               <span v-if="candleInfoRight" class="win-stock-price" :class="candleInfoRight.colorClass">{{ candleInfoRight.priceStr }}</span>
@@ -3095,11 +3095,11 @@ onBeforeUnmount(() => {
         <div ref="chartContainerRight" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 4: 月·周·日 (四窗口模式激活时显示) -->
+      <!-- 窗口 4: 30F·5F·1F (四窗口模式激活时显示) -->
       <div v-if="splitMode === 'quad'" class="chart-window-card w4-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill w4-pill">窗4: {{ chanDataW4?.periods.high.name || '月' }}·{{ chanDataW4?.periods.mid.name || '周' }}·{{ chanDataW4?.periods.low.name || '日' }}</span>
+            <span class="win-pill w4-pill">窗4: {{ chanDataW4?.periods.high.name || '30F' }}·{{ chanDataW4?.periods.mid.name || '5F' }}·{{ chanDataW4?.periods.low.name || '1F' }}</span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataW4?.code }} {{ chanDataW4?.name }}</span>
               <span v-if="candleInfoW4" class="win-stock-price" :class="candleInfoW4.colorClass">{{ candleInfoW4.priceStr }}</span>
