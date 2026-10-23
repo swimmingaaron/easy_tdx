@@ -51,6 +51,14 @@ const periodPresets = [
   { label: '长线 (月·周·日)', value: 'MONTH,WEEK,DAY' },
   { label: '日内 (日·60F·15F)', value: 'DAY,60F,15F' },
   { label: '短线 (60F·30F·5F)', value: '60F,30F,5F' },
+  { label: '5F (单周期)', value: '5F' },
+  { label: '15F (单周期)', value: '15F' },
+  { label: '30F (单周期)', value: '30F' },
+  { label: '60F (单周期)', value: '60F' },
+  { label: '120F (单周期)', value: '120F' },
+  { label: '日 (单周期)', value: 'DAY' },
+  { label: '周 (单周期)', value: 'WEEK' },
+  { label: '月 (单周期)', value: 'MONTH' },
 ]
 // 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 左右分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
@@ -354,38 +362,33 @@ const maxBacktrackIndex = computed(() => {
 // ── 周期切换处理 ─────────────────────────────────────────────────────────────
 function applyWindowPreset(target: 'left' | 'w2' | 'right' | 'w4', pStr: string) {
   const parts = pStr.split(',')
+  const pHigh = parts.length === 3 ? parts[0] : parts[0]
+  const pMid = parts.length === 3 ? parts[1] : parts[0]
+  const pLow = parts.length === 3 ? parts[2] : parts[0]
   if (target === 'left') {
     leftActivePreset.value = pStr
     leftPeriods.value = pStr
-    if (parts.length === 3) {
-      leftPeriodHigh.value = parts[0]
-      leftPeriodMid.value = parts[1]
-      leftPeriodLow.value = parts[2]
-    }
+    leftPeriodHigh.value = pHigh
+    leftPeriodMid.value = pMid
+    leftPeriodLow.value = pLow
   } else if (target === 'w2') {
     w2ActivePreset.value = pStr
     w2Periods.value = pStr
-    if (parts.length === 3) {
-      w2PeriodHigh.value = parts[0]
-      w2PeriodMid.value = parts[1]
-      w2PeriodLow.value = parts[2]
-    }
+    w2PeriodHigh.value = pHigh
+    w2PeriodMid.value = pMid
+    w2PeriodLow.value = pLow
   } else if (target === 'right') {
     rightActivePreset.value = pStr
     rightPeriods.value = pStr
-    if (parts.length === 3) {
-      rightPeriodHigh.value = parts[0]
-      rightPeriodMid.value = parts[1]
-      rightPeriodLow.value = parts[2]
-    }
+    rightPeriodHigh.value = pHigh
+    rightPeriodMid.value = pMid
+    rightPeriodLow.value = pLow
   } else if (target === 'w4') {
     w4ActivePreset.value = pStr
     w4Periods.value = pStr
-    if (parts.length === 3) {
-      w4PeriodHigh.value = parts[0]
-      w4PeriodMid.value = parts[1]
-      w4PeriodLow.value = parts[2]
-    }
+    w4PeriodHigh.value = pHigh
+    w4PeriodMid.value = pMid
+    w4PeriodLow.value = pLow
   }
   clearClientBacktrackCache()
   if (autoRefresh.value) {

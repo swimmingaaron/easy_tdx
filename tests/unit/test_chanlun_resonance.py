@@ -334,3 +334,58 @@ def test_analyze_multi_period_resonance_indicators():
         assert len(p_data["expma"]["exp12"]) == p_bars
 
 
+def test_single_period_analysis():
+    """测试单个周期 (5F, 15F, 30F, 60F, 120F, DAY, WEEK, MONTH) 缠论全要素解析与分析"""
+    from easy_tdx.chanlun.resonance import (
+        parse_three_periods,
+        analyze_multi_period_resonance,
+    )
+
+    # 1. 验证 8 个单周期解析
+    single_periods = ["5F", "15F", "30F", "60F", "120F", "DAY", "WEEK", "MONTH"]
+    for p in single_periods:
+        parsed = parse_three_periods(p)
+        assert parsed == [p, p, p], f"单周期 {p} 解析失败: {parsed}"
+        parsed_list = parse_three_periods([p])
+        assert parsed_list == [p, p, p], f"单周期列表 [{p}] 解析失败: {parsed_list}"
+
+    # 2. 验证日线单周期全要素缠论分析
+    res = analyze_multi_period_resonance(
+        code="000001",
+        periods="DAY",
+        count=80,
+        force_refresh=True,
+    )
+
+    assert "unified_chart" in res
+    assert "summary" in res
+
+    uc = res["unified_chart"]
+    summary = res["summary"]
+
+    # 3. 验证单周期模式标识与汇总信息 (分型、笔、线段、中枢、买卖点)
+    assert summary.get("is_single_period") is True
+    assert summary.get("period_name") == "日线"
+    assert "latest_bi_dir" in summary
+    assert "latest_xd_dir" in summary
+    assert "latest_zs_range" in summary
+    assert "latest_fx" in summary
+    assert "latest_mmd" in summary
+
+    # 4. 验证 unified_chart 包含五大缠论核心图层
+    assert "fractal_marks" in uc, "缺少顶底分型标记"
+    assert "low_bis" in uc, "缺少笔线段"
+    assert "high_bis" in uc, "缺少线段 (加粗紫色)"
+    assert "low_zss" in uc, "缺少中枢箱体"
+    assert "mmd_marks" in uc, "缺少买卖点标记"
+
+    # 验证分型数据格式
+    if uc["fractal_marks"]:
+        fx = uc["fractal_marks"][0]
+        assert "type" in fx and fx["type"] in ("ding", "di")
+        assert "coord" in fx
+        assert "label" in fx
+        assert "price" in fx
+
+
+

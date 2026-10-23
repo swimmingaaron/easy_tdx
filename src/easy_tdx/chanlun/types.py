@@ -110,9 +110,11 @@ class Line:
         return self.end.done
 
     def __str__(self) -> str:
+        s_d = self.start.k.date.strftime("%Y-%m-%d") if hasattr(self.start.k.date, "strftime") else str(self.start.k.date)[:10]
+        e_d = self.end.k.date.strftime("%Y-%m-%d") if hasattr(self.end.k.date, "strftime") else str(self.end.k.date)[:10]
         return (
             f"Line(i={self.index} {self.direction.value} "
-            f"{self.start.k.date:%Y-%m-%d}→{self.end.k.date:%Y-%m-%d} "
+            f"{s_d}→{e_d} "
             f"h={self.high:.2f} l={self.low:.2f})"
         )
 

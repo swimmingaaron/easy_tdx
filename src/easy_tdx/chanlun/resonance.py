@@ -181,6 +181,7 @@ def build_merged_chart_data(
     clean_code: str | None = None,
     is_backtracking: bool = False,
     is_daily: bool = True,
+    fractal_marks: list[dict] | None = None,
 ) -> dict[str, Any]:
     """严格按照缠论标准包含关系，构建合并后的 K 线图及关联的笔、中枢、买卖点、指标数据。"""
     cklines = getattr(low_res, "cklines", []) or []
@@ -199,6 +200,7 @@ def build_merged_chart_data(
             "mid_zss": [],
             "low_bis": [],
             "low_zss": [],
+            "fractal_marks": [],
             "mmd_marks": [],
             "res_marks": [],
             "macd": {"hist": [], "dif": [], "dea": [], "marks": []},
@@ -365,6 +367,17 @@ def build_merged_chart_data(
             r_copy["coord"] = [ck_d, r_copy["coord"][1]]
         ck_res_marks.append(r_copy)
 
+    ck_fractal_marks = []
+    if fractal_marks:
+        for f in fractal_marks:
+            raw_d = f.get("date") or (f.get("coord")[0] if f.get("coord") else "")
+            ck_d = map_raw_date_to_ck_date(raw_d)
+            f_copy = dict(f)
+            f_copy["date"] = ck_d
+            if "coord" in f_copy and len(f_copy["coord"]) == 2:
+                f_copy["coord"] = [ck_d, f_copy["coord"][1]]
+            ck_fractal_marks.append(f_copy)
+
     # 5. 副图技术指标重算（严格基于 cklines 数据序列）
     ck_c = np.array([ck.close for ck in cklines], dtype=float)
     ck_h = np.array([ck.high for ck in cklines], dtype=float)
@@ -424,6 +437,7 @@ def build_merged_chart_data(
         "low_bis": ck_low_bis,
         "low_zss": ck_low_zss,
         "mmd_marks": ck_mmd_marks,
+        "fractal_marks": ck_fractal_marks,
         "res_marks": ck_res_marks,
         "macd": {
             "hist": ck_macd_hist,
@@ -578,7 +592,7 @@ def normalize_period(user_input: str) -> str:
 
 
 def parse_three_periods(periods_input: list[str] | str | None) -> list[str]:
-    """解析并校验 3 个周期，按大级别到小级别自动排序返回。"""
+    """解析并校验周期。支持单周期 (返回 [P, P, P]) 或三周期 (按大到小排序返回)。"""
     if periods_input is None:
         return ["DAY", "30F", "5F"]
 
@@ -587,15 +601,16 @@ def parse_three_periods(periods_input: list[str] | str | None) -> list[str]:
     else:
         parts = [str(p).strip() for p in periods_input if str(p).strip()]
 
-    if len(parts) != 3:
-        raise ValueError(f"必须恰好指定 3 个周期，当前输入了 {len(parts)} 个: {periods_input}")
-
-    normalized = [normalize_period(p) for p in parts]
-    if len(set(normalized)) != 3:
-        raise ValueError(f"选择的 3 个周期不能重复: {normalized}")
-
-    # 按照权重从大到小排序（大级别在上，小级别为底图基准）
-    return sorted(normalized, key=lambda k: PERIOD_SPECS[k]["weight"], reverse=True)
+    if len(parts) == 1:
+        p = normalize_period(parts[0])
+        return [p, p, p]
+    elif len(parts) == 3:
+        normalized = [normalize_period(p) for p in parts]
+        if len(set(normalized)) != 3:
+            raise ValueError(f"选择的 3 个周期不能重复: {normalized}")
+        return sorted(normalized, key=lambda k: PERIOD_SPECS[k]["weight"], reverse=True)
+    else:
+        raise ValueError(f"周期数必须为 1（单周期）或 3（三级联），当前输入了 {len(parts)} 个: {periods_input}")
 
 
 def _to_dt(val: Any) -> datetime:
@@ -1252,19 +1267,22 @@ def analyze_multi_period_resonance(
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
     effective_force_refresh = False if is_backtracking else force_refresh
 
+    is_single_period = (high_p == mid_p == low_p)
+
     # 4.2 规划多周期加载（借鉴 chanlun-pro 低到高合成与并发拉取策略）：
     # 判断 mid_p / high_p 是否可由 low_p 重采样合成，避免冗余远程网络 I/O
     resample_plan: dict[str, str] = {}
     needed_fetch_periods: list[str] = [low_p]
 
-    for p in (mid_p, high_p):
-        if low_p in ("1F", "1M") and p in ("30F", "30M", "60F", "60M", "120F", "120M", "DAY"):
-            if p not in needed_fetch_periods:
+    if not is_single_period:
+        for p in (mid_p, high_p):
+            if low_p in ("1F", "1M") and p in ("30F", "30M", "60F", "60M", "120F", "120M", "DAY"):
+                if p not in needed_fetch_periods:
+                    needed_fetch_periods.append(p)
+            elif can_resample_from(low_p, p):
+                resample_plan[p] = low_p
+            elif p not in needed_fetch_periods:
                 needed_fetch_periods.append(p)
-        elif can_resample_from(low_p, p):
-            resample_plan[p] = low_p
-        elif p not in needed_fetch_periods:
-            needed_fetch_periods.append(p)
 
     def _fetch_one_period(p_name: str) -> tuple[str, pd.DataFrame]:
         spec_item = PERIOD_SPECS[p_name]
@@ -1424,22 +1442,27 @@ def analyze_multi_period_resonance(
     else:
         dfs = {k: v.copy() for k, v in raw_dfs.items()}
 
-    # 并发运行 3 周期缠论分析管道
+    # 运行缠论分析管道
     results: dict[str, ChanlunResult] = {}
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        ana_futs = {
-            p: pool.submit(
-                ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[p]["chan_freq"]).process_klines,
-                dfs[p]
-            )
-            for p in p_list
-        }
-        for p, f in ana_futs.items():
-            results[p] = f.result()
+    if is_single_period:
+        ana_res = ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[low_p]["chan_freq"]).process_klines(dfs[low_p])
+        for p in p_list:
+            results[p] = ana_res
+    else:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            ana_futs = {
+                p: pool.submit(
+                    ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[p]["chan_freq"]).process_klines,
+                    dfs[p]
+                )
+                for p in p_list
+            }
+            for p, f in ana_futs.items():
+                results[p] = f.result()
 
-    # 运行三周期共振引擎
+    # 运行共振引擎（单周期无需共振识别）
     engine = ThreePeriodResonanceEngine(high_p, mid_p, low_p, results)
-    resonances = engine.scan_resonances()
+    resonances = [] if is_single_period else engine.scan_resonances()
 
     # 获取当前最新时点的多空态势
     base_df = dfs[low_p]
@@ -1481,105 +1504,107 @@ def analyze_multi_period_resonance(
         base_dts = pd.Series(dtype="datetime64[ns]")
         base_dts_list = []
 
-    # 1. 映射大级别笔与中枢
-    high_res = results[high_p]
+    # 1. 映射大级别笔与中枢 (单周期模式下跳过，稍后由单周期线段填充)
     high_bis = []
-    prev_high_end_coord = None
-    prev_high_end_idx = None
-    for bi in high_res.bis:
-        s_is_high = bi.start.fx_type == FXType.DING
-        e_is_high = bi.end.fx_type == FXType.DING
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
-        if s_i < 0 and e_i < 0:
-            continue
-        s_clamp = max(0, min(n_base - 1, s_i))
-        e_clamp = max(0, min(n_base - 1, e_i))
-        start_coord = prev_high_end_coord if prev_high_end_coord is not None else [dates[s_clamp], bi.start.val]
-        start_idx = prev_high_end_idx if prev_high_end_idx is not None else s_clamp
-        if e_clamp <= start_idx and start_idx < n_base - 1:
-            e_clamp = start_idx + 1
-        end_coord = [dates[e_clamp], bi.end.val]
-        high_bis.append({
-            "start": start_coord,
-            "end": end_coord,
-            "start_idx": start_idx,
-            "end_idx": e_clamp,
-            "direction": bi.direction.value,
-        })
-        prev_high_end_coord = end_coord
-        prev_high_end_idx = e_clamp
-
     high_zss = []
-    for zs in results[high_p].zss:
-        if not zs.start or not zs.end:
-            continue
-        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, high_p, base_df, base_dts, base_dts_list)
-        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, high_p, base_df, base_dts, base_dts_list)
-        if e_i < 0 or s_i >= n_base:
-            continue
-        s_clamp = max(0, min(n_base - 1, s_i))
-        e_clamp = max(0, min(n_base - 1, e_i))
-        high_zss.append({
-            "start_date": dates[s_clamp],
-            "end_date": dates[e_clamp],
-            "start_idx": s_clamp,
-            "end_idx": e_clamp,
-            "zg": round(zs.zg, 2),
-            "zd": round(zs.zd, 2),
-            "gg": round(zs.gg, 2),
-            "dd": round(zs.dd, 2),
-        })
+    if not is_single_period:
+        high_res = results[high_p]
+        prev_high_end_coord = None
+        prev_high_end_idx = None
+        for bi in high_res.bis:
+            s_is_high = bi.start.fx_type == FXType.DING
+            e_is_high = bi.end.fx_type == FXType.DING
+            s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
+            e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
+            if s_i < 0 and e_i < 0:
+                continue
+            s_clamp = max(0, min(n_base - 1, s_i))
+            e_clamp = max(0, min(n_base - 1, e_i))
+            start_coord = prev_high_end_coord if prev_high_end_coord is not None else [dates[s_clamp], bi.start.val]
+            start_idx = prev_high_end_idx if prev_high_end_idx is not None else s_clamp
+            if e_clamp <= start_idx and start_idx < n_base - 1:
+                e_clamp = start_idx + 1
+            end_coord = [dates[e_clamp], bi.end.val]
+            high_bis.append({
+                "start": start_coord,
+                "end": end_coord,
+                "start_idx": start_idx,
+                "end_idx": e_clamp,
+                "direction": bi.direction.value,
+            })
+            prev_high_end_coord = end_coord
+            prev_high_end_idx = e_clamp
+
+        for zs in results[high_p].zss:
+            if not zs.start or not zs.end:
+                continue
+            s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, high_p, base_df, base_dts, base_dts_list)
+            e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, high_p, base_df, base_dts, base_dts_list)
+            if e_i < 0 or s_i >= n_base:
+                continue
+            s_clamp = max(0, min(n_base - 1, s_i))
+            e_clamp = max(0, min(n_base - 1, e_i))
+            high_zss.append({
+                "start_date": dates[s_clamp],
+                "end_date": dates[e_clamp],
+                "start_idx": s_clamp,
+                "end_idx": e_clamp,
+                "zg": round(zs.zg, 2),
+                "zd": round(zs.zd, 2),
+                "gg": round(zs.gg, 2),
+                "dd": round(zs.dd, 2),
+            })
 
     # 2. 映射中级别笔与中枢
-    mid_res = results[mid_p]
     mid_bis = []
-    prev_mid_end_coord = None
-    prev_mid_end_idx = None
-    for bi in mid_res.bis:
-        s_is_high = bi.start.fx_type == FXType.DING
-        e_is_high = bi.end.fx_type == FXType.DING
-        s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
-        e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
-        if s_i < 0 and e_i < 0:
-            continue
-        s_clamp = max(0, min(n_base - 1, s_i))
-        e_clamp = max(0, min(n_base - 1, e_i))
-        start_coord = prev_mid_end_coord if prev_mid_end_coord is not None else [dates[s_clamp], bi.start.val]
-        start_idx = prev_mid_end_idx if prev_mid_end_idx is not None else s_clamp
-        if e_clamp <= start_idx and start_idx < n_base - 1:
-            e_clamp = start_idx + 1
-        end_coord = [dates[e_clamp], bi.end.val]
-        mid_bis.append({
-            "start": start_coord,
-            "end": end_coord,
-            "start_idx": start_idx,
-            "end_idx": e_clamp,
-            "direction": bi.direction.value,
-        })
-        prev_mid_end_coord = end_coord
-        prev_mid_end_idx = e_clamp
-
     mid_zss = []
-    for zs in results[mid_p].zss:
-        if not zs.start or not zs.end:
-            continue
-        s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, mid_p, base_df, base_dts, base_dts_list)
-        e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, mid_p, base_df, base_dts, base_dts_list)
-        if e_i < 0 or s_i >= n_base:
-            continue
-        s_clamp = max(0, min(n_base - 1, s_i))
-        e_clamp = max(0, min(n_base - 1, e_i))
-        mid_zss.append({
-            "start_date": dates[s_clamp],
-            "end_date": dates[e_clamp],
-            "start_idx": s_clamp,
-            "end_idx": e_clamp,
-            "zg": round(zs.zg, 2),
-            "zd": round(zs.zd, 2),
-            "gg": round(zs.gg, 2),
-            "dd": round(zs.dd, 2),
-        })
+    if not is_single_period:
+        mid_res = results[mid_p]
+        prev_mid_end_coord = None
+        prev_mid_end_idx = None
+        for bi in mid_res.bis:
+            s_is_high = bi.start.fx_type == FXType.DING
+            e_is_high = bi.end.fx_type == FXType.DING
+            s_i = map_pivot_to_base(bi.start.k.date, bi.start.val, s_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.start)
+            e_i = map_pivot_to_base(bi.end.k.date, bi.end.val, e_is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=bi.end)
+            if s_i < 0 and e_i < 0:
+                continue
+            s_clamp = max(0, min(n_base - 1, s_i))
+            e_clamp = max(0, min(n_base - 1, e_i))
+            start_coord = prev_mid_end_coord if prev_mid_end_coord is not None else [dates[s_clamp], bi.start.val]
+            start_idx = prev_mid_end_idx if prev_mid_end_idx is not None else s_clamp
+            if e_clamp <= start_idx and start_idx < n_base - 1:
+                e_clamp = start_idx + 1
+            end_coord = [dates[e_clamp], bi.end.val]
+            mid_bis.append({
+                "start": start_coord,
+                "end": end_coord,
+                "start_idx": start_idx,
+                "end_idx": e_clamp,
+                "direction": bi.direction.value,
+            })
+            prev_mid_end_coord = end_coord
+            prev_mid_end_idx = e_clamp
+
+        for zs in results[mid_p].zss:
+            if not zs.start or not zs.end:
+                continue
+            s_i = map_pivot_to_base(zs.start.k.date, zs.zd, False, mid_p, base_df, base_dts, base_dts_list)
+            e_i = map_pivot_to_base(zs.end.k.date, zs.zg, True, mid_p, base_df, base_dts, base_dts_list)
+            if e_i < 0 or s_i >= n_base:
+                continue
+            s_clamp = max(0, min(n_base - 1, s_i))
+            e_clamp = max(0, min(n_base - 1, e_i))
+            mid_zss.append({
+                "start_date": dates[s_clamp],
+                "end_date": dates[e_clamp],
+                "start_idx": s_clamp,
+                "end_idx": e_clamp,
+                "zg": round(zs.zg, 2),
+                "zd": round(zs.zd, 2),
+                "gg": round(zs.gg, 2),
+                "dd": round(zs.dd, 2),
+            })
 
     # 3. 小级别（基准）笔与中枢
     low_res = results[low_p]
@@ -1711,120 +1736,122 @@ def analyze_multi_period_resonance(
             })
 
     # 4.2 中级别买卖点向底图映射 (次级别波段拐点与稳健确认)
-    for mmd in mid_res.mmds:
-        if mmd.bi:
-            end_val = mmd.bi.end.val
-            is_high = mmd.bi.end.fx_type == FXType.DING
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
-            if 0 <= b_idx < n_base:
-                is_buy = "buy" in mmd.mmd_type.value
-                m_type = mmd.mmd_type.value.lower()
-                if "1buy" in m_type:
-                    label_txt = f"[{mid_short_name}]区间套1买"
-                    short_label = f"[{mid_short_name}]极低1买"
-                    category = "mid_1buy"
-                    trade_msg = f"【{mid_short_name}区间套1买】次级别底背驰极值拐点，博取中周期波段底部。"
-                elif "2buy" in m_type:
-                    label_txt = f"[{mid_short_name}]稳健2买"
-                    short_label = f"[{mid_short_name}]稳健2买"
-                    category = "mid_2buy"
-                    trade_msg = f"【{mid_short_name}稳健2买】次级别回踩不破前低，中周期起涨确认点。"
-                elif "3buy" in m_type:
-                    label_txt = f"[{mid_short_name}]主升3买"
-                    short_label = f"[{mid_short_name}]主升3买"
-                    category = "mid_3buy"
-                    trade_msg = f"【{mid_short_name}主升3买】次级别突破中枢回抽确认，主升起跑。"
-                elif "1sell" in m_type:
-                    label_txt = f"[{mid_short_name}]极高1卖"
-                    short_label = f"[{mid_short_name}]极高1卖"
-                    category = "mid_1sell"
-                    trade_msg = f"【{mid_short_name}极高1卖】次级别顶背驰，波段极高点分批锁定利润。"
-                elif "2sell" in m_type:
-                    label_txt = f"[{mid_short_name}]清仓2卖"
-                    short_label = f"[{mid_short_name}]清仓2卖"
-                    category = "mid_2sell"
-                    trade_msg = f"【{mid_short_name}清仓2卖】次级别反弹不破前高，波段清仓防守。"
-                elif "3sell" in m_type:
-                    label_txt = f"[{mid_short_name}]破位3卖"
-                    short_label = f"[{mid_short_name}]破位3卖"
-                    category = "mid_3sell"
-                    trade_msg = f"【{mid_short_name}破位3卖】跌破次级别中枢反抽不入，离场避险。"
-                else:
-                    label_txt = f"[{mid_short_name}]{mmd.mmd_type.value.upper()}"
-                    short_label = label_txt
-                    category = "mid_other"
-                    trade_msg = f"{PERIOD_SPECS[mid_p]['label']}: {mmd.msg}"
+    if not is_single_period:
+        for mmd in mid_res.mmds:
+            if mmd.bi:
+                end_val = mmd.bi.end.val
+                is_high = mmd.bi.end.fx_type == FXType.DING
+                b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, mid_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
+                if 0 <= b_idx < n_base:
+                    is_buy = "buy" in mmd.mmd_type.value
+                    m_type = mmd.mmd_type.value.lower()
+                    if "1buy" in m_type:
+                        label_txt = f"[{mid_short_name}]区间套1买"
+                        short_label = f"[{mid_short_name}]极低1买"
+                        category = "mid_1buy"
+                        trade_msg = f"【{mid_short_name}区间套1买】次级别底背驰极值拐点，博取中周期波段底部。"
+                    elif "2buy" in m_type:
+                        label_txt = f"[{mid_short_name}]稳健2买"
+                        short_label = f"[{mid_short_name}]稳健2买"
+                        category = "mid_2buy"
+                        trade_msg = f"【{mid_short_name}稳健2买】次级别回踩不破前低，中周期起涨确认点。"
+                    elif "3buy" in m_type:
+                        label_txt = f"[{mid_short_name}]主升3买"
+                        short_label = f"[{mid_short_name}]主升3买"
+                        category = "mid_3buy"
+                        trade_msg = f"【{mid_short_name}主升3买】次级别突破中枢回抽确认，主升起跑。"
+                    elif "1sell" in m_type:
+                        label_txt = f"[{mid_short_name}]极高1卖"
+                        short_label = f"[{mid_short_name}]极高1卖"
+                        category = "mid_1sell"
+                        trade_msg = f"【{mid_short_name}极高1卖】次级别顶背驰，波段极高点分批锁定利润。"
+                    elif "2sell" in m_type:
+                        label_txt = f"[{mid_short_name}]清仓2卖"
+                        short_label = f"[{mid_short_name}]清仓2卖"
+                        category = "mid_2sell"
+                        trade_msg = f"【{mid_short_name}清仓2卖】次级别反弹不破前高，波段清仓防守。"
+                    elif "3sell" in m_type:
+                        label_txt = f"[{mid_short_name}]破位3卖"
+                        short_label = f"[{mid_short_name}]破位3卖"
+                        category = "mid_3sell"
+                        trade_msg = f"【{mid_short_name}破位3卖】跌破次级别中枢反抽不入，离场避险。"
+                    else:
+                        label_txt = f"[{mid_short_name}]{mmd.mmd_type.value.upper()}"
+                        short_label = label_txt
+                        category = "mid_other"
+                        trade_msg = f"{PERIOD_SPECS[mid_p]['label']}: {mmd.msg}"
 
-                mmd_marks.append({
-                    "coord": [dates[b_idx], end_val],
-                    "date": dates[b_idx],
-                    "price": round(end_val, 2),
-                    "type": mmd.mmd_type.value.upper(),
-                    "level": "mid",
-                    "label": label_txt,
-                    "short_label": short_label,
-                    "category": category,
-                    "is_buy": is_buy,
-                    "msg": trade_msg,
-                })
+                    mmd_marks.append({
+                        "coord": [dates[b_idx], end_val],
+                        "date": dates[b_idx],
+                        "price": round(end_val, 2),
+                        "type": mmd.mmd_type.value.upper(),
+                        "level": "mid",
+                        "label": label_txt,
+                        "short_label": short_label,
+                        "category": category,
+                        "is_buy": is_buy,
+                        "msg": trade_msg,
+                    })
 
     # 4.3 大级别买卖点向底图映射 (明确大级别趋势反转确认，阐明滞后原因与大趋势跟踪)
-    for mmd in high_res.mmds:
-        if mmd.bi:
-            end_val = mmd.bi.end.val
-            is_high = mmd.bi.end.fx_type == FXType.DING
-            b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
-            if 0 <= b_idx < n_base:
-                is_buy = "buy" in mmd.mmd_type.value
-                m_type = mmd.mmd_type.value.lower()
-                if "1buy" in m_type:
-                    label_txt = f"[{high_short_name}]大级别1买(趋势确认)"
-                    short_label = f"[{high_short_name}]大1买"
-                    category = "high_1buy"
-                    trade_msg = f"【{high_short_name}大级别1买】趋势转折确认区（大级别笔确认存在滞后，适于长线趋势跟踪；更优相对低点请参考次级别区间套1买/2买）。"
-                elif "2buy" in m_type:
-                    label_txt = f"[{high_short_name}]大级别2买"
-                    short_label = f"[{high_short_name}]大2买"
-                    category = "high_2buy"
-                    trade_msg = f"【{high_short_name}大级别2买】大级别右侧回踩不破底，中长线安全边际最高。"
-                elif "3buy" in m_type:
-                    label_txt = f"[{high_short_name}]大级别3买"
-                    short_label = f"[{high_short_name}]大3买"
-                    category = "high_3buy"
-                    trade_msg = f"【{high_short_name}大级别3买】突破大级别中枢，超大级别主升浪起爆点。"
-                elif "1sell" in m_type:
-                    label_txt = f"[{high_short_name}]大级别1卖(趋势确认)"
-                    short_label = f"[{high_short_name}]大1卖"
-                    category = "high_1sell"
-                    trade_msg = f"【{high_short_name}大级别1卖】大级别顶背驰确认区（确认存在滞后，极高逃顶请参考次级别区间套1卖/2卖）。"
-                elif "2sell" in m_type:
-                    label_txt = f"[{high_short_name}]大级别2卖"
-                    short_label = f"[{high_short_name}]大2卖"
-                    category = "high_2sell"
-                    trade_msg = f"【{high_short_name}大级别2卖】反弹不过大级别前高，大周期趋势转熊防御。"
-                elif "3sell" in m_type:
-                    label_txt = f"[{high_short_name}]大级别3卖"
-                    short_label = f"[{high_short_name}]大3卖"
-                    category = "high_3sell"
-                    trade_msg = f"【{high_short_name}大级别3卖】跌破大级别中枢，进入大周期下行熊途。"
-                else:
-                    label_txt = f"[{high_short_name}]大级别{mmd.mmd_type.value.upper()}"
-                    short_label = label_txt
-                    category = "high_other"
-                    trade_msg = f"{PERIOD_SPECS[high_p]['label']}: {mmd.msg}"
+    if not is_single_period:
+        for mmd in high_res.mmds:
+            if mmd.bi:
+                end_val = mmd.bi.end.val
+                is_high = mmd.bi.end.fx_type == FXType.DING
+                b_idx = map_pivot_to_base(mmd.bi.end.k.date, end_val, is_high, high_p, base_df, base_dts, base_dts_list, fx_obj=mmd.bi.end)
+                if 0 <= b_idx < n_base:
+                    is_buy = "buy" in mmd.mmd_type.value
+                    m_type = mmd.mmd_type.value.lower()
+                    if "1buy" in m_type:
+                        label_txt = f"[{high_short_name}]大级别1买(趋势确认)"
+                        short_label = f"[{high_short_name}]大1买"
+                        category = "high_1buy"
+                        trade_msg = f"【{high_short_name}大级别1买】趋势转折确认区（大级别笔确认存在滞后，适于长线趋势跟踪；更优相对低点请参考次级别区间套1买/2买）。"
+                    elif "2buy" in m_type:
+                        label_txt = f"[{high_short_name}]大级别2买"
+                        short_label = f"[{high_short_name}]大2买"
+                        category = "high_2buy"
+                        trade_msg = f"【{high_short_name}大级别2买】大级别右侧回踩不破底，中长线安全边际最高。"
+                    elif "3buy" in m_type:
+                        label_txt = f"[{high_short_name}]大级别3买"
+                        short_label = f"[{high_short_name}]大3买"
+                        category = "high_3buy"
+                        trade_msg = f"【{high_short_name}大级别3买】突破大级别中枢，超大级别主升浪起爆点。"
+                    elif "1sell" in m_type:
+                        label_txt = f"[{high_short_name}]大级别1卖(趋势确认)"
+                        short_label = f"[{high_short_name}]大1卖"
+                        category = "high_1sell"
+                        trade_msg = f"【{high_short_name}大级别1卖】大级别顶背驰确认区（确认存在滞后，极高逃顶请参考次级别区间套1卖/2卖）。"
+                    elif "2sell" in m_type:
+                        label_txt = f"[{high_short_name}]大级别2卖"
+                        short_label = f"[{high_short_name}]大2卖"
+                        category = "high_2sell"
+                        trade_msg = f"【{high_short_name}大级别2卖】反弹不过大级别前高，大周期趋势转熊防御。"
+                    elif "3sell" in m_type:
+                        label_txt = f"[{high_short_name}]大级别3卖"
+                        short_label = f"[{high_short_name}]大3卖"
+                        category = "high_3sell"
+                        trade_msg = f"【{high_short_name}大级别3卖】跌破大级别中枢，进入大周期下行熊途。"
+                    else:
+                        label_txt = f"[{high_short_name}]大级别{mmd.mmd_type.value.upper()}"
+                        short_label = label_txt
+                        category = "high_other"
+                        trade_msg = f"{PERIOD_SPECS[high_p]['label']}: {mmd.msg}"
 
-                mmd_marks.append({
-                    "coord": [dates[b_idx], end_val],
-                    "date": dates[b_idx],
-                    "price": round(end_val, 2),
-                    "type": mmd.mmd_type.value.upper(),
-                    "level": "high",
-                    "label": label_txt,
-                    "short_label": short_label,
-                    "category": category,
-                    "is_buy": is_buy,
-                    "msg": trade_msg,
-                })
+                    mmd_marks.append({
+                        "coord": [dates[b_idx], end_val],
+                        "date": dates[b_idx],
+                        "price": round(end_val, 2),
+                        "type": mmd.mmd_type.value.upper(),
+                        "level": "high",
+                        "label": label_txt,
+                        "short_label": short_label,
+                        "category": category,
+                        "is_buy": is_buy,
+                        "msg": trade_msg,
+                    })
 
     # 5. 共振买卖点标记 (三周期立体共振)
     res_marks = []
@@ -1842,6 +1869,68 @@ def analyze_multi_period_resonance(
                 "short_label": f"★{r.grade}买" if is_buy else f"▼{r.grade}卖",
                 "desc": r.description,
             })
+
+    # 5.1 顶底分型标记 (单周期及缠论走势结构关键要素)
+    fractal_marks = []
+    for fx in getattr(low_res, "fractals", []):
+        k_idx = fx.k.k_index
+        if hasattr(fx.k, "klines") and fx.k.klines:
+            is_ding = (fx.fx_type == FXType.DING)
+            for raw_k in fx.k.klines:
+                raw_target = raw_k.high if is_ding else raw_k.low
+                if abs(raw_target - fx.val) < 1e-4:
+                    k_idx = raw_k.index
+                    break
+        k_idx = max(0, min(n_base - 1, k_idx))
+        is_ding = (fx.fx_type == FXType.DING)
+        fractal_marks.append({
+            "coord": [dates[k_idx], round(fx.val, 2)],
+            "date": dates[k_idx],
+            "price": round(fx.val, 2),
+            "type": "ding" if is_ding else "di",
+            "label": "顶分型" if is_ding else "底分型",
+            "short_label": "▲顶" if is_ding else "▼底",
+        })
+
+    # 5.2 线段映射 (低级别笔向上构建的高一级走势段)
+    xds = []
+    prev_xd_end_coord = None
+    prev_xd_end_idx = None
+    for xd in getattr(low_res, "xds", []):
+        s_i = xd.start.k.k_index
+        if hasattr(xd.start.k, "klines") and xd.start.k.klines:
+            is_start_high = (xd.start.fx_type == FXType.DING)
+            for raw_k in xd.start.k.klines:
+                raw_target = raw_k.high if is_start_high else raw_k.low
+                if abs(raw_target - xd.start.val) < 1e-4:
+                    s_i = raw_k.index
+                    break
+        e_i = xd.end.k.k_index
+        if hasattr(xd.end.k, "klines") and xd.end.k.klines:
+            is_end_high = (xd.end.fx_type == FXType.DING)
+            for raw_k in xd.end.k.klines:
+                raw_target = raw_k.high if is_end_high else raw_k.low
+                if abs(raw_target - xd.end.val) < 1e-4:
+                    e_i = raw_k.index
+                    break
+        s_i = max(0, min(n_base - 1, s_i))
+        e_i = max(0, min(n_base - 1, e_i))
+        start_coord = prev_xd_end_coord if prev_xd_end_coord is not None else [dates[s_i], xd.start.val]
+        start_idx = prev_xd_end_idx if prev_xd_end_idx is not None else s_i
+        end_coord = [dates[e_i], xd.end.val]
+        xds.append({
+            "start": start_coord,
+            "end": end_coord,
+            "start_idx": start_idx,
+            "end_idx": e_i,
+            "direction": xd.direction.value,
+        })
+        prev_xd_end_coord = end_coord
+        prev_xd_end_idx = e_i
+
+    # 单周期模式下：线段直接作为 high_bis（紫色粗折线）在图表中高光呈现！
+    if is_single_period:
+        high_bis = xds
 
     # 6. MACD 数据及背离（底背离 / 顶背离）识别
     macd_data = low_res.macd or {}
@@ -2127,6 +2216,14 @@ def analyze_multi_period_resonance(
             "resonance_count": len(resonances),
             "is_backtracking": is_backtracking,
             "cutoff_date": cutoff_date if is_backtracking else None,
+            "is_single_period": is_single_period,
+            "period": low_p,
+            "period_name": PERIOD_SPECS[low_p]["short_name"],
+            "latest_bi_dir": current_low_state.current_bi_direction,
+            "latest_fx": fractal_marks[-1] if fractal_marks else None,
+            "latest_xd_dir": xds[-1]["direction"] if xds else "",
+            "latest_zs_range": [low_zss[-1]["zd"], low_zss[-1]["zg"]] if low_zss else None,
+            "latest_mmd": current_low_state.recent_mmd_type,
         },
         "resonances": [r.to_dict() for r in resonances],
         "unified_chart": {
@@ -2140,6 +2237,8 @@ def analyze_multi_period_resonance(
             "mid_zss": mid_zss,
             "low_bis": low_bis,
             "low_zss": low_zss,
+            "xds": xds,
+            "fractal_marks": fractal_marks,
             "mmd_marks": mmd_marks,
             "res_marks": res_marks,
             "macd": {
@@ -2173,6 +2272,7 @@ def analyze_multi_period_resonance(
             clean_code=clean_code,
             is_backtracking=is_backtracking,
             is_daily=(low_p == "DAY"),
+            fractal_marks=fractal_marks,
         ),
         "levels_data": levels_data,
         "backtrack_timeline": {

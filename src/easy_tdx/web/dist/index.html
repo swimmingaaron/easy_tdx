@@ -4837,12 +4837,24 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-purple-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
-                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
-                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
-                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
-                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                <optgroup label="多周期立体共振">
+                                    <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F">30F·5F·1F (超短)</option>
+                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                    <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                    <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                    <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                </optgroup>
+                                <optgroup label="单周期缠论K线">
+                                    <option value="5F">5F (单周期)</option>
+                                    <option value="15F">15F (单周期)</option>
+                                    <option value="30F">30F (单周期)</option>
+                                    <option value="60F">60F (单周期)</option>
+                                    <option value="120F">120F (单周期)</option>
+                                    <option value="DAY">日 (单周期)</option>
+                                    <option value="WEEK">周 (单周期)</option>
+                                    <option value="MONTH">月 (单周期)</option>
+                                </optgroup>
                             </select>
                             <div id="cl-pattern-overlay" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4870,12 +4882,24 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-emerald-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
-                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
-                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
-                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                <optgroup label="多周期立体共振">
+                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
+                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                    <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                    <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                    <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                </optgroup>
+                                <optgroup label="单周期缠论K线">
+                                    <option value="5F">5F (单周期)</option>
+                                    <option value="15F">15F (单周期)</option>
+                                    <option value="30F">30F (单周期)</option>
+                                    <option value="60F">60F (单周期)</option>
+                                    <option value="120F">120F (单周期)</option>
+                                    <option value="DAY">日 (单周期)</option>
+                                    <option value="WEEK">周 (单周期)</option>
+                                    <option value="MONTH">月 (单周期)</option>
+                                </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-w2" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4903,12 +4927,24 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
-                                <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
-                                <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
-                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                <optgroup label="多周期立体共振">
+                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F">30F·5F·1F (超短)</option>
+                                    <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
+                                    <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
+                                    <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                    <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                </optgroup>
+                                <optgroup label="单周期缠论K线">
+                                    <option value="5F">5F (单周期)</option>
+                                    <option value="15F">15F (单周期)</option>
+                                    <option value="30F">30F (单周期)</option>
+                                    <option value="60F">60F (单周期)</option>
+                                    <option value="120F">120F (单周期)</option>
+                                    <option value="DAY">日 (单周期)</option>
+                                    <option value="WEEK">周 (单周期)</option>
+                                    <option value="MONTH">月 (单周期)</option>
+                                </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-right" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -4936,12 +4972,24 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-amber-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
-                                <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                <option value="30F,5F,1F">30F·5F·1F (超短)</option>
-                                <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
-                                <option value="MONTH,WEEK,DAY" selected>月·周·日 (长线)</option>
-                                <option value="DAY,60F,15F">日·60F·15F (日内)</option>
-                                <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                <optgroup label="多周期立体共振">
+                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F">30F·5F·1F (超短)</option>
+                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                    <option value="MONTH,WEEK,DAY" selected>月·周·日 (长线)</option>
+                                    <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                    <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                </optgroup>
+                                <optgroup label="单周期缠论K线">
+                                    <option value="5F">5F (单周期)</option>
+                                    <option value="15F">15F (单周期)</option>
+                                    <option value="30F">30F (单周期)</option>
+                                    <option value="60F">60F (单周期)</option>
+                                    <option value="120F">120F (单周期)</option>
+                                    <option value="DAY">日 (单周期)</option>
+                                    <option value="WEEK">周 (单周期)</option>
+                                    <option value="MONTH">月 (单周期)</option>
+                                </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-w4" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
                         </div>
@@ -23087,30 +23135,44 @@
             }
         };
 
+        function formatChanlunPresetPillText(winNum, presetStr) {
+            const periodNames = {
+                '5F': '5F', '15F': '15F', '30F': '30F', '60F': '60F', '120F': '120F',
+                'DAY': '日', 'WEEK': '周', 'MONTH': '月'
+            };
+            const parts = (presetStr || '').split(',');
+            if (parts.length === 1 || (parts.length === 3 && parts[0] === parts[1] && parts[1] === parts[2])) {
+                const singleP = parts[0].trim();
+                const name = periodNames[singleP] || singleP;
+                return `窗${winNum}: ${name} (单周期)`;
+            }
+            return `窗${winNum}: ${presetStr.replace(/,/g, '·')}`;
+        }
+
         window.applyChanlunWindowPreset = function(target, presetStr) {
             if (target === 'left' || target === 'w1') {
                 _clLeftPeriods = presetStr;
                 _clPeriods = presetStr;
                 const pEl = document.getElementById('cl-pill-left');
-                if (pEl) pEl.innerText = `窗1: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = formatChanlunPresetPillText(1, presetStr);
                 const sPreset = document.getElementById('cl-select-preset-left');
                 if (sPreset) sPreset.value = presetStr;
             } else if (target === 'w2') {
                 _clW2Periods = presetStr;
                 const pEl = document.getElementById('cl-pill-w2');
-                if (pEl) pEl.innerText = `窗2: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = formatChanlunPresetPillText(2, presetStr);
                 const sPreset = document.getElementById('cl-select-preset-w2');
                 if (sPreset) sPreset.value = presetStr;
             } else if (target === 'right' || target === 'w3') {
                 _clRightPeriods = presetStr;
                 const pEl = document.getElementById('cl-pill-right');
-                if (pEl) pEl.innerText = `窗3: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = formatChanlunPresetPillText(3, presetStr);
                 const sPreset = document.getElementById('cl-select-preset-right');
                 if (sPreset) sPreset.value = presetStr;
             } else if (target === 'w4') {
                 _clW4Periods = presetStr;
                 const pEl = document.getElementById('cl-pill-w4');
-                if (pEl) pEl.innerText = `窗4: ${presetStr.replace(/,/g, '·')}`;
+                if (pEl) pEl.innerText = formatChanlunPresetPillText(4, presetStr);
                 const sPreset = document.getElementById('cl-select-preset-w4');
                 if (sPreset) sPreset.value = presetStr;
             }
@@ -23309,7 +23371,7 @@
                     const query = new URLSearchParams();
                     query.set('code', _clCurrentCode);
                     query.set('periods', periods);
-                    const reqCount = (periods.includes('5F') || periods.includes('1F')) ? '3000' : '300';
+                    const reqCount = (periods.includes('5F') || periods.includes('1F') || periods.includes('15F') || periods.includes('30F')) ? '3000' : '800';
                     query.set('count', reqCount);
                     if (_clIsBacktracking && _clBacktrackDate) {
                         query.set('cutoff_date', _clBacktrackDate);
@@ -24254,6 +24316,37 @@
                 };
             }) : [];
 
+            // 6. 顶底分型 MarkPoints (单周期及缠论走势结构顶底标记)
+            const fractalMarkPoints = (uc.fractal_marks || []).map(f => {
+                const isDing = f.type === 'ding';
+                const tagColor = isDing ? '#f43f5e' : '#10b981';
+                const tagBg = isDark 
+                    ? (isDing ? 'rgba(225, 29, 72, 0.25)' : 'rgba(16, 185, 129, 0.25)') 
+                    : (isDing ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
+                const borderC = isDing ? '#f43f5e' : '#10b981';
+                return {
+                    name: isDing ? '顶分型' : '底分型',
+                    coord: f.coord,
+                    value: isDing ? '▲顶' : '▼底',
+                    symbol: 'none',
+                    label: {
+                        show: true,
+                        position: isDing ? 'top' : 'bottom',
+                        distance: 2,
+                        formatter: isDing ? '▲顶' : '▼底',
+                        color: tagColor,
+                        textBorderColor: isDark ? '#000000' : '#ffffff',
+                        textBorderWidth: 1.5,
+                        fontSize: 9,
+                        fontWeight: 'bold',
+                        backgroundColor: tagBg,
+                        borderColor: borderC,
+                        borderWidth: 0.8,
+                        borderRadius: 2,
+                        padding: [1, 2]
+                    }
+                };
+            });
 
             // 7. 副图指标系列 (成交额 / 主力净流入 / MACD / RSI / KDJ / EXPMA / 关闭)
             const isSubNone = _clSubIndicator === 'none';
@@ -25327,6 +25420,7 @@
                         },
                         markPoint: {
                             data: [
+                                ...fractalMarkPoints,
                                 ...mmdMarkPoints,
                                 ...resMarkPoints
                             ]
@@ -25489,20 +25583,57 @@
             const patternOverlay = document.getElementById(patternElId);
             if (patternOverlay && d.summary) {
                 const s = d.summary;
-                const hDir = s.high_state?.bi_direction === 'up';
-                const mDir = s.mid_state?.bi_direction === 'up';
-                const lMmd = s.low_state?.recent_mmd;
-                patternOverlay.innerHTML = `
-                    <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
-                        ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
-                    </span>
-                    <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
-                        ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
-                    </span>
-                    <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-blue-950/80 text-blue-300 border-blue-800'} border shadow-sm font-bold">
-                        ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
-                    </span>
-                `;
+                if (s.is_single_period) {
+                    const biUp = s.latest_bi_dir === 'up';
+                    const biDown = s.latest_bi_dir === 'down';
+                    const biText = biUp ? '▲向上笔' : (biDown ? '▼向下笔' : '笔延伸');
+                    const biClass = biUp ? 'bg-amber-950/80 text-amber-300 border-amber-800' : (biDown ? 'bg-slate-900/80 text-slate-400 border-slate-700' : 'bg-slate-900/80 text-slate-400 border-slate-700');
+
+                    const xdUp = s.latest_xd_dir === 'up';
+                    const xdDown = s.latest_xd_dir === 'down';
+                    const xdText = xdUp ? '▲向上线段' : (xdDown ? '▼向下线段' : '线段延伸');
+                    const xdClass = xdUp ? 'bg-purple-950/80 text-purple-300 border-purple-800' : (xdDown ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800' : 'bg-slate-900/80 text-slate-400 border-slate-700');
+
+                    let fxHtml = '';
+                    if (s.latest_fx) {
+                        const isDing = s.latest_fx.type === 'ding';
+                        const fxColor = isDing ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-emerald-950/80 text-emerald-300 border-emerald-800';
+                        fxHtml = `<span class="px-2 py-0.5 rounded ${fxColor} border shadow-sm">${s.latest_fx.short_label} ¥${s.latest_fx.price}</span>`;
+                    }
+
+                    let zsHtml = '';
+                    if (s.latest_zs_range) {
+                        zsHtml = `<span class="px-2 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border-cyan-800 border shadow-sm">中枢 [${s.latest_zs_range[0]}~${s.latest_zs_range[1]}]</span>`;
+                    }
+
+                    let mmdHtml = '';
+                    if (s.latest_mmd) {
+                        mmdHtml = `<span class="px-2 py-0.5 rounded bg-rose-950/90 text-rose-300 border-rose-700 border shadow-sm font-bold">🎯 ${s.latest_mmd}</span>`;
+                    }
+
+                    patternOverlay.innerHTML = `
+                        <span class="px-2 py-0.5 rounded ${biClass} border shadow-sm">${s.period_name || '当前'}: ${biText}</span>
+                        ${fxHtml}
+                        <span class="px-2 py-0.5 rounded ${xdClass} border shadow-sm">${xdText}</span>
+                        ${zsHtml}
+                        ${mmdHtml}
+                    `;
+                } else {
+                    const hDir = s.high_state?.bi_direction === 'up';
+                    const mDir = s.mid_state?.bi_direction === 'up';
+                    const lMmd = s.low_state?.recent_mmd;
+                    patternOverlay.innerHTML = `
+                        <span class="px-2 py-0.5 rounded ${hDir ? 'bg-purple-950/80 text-purple-300 border-purple-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                            ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
+                        </span>
+                        <span class="px-2 py-0.5 rounded ${mDir ? 'bg-amber-950/80 text-amber-300 border-amber-800' : 'bg-slate-900/80 text-slate-400 border-slate-700'} border shadow-sm">
+                            ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
+                        </span>
+                        <span class="px-2 py-0.5 rounded ${lMmd ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-blue-950/80 text-blue-300 border-blue-800'} border shadow-sm font-bold">
+                            ${d.periods.low.name}: ${lMmd ? `🎯 ${lMmd}` : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
+                        </span>
+                    `;
+                }
             }
 
             let prevDataZoom = null;
