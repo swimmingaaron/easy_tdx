@@ -1229,83 +1229,133 @@ def export_interactive_html(
         e_i = min(len(dates) - 1, max(0, bi.end.k.k_index))
         low_bis.append([[dates[s_i], bi.start.val], [dates[e_i], bi.end.val]])
 
-    # 买卖点 markPoints (多级别同图融合)
+    # 买卖点 markPoints (参考 send_watchlist_chanlun_wecom.py 细长箭头与胶囊标签)
+    arrow_up_path = "path://M 0,0 L 3.5,9 L 0.6,9 L 0.6,40 L -0.6,40 L -0.6,9 L -3.5,9 Z"
+    arrow_down_path = "path://M 0,40 L 3.5,31 L 0.6,31 L 0.6,0 L -0.6,0 L -0.6,31 L -3.5,31 Z"
+    high_name = PERIOD_SPECS[high_p]["short_name"].replace("线", "")
+    mid_name = PERIOD_SPECS[mid_p]["short_name"].replace("线", "")
+    low_name = PERIOD_SPECS[base_p]["short_name"].replace("线", "")
+
     mmd_marks = []
-    # 大级别买卖点
+    # 大级别买卖点 (高贵紫)
     for mmd in (results[high_p].mmds or []):
         if mmd.bi:
             idx = _map_to_base_idx(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, high_p)
             idx = min(len(dates) - 1, max(0, idx))
-            is_buy = "buy" in mmd.mmd_type.value
-            lbl = "大级别走势1买" if mmd.mmd_type.value == "1buy" else ("大级别2买" if mmd.mmd_type.value == "2buy" else f"大{mmd.mmd_type.value}")
-            if not is_buy:
-                lbl = "大级别1卖" if mmd.mmd_type.value == "1sell" else ("大级别2卖" if mmd.mmd_type.value == "2sell" else f"大{mmd.mmd_type.value}")
+            mtype = mmd.mmd_type.value
+            is_buy = "buy" in mtype
+            type_map = {
+                "1buy": "1买(底背)",
+                "2buy": "2买",
+                "3buy": "3买",
+                "1sell": "1卖(顶背)",
+                "2sell": "2卖",
+                "3sell": "3卖",
+            }
+            type_str = type_map.get(mtype, mtype)
+            lbl = f"▲ [{high_name}] {type_str}" if is_buy else f"▼ [{high_name}] {type_str}"
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
                 "value": lbl,
-                "itemStyle": {"color": "#9333ea"},
+                "symbol": arrow_up_path if is_buy else arrow_down_path,
+                "symbolSize": [7, 42],
+                "symbolOffset": [0, "50%"] if is_buy else [0, "-50%"],
+                "itemStyle": {"color": "#9333ea", "borderColor": "#c084fc", "borderWidth": 1.0},
+                "label": {
+                    "show": True,
+                    "position": "bottom" if is_buy else "top",
+                    "distance": 2,
+                    "formatter": lbl,
+                    "color": "#ffffff",
+                    "backgroundColor": "#9333ea",
+                    "borderColor": "#c084fc",
+                    "borderWidth": 1.2,
+                    "borderRadius": 4,
+                    "padding": [3, 6],
+                    "fontWeight": "bold",
+                    "fontSize": 10,
+                },
             })
 
-    # 中级别买卖点
+    # 中级别买卖点 (次级别买点金黄/卖点橙红)
     for mmd in (results[mid_p].mmds or []):
         if mmd.bi:
             idx = _map_to_base_idx(mmd.bi.end.k.date, mmd.bi.end.val, "buy" in mmd.mmd_type.value, mid_p)
             idx = min(len(dates) - 1, max(0, idx))
-            is_buy = "buy" in mmd.mmd_type.value
-            lbl = "次二买" if mmd.mmd_type.value == "2buy" else ("次一买" if mmd.mmd_type.value == "1buy" else f"次{mmd.mmd_type.value}")
-            if not is_buy:
-                lbl = "可能的三卖" if mmd.mmd_type.value == "3sell" else ("次二卖" if mmd.mmd_type.value == "2sell" else f"次{mmd.mmd_type.value}")
+            mtype = mmd.mmd_type.value
+            is_buy = "buy" in mtype
+            type_map = {
+                "1buy": "1买(底背)",
+                "2buy": "2买",
+                "3buy": "3买",
+                "1sell": "1卖(顶背)",
+                "2sell": "2卖",
+                "3sell": "3卖",
+            }
+            type_str = type_map.get(mtype, mtype)
+            lbl = f"▲ [{mid_name}] {type_str}" if is_buy else f"▼ [{mid_name}] {type_str}"
+            tag_color = "#facc15" if is_buy else "#d97706"
+            tag_text_color = "#1e1b18" if is_buy else "#ffffff"
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
                 "value": lbl,
-                "symbol": "pin" if is_buy else "arrow",
-                "symbolRotate": 0 if is_buy else 180,
-                "symbolSize": 26,
-                "itemStyle": {"color": "#facc15" if is_buy else "#d97706"},
+                "symbol": arrow_up_path if is_buy else arrow_down_path,
+                "symbolSize": [7, 42],
+                "symbolOffset": [0, "50%"] if is_buy else [0, "-50%"],
+                "itemStyle": {"color": tag_color, "borderColor": "#ffffff", "borderWidth": 1.0},
                 "label": {
                     "show": True,
-                    "color": "#fef08a" if is_buy else "#ffffff",
-                    "textBorderColor": "rgba(0, 0, 0, 0.9)",
-                    "textBorderWidth": 2.5,
+                    "position": "bottom" if is_buy else "top",
+                    "distance": 2,
+                    "formatter": lbl,
+                    "color": tag_text_color,
+                    "backgroundColor": tag_color,
+                    "borderColor": "#ffffff",
+                    "borderWidth": 1.2,
+                    "borderRadius": 4,
+                    "padding": [3, 6],
                     "fontWeight": "bold",
-                    "fontSize": 9.5,
+                    "fontSize": 10,
                 },
             })
 
-    # 小级别买卖点
+    # 小级别买卖点 (买点赤红/卖点翡翠绿)
     for mmd in base_res.mmds:
         if mmd.bi:
             idx = min(len(dates) - 1, max(0, mmd.bi.end.k.k_index))
             mtype = mmd.mmd_type.value
             is_buy = "buy" in mtype
-            if mtype == "1buy":
-                lbl = "底背驰 T1"
-            elif mtype == "2buy":
-                lbl = "2买"
-            elif mtype == "3buy":
-                lbl = "3买"
-            elif mtype == "1sell":
-                lbl = "顶背驰 T1"
-            elif mtype == "2sell":
-                lbl = "2卖"
-            elif mtype == "3sell":
-                lbl = "3卖"
-            else:
-                lbl = mtype.upper()
+            type_map = {
+                "1buy": "1买(底背)",
+                "2buy": "2买",
+                "3buy": "3买",
+                "1sell": "1卖(顶背)",
+                "2sell": "2卖",
+                "3sell": "3卖",
+            }
+            type_str = type_map.get(mtype, mtype)
+            lbl = f"▲ [{low_name}] {type_str}" if is_buy else f"▼ [{low_name}] {type_str}"
+            tag_color = "#f23645" if is_buy else "#089981"
             mmd_marks.append({
                 "coord": [dates[idx], mmd.bi.end.val],
                 "value": lbl,
-                "symbol": "pin" if is_buy else "arrow",
-                "symbolRotate": 0 if is_buy else 180,
-                "symbolSize": 24,
-                "itemStyle": {"color": "#f23645" if is_buy else "#089981"},
+                "symbol": arrow_up_path if is_buy else arrow_down_path,
+                "symbolSize": [7, 42],
+                "symbolOffset": [0, "50%"] if is_buy else [0, "-50%"],
+                "itemStyle": {"color": tag_color, "borderColor": "#ffffff", "borderWidth": 1.0},
                 "label": {
                     "show": True,
+                    "position": "bottom" if is_buy else "top",
+                    "distance": 2,
+                    "formatter": lbl,
                     "color": "#ffffff",
-                    "textBorderColor": "rgba(0, 0, 0, 0.9)",
-                    "textBorderWidth": 2.5,
+                    "backgroundColor": tag_color,
+                    "borderColor": "#ffffff",
+                    "borderWidth": 1.2,
+                    "borderRadius": 4,
+                    "padding": [3, 6],
                     "fontWeight": "bold",
-                    "fontSize": 9.5,
+                    "fontSize": 10,
                 },
             })
 

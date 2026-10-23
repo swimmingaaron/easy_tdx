@@ -894,91 +894,97 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
 
   const isDark = document.documentElement.classList.contains('dark')
 
-  // 多级别买卖点同图呈现 markPoints (区间套极值点、次级别稳健确认点、大级别趋势确认点)
+  // 向上细长箭头 (用于买点：尖端在顶部 (0,0) 对齐K线低点，箭身向下延伸 40px)
+  const ARROW_UP_PATH = 'path://M 0,0 L 3.5,9 L 0.6,9 L 0.6,40 L -0.6,40 L -0.6,9 L -3.5,9 Z'
+  // 向下细长箭头 (用于卖点：尖端在底部 (0,40) 对齐K线高点，箭身向上延伸 40px)
+  const ARROW_DOWN_PATH = 'path://M 0,40 L 3.5,31 L 0.6,31 L 0.6,0 L -0.6,0 L -0.6,31 L -3.5,31 Z'
+
+  // 多级别买卖点同图呈现 markPoints (参考 send_watchlist_chanlun_wecom.py 细长箭头与胶囊标签)
   const mmdMarkPoints = showMmdMarks.value
     ? uc.mmd_marks.map((m) => {
         const isBig = m.level === 'high' || m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')
         const isMid = m.level === 'mid' || m.label.includes('次')
-        const isNested1Buy = m.category === 'nested_1buy' || m.label.includes('极低') || m.label.includes('区间套1买')
-        const isSteady2Buy = m.category === 'steady_2buy' || m.label.includes('稳健') || (m.is_buy && m.label.includes('2买'))
-        const isBreakout3Buy = m.category === 'breakout_3buy' || m.label.includes('主升') || (m.is_buy && m.label.includes('3买'))
-        const isNested1Sell = m.category === 'nested_1sell' || m.label.includes('极高') || m.label.includes('区间套1卖')
-        const isDefense2Sell = m.category === 'defense_2sell' || m.label.includes('清仓') || (!m.is_buy && m.label.includes('2卖'))
-        const isBreakdown3Sell = m.category === 'breakdown_3sell' || m.label.includes('破位') || (!m.is_buy && m.label.includes('3卖'))
 
-        // 色彩与层级视觉定义：
-        // 极值1买：烈焰高亮红 (#ef4444) - 抓最低下影线
-        // 稳健2买：琥珀金黄 (#f59e0b) - 避开滞后高胜率二次确认
-        // 主升3买：洋红玫瑰 (#e11d48) - 突破中枢起爆
-        // 极高1卖：翡翠亮绿 (#10b981) - 抓最高上影线逃顶
-        // 清仓2卖：暖橙黄 (#d97706) - 反弹不过清仓
-        // 破位3卖：深青绿 (#059669) - 破位下杀离场
-        // 大级别点：高贵紫 (#9333ea) - 大级别趋势确认
-        let color = m.is_buy ? '#ef4444' : '#10b981'
-        let symbolSize = 28
-
+        // 提取级别名称 (如 5F, 30F, 日, 周, 月)
+        let levelName = '小'
         if (isBig) {
-          color = '#9333ea'
-          symbolSize = 32
+          levelName = d?.periods?.high?.name ? d.periods.high.name.replace('线', '') : '大'
         } else if (isMid) {
-          color = m.is_buy ? (isSteady2Buy ? '#f59e0b' : '#ea580c') : (isDefense2Sell ? '#d97706' : '#059669')
-          symbolSize = 28
+          levelName = d?.periods?.mid?.name ? d.periods.mid.name.replace('线', '') : '中'
         } else {
-          // 当前小级别/基准级别
-          if (isNested1Buy) {
-            color = '#ef4444'
-            symbolSize = 32
-          } else if (isSteady2Buy) {
-            color = '#f59e0b'
-            symbolSize = 29
-          } else if (isBreakout3Buy) {
-            color = '#e11d48'
-            symbolSize = 27
-          } else if (isNested1Sell) {
-            color = '#10b981'
-            symbolSize = 32
-          } else if (isDefense2Sell) {
-            color = '#d97706'
-            symbolSize = 29
-          } else if (isBreakdown3Sell) {
-            color = '#059669'
-            symbolSize = 27
-          }
+          levelName = d?.periods?.low?.name ? d.periods.low.name.replace('线', '') : '小'
         }
 
-        const displayText = m.short_label || m.label
+        // 统一买卖点精炼文案 (与 send_watchlist_chanlun_wecom.py 保持完全一致)
+        const mType = (m.type || '').toLowerCase()
+        let typeStr = ''
+        if (mType.includes('1buy')) typeStr = '1买(底背)'
+        else if (mType.includes('2buy')) typeStr = '2买'
+        else if (mType.includes('3buy')) typeStr = '3买'
+        else if (mType.includes('1sell')) typeStr = '1卖(顶背)'
+        else if (mType.includes('2sell')) typeStr = '2卖'
+        else if (mType.includes('3sell')) typeStr = '3卖'
+        else typeStr = m.short_label || m.label || m.type
 
-        let textColor, textBorderColor
-        if (isDark) {
-          textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#fef08a' : (m.is_buy ? '#ffffff' : '#ecfdf5')
-          textBorderColor = 'rgba(0, 0, 0, 0.95)'
+        const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`
+
+        // 颜色与层级视觉定义 (参考 send_watchlist_chanlun_wecom.py):
+        // 大级别点：高贵紫 (#9333ea)，浅紫边 (#c084fc)，白字
+        // 次级别点：买点金黄 (#facc15, 深色字)，卖点橙红 (#d97706, 白字)
+        // 基准小级别：买点赤红 (#f23645, 白字)，卖点翡翠绿 (#089981, 白字)
+        let tagColor = m.is_buy ? '#f23645' : '#089981'
+        let tagBorder = '#ffffff'
+        let tagTextColor = '#ffffff'
+
+        if (isBig) {
+          tagColor = '#9333ea'
+          tagBorder = '#c084fc'
+          tagTextColor = '#ffffff'
+        } else if (isMid) {
+          if (m.is_buy) {
+            tagColor = '#facc15'
+            tagBorder = '#ffffff'
+            tagTextColor = '#1e1b18'
+          } else {
+            tagColor = '#d97706'
+            tagBorder = '#ffffff'
+            tagTextColor = '#ffffff'
+          }
         } else {
-          textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#78350f' : (m.is_buy ? '#991b1b' : '#064e3b')
-          textBorderColor = '#ffffff'
+          tagColor = m.is_buy ? '#f23645' : '#089981'
+          tagBorder = '#ffffff'
+          tagTextColor = '#ffffff'
         }
 
         return {
           name: m.type,
           coord: m.coord,
           value: displayText,
-          symbol: m.is_buy ? 'pin' : 'arrow',
-          symbolRotate: m.is_buy ? 0 : 180,
-          symbolSize,
-          itemStyle: { 
-            color,
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.25)',
-            borderWidth: 1.2,
-            shadowBlur: (isNested1Buy || isNested1Sell || isBig) ? 6 : 0,
-            shadowColor: color,
+          symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
+          symbolSize: [7, 42],
+          symbolOffset: m.is_buy ? [0, '50%'] : [0, '-50%'],
+          itemStyle: {
+            color: tagColor,
+            borderColor: tagBorder,
+            borderWidth: 1.0,
+            shadowBlur: 4,
+            shadowColor: tagColor,
           },
           label: {
             show: true,
-            color: textColor,
-            textBorderColor: textBorderColor,
-            textBorderWidth: 2.5,
-            fontWeight: 'bold',
-            fontSize: displayText.length > 5 ? 8.5 : 9.5,
+            position: m.is_buy ? 'bottom' : 'top',
+            distance: 2,
             formatter: displayText,
+            color: tagTextColor,
+            backgroundColor: tagColor,
+            borderColor: tagBorder,
+            borderWidth: 1.2,
+            borderRadius: 4,
+            padding: [3, 6],
+            fontWeight: 'bold',
+            fontSize: 10,
+            shadowBlur: 4,
+            shadowColor: 'rgba(0, 0, 0, 0.5)',
           },
         }
       })

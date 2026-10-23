@@ -3011,7 +3011,7 @@
                         </span>
                     </div>
 
-                    <!-- Watchlist Actions: Search/Add Stock & Control Buttons -->
+                    <!-- Watchlist Actions: Search/Add Stock -->
                     <div class="flex flex-wrap items-center gap-2">
                         <div class="relative flex items-center">
                             <div class="relative">
@@ -3029,20 +3029,6 @@
                                 class="absolute left-0 top-full mt-1.5 w-full rounded-xl shadow-2xl hidden z-50 max-h-56 overflow-y-auto border backdrop-blur-md">
                             </div>
                         </div>
-
-                        <button onclick="addWatchlistStock()"
-                            class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800 hover:bg-emerald-900 transition flex items-center space-x-1 cursor-pointer">
-                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-                            <span>添加自选</span>
-                        </button>
-                        <button onclick="resetWatchlistToDefault()" title="恢复默认精选监控股票池"
-                            class="px-2.5 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition cursor-pointer">
-                            恢复默认
-                        </button>
-                        <button onclick="loadRealtimeQuotes()" title="立即刷新自选行情"
-                            class="p-1.5 rounded-lg text-slate-400 border border-slate-800 hover:text-white hover:border-slate-700 transition cursor-pointer">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -24179,82 +24165,96 @@
             ]) : [];
 
 
-            // 4. 买卖点 MarkPoints (多级别同图融合与区间套专业标识)
+            // 向上细长箭头 (用于买点：尖端在顶部 (0,0) 对齐K线低点，箭身向下延伸 40px)
+            const ARROW_UP_PATH = 'path://M 0,0 L 3.5,9 L 0.6,9 L 0.6,40 L -0.6,40 L -0.6,9 L -3.5,9 Z';
+            // 向下细长箭头 (用于卖点：尖端在底部 (0,40) 对齐K线高点，箭身向上延伸 40px)
+            const ARROW_DOWN_PATH = 'path://M 0,40 L 3.5,31 L 0.6,31 L 0.6,0 L -0.6,0 L -0.6,31 L -3.5,31 Z';
+
+            // 4. 买卖点 MarkPoints (参考 send_watchlist_chanlun_wecom.py 细长箭头与胶囊标签)
             const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => {
                 const isBig = m.level === 'high' || (m.label && (m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')));
                 const isMid = m.level === 'mid' || (m.label && m.label.includes('次'));
-                const isNested1Buy = m.category === 'nested_1buy' || (m.label && (m.label.includes('极低') || m.label.includes('区间套1买')));
-                const isSteady2Buy = m.category === 'steady_2buy' || (m.label && (m.label.includes('稳健') || (m.is_buy && m.label.includes('2买'))));
-                const isBreakout3Buy = m.category === 'breakout_3buy' || (m.label && (m.label.includes('主升') || (m.is_buy && m.label.includes('3买'))));
-                const isNested1Sell = m.category === 'nested_1sell' || (m.label && (m.label.includes('极高') || m.label.includes('区间套1卖')));
-                const isDefense2Sell = m.category === 'defense_2sell' || (m.label && (m.label.includes('清仓') || (!m.is_buy && m.label.includes('2卖'))));
-                const isBreakdown3Sell = m.category === 'breakdown_3sell' || (m.label && (m.label.includes('破位') || (!m.is_buy && m.label.includes('3卖'))));
 
-                let color = m.is_buy ? '#ef4444' : '#10b981';
-                let symbolSize = 28;
-
+                // 提取级别名称 (如 5F, 30F, 日, 周, 月)
+                let levelName = '小';
                 if (isBig) {
-                    color = m.is_buy ? '#9333ea' : '#059669';
-                    symbolSize = 34;
+                    levelName = (d && d.periods && d.periods.high && d.periods.high.name) ? d.periods.high.name.replace('线', '') : '大';
                 } else if (isMid) {
-                    color = m.is_buy ? (isSteady2Buy ? '#f59e0b' : '#ea580c') : (isDefense2Sell ? '#d97706' : '#10b981');
-                    symbolSize = 28;
+                    levelName = (d && d.periods && d.periods.mid && d.periods.mid.name) ? d.periods.mid.name.replace('线', '') : '中';
                 } else {
-                    if (isNested1Buy) {
-                        color = '#ef4444';
-                        symbolSize = 32;
-                    } else if (isSteady2Buy) {
-                        color = '#f59e0b';
-                        symbolSize = 29;
-                    } else if (isBreakout3Buy) {
-                        color = '#e11d48';
-                        symbolSize = 27;
-                    } else if (isNested1Sell) {
-                        color = '#047857';
-                        symbolSize = 32;
-                    } else if (isDefense2Sell) {
-                        color = '#d97706';
-                        symbolSize = 29;
-                    } else if (isBreakdown3Sell) {
-                        color = '#10b981';
-                        symbolSize = 27;
-                    }
+                    levelName = (d && d.periods && d.periods.low && d.periods.low.name) ? d.periods.low.name.replace('线', '') : '小';
                 }
 
-                const displayText = m.short_label || m.label;
+                // 统一买卖点精炼文案 (与 send_watchlist_chanlun_wecom.py 保持完全一致)
+                const mType = (m.type || '').toLowerCase();
+                let typeStr = '';
+                if (mType.includes('1buy')) typeStr = '1买(底背)';
+                else if (mType.includes('2buy')) typeStr = '2买';
+                else if (mType.includes('3buy')) typeStr = '3买';
+                else if (mType.includes('1sell')) typeStr = '1卖(顶背)';
+                else if (mType.includes('2sell')) typeStr = '2卖';
+                else if (mType.includes('3sell')) typeStr = '3卖';
+                else typeStr = m.short_label || m.label || m.type;
 
-                let textColor, textBorderColor;
-                if (isDark) {
-                    textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#fef08a' : (m.is_buy ? '#ffffff' : '#a7f3d0');
-                    textBorderColor = 'rgba(0, 0, 0, 0.95)';
+                const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`;
+
+                // 颜色与层级视觉定义 (参考 send_watchlist_chanlun_wecom.py):
+                // 大级别点：高贵紫 (#9333ea)，浅紫边 (#c084fc)，白字
+                // 次级别点：买点金黄 (#facc15, 深色字)，卖点橙红 (#d97706, 白字)
+                // 基准小级别：买点赤红 (#f23645, 白字)，卖点翡翠绿 (#089981, 白字)
+                let tagColor = m.is_buy ? '#f23645' : '#089981';
+                let tagBorder = '#ffffff';
+                let tagTextColor = '#ffffff';
+
+                if (isBig) {
+                    tagColor = '#9333ea';
+                    tagBorder = '#c084fc';
+                    tagTextColor = '#ffffff';
+                } else if (isMid) {
+                    if (m.is_buy) {
+                        tagColor = '#facc15';
+                        tagBorder = '#ffffff';
+                        tagTextColor = '#1e1b18';
+                    } else {
+                        tagColor = '#d97706';
+                        tagBorder = '#ffffff';
+                        tagTextColor = '#ffffff';
+                    }
                 } else {
-                    textColor = (isSteady2Buy || (isMid && m.is_buy)) ? '#78350f' : (m.is_buy ? '#991b1b' : '#064e3b');
-                    textBorderColor = '#ffffff';
+                    tagColor = m.is_buy ? '#f23645' : '#089981';
+                    tagBorder = '#ffffff';
+                    tagTextColor = '#ffffff';
                 }
 
                 return {
                     name: m.type,
                     coord: m.coord,
                     value: displayText,
-                    symbol: m.is_buy ? 'pin' : 'arrow',
-                    symbolRotate: m.is_buy ? 0 : 180,
-                    symbolOffset: m.is_buy ? [0, '-20%'] : [0, '20%'],
-                    symbolSize: symbolSize,
+                    symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
+                    symbolSize: [7, 42],
+                    symbolOffset: m.is_buy ? [0, '50%'] : [0, '-50%'],
                     itemStyle: { 
-                        color: color,
-                        borderColor: isDark ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.35)',
-                        borderWidth: 1.5,
-                        shadowBlur: (isNested1Buy || isNested1Sell || isBig) ? 8 : 2,
-                        shadowColor: color
+                        color: tagColor,
+                        borderColor: tagBorder,
+                        borderWidth: 1.0,
+                        shadowBlur: 4,
+                        shadowColor: tagColor
                     },
                     label: {
                         show: true,
-                        color: textColor,
-                        textBorderColor: textBorderColor,
-                        textBorderWidth: 2.5,
+                        position: m.is_buy ? 'bottom' : 'top',
+                        distance: 2,
+                        formatter: displayText,
+                        color: tagTextColor,
+                        backgroundColor: tagColor,
+                        borderColor: tagBorder,
+                        borderWidth: 1.2,
+                        borderRadius: 4,
+                        padding: [3, 6],
                         fontWeight: 'bold',
-                        fontSize: displayText.length > 5 ? 8.5 : 9.5,
-                        formatter: displayText
+                        fontSize: 10,
+                        shadowBlur: 4,
+                        shadowColor: 'rgba(0, 0, 0, 0.5)'
                     }
                 };
             }) : [];
