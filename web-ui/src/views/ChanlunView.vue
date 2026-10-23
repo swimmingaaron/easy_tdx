@@ -932,8 +932,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   // 多级别买卖点同图呈现 markPoints (参考 send_watchlist_chanlun_wecom.py 细长箭头与胶囊标签)
   const mmdMarkPoints = showMmdMarks.value
     ? uc.mmd_marks.map((m) => {
-        const isBig = m.level === 'high' || m.label.includes('大级别') || m.label.includes('大1') || m.label.includes('大2')
-        const isMid = m.level === 'mid' || m.label.includes('次')
+        const isBig = m.level === 'high'
+        const isMid = m.level === 'mid'
 
         // 提取级别名称 (如 5F, 30F, 日, 周, 月)
         let levelName = '小'

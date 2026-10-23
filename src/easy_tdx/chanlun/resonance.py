@@ -1687,37 +1687,37 @@ def analyze_multi_period_resonance(
             m_type = mmd.mmd_type.value.lower()
 
             if "1buy" in m_type:
-                label_txt = "区间套1买(极低)"
-                short_label = "极低1买"
+                label_txt = f"[{low_short_name}]1买(极低)"
+                short_label = f"[{low_short_name}]1买"
                 category = "nested_1buy"
-                trade_msg = "【区间套极值买点】底背驰极值拐点，抓相对最低价。严格以跌破分型底设止损（极小止损博高盈亏比）。"
+                trade_msg = f"【{low_short_name}区间套极值买点】底背驰极值拐点，抓相对最低价。严格以跌破分型底设止损（极小止损博高盈亏比）。"
             elif "2buy" in m_type:
-                label_txt = "次级别2买(稳健)"
-                short_label = "稳健2买"
+                label_txt = f"[{low_short_name}]2买(稳健)"
+                short_label = f"[{low_short_name}]2买"
                 category = "steady_2buy"
-                trade_msg = "【次级别稳健买点】回踩不破前低起涨确认，避开大级别确认滞后，高胜率相对低吸点。"
+                trade_msg = f"【{low_short_name}稳健买点】回踩不破前低起涨确认，避开大级别确认滞后，高胜率相对低吸点。"
             elif "3buy" in m_type:
-                label_txt = "3买(主升起爆)"
-                short_label = "主升3买"
+                label_txt = f"[{low_short_name}]3买(主升起爆)"
+                short_label = f"[{low_short_name}]3买"
                 category = "breakout_3buy"
-                trade_msg = "【中枢突破3买】突破中枢回抽不破中枢上沿，主升浪起爆点，动能强劲。"
+                trade_msg = f"【{low_short_name}中枢突破3买】突破中枢回抽不破中枢上沿，主升浪起爆点，动能强劲。"
             elif "1sell" in m_type:
-                label_txt = "区间套1卖(极高)"
-                short_label = "极高1卖"
+                label_txt = f"[{low_short_name}]1卖(极高)"
+                short_label = f"[{low_short_name}]1卖"
                 category = "nested_1sell"
-                trade_msg = "【区间套极值卖点】顶背驰极高点逃顶，大级别涨势衰竭，抓最高影线分批锁定利润。"
+                trade_msg = f"【{low_short_name}区间套极值卖点】顶背驰极高点逃顶，大级别涨势衰竭，抓最高影线分批锁定利润。"
             elif "2sell" in m_type:
-                label_txt = "次级别2卖(清仓)"
-                short_label = "清仓2卖"
+                label_txt = f"[{low_short_name}]2卖(清仓)"
+                short_label = f"[{low_short_name}]2卖"
                 category = "defense_2sell"
-                trade_msg = "【次级别清仓卖点】冲高回落反弹不创新高，多头动能枯竭，清仓或破位防守。"
+                trade_msg = f"【{low_short_name}清仓卖点】冲高回落反弹不创新高，多头动能枯竭，清仓或破位防守。"
             elif "3sell" in m_type:
-                label_txt = "3卖(破位下杀)"
-                short_label = "破位3卖"
+                label_txt = f"[{low_short_name}]3卖(破位下杀)"
+                short_label = f"[{low_short_name}]3卖"
                 category = "breakdown_3sell"
-                trade_msg = "【中枢破位3卖】跌破中枢反抽不入中枢，加速下杀风险，坚决空仓规避。"
+                trade_msg = f"【{low_short_name}中枢破位3卖】跌破中枢反抽不入中枢，加速下杀风险，坚决空仓规避。"
             else:
-                label_txt = mmd.mmd_type.value.upper()
+                label_txt = f"[{low_short_name}]{mmd.mmd_type.value.upper()}"
                 short_label = label_txt
                 category = "other"
                 trade_msg = mmd.msg
