@@ -23165,6 +23165,81 @@
             clearClBacktrackCache();
             loadChanlunData(false);
         };
+
+        let _clActiveWindow = 'left';
+
+        function getActiveWindowData() {
+            if (_clActiveWindow === 'w2') return _clW2CachedData || _clCachedData;
+            if (_clActiveWindow === 'right' || _clActiveWindow === 'w3') return _clRightCachedData || _clCachedData;
+            if (_clActiveWindow === 'w4') return _clW4CachedData || _clCachedData;
+            return _clLeftCachedData || _clCachedData || _clW2CachedData || _clRightCachedData || _clW4CachedData;
+        }
+
+        function getActiveWindowInfo() {
+            let winNum = 1;
+            let periodStr = _clLeftPeriods;
+            let cardId = 'cl-chart-card-left';
+            let data = _clLeftCachedData || _clCachedData;
+            if (_clActiveWindow === 'w2') {
+                winNum = 2;
+                periodStr = _clW2Periods;
+                cardId = 'cl-chart-card-w2';
+                data = _clW2CachedData;
+            } else if (_clActiveWindow === 'right' || _clActiveWindow === 'w3') {
+                winNum = 3;
+                periodStr = _clRightPeriods;
+                cardId = 'cl-chart-card-right';
+                data = _clRightCachedData;
+            } else if (_clActiveWindow === 'w4') {
+                winNum = 4;
+                periodStr = _clW4Periods;
+                cardId = 'cl-chart-card-w4';
+                data = _clW4CachedData;
+            }
+            return { winNum, periodStr, cardId, data };
+        }
+
+        window.setActiveChanlunWindow = function(target) {
+            if (!target) return;
+            const normalized = (target === 'w1' ? 'left' : (target === 'w3' ? 'right' : target));
+            _clActiveWindow = normalized;
+
+            const cards = [
+                { id: 'cl-chart-card-left', pillId: 'cl-pill-left', key: 'left', num: 1, get p() { return _clLeftPeriods; } },
+                { id: 'cl-chart-card-w2', pillId: 'cl-pill-w2', key: 'w2', num: 2, get p() { return _clW2Periods; } },
+                { id: 'cl-chart-card-right', pillId: 'cl-pill-right', key: 'right', num: 3, get p() { return _clRightPeriods; } },
+                { id: 'cl-chart-card-w4', pillId: 'cl-pill-w4', key: 'w4', num: 4, get p() { return _clW4Periods; } },
+            ];
+
+            cards.forEach(c => {
+                const el = document.getElementById(c.id);
+                const pill = document.getElementById(c.pillId);
+                const isActive = (c.key === _clActiveWindow);
+                if (el) {
+                    if (isActive) {
+                        el.style.borderColor = 'rgba(168, 85, 247, 0.9)';
+                        el.style.boxShadow = '0 0 18px rgba(168, 85, 247, 0.25), inset 0 0 8px rgba(168, 85, 247, 0.08)';
+                    } else {
+                        el.style.borderColor = '';
+                        el.style.boxShadow = '';
+                    }
+                }
+                if (pill) {
+                    const baseTxt = formatChanlunPresetPillText(c.num, c.p);
+                    if (isActive) {
+                        pill.innerHTML = `${baseTxt} <span class="bg-purple-600 text-white text-[10px] px-1.5 py-0.2 rounded font-bold ml-1 tracking-tight">主控回溯</span>`;
+                    } else {
+                        pill.innerText = baseTxt;
+                    }
+                }
+            });
+
+            const activeData = getActiveWindowData();
+            if (activeData) {
+                updateChanlunTimeline(activeData);
+            }
+        };
+
         let _clPopularStocks = [
             { code: '000001', name: '平安银行' },
             { code: '600519', name: '贵州茅台' },
@@ -23240,6 +23315,16 @@
             if (pElW4) pElW4.innerText = `窗4: ${_clW4Periods.replace(/,/g, '·')}`;
 
             initChanlunStockSearch();
+
+            const cardLeft = document.getElementById('cl-chart-card-left');
+            const cardW2 = document.getElementById('cl-chart-card-w2');
+            const cardRight = document.getElementById('cl-chart-card-right');
+            const cardW4 = document.getElementById('cl-chart-card-w4');
+            if (cardLeft) cardLeft.onclick = () => setActiveChanlunWindow('left');
+            if (cardW2) cardW2.onclick = () => setActiveChanlunWindow('w2');
+            if (cardRight) cardRight.onclick = () => setActiveChanlunWindow('right');
+            if (cardW4) cardW4.onclick = () => setActiveChanlunWindow('w4');
+            setActiveChanlunWindow(_clActiveWindow || 'left');
 
             // 若 URL 中携带了股票代码，始终强制同步并置为用户主动指定
             const urlCode = getChanlunUrlCode();
@@ -25684,6 +25769,14 @@
                 try { instance.resize(); } catch (_) {}
             }
 
+            // 鼠标点击图表任意区域时，将该窗口设为回溯主控窗口
+            instance.off('click');
+            instance.on('click', () => {
+                if (typeof setActiveChanlunWindow === 'function') {
+                    setActiveChanlunWindow(side);
+                }
+            });
+
             // 监听光标离开图表事件，恢复当前最新蜡烛图价格及涨跌幅
             instance.off('globalout');
             instance.on('globalout', () => {
@@ -26122,6 +26215,10 @@
             if (!targetDate) return;
             const cleanDate = String(targetDate).trim();
             if (!/^\d{4}[-/]\d{2}/.test(cleanDate)) return;
+            if (side && typeof setActiveChanlunWindow === 'function') {
+                setActiveChanlunWindow(side);
+            }
+
             _clIsBacktracking = true;
             stopChanlunAutoRefresh();
             _clAutoRefresh = false;
@@ -26136,8 +26233,9 @@
                 cutoffInput.value = ymd;
             }
 
-            // 2. 同步时间轴与滑块位置
-            const timeline = _clCachedData?.backtrack_timeline || _clLeftCachedData?.backtrack_timeline;
+            // 2. 同步时间轴与滑块位置（基于当前激活主控窗口的K线序列）
+            const activeData = getActiveWindowData();
+            const timeline = activeData?.backtrack_timeline || _clCachedData?.backtrack_timeline;
             const dates = timeline?.available_dates || [];
             let matchedIdx = -1;
             if (dates.length > 0) {
@@ -26172,9 +26270,10 @@
             }
 
             // 3. 更新截断文本与“返回最新”按钮
+            const winInfo = getActiveWindowInfo();
             const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
             if (cutoffText) {
-                const totalStr = dates.length > 0 ? ` (${matchedIdx + 1}/${dates.length})` : '';
+                const totalStr = dates.length > 0 ? ` (窗${winInfo.winNum}主控: ${matchedIdx + 1}/${dates.length})` : '';
                 cutoffText.innerText = `截断: ${cleanDate}${totalStr}`;
             }
             const latestBtn = document.getElementById('cl-btn-latest-bar');
@@ -26182,19 +26281,25 @@
 
             // 4. 显示交互轻提示 Toast
             if (window.showToast) {
-                window.showToast('缠论历史回溯', `双击定位：最新截断至 ${cleanDate}`);
+                window.showToast('缠论历史回溯', `双击定位：最新截断至 ${cleanDate} (以窗${winInfo.winNum}为主控)`);
             }
 
             // 5. 优先检查客户端内存缓存
-            const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
-            if (_clBacktrackCache.has(cacheKey)) {
-                const cached = _clBacktrackCache.get(cacheKey);
-                _clCachedData = cached;
-                _clLeftCachedData = cached;
-                updateChanlunOverview(cached);
-                updateChanlunTimeline(cached);
-                renderChanlunSignalsTable(cached);
-                renderChanlunChart(cached);
+            const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+            const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
+            const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
+            const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+
+            if (_clBacktrackCache.has(cacheKeyLeft)) {
+                _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                _clCachedData = _clLeftCachedData;
+                if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                updateChanlunOverview(_clLeftCachedData);
+                updateChanlunTimeline(getActiveWindowData());
+                renderChanlunSignalsTable(_clLeftCachedData);
+                renderChanlunChart();
                 return;
             }
 
@@ -26260,28 +26365,37 @@
 
             _clBacktrackIndex = Number(val);
             updateChanlunSliderTrack(val);
-            if (_clCachedData && _clCachedData.backtrack_timeline) {
-                const dates = _clCachedData.backtrack_timeline.available_dates || [];
+            const activeData = getActiveWindowData();
+            if (activeData && activeData.backtrack_timeline) {
+                const dates = activeData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
                     _clBacktrackDate = dates[_clBacktrackIndex];
 
                     // 1. 立即更新界面截断时间文本与输入框，0延迟视觉反馈
+                    const winInfo = getActiveWindowInfo();
                     const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
-                    if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate}`;
+                    if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (窗${winInfo.winNum}主控: ${_clBacktrackIndex + 1}/${dates.length})`;
                     const cutoffInput = document.getElementById('cl-cutoff-date');
                     if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
                     const latestBtn = document.getElementById('cl-btn-latest-bar');
                     if (latestBtn) latestBtn.classList.remove('hidden');
 
                     // 2. 检查客户端内存缓存：若已命中，直接 0ms 顺畅刷新图表，完全不向服务器发请求
-                    const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
-                    if (_clBacktrackCache.has(cacheKey)) {
-                        const cached = _clBacktrackCache.get(cacheKey);
-                        _clCachedData = cached;
-                        updateChanlunOverview(cached);
-                        updateChanlunTimeline(cached);
-                        renderChanlunSignalsTable(cached);
-                        renderChanlunChart(cached);
+                    const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+                    const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
+                    const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
+                    const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+
+                    if (_clBacktrackCache.has(cacheKeyLeft)) {
+                        _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                        _clCachedData = _clLeftCachedData;
+                        if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                        if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                        if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                        updateChanlunOverview(_clLeftCachedData);
+                        updateChanlunTimeline(getActiveWindowData());
+                        renderChanlunSignalsTable(_clLeftCachedData);
+                        renderChanlunChart();
                         return;
                     }
 
@@ -26302,22 +26416,30 @@
 
             _clBacktrackIndex = Number(val);
             updateChanlunSliderTrack(val);
-            if (_clCachedData && _clCachedData.backtrack_timeline) {
-                const dates = _clCachedData.backtrack_timeline.available_dates || [];
+            const activeData = getActiveWindowData();
+            if (activeData && activeData.backtrack_timeline) {
+                const dates = activeData.backtrack_timeline.available_dates || [];
                 if (dates[_clBacktrackIndex]) {
                     _clBacktrackDate = dates[_clBacktrackIndex];
                     if (_clBacktrackDebounceTimer) {
                         clearTimeout(_clBacktrackDebounceTimer);
                         _clBacktrackDebounceTimer = null;
                     }
-                    const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
-                    if (_clBacktrackCache.has(cacheKey)) {
-                        const cached = _clBacktrackCache.get(cacheKey);
-                        _clCachedData = cached;
-                        updateChanlunOverview(cached);
-                        updateChanlunTimeline(cached);
-                        renderChanlunSignalsTable(cached);
-                        renderChanlunChart(cached);
+                    const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+                    const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
+                    const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
+                    const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+
+                    if (_clBacktrackCache.has(cacheKeyLeft)) {
+                        _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                        _clCachedData = _clLeftCachedData;
+                        if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                        if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                        if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                        updateChanlunOverview(_clLeftCachedData);
+                        updateChanlunTimeline(getActiveWindowData());
+                        renderChanlunSignalsTable(_clLeftCachedData);
+                        renderChanlunChart();
                         return;
                     }
                     triggerChanlunBacktrackLoad();
@@ -26331,21 +26453,34 @@
             _clAutoRefresh = false;
             toggleChanlunAutoRefreshState(false);
 
-            const timeline = _clCachedData?.backtrack_timeline || _clLeftCachedData?.backtrack_timeline;
+            // 获取当前选中主控窗口的K线时间轴
+            const activeData = getActiveWindowData();
+            const timeline = activeData?.backtrack_timeline || _clCachedData?.backtrack_timeline;
             if (!timeline) return;
             const dates = timeline.available_dates || [];
             if (!dates || dates.length === 0) return;
 
-            // Ensure _clBacktrackIndex is within valid range
-            if (typeof _clBacktrackIndex !== 'number' || isNaN(_clBacktrackIndex) || _clBacktrackIndex < 0 || _clBacktrackIndex >= dates.length) {
-                _clBacktrackIndex = dates.length - 1;
+            // 确保 _clBacktrackIndex 处于当前激活窗口的有效序列范围内
+            if (typeof _clBacktrackIndex !== 'number' || isNaN(_clBacktrackIndex) || _clBacktrackIndex < 0 || _clBacktrackIndex >= dates.length || (_clBacktrackDate && dates[_clBacktrackIndex] !== _clBacktrackDate)) {
+                if (_clBacktrackDate) {
+                    let matched = dates.indexOf(_clBacktrackDate);
+                    if (matched < 0) {
+                        for (let i = dates.length - 1; i >= 0; i--) {
+                            if (dates[i] <= _clBacktrackDate) {
+                                matched = i;
+                                break;
+                            }
+                        }
+                    }
+                    _clBacktrackIndex = matched >= 0 ? matched : dates.length - 1;
+                } else {
+                    _clBacktrackIndex = dates.length - 1;
+                }
             }
 
-            // Decide whether to step by bar or by trading day
-            // Mouse click without Shift -> step by trading day (前一交易日 / 后一交易日), changing the date picker value directly!
-            // Shift + Click or Keyboard Arrow -> step by 1 K-line bar
+            // 用户要求：以当前窗口的K线一根一根逐根回溯
             const isClick = !evt || evt.type === 'click';
-            const byBar = evt ? (isClick ? evt.shiftKey : !evt.shiftKey) : false;
+            const byBar = evt ? (!evt.altKey) : true;
 
             let nextIdx = -1;
             if (byBar) {
@@ -26360,13 +26495,11 @@
                     return;
                 }
             } else {
-                // Step by trading day
-                const cutoffInput = document.getElementById('cl-cutoff-date');
+                // 按日切换（Alt键辅助）
                 const curDateStr = _clBacktrackDate || dates[_clBacktrackIndex] || timeline.max_date || '';
                 const curYMD = curDateStr.slice(0, 10);
 
                 if (step < 0) {
-                    // Previous day: find the latest bar whose date is < curYMD
                     for (let i = dates.length - 1; i >= 0; i--) {
                         if (dates[i].slice(0, 10) < curYMD) {
                             nextIdx = i;
@@ -26378,7 +26511,6 @@
                         return;
                     }
                 } else {
-                    // Next day: find the earliest day > curYMD, and pick its last bar
                     let nextDayYMD = null;
                     for (let i = 0; i < dates.length; i++) {
                         const ymd = dates[i].slice(0, 10);
@@ -26411,8 +26543,9 @@
                     slider.value = String(_clBacktrackIndex);
                     updateChanlunSliderTrack(slider.value, slider.max);
                 }
+                const winInfo = getActiveWindowInfo();
                 const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
-                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (${_clBacktrackIndex + 1}/${dates.length})`;
+                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (窗${winInfo.winNum}主控: ${_clBacktrackIndex + 1}/${dates.length})`;
                 const cutoffInput = document.getElementById('cl-cutoff-date');
                 if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
                 const latestBtn = document.getElementById('cl-btn-latest-bar');
@@ -26424,15 +26557,21 @@
                     return;
                 }
 
-                const cacheKey = getClBacktrackKey(_clCurrentCode, _clPeriods, _clBacktrackDate);
-                if (_clBacktrackCache.has(cacheKey)) {
-                    const cached = _clBacktrackCache.get(cacheKey);
-                    _clCachedData = cached;
-                    _clLeftCachedData = cached;
-                    updateChanlunOverview(cached);
-                    updateChanlunTimeline(cached);
-                    renderChanlunSignalsTable(cached);
-                    renderChanlunChart(cached);
+                const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
+                const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
+                const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
+                const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+
+                if (_clBacktrackCache.has(cacheKeyLeft)) {
+                    _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                    _clCachedData = _clLeftCachedData;
+                    if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                    if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                    if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                    updateChanlunOverview(_clLeftCachedData);
+                    updateChanlunTimeline(getActiveWindowData());
+                    renderChanlunSignalsTable(_clLeftCachedData);
+                    renderChanlunChart();
                     return;
                 }
 

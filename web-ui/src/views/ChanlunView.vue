@@ -97,6 +97,44 @@ const periodLow = computed({
   set: (v) => { leftPeriodLow.value = v }
 })
 
+// 当前选中的回溯主控基准窗口：'left' (窗1) | 'w2' (窗2) | 'right' (窗3) | 'w4' (窗4)
+const activeWindow = ref<'left' | 'w2' | 'right' | 'w4'>('left')
+const activeWindowNum = computed(() => {
+  if (activeWindow.value === 'w2') return 2
+  if (activeWindow.value === 'right') return 3
+  if (activeWindow.value === 'w4') return 4
+  return 1
+})
+
+function getActiveWindowData(): ChanlunResonanceResponse | null {
+  if (activeWindow.value === 'w2') return chanDataW2.value || chanDataLeft.value
+  if (activeWindow.value === 'right') return chanDataRight.value || chanDataLeft.value
+  if (activeWindow.value === 'w4') return chanDataW4.value || chanDataLeft.value
+  return chanDataLeft.value || chanDataW2.value || chanDataRight.value || chanDataW4.value
+}
+
+function setActiveWindow(target: 'left' | 'w2' | 'right' | 'w4') {
+  activeWindow.value = target
+  const d = getActiveWindowData()
+  if (d && d.backtrack_timeline) {
+    const dates = d.backtrack_timeline.available_dates || []
+    if (backtrackDate.value) {
+      let idx = dates.indexOf(backtrackDate.value)
+      if (idx < 0) {
+        for (let i = dates.length - 1; i >= 0; i--) {
+          if (dates[i] <= backtrackDate.value) {
+            idx = i
+            break
+          }
+        }
+      }
+      if (idx >= 0) backtrackIndex.value = idx
+    } else {
+      backtrackIndex.value = dates.length - 1
+    }
+  }
+}
+
 // ── 图层控制 ───────────────────────────────────────────────────────────
 const showHighBi = ref(true)
 const showHighZs = ref(true)
@@ -347,12 +385,9 @@ function setSplitMode(mode: 'quad' | 'dual' | 'single') {
 }
 
 // ── 计算属性 ─────────────────────────────────────────────────────────────────
-const currentPeriodsStr = computed(() => {
-  return leftPeriods.value
-})
-
 const availableDates = computed(() => {
-  return chanDataLeft.value?.backtrack_timeline?.available_dates || []
+  const activeD = getActiveWindowData()
+  return activeD?.backtrack_timeline?.available_dates || chanDataLeft.value?.backtrack_timeline?.available_dates || []
 })
 
 const maxBacktrackIndex = computed(() => {
@@ -538,13 +573,17 @@ async function loadData(forceRefresh = false) {
       backtrackCache.set(getBacktrackCacheKey(code.value, leftPeriods.value, results[0].summary.latest_date), results[0])
     }
 
-    // 初始化回溯滑块索引
-    if (!isBacktrackingMode.value) {
-      backtrackIndex.value = results[0].backtrack_timeline.total_bars - 1
-      backtrackDate.value = results[0].summary.latest_date
-    } else {
-      const idx = results[0].backtrack_timeline.available_dates.indexOf(results[0].summary.latest_date)
-      if (idx >= 0) backtrackIndex.value = idx
+    // 初始化回溯滑块索引 (基于当前主控窗口)
+    const activeD = getActiveWindowData() || results[0]
+    if (activeD && activeD.backtrack_timeline) {
+      if (!isBacktrackingMode.value) {
+        backtrackIndex.value = activeD.backtrack_timeline.total_bars - 1
+        backtrackDate.value = activeD.summary.latest_date
+      } else {
+        const curDate = backtrackDate.value || activeD.summary.latest_date
+        const idx = activeD.backtrack_timeline.available_dates.indexOf(curDate)
+        if (idx >= 0) backtrackIndex.value = idx
+      }
     }
 
     nextTick(() => {
@@ -668,10 +707,13 @@ function exitBacktracking() {
 }
 
 // 鼠标双击K线时调用：将缠论K线回溯的最新日期设为此处，方便回溯
-function setBacktrackDateToBar(targetDate: string) {
+function setBacktrackDateToBar(targetDate: string, side?: 'left' | 'w2' | 'right' | 'w4') {
   if (!targetDate) return
   const cleanDate = targetDate.trim()
   if (!/^\d{4}[-/]\d{2}/.test(cleanDate)) return
+  if (side) {
+    setActiveWindow(side)
+  }
   isBacktrackingMode.value = true
   if (autoRefresh.value) {
     autoRefresh.value = false
@@ -680,8 +722,9 @@ function setBacktrackDateToBar(targetDate: string) {
 
   backtrackDate.value = cleanDate
 
-  // 匹配时间轴与滑块位置
-  const dates = availableDates.value || []
+  // 匹配时间轴与滑块位置（基于当前主控窗口）
+  const activeD = getActiveWindowData()
+  const dates = activeD?.backtrack_timeline?.available_dates || availableDates.value || []
   let matchedIdx = -1
   if (dates.length > 0) {
     matchedIdx = dates.indexOf(cleanDate)
@@ -707,10 +750,16 @@ function setBacktrackDateToBar(targetDate: string) {
   }
 
   // 检查客户端内存缓存
-  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
-  if (backtrackCache.has(cacheKey)) {
-    const cached = backtrackCache.get(cacheKey)!
-    chanDataLeft.value = cached
+  const cacheKeyLeft = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
+  const cacheKeyW2 = getBacktrackCacheKey(code.value, w2Periods.value, backtrackDate.value)
+  const cacheKeyRight = getBacktrackCacheKey(code.value, rightPeriods.value, backtrackDate.value)
+  const cacheKeyW4 = getBacktrackCacheKey(code.value, w4Periods.value, backtrackDate.value)
+
+  if (backtrackCache.has(cacheKeyLeft)) {
+    chanDataLeft.value = backtrackCache.get(cacheKeyLeft)!
+    if (backtrackCache.has(cacheKeyW2)) chanDataW2.value = backtrackCache.get(cacheKeyW2)!
+    if (backtrackCache.has(cacheKeyRight)) chanDataRight.value = backtrackCache.get(cacheKeyRight)!
+    if (backtrackCache.has(cacheKeyW4)) chanDataW4.value = backtrackCache.get(cacheKeyW4)!
     nextTick(() => {
       renderChart()
     })
@@ -723,15 +772,23 @@ function setBacktrackDateToBar(targetDate: string) {
 function onSliderInput(e: Event) {
   const val = Number((e.target as HTMLInputElement).value)
   backtrackIndex.value = val
-  if (availableDates.value[val]) {
-    backtrackDate.value = availableDates.value[val]
+  const activeD = getActiveWindowData()
+  const dates = activeD?.backtrack_timeline?.available_dates || availableDates.value || []
+  if (dates[val]) {
+    backtrackDate.value = dates[val]
   }
 
   // 1. 若拖动途中的该时间点已在客户端缓存，直接 0ms 顺畅刷新图表，完全不向服务器发请求
-  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
-  if (backtrackCache.has(cacheKey)) {
-    const cached = backtrackCache.get(cacheKey)!
-    chanDataLeft.value = cached
+  const cacheKeyLeft = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
+  const cacheKeyW2 = getBacktrackCacheKey(code.value, w2Periods.value, backtrackDate.value)
+  const cacheKeyRight = getBacktrackCacheKey(code.value, rightPeriods.value, backtrackDate.value)
+  const cacheKeyW4 = getBacktrackCacheKey(code.value, w4Periods.value, backtrackDate.value)
+
+  if (backtrackCache.has(cacheKeyLeft)) {
+    chanDataLeft.value = backtrackCache.get(cacheKeyLeft)!
+    if (backtrackCache.has(cacheKeyW2)) chanDataW2.value = backtrackCache.get(cacheKeyW2)!
+    if (backtrackCache.has(cacheKeyRight)) chanDataRight.value = backtrackCache.get(cacheKeyRight)!
+    if (backtrackCache.has(cacheKeyW4)) chanDataW4.value = backtrackCache.get(cacheKeyW4)!
     renderChart()
     return
   }
@@ -746,16 +803,25 @@ function onSliderInput(e: Event) {
 function onSliderChange(e: Event) {
   const val = Number((e.target as HTMLInputElement).value)
   backtrackIndex.value = val
-  if (availableDates.value[val]) {
-    backtrackDate.value = availableDates.value[val]
+  const activeD = getActiveWindowData()
+  const dates = activeD?.backtrack_timeline?.available_dates || availableDates.value || []
+  if (dates[val]) {
+    backtrackDate.value = dates[val]
   }
   if (sliderDebounceTimer) {
     clearTimeout(sliderDebounceTimer)
     sliderDebounceTimer = null
   }
-  const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
-  if (backtrackCache.has(cacheKey)) {
-    chanDataLeft.value = backtrackCache.get(cacheKey)!
+  const cacheKeyLeft = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
+  const cacheKeyW2 = getBacktrackCacheKey(code.value, w2Periods.value, backtrackDate.value)
+  const cacheKeyRight = getBacktrackCacheKey(code.value, rightPeriods.value, backtrackDate.value)
+  const cacheKeyW4 = getBacktrackCacheKey(code.value, w4Periods.value, backtrackDate.value)
+
+  if (backtrackCache.has(cacheKeyLeft)) {
+    chanDataLeft.value = backtrackCache.get(cacheKeyLeft)!
+    if (backtrackCache.has(cacheKeyW2)) chanDataW2.value = backtrackCache.get(cacheKeyW2)!
+    if (backtrackCache.has(cacheKeyRight)) chanDataRight.value = backtrackCache.get(cacheKeyRight)!
+    if (backtrackCache.has(cacheKeyW4)) chanDataW4.value = backtrackCache.get(cacheKeyW4)!
     nextTick(() => {
       renderChart()
     })
@@ -770,13 +836,38 @@ function stepBacktrack(step: number) {
     stopAutoRefresh()
     autoRefresh.value = false
   }
+  const activeD = getActiveWindowData()
+  const dates = activeD?.backtrack_timeline?.available_dates || availableDates.value || []
+  if (dates.length === 0) return
+
+  // 确保当前索引与当前截断时间对齐
+  if (backtrackDate.value && (backtrackIndex.value < 0 || backtrackIndex.value >= dates.length || dates[backtrackIndex.value] !== backtrackDate.value)) {
+    let matched = dates.indexOf(backtrackDate.value)
+    if (matched < 0) {
+      for (let i = dates.length - 1; i >= 0; i--) {
+        if (dates[i] <= backtrackDate.value) {
+          matched = i
+          break
+        }
+      }
+    }
+    backtrackIndex.value = matched >= 0 ? matched : dates.length - 1
+  }
+
   const nextIdx = backtrackIndex.value + step
-  if (nextIdx >= 0 && nextIdx < availableDates.value.length) {
+  if (nextIdx >= 0 && nextIdx < dates.length) {
     backtrackIndex.value = nextIdx
-    backtrackDate.value = availableDates.value[nextIdx]
-    const cacheKey = getBacktrackCacheKey(code.value, currentPeriodsStr.value, backtrackDate.value)
-    if (backtrackCache.has(cacheKey)) {
-      chanDataLeft.value = backtrackCache.get(cacheKey)!
+    backtrackDate.value = dates[nextIdx]
+    const cacheKeyLeft = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
+    const cacheKeyW2 = getBacktrackCacheKey(code.value, w2Periods.value, backtrackDate.value)
+    const cacheKeyRight = getBacktrackCacheKey(code.value, rightPeriods.value, backtrackDate.value)
+    const cacheKeyW4 = getBacktrackCacheKey(code.value, w4Periods.value, backtrackDate.value)
+
+    if (backtrackCache.has(cacheKeyLeft)) {
+      chanDataLeft.value = backtrackCache.get(cacheKeyLeft)!
+      if (backtrackCache.has(cacheKeyW2)) chanDataW2.value = backtrackCache.get(cacheKeyW2)!
+      if (backtrackCache.has(cacheKeyRight)) chanDataRight.value = backtrackCache.get(cacheKeyRight)!
+      if (backtrackCache.has(cacheKeyW4)) chanDataW4.value = backtrackCache.get(cacheKeyW4)!
       nextTick(() => {
         renderChart()
       })
@@ -786,7 +877,7 @@ function stepBacktrack(step: number) {
     sliderDebounceTimer = setTimeout(() => {
       triggerBacktrackLoad()
     }, 100)
-  } else if (nextIdx >= availableDates.value.length) {
+  } else if (nextIdx >= dates.length) {
     exitBacktracking()
   }
 }
@@ -2001,6 +2092,7 @@ function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
+      chartInstanceLeft.on('click', () => { setActiveWindow('left') })
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('updateAxisPointer', (event: any) => {
@@ -2013,7 +2105,7 @@ function renderChart() {
       chartInstanceLeft.on('dblclick', (params: any) => {
         const dates = getChartDates(chanDataLeft.value)
         const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateLeft.value, chartInstanceLeft)
-        if (targetDate) setBacktrackDateToBar(targetDate)
+        if (targetDate) setBacktrackDateToBar(targetDate, 'left')
       })
       window.addEventListener('resize', handleResize)
     }
@@ -2025,6 +2117,7 @@ function renderChart() {
     if (chartContainerW2.value && chanDataW2.value) {
       if (!chartInstanceW2) {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
+        chartInstanceW2.on('click', () => { setActiveWindow('w2') })
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('updateAxisPointer', (event: any) => {
@@ -2037,7 +2130,7 @@ function renderChart() {
         chartInstanceW2.on('dblclick', (params: any) => {
           const dates = getChartDates(chanDataW2.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW2.value, chartInstanceW2)
-          if (targetDate) setBacktrackDateToBar(targetDate)
+          if (targetDate) setBacktrackDateToBar(targetDate, 'w2')
         })
       }
       const optionW2 = buildChanlunOption(chanDataW2.value, 'w2')
@@ -2046,6 +2139,7 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('updateAxisPointer', (event: any) => {
@@ -2058,7 +2152,7 @@ function renderChart() {
         chartInstanceRight.on('dblclick', (params: any) => {
           const dates = getChartDates(chanDataRight.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateRight.value, chartInstanceRight)
-          if (targetDate) setBacktrackDateToBar(targetDate)
+          if (targetDate) setBacktrackDateToBar(targetDate, 'right')
         })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
@@ -2067,6 +2161,7 @@ function renderChart() {
     if (chartContainerW4.value && chanDataW4.value) {
       if (!chartInstanceW4) {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
+        chartInstanceW4.on('click', () => { setActiveWindow('w4') })
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('updateAxisPointer', (event: any) => {
@@ -2079,7 +2174,7 @@ function renderChart() {
         chartInstanceW4.on('dblclick', (params: any) => {
           const dates = getChartDates(chanDataW4.value)
           const targetDate = extractChanlunDblclickDate(params, dates, hoverCandleDateW4.value, chartInstanceW4)
-          if (targetDate) setBacktrackDateToBar(targetDate)
+          if (targetDate) setBacktrackDateToBar(targetDate, 'w4')
         })
       }
       const optionW4 = buildChanlunOption(chanDataW4.value, 'w4')
@@ -2089,6 +2184,7 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('dblclick', (params: any) => {
@@ -2096,7 +2192,7 @@ function renderChart() {
           let targetDate: string | null = null
           if (params && params.name) targetDate = String(params.name).trim()
           else if (params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) targetDate = String(dates[params.dataIndex]).trim()
-          if (targetDate) setBacktrackDateToBar(targetDate)
+          if (targetDate) setBacktrackDateToBar(targetDate, 'right')
         })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
@@ -2967,7 +3063,7 @@ onBeforeUnmount(() => {
       <div class="backtrack-header">
         <div class="backtrack-title">
           <span>🕰️ 历史回溯推演态 (无未来函数)</span>
-          <span class="current-cutoff">截断时间: <b>{{ backtrackDate || '最新' }}</b> (第 {{ backtrackIndex + 1 }} / {{ availableDates.length }} 根K线)</span>
+          <span class="current-cutoff">截断时间: <b>{{ backtrackDate || '最新' }}</b> (窗{{ activeWindowNum }}主控: {{ backtrackIndex + 1 }} / {{ availableDates.length }} 根K线)</span>
         </div>
         <div class="backtrack-tools">
           <button class="step-btn" @click="stepBacktrack(-1)" :disabled="backtrackIndex <= 0">◀ 后退1根</button>
@@ -2986,7 +3082,7 @@ onBeforeUnmount(() => {
 
       <!-- 时间轴滑块 -->
       <div class="slider-wrap">
-        <span class="slider-bound">{{ chanData?.backtrack_timeline?.min_date }}</span>
+        <span class="slider-bound">{{ getActiveWindowData()?.backtrack_timeline?.min_date || chanData?.backtrack_timeline?.min_date }}</span>
         <input
           type="range"
           min="0"
@@ -2996,17 +3092,25 @@ onBeforeUnmount(() => {
           @input="onSliderInput"
           @change="onSliderChange"
         />
-        <span class="slider-bound">{{ chanData?.backtrack_timeline?.max_date }}</span>
+        <span class="slider-bound">{{ getActiveWindowData()?.backtrack_timeline?.max_date || chanData?.backtrack_timeline?.max_date }}</span>
       </div>
     </div>
 
     <!-- 主图表区 (支持单窗口 / 双窗口 / 四窗口) -->
     <div class="charts-split-container" :class="{ 'is-quad': splitMode === 'quad', 'is-dual': splitMode === 'dual' }">
       <!-- 窗口 1: 周·日·30F (左窗/第1窗) -->
-      <div class="chart-window-card left-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+      <div
+        class="chart-window-card left-card"
+        :class="{ 'is-active-window': activeWindow === 'left' }"
+        :style="cardHeight ? { height: cardHeight + 'px' } : undefined"
+        @click="setActiveWindow('left')"
+      >
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill left-pill">窗1: {{ chanDataLeft?.periods.high.name || '周' }}·{{ chanDataLeft?.periods.mid.name || '日' }}·{{ chanDataLeft?.periods.low.name || '30F' }}</span>
+            <span class="win-pill left-pill">
+              窗1: {{ chanDataLeft?.periods.high.name || '周' }}·{{ chanDataLeft?.periods.mid.name || '日' }}·{{ chanDataLeft?.periods.low.name || '30F' }}
+              <span v-if="activeWindow === 'left'" class="win-active-badge">主控回溯</span>
+            </span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataLeft?.code }} {{ chanDataLeft?.name }}</span>
               <span v-if="candleInfoLeft" class="win-stock-price" :class="candleInfoLeft.colorClass">{{ candleInfoLeft.priceStr }}</span>
@@ -3036,10 +3140,19 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 窗口 2: 月·周·日 (四窗口模式激活时显示) -->
-      <div v-if="splitMode === 'quad'" class="chart-window-card w2-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+      <div
+        v-if="splitMode === 'quad'"
+        class="chart-window-card w2-card"
+        :class="{ 'is-active-window': activeWindow === 'w2' }"
+        :style="cardHeight ? { height: cardHeight + 'px' } : undefined"
+        @click="setActiveWindow('w2')"
+      >
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill w2-pill">窗2: {{ chanDataW2?.periods.high.name || '月' }}·{{ chanDataW2?.periods.mid.name || '周' }}·{{ chanDataW2?.periods.low.name || '日' }}</span>
+            <span class="win-pill w2-pill">
+              窗2: {{ chanDataW2?.periods.high.name || '月' }}·{{ chanDataW2?.periods.mid.name || '周' }}·{{ chanDataW2?.periods.low.name || '日' }}
+              <span v-if="activeWindow === 'w2'" class="win-active-badge">主控回溯</span>
+            </span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataW2?.code }} {{ chanDataW2?.name }}</span>
               <span v-if="candleInfoW2" class="win-stock-price" :class="candleInfoW2.colorClass">{{ candleInfoW2.priceStr }}</span>
@@ -3066,10 +3179,19 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 窗口 3: 日·30F·5F (双窗口或四窗口激活时显示) -->
-      <div v-if="splitMode === 'dual' || splitMode === 'quad'" class="chart-window-card right-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+      <div
+        v-if="splitMode === 'dual' || splitMode === 'quad'"
+        class="chart-window-card right-card"
+        :class="{ 'is-active-window': activeWindow === 'right' }"
+        :style="cardHeight ? { height: cardHeight + 'px' } : undefined"
+        @click="setActiveWindow('right')"
+      >
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill right-pill">窗3: {{ chanDataRight?.periods.high.name || '日' }}·{{ chanDataRight?.periods.mid.name || '30F' }}·{{ chanDataRight?.periods.low.name || '5F' }}</span>
+            <span class="win-pill right-pill">
+              窗3: {{ chanDataRight?.periods.high.name || '日' }}·{{ chanDataRight?.periods.mid.name || '30F' }}·{{ chanDataRight?.periods.low.name || '5F' }}
+              <span v-if="activeWindow === 'right'" class="win-active-badge">主控回溯</span>
+            </span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataRight?.code }} {{ chanDataRight?.name }}</span>
               <span v-if="candleInfoRight" class="win-stock-price" :class="candleInfoRight.colorClass">{{ candleInfoRight.priceStr }}</span>
@@ -3096,10 +3218,19 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 窗口 4: 30F·5F·1F (四窗口模式激活时显示) -->
-      <div v-if="splitMode === 'quad'" class="chart-window-card w4-card" :style="cardHeight ? { height: cardHeight + 'px' } : undefined">
+      <div
+        v-if="splitMode === 'quad'"
+        class="chart-window-card w4-card"
+        :class="{ 'is-active-window': activeWindow === 'w4' }"
+        :style="cardHeight ? { height: cardHeight + 'px' } : undefined"
+        @click="setActiveWindow('w4')"
+      >
         <div class="window-card-header">
           <div class="win-tag-box">
-            <span class="win-pill w4-pill">窗4: {{ chanDataW4?.periods.high.name || '30F' }}·{{ chanDataW4?.periods.mid.name || '5F' }}·{{ chanDataW4?.periods.low.name || '1F' }}</span>
+            <span class="win-pill w4-pill">
+              窗4: {{ chanDataW4?.periods.high.name || '30F' }}·{{ chanDataW4?.periods.mid.name || '5F' }}·{{ chanDataW4?.periods.low.name || '1F' }}
+              <span v-if="activeWindow === 'w4'" class="win-active-badge">主控回溯</span>
+            </span>
             <div class="win-stock-header-info">
               <span class="win-stock-title">{{ chanDataW4?.code }} {{ chanDataW4?.name }}</span>
               <span v-if="candleInfoW4" class="win-stock-price" :class="candleInfoW4.colorClass">{{ candleInfoW4.priceStr }}</span>
@@ -3959,6 +4090,22 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+.chart-window-card.is-active-window {
+  border-color: rgba(168, 85, 247, 0.9) !important;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.28), inset 0 0 8px rgba(168, 85, 247, 0.08);
+}
+.win-active-badge {
+  background: #a855f7;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  letter-spacing: 0.02em;
 }
 .window-card-header {
   display: flex;
