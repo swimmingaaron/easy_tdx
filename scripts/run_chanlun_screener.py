@@ -107,7 +107,7 @@ def run_screener(
             }
     else:
         preset = parse_chanlun_screener_preset(period)
-    symbols = get_universe_symbols(universe)
+    symbols = get_universe_symbols(universe, force_refresh=force_refresh)
 
     st_name_map = {
         "chanlun_resonance": "缠论全级别共振策略 (三级联共振)",
@@ -292,11 +292,28 @@ def main():
         help="选股信号回溯交易日天数 (默认: 22 实际交易日，保证一个月的自然交易日并排除节假日干扰)"
     )
     parser.add_argument(
+        "--sync-ipo",
+        action="store_true",
+        help="主动扫描通达信行情，自动扩容最新发行/上市的新股到全市场股票池 (data/ashares_universe.json)"
+    )
+    parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="输出详细调试日志"
     )
     args = parser.parse_args()
+
+    if args.sync_ipo:
+        from easy_tdx.screener.universe import sync_new_stocks
+        print("【主动同步】正在从通达信行情网络扫描最新发行/上市新股...")
+        added = sync_new_stocks()
+        if added:
+            print(f"✔ 成功扩容 {len(added)} 只新股: {', '.join(added)}")
+        else:
+            print("✔ 全市场股票池已是最新，无新增未登记新股。")
+        all_now = len(get_universe_symbols("all"))
+        print(f"当前全市场股票总数: {all_now} 只")
+        return
 
     setup_logger(args.verbose)
     run_screener(

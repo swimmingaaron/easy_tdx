@@ -1512,7 +1512,7 @@ def scan_market_strategy(
     st = get_strategy(strategy_name)
     
     if not symbols:
-        symbols = get_universe_symbols(universe)
+        symbols = get_universe_symbols(universe, force_refresh=force_refresh)
         
     total_count = len(symbols)
     is_custom_symbols = (symbols is not None and not isinstance(universe, str))

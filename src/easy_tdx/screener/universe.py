@@ -242,9 +242,134 @@ def _load_all_ashares() -> list[str]:
     # Fallback to core universe
     return CORE_UNIVERSE
 
-def get_universe_symbols(scope: str = "core") -> list[str]:
-    """Get stock symbols for the requested universe scope."""
+def is_valid_ashare_code(code: str) -> bool:
+    """Validate whether code conforms to A-share stock symbol specifications.
+    
+    Covers:
+    - Shanghai Main Board (600, 601, 603, 605)
+    - Shanghai STAR Market (688, 689)
+    - Shenzhen Main Board (000, 001, 002, 003)
+    - Shenzhen ChiNext (300, 301, 302)
+    - Beijing Stock Exchange (920, 83, 87, 43)
+    """
+    if not code:
+        return False
+    code = str(code).strip().zfill(6)
+    if len(code) != 6 or not code.isdigit() or code == "000000":
+        return False
+    return code.startswith((
+        "600", "601", "603", "605", "688", "689",
+        "000", "001", "002", "003", "300", "301", "302",
+        "920", "83", "87", "43"
+    ))
+
+
+def register_new_stocks(codes: list[str]) -> list[str]:
+    """Dynamically register newly issued/listed stocks into the A-share universe.
+    
+    Filters for valid A-share code formats, eliminates duplicates against existing
+    universe, updates the in-memory cache, and persists to local JSON data stores.
+    
+    Returns:
+        List of newly added stock symbols.
+    """
+    global _CACHED_ALL_ASHARES
+    current_stocks = _load_all_ashares()
+    existing_set = set(current_stocks)
+    
+    new_valid_stocks = []
+    for c in codes:
+        clean_c = str(c).strip().zfill(6)
+        if clean_c not in existing_set and is_valid_ashare_code(clean_c):
+            new_valid_stocks.append(clean_c)
+            existing_set.add(clean_c)
+            
+    if not new_valid_stocks:
+        return []
+        
+    _CACHED_ALL_ASHARES = current_stocks + new_valid_stocks
+    logger.info(f"✨ 自动发现并扩容 {len(new_valid_stocks)} 只新发行/上市股票: {new_valid_stocks} (当前股票池共 {len(_CACHED_ALL_ASHARES)} 只)")
+    
+    # Persist to data/ashares_universe.json
+    save_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "ashares_universe.json"
+    try:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(_CACHED_ALL_ASHARES, f, indent=2, ensure_ascii=False)
+        logger.info(f"已持久化新股票池至 {save_path}")
+    except Exception as e:
+        logger.warning(f"持久化新股票池至 {save_path} 失败: {e}")
+        
+    return new_valid_stocks
+
+
+def sync_new_stocks(cli: Any = None) -> list[str]:
+    """Scan TDX market security lists for newly issued/listed A-shares not yet in the universe.
+    
+    Automatically registers and persists newly discovered A-shares to data/ashares_universe.json.
+    
+    Returns:
+        List of newly registered stock codes.
+    """
+    try:
+        from easy_tdx.market_data import _get_or_create_client
+        from easy_tdx.models.enums import Market
+        
+        c = cli or _get_or_create_client()
+        if c is None:
+            return []
+            
+        current_stocks = set(_load_all_ashares())
+        new_candidates = []
+        
+        for m in [Market.SZ, Market.SH]:
+            try:
+                cnt = c.get_security_count(m)
+                if not cnt:
+                    continue
+                if m == Market.SZ:
+                    starts = sorted(set([0, 1000, 16000, 17000, max(0, cnt - 2000), max(0, cnt - 1000)]))
+                else:
+                    starts = sorted(set([25000, 26000, 27000, max(0, cnt - 2000), max(0, cnt - 1000)]))
+                
+                for start in starts:
+                    if start >= cnt:
+                        continue
+                    df = c.get_security_list(m, start)
+                    if df is None or getattr(df, "empty", True) or "code" not in df.columns:
+                        continue
+                    for code in df["code"].astype(str):
+                        clean_c = code.strip().zfill(6)
+                        if clean_c not in current_stocks and is_valid_ashare_code(clean_c):
+                            new_candidates.append(clean_c)
+            except Exception as ex:
+                logger.debug(f"Failed scanning market {m}: {ex}")
+                continue
+                
+        if new_candidates:
+            added = register_new_stocks(new_candidates)
+            return added
+    except Exception as e:
+        logger.warning(f"同步新股时发生异常 (将保持现有股票池继续选股): {e}")
+    return []
+
+
+def get_universe_symbols(scope: str = "core", force_refresh: bool = False, sync_new: bool = False) -> list[str]:
+    """Get stock symbols for the requested universe scope.
+    
+    Args:
+        scope: Universe scope ("core", "hs300", "zz500", "zz1000", "all")
+        force_refresh: If True and scope is "all", triggers sync_new_stocks to check for new IPOs.
+        sync_new: Explicit flag to trigger new stock detection.
+    """
     s = (scope or "core").lower().strip()
+    
+    if (force_refresh or sync_new) and s in ("all", "full", "all_a", "market"):
+        try:
+            sync_new_stocks()
+        except Exception as e:
+            logger.debug(f"sync_new_stocks skipped: {e}")
+
     all_stocks = _load_all_ashares()
     
     core_set = set(CORE_UNIVERSE)
@@ -306,6 +431,6 @@ def get_universe_options() -> list[dict[str, Any]]:
             "count": all_count,
             "est_time": "后台异步任务",
             "badge": "全量大满贯",
-            "desc": "无死角扫描 A 股 5,200+ 标的，多线程后台异步并发计算"
+            "desc": f"无死角扫描 A 股全市场 ({all_count} 只标的，支持新股发行自动扩容)，多线程后台异步并发计算"
         }
     ]

@@ -44,7 +44,7 @@ logger = logging.getLogger("run_screener")
 
 from easy_tdx.strategies.registry import list_all_strategies, get_strategy
 from easy_tdx.screener.scanner import scan_market_strategy, CHANLUN_PERIOD_PRESETS
-from easy_tdx.screener.universe import get_universe_symbols, get_universe_options, CORE_UNIVERSE
+from easy_tdx.screener.universe import get_universe_symbols, get_universe_options, CORE_UNIVERSE, sync_new_stocks
 
 
 # 终端 ANSI 色彩定义
@@ -208,8 +208,9 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
     print(_colored("【第三步：选股范围】请选择扫描范围（默认: 全市场全A股）：", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
 
+    all_cnt = len(get_universe_symbols("all"))
     options = [
-        ("all", "全市场全A股 (5,200+ 只股票)", "全市场无死角多线程地毯式深度扫描", "【默认推荐】"),
+        ("all", f"全市场全A股 ({all_cnt} 只股票，支持新股自动扩容)", "全市场无死角多线程地毯式深度扫描", "【默认推荐】"),
         ("core", f"核心流动性龙头池 ({len(CORE_UNIVERSE)} 只)", "东方财富全行业冠军、全球领跑龙头核心资产精选", "极速体验"),
         ("hs300", "沪深300标的池 (300 只)", "A股规模大、流动性好的最具代表性白马蓝筹", "稳健白马"),
         ("zz500", "中证500标的池 (500 只)", "聚焦各细分行业高成长、弹性大的优质中盘主力", "成长弹性"),
@@ -414,9 +415,23 @@ def main() -> None:
     cpu_threads = max(1, os.cpu_count() or 4)
     parser.add_argument("-w", "--workers", type=int, default=0, help=f"并发线程数（默认: 当前CPU最大线程数 {cpu_threads}）")
     parser.add_argument("--refresh", action="store_true", help="强制从行情服务器穿透下载全量数据")
+    parser.add_argument("--sync-ipo", "--sync-new-stocks", dest="sync_ipo", action="store_true", help="主动扫描通达信行情，自动扩容最新发行/上市的新股到全市场股票池 (data/ashares_universe.json)")
     parser.add_argument("--no-interactive", action="store_true", help="禁用交互式菜单，完全依靠命令行参数执行")
 
     args = parser.parse_args()
+
+    if getattr(args, "sync_ipo", False):
+        print("\n" + "=" * 80)
+        print(_colored("【主动同步】正在从通达信行情网络扫描最新发行/上市新股...", Colors.BOLD + Colors.CYAN))
+        print("=" * 80)
+        new_stocks = sync_new_stocks()
+        if new_stocks:
+            print(_colored(f"✔ 成功扩容 {len(new_stocks)} 只新股: {', '.join(new_stocks)}", Colors.BOLD + Colors.GREEN))
+        else:
+            print(_colored("✔ 全市场股票池已是最新，无新增未登记新股。", Colors.GREEN))
+        all_now = len(get_universe_symbols("all"))
+        print(_colored(f"当前全市场股票总数: {all_now} 只\n", Colors.BOLD + Colors.YELLOW))
+        return
 
     # 加载系统注册的所有策略
     all_strategies = list_all_strategies()
@@ -465,7 +480,7 @@ def main() -> None:
         symbols_to_scan = custom_symbols
         universe_desc = f"自定义 {len(symbols_to_scan)} 只"
     else:
-        symbols_to_scan = get_universe_symbols(universe_choice)
+        symbols_to_scan = get_universe_symbols(universe_choice, force_refresh=force_refresh)
         universe_desc = f"{universe_choice} ({len(symbols_to_scan)} 只)"
 
     print("\n" + "=" * 80)
