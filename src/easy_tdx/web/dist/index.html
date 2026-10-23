@@ -23286,11 +23286,13 @@
             _clBacktrackCache.clear();
         }
 
+        let _clBacktrackAbortController = null;
+
         async function loadChanlunData(forceRefresh = false) {
             if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode) return;
             _clLoadingTargetCode = _clCurrentCode;
-            _clIsDataLoading = true;
             const reqCode = _clCurrentCode;
+            const reqDate = _clBacktrackDate;
             const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
             const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
             const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
@@ -23330,8 +23332,16 @@
                 if (l2) l2.style.display = 'none';
                 if (lr) lr.style.display = 'none';
                 if (l4) l4.style.display = 'none';
+                _clIsDataLoading = false; // 关键修复：缓存命中必须安全释放标志，防止后续键盘回溯死锁卡死
                 return;
             }
+
+            // 取消上次正在执行的过期回溯网络请求，防止多线程排队拥堵
+            if (_clBacktrackAbortController) {
+                try { _clBacktrackAbortController.abort(); } catch(e) {}
+            }
+            _clBacktrackAbortController = new AbortController();
+            const signal = _clBacktrackAbortController.signal;
 
             _clIsDataLoading = true;
             const refreshIcon = document.getElementById('cl-btn-refresh-icon');
@@ -23365,7 +23375,7 @@
                     if (forceRefresh && !_clIsBacktracking) {
                         query.set('force_refresh', 'true');
                     }
-                    const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`);
+                    const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`, { signal });
                     if (!resp.ok) {
                         throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
                     }
@@ -23382,6 +23392,11 @@
                 }
 
                 const results = await Promise.all(promises);
+
+                // 过滤过期请求响应，防止由于网络乱序造成旧数据覆盖新截断点
+                if (reqCode !== _clCurrentCode) return;
+                if (_clIsBacktracking && reqDate !== _clBacktrackDate) return;
+
                 _clLeftCachedData = results[0];
                 _clCachedData = results[0];
 
@@ -23421,9 +23436,6 @@
                     }
                 }
 
-                // 若在异步请求返回时当前标的代码已被用户或路由切换，放弃本次过期数据
-                if (reqCode !== _clCurrentCode) return;
-
                 // 更新概览卡片、时间轴与表格
                 updateChanlunOverview(_clLeftCachedData);
                 updateChanlunTimeline(_clLeftCachedData);
@@ -23440,6 +23452,9 @@
                 setTimeout(adjustChanlunLayoutHeight, 50);
 
             } catch (err) {
+                if (err.name === 'AbortError') {
+                    return; // 快速切步时的正常取消，静默忽略
+                }
                 console.error("Chanlun data fetch failed:", err);
                 if (window.showToast) {
                     showToast('缠论数据错误', err.message || '获取多周期共振数据失败');
@@ -26207,17 +26222,18 @@
             loadChanlunData(false);
         }
 
+        let _clBacktrackRequestSeq = 0;
         async function triggerChanlunBacktrackLoad() {
-            if (_clIsDataLoading) {
-                _clPendingBacktrackDate = _clBacktrackDate;
-                return;
+            const seq = ++_clBacktrackRequestSeq;
+            if (_clIsDataLoading && _clBacktrackAbortController) {
+                try { _clBacktrackAbortController.abort(); } catch(e) {}
             }
+            while (_clIsDataLoading) {
+                await new Promise(r => setTimeout(r, 20));
+                if (seq !== _clBacktrackRequestSeq) return;
+            }
+            if (seq !== _clBacktrackRequestSeq) return;
             await loadChanlunData(false);
-            if (_clPendingBacktrackDate && _clPendingBacktrackDate !== _clBacktrackDate) {
-                _clBacktrackDate = _clPendingBacktrackDate;
-                _clPendingBacktrackDate = null;
-                await loadChanlunData(false);
-            }
         }
 
         function onChanlunSliderInput(val) {
@@ -26253,11 +26269,11 @@
                         return;
                     }
 
-                    // 3. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 350ms 后才防抖请求一次
+                    // 3. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 120ms 后才防抖请求一次
                     if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
                     _clBacktrackDebounceTimer = setTimeout(() => {
                         triggerChanlunBacktrackLoad();
-                    }, 350);
+                    }, 120);
                 }
             }
         }
@@ -26407,7 +26423,7 @@
                 if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
                 _clBacktrackDebounceTimer = setTimeout(() => {
                     triggerChanlunBacktrackLoad();
-                }, 50);
+                }, 100);
             }
         }
 

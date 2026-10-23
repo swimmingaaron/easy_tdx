@@ -410,20 +410,21 @@ function clearClientBacktrackCache() {
 }
 
 let isDataLoading = false
-let pendingBacktrackDate: string | null = null
+let backtrackRequestSeq = 0
 let sliderDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let backtrackAbortController: AbortController | null = null
 
 async function triggerBacktrackLoad() {
-  if (isDataLoading) {
-    pendingBacktrackDate = backtrackDate.value
-    return
+  const seq = ++backtrackRequestSeq
+  if (isDataLoading && backtrackAbortController) {
+    try { backtrackAbortController.abort() } catch {}
   }
+  while (isDataLoading) {
+    await new Promise(r => setTimeout(r, 20))
+    if (seq !== backtrackRequestSeq) return
+  }
+  if (seq !== backtrackRequestSeq) return
   await loadData()
-  if (pendingBacktrackDate && pendingBacktrackDate !== backtrackDate.value) {
-    backtrackDate.value = pendingBacktrackDate
-    pendingBacktrackDate = null
-    await loadData()
-  }
 }
 
 // ── 数据加载 ─────────────────────────────────────────────────────────────────
@@ -441,8 +442,17 @@ async function loadData(forceRefresh = false) {
     nextTick(() => {
       renderChart()
     })
+    isDataLoading = false
     return
   }
+
+  if (backtrackAbortController) {
+    try { backtrackAbortController.abort() } catch {}
+  }
+  backtrackAbortController = new AbortController()
+  const signal = backtrackAbortController.signal
+  const reqCode = code.value
+  const reqDate = backtrackDate.value
 
   isDataLoading = true
   if (!isBacktrackingMode.value) {
@@ -462,6 +472,7 @@ async function loadData(forceRefresh = false) {
       count: reqCount,
       cutoff_date: cutoff,
       force_refresh: force,
+      signal,
     })
     const promises: Promise<ChanlunResonanceResponse>[] = [pLeft]
 
@@ -472,6 +483,7 @@ async function loadData(forceRefresh = false) {
         count: reqCount,
         cutoff_date: cutoff,
         force_refresh: force,
+        signal,
       })
       const pRight = fetchChanlunResonance({
         code: code.value,
@@ -479,6 +491,7 @@ async function loadData(forceRefresh = false) {
         count: reqCount,
         cutoff_date: cutoff,
         force_refresh: force,
+        signal,
       })
       const pW4 = fetchChanlunResonance({
         code: code.value,
@@ -486,6 +499,7 @@ async function loadData(forceRefresh = false) {
         count: reqCount,
         cutoff_date: cutoff,
         force_refresh: force,
+        signal,
       })
       promises.push(pW2, pRight, pW4)
     } else if (splitMode.value === 'dual') {
@@ -495,11 +509,17 @@ async function loadData(forceRefresh = false) {
         count: reqCount,
         cutoff_date: cutoff,
         force_refresh: force,
+        signal,
       })
       promises.push(pRight)
     }
 
     const results = await Promise.all(promises)
+
+    // 过滤过期请求响应，防止由于网络乱序造成旧数据覆盖新截断点
+    if (reqCode !== code.value) return
+    if (isBacktrackingMode.value && reqDate !== backtrackDate.value) return
+
     chanDataLeft.value = results[0]
     if (splitMode.value === 'quad') {
       chanDataW2.value = results[1] || null
@@ -531,6 +551,9 @@ async function loadData(forceRefresh = false) {
       renderChart()
     })
   } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return
+    }
     errorMsg.value = `数据获取失败: ${err instanceof Error ? err.message : String(err)}`
   } finally {
     isDataLoading = false
@@ -713,11 +736,11 @@ function onSliderInput(e: Event) {
     return
   }
 
-  // 2. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 350ms 后才防抖请求一次
+  // 2. 未命中缓存时，拖拽过程中不做连续请求，仅在停顿 120ms 后才防抖请求一次
   if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
   sliderDebounceTimer = setTimeout(() => {
     triggerBacktrackLoad()
-  }, 350)
+  }, 120)
 }
 
 function onSliderChange(e: Event) {
@@ -742,6 +765,11 @@ function onSliderChange(e: Event) {
 }
 
 function stepBacktrack(step: number) {
+  if (!isBacktrackingMode.value) {
+    isBacktrackingMode.value = true
+    stopAutoRefresh()
+    autoRefresh.value = false
+  }
   const nextIdx = backtrackIndex.value + step
   if (nextIdx >= 0 && nextIdx < availableDates.value.length) {
     backtrackIndex.value = nextIdx
@@ -757,7 +785,9 @@ function stepBacktrack(step: number) {
     if (sliderDebounceTimer) clearTimeout(sliderDebounceTimer)
     sliderDebounceTimer = setTimeout(() => {
       triggerBacktrackLoad()
-    }, 60)
+    }, 100)
+  } else if (nextIdx >= availableDates.value.length) {
+    exitBacktracking()
   }
 }
 
@@ -2115,6 +2145,18 @@ function handleKeyDown(e: KeyboardEvent) {
   } else if (e.key === 'ArrowDown') {
     e.preventDefault()
     zoomChart(1.25)
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    stepBacktrack(-1)
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    stepBacktrack(1)
+  } else if (e.code === 'Space') {
+    e.preventDefault()
+    toggleReplay()
+  } else if (e.key === 'End') {
+    e.preventDefault()
+    exitBacktracking()
   }
 }
 

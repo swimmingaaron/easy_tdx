@@ -419,6 +419,7 @@ export async function fetchChanlunResonance(params: {
   count?: number
   cutoff_date?: string
   force_refresh?: boolean
+  signal?: AbortSignal
 }): Promise<ChanlunResonanceResponse> {
   const query = new URLSearchParams()
   query.set('code', params.code)
@@ -427,7 +428,7 @@ export async function fetchChanlunResonance(params: {
   if (params.cutoff_date) query.set('cutoff_date', params.cutoff_date)
   if (params.force_refresh) query.set('force_refresh', 'true')
 
-  const resp = await fetch(`${BASE}/chanlun/resonance?${query.toString()}`)
+  const resp = await fetch(`${BASE}/chanlun/resonance?${query.toString()}`, { signal: params.signal })
   if (!resp.ok) await throwError(resp)
   return (await resp.json()) as ChanlunResonanceResponse
 }
