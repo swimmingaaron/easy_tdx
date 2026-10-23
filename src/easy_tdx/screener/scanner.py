@@ -566,7 +566,7 @@ def _evaluate_stock_for_strategy(
     if strategy_name == "chanlun_strategy":
         cl_preset = parse_chanlun_screener_preset(period)
         eval_period = cl_preset["kline_period"]
-    elif strategy_name == "chanlun_resonance":
+    elif strategy_name in ("chanlun_resonance", "chanlun_dual_resonance"):
         cl_preset = None
         eval_period = "DAY"
     else:
@@ -720,6 +720,150 @@ def _evaluate_stock_for_strategy(
             label = str(last_m.get("label", ""))
             m_type = str(last_m.get("type", "")).upper()
             chan_tag = "[缠论全级别共振]月周日1买+周日30M1买+日30M5F2买"
+
+            sig_df = df.copy()
+            sig_date_str = str(last_m.get("date", "")).strip()
+            date_col = "datetime" if "datetime" in sig_df.columns else "date"
+            dt_series = sig_df[date_col].astype(str)
+
+            match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:10])]
+            if len(match_indices) == 0:
+                match_indices = sig_df.index[dt_series <= sig_date_str]
+
+            if len(match_indices) > 0:
+                trigger_loc = sig_df.index.get_loc(match_indices[-1])
+                trigger_bar = sig_df.iloc[trigger_loc]
+                trigger_idx = match_indices[-1]
+                days_ago = len(sig_df) - 1 - trigger_loc
+            else:
+                trigger_bar = sig_df.iloc[-1]
+                trigger_idx = sig_df.index[-1]
+                trigger_loc = len(sig_df) - 1
+                days_ago = 0
+
+            # 价格与风控防线：最新收盘价不得跌破买点止损位
+            last_c = float(sig_df.iloc[-1]["close"])
+            trigger_p = float(last_m.get("price", 0.0))
+            if trigger_p > 0:
+                if last_c < trigger_p * 0.95:
+                    return None
+                since_pct = (last_c - trigger_p) / trigger_p * 100.0
+                if since_pct > 25.0:
+                    return None
+        elif strategy_name == "chanlun_dual_resonance":
+            # -------------------------------------------------------------
+            # 缠论二级共振策略：必须全部同时满足下列三个条件：
+            # 1. 周日30F：周线最近一笔为向下笔 并且 周线出现1买；
+            # 2. 日30F5F：日线最近一笔为向下笔 并且 日线出现1买；
+            # 3. 次级别：次级别(30F/5F)出现 2买或者3买。
+            # 任何一个条件不满足均一票否决。
+            # -------------------------------------------------------------
+            from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
+
+            # 条件 1：周日30F区间套 (WEEK_DAY_30F)
+            if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                return None
+            res_wd30 = analyze_multi_period_resonance(
+                code=sym,
+                periods=["WEEK", "DAY", "30F"],
+                count=300,
+                force_refresh=force_refresh
+            )
+            if not res_wd30:
+                return None
+            high_wd30 = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+            if not high_wd30:
+                return None
+            sum_wd30 = res_wd30.get("summary", {})
+            high_state_w = sum_wd30.get("high_state", {})
+
+            # 1.1 周线保持良好趋势，非空头
+            if high_state_w.get("is_bearish", False):
+                return None
+            # 1.2 周线最近一笔为向下笔
+            w_bi_dir = str(high_state_w.get("bi_direction", "")).lower()
+            if w_bi_dir not in ("down", "向下", "向下笔"):
+                return None
+            # 1.3 周线出现 1买
+            w_1buys = [
+                m for m in high_wd30
+                if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
+            ]
+            if not w_1buys:
+                return None
+            # 周线最新买卖点不能被卖点破坏
+            if high_wd30 and not high_wd30[-1].get("is_buy", False):
+                return None
+            w_bars_ago = high_state_w.get("recent_mmd_bars_ago")
+            if w_bars_ago is not None and int(w_bars_ago) > 15:
+                return None
+
+            # 条件 2：日30F5F区间套 (DAY_30F_5F)
+            res_d30f5 = analyze_multi_period_resonance(
+                code=sym,
+                periods=["DAY", "30F", "5F"],
+                count=300,
+                force_refresh=force_refresh
+            )
+            if not res_d30f5:
+                return None
+            high_d30f5 = [m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+            if not high_d30f5:
+                return None
+            sum_d30f5 = res_d30f5.get("summary", {})
+            high_state_d = sum_d30f5.get("high_state", {})
+
+            # 2.1 日线最近一笔为向下笔
+            d_bi_dir = str(high_state_d.get("bi_direction", "")).lower()
+            if d_bi_dir not in ("down", "向下", "向下笔"):
+                return None
+            # 2.2 日线出现 1买
+            d_1buys = [
+                m for m in high_d30f5
+                if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
+            ]
+            if not d_1buys:
+                return None
+            # 日线最新买卖点不能被卖点破坏
+            if high_d30f5 and not high_d30f5[-1].get("is_buy", False):
+                return None
+            d_bars_ago = high_state_d.get("recent_mmd_bars_ago")
+            if d_bars_ago is not None and int(d_bars_ago) > 22:
+                return None
+
+            # 条件 3：次级别出现 2买或者3买
+            # 在日30F5F区间套中，次级别为 30F (mid) 与 5F (low)
+            sub_mmds = [
+                m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", [])
+                if m.get("level") in ("mid", "low")
+            ]
+            sub_buys = [
+                m for m in sub_mmds
+                if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+            ]
+            if not sub_buys:
+                # 兼容查找周日30F中的30F (low) 2买或3买
+                low_wd30_buys = [
+                    m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", [])
+                    if m.get("level") == "low" and m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                ]
+                if not low_wd30_buys:
+                    return None
+                sub_buys = low_wd30_buys
+
+            # 次级别最新买卖点若为严重卖点破位（如3卖），淘汰
+            if sub_mmds and not sub_mmds[-1].get("is_buy", False) and "3SELL" in str(sub_mmds[-1].get("type", "")).upper():
+                return None
+
+            # 选取次级别最新的 2买/3买 作为精准进场买点
+            target_m = sub_buys[-1]
+            last_m = target_m
+            label = str(last_m.get("label", ""))
+            m_type = str(last_m.get("type", "")).upper()
+
+            sub_name = "30M" if ("30F" in label or "30分" in label or target_m.get("level") == "mid") else "5M"
+            buy_name = "2买" if ("2BUY" in m_type or "2买" in label) else "3买"
+            chan_tag = f"[缠论二级共振]周线1买+日线1买+{sub_name}{buy_name}"
 
             sig_df = df.copy()
             sig_date_str = str(last_m.get("date", "")).strip()
@@ -1142,6 +1286,9 @@ def _evaluate_stock_for_strategy(
         elif strategy_name == "chanlun_resonance":
             p_unit = "日"
             p_name = "全级别共振"
+        elif strategy_name == "chanlun_dual_resonance":
+            p_unit = "日"
+            p_name = "二级共振"
         else:
             p_unit = period_unit_map.get(p_clean, "期")
             p_name = period_name_map.get(p_clean, p_clean)
@@ -1170,7 +1317,7 @@ def _evaluate_stock_for_strategy(
                 status_label = f"今日四边形·{q_type}" if p_clean == "DAY" else f"最新{p_name}四边形·{q_type}"
             else:
                 status_label = f"{days_ago}日前四边形·{q_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形·{q_type}"
-        elif strategy_name in ("chanlun_strategy", "chanlun_resonance"):
+        elif strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
             if days_ago == 0:
                 status_label = f"最新{chan_tag}"
             else:
@@ -1187,7 +1334,7 @@ def _evaluate_stock_for_strategy(
         except Exception:
             patterns = ["震荡整理"]
 
-        if strategy_name in ("chanlun_strategy", "chanlun_resonance"):
+        if strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
             patterns = [chan_tag] + [p for p in patterns if "缠论" not in p and "买" not in p and "卖" not in p]
         elif strategy_name == "td_sequential":
             td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
@@ -1228,7 +1375,7 @@ def _evaluate_stock_for_strategy(
             except Exception:
                 trigger_patterns = ["震荡整理"]
 
-        if strategy_name == "chanlun_strategy":
+        if strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
             if chan_tag not in trigger_patterns:
                 trigger_patterns = [chan_tag] + [p for p in trigger_patterns if "缠论" not in p and "买" not in p and "卖" not in p]
         elif strategy_name == "td_sequential":
@@ -1321,6 +1468,12 @@ def _evaluate_stock_for_strategy(
             res_dict["high_period_name"] = "全周期共振"
             res_dict["period_preset"] = "ALL_CASCADE"
             res_dict["period_preset_label"] = "月周日+周日30M+日30M5F全级别共振"
+        elif strategy_name == "chanlun_dual_resonance":
+            res_dict["chan_periods"] = ["WEEK", "DAY", "30F", "5F"]
+            res_dict["high_period"] = "WEEK"
+            res_dict["high_period_name"] = "二级共振"
+            res_dict["period_preset"] = "DUAL_CASCADE"
+            res_dict["period_preset_label"] = "周日30F(周线1买)+日30F5F(日线1买)+次级别2/3买"
         elif strategy_name == "chanlun_strategy" and cl_preset is not None:
             res_dict["chan_periods"] = cl_preset["periods"]
             res_dict["high_period"] = cl_preset["high_p"]
@@ -1351,6 +1504,8 @@ def scan_market_strategy(
 
     if strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
         period = "ALL_CASCADE"
+    elif strategy_name == "chanlun_dual_resonance" and (not period or period in ("DAY", "")):
+        period = "DUAL_CASCADE"
     elif strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):
         period = "DAY_30F_5F"
 

@@ -27,8 +27,8 @@ def list_all_strategies() -> list[dict[str, Any]]:
         }
         for cls in STRATEGY_REGISTRY.values()
     ]
-    # 置顶 chanlun_resonance (缠论共振策略) 为系统默认首选策略，其次为 chanlun_strategy
-    priority_order = {"chanlun_resonance": 0, "chanlun_strategy": 1}
+    # 置顶 chanlun_resonance (缠论共振策略) 为系统默认首选策略，其次为 chanlun_dual_resonance，再次为 chanlun_strategy
+    priority_order = {"chanlun_resonance": 0, "chanlun_dual_resonance": 1, "chanlun_strategy": 2}
     strategies.sort(key=lambda s: (priority_order.get(s["name"], 99), s.get("category", ""), s["name"]))
     return strategies
 

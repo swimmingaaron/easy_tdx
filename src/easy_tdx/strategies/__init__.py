@@ -17,6 +17,7 @@ for pkg in ["technical", "pattern", "short_term", "alpha_quant", "daily_analysis
 try:
     import easy_tdx.strategies.chanlun_strategy
     import easy_tdx.strategies.chanlun_resonance
+    import easy_tdx.strategies.chanlun_dual_resonance
 except Exception:
     pass
 

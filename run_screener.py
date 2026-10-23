@@ -4,7 +4,7 @@
 
 功能特性：
 1. 交互式菜单：按序号快速选择战略（策略）、周期、选股范围（支持直接回车默认运行）；
-2. 默认模式：缠论三级联共振校验规则 (chanlun_resonance, ALL_CASCADE, 全市场全部股票 all, CPU最大线程数)；
+2. 推荐模式：缠论三级联共振 (chanlun_resonance, ALL_CASCADE) 与 缠论二级共振 (chanlun_dual_resonance, DUAL_CASCADE, 周日30F周线1买+日30F5F日线1买+次级别2/3买)；
 3. 多线程并发：支持动态指定线程数 (默认程序自适应判断当前系统CPU最大线程数)；
 4. 缓存加速：从通达信行情服务器拉取数据并自动持久化保存在本地 cache 中，二次运行秒级复用；
 5. 结果导出：自动在终端格式化输出命中列表，并生成 CSV 和 JSON 结果报表；
@@ -88,6 +88,10 @@ def display_strategy_menu(strategies: list[dict[str, Any]]) -> str:
                 tag = _colored(" [★系统默认推荐 / 三级联共振]", Colors.GREEN + Colors.BOLD)
                 print(f"  {_colored(f'[{seq:2d}]', Colors.GREEN + Colors.BOLD)} {_colored(name_code, Colors.BOLD):24s} {disp_name}{tag}")
                 print(f"       {_colored('└─ ' + desc, Colors.CYAN)}")
+            elif name_code == "chanlun_dual_resonance":
+                tag = _colored(" [★系统重点推荐 / 二级共振]", Colors.GREEN + Colors.BOLD)
+                print(f"  {_colored(f'[{seq:2d}]', Colors.GREEN + Colors.BOLD)} {_colored(name_code, Colors.BOLD):24s} {disp_name}{tag}")
+                print(f"       {_colored('└─ ' + desc, Colors.CYAN)}")
             elif name_code == "chanlun_strategy":
                 tag = _colored(" [缠论主升3买 / 4级联]", Colors.BLUE + Colors.BOLD)
                 print(f"  {_colored(f'[{seq:2d}]', Colors.YELLOW)} {name_code:24s} {disp_name}{tag}")
@@ -96,7 +100,7 @@ def display_strategy_menu(strategies: list[dict[str, Any]]) -> str:
                 print(f"  [{seq:2d}] {name_code:24s} {disp_name}  {Colors.RESET}({desc})")
 
     print("\n" + "=" * 80)
-    prompt_txt = _colored("请输入策略序号 [1-54] (直接回车默认: 1. 缠论共振策略): ", Colors.BOLD + Colors.GREEN)
+    prompt_txt = _colored("请输入策略序号 [1-54] (直接回车默认: 1. 缠论共振策略 / 2. 缠论二级共振策略): ", Colors.BOLD + Colors.GREEN)
     choice = input(prompt_txt).strip()
 
     if not choice:
@@ -118,10 +122,34 @@ def display_strategy_menu(strategies: list[dict[str, Any]]) -> str:
 
 
 def display_period_menu(strategy_name: str) -> str:
-    """打印周期选项并提示选择（默认推荐 ALL_CASCADE 或 DAY）"""
+    """打印周期选项并提示选择（默认推荐 ALL_CASCADE, DUAL_CASCADE 或 DAY）"""
     print("\n" + "=" * 80)
     print(_colored("【第二步：周期选择】请选择策略执行周期：", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
+
+    if strategy_name == "chanlun_dual_resonance":
+        periods = [
+            ("DUAL_CASCADE", "二级级联共振 (周日30F+日30F5F)", "【默认推荐】周日30F周线1买+日30F5F日线1买+次级别2/3买"),
+            ("DAY_30F_5F", "日 30F 5F 区间套", "日线1买+30F中枢承接+5M 2/3买"),
+            ("WEEK_DAY_30F", "周 日 30F 区间套", "周线1买+日线稳健中枢+30M 2/3买"),
+        ]
+        for seq, (p_code, p_name, p_desc) in enumerate(periods, 1):
+            if seq == 1:
+                print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(p_code, Colors.BOLD):18s} {p_name} {_colored('[默认推荐]', Colors.GREEN)}")
+            else:
+                print(f"  [{seq}] {p_code:18s} {p_name}")
+            print(f"      {_colored('└─ ' + p_desc, Colors.CYAN)}")
+
+        prompt_txt = _colored("\n请输入周期序号 [1-3] (直接回车默认: 1. DUAL_CASCADE 二级共振): ", Colors.BOLD + Colors.GREEN)
+        choice = input(prompt_txt).strip()
+        if not choice or choice == "1":
+            return "DUAL_CASCADE"
+        if choice.isdigit() and 1 <= int(choice) <= len(periods):
+            return periods[int(choice) - 1][0]
+        for p_code, _, _ in periods:
+            if choice.upper() == p_code:
+                return p_code
+        return "DUAL_CASCADE"
 
     is_chanlun = "chanlun" in strategy_name
 
@@ -380,8 +408,8 @@ def export_results(results: list[dict[str, Any]], strategy_name: str, period: st
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="easy_tdx 全市场多策略多线程并发选股执行工具")
-    parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略）")
-    parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: ALL_CASCADE 全级别共振 / DAY）")
+    parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略 / 可选 chanlun_dual_resonance 缠论二级共振策略等）")
+    parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: ALL_CASCADE 全级别三级联共振 / DUAL_CASCADE 二级共振 / DAY）")
     parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/代码列表（默认: all）")
     cpu_threads = max(1, os.cpu_count() or 4)
     parser.add_argument("-w", "--workers", type=int, default=0, help=f"并发线程数（默认: 当前CPU最大线程数 {cpu_threads}）")
@@ -414,7 +442,16 @@ def main() -> None:
         max_workers, force_refresh = display_concurrency_menu()
     else:
         strategy_name = args.strategy.strip() or "chanlun_resonance"
-        period = args.period.strip() or ("ALL_CASCADE" if "chanlun" in strategy_name else "DAY")
+        if args.period.strip():
+            period = args.period.strip()
+        elif strategy_name == "chanlun_dual_resonance":
+            period = "DUAL_CASCADE"
+        elif strategy_name == "chanlun_resonance":
+            period = "ALL_CASCADE"
+        elif strategy_name == "chanlun_strategy":
+            period = "DAY_30F_5F"
+        else:
+            period = "DAY"
         universe_choice = args.universe.strip() or "all"
         custom_symbols = None
         if "," in universe_choice:

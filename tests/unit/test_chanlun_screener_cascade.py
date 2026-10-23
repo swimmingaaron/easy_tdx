@@ -262,11 +262,16 @@ def test_strategy_registry_includes_chanlun_resonance():
     assert len(all_strategies) > 1
     # chanlun_resonance must be the very first strategy in the list (Default)
     assert all_strategies[0]["name"] == "chanlun_resonance"
-    assert all_strategies[1]["name"] == "chanlun_strategy"
+    assert all_strategies[1]["name"] == "chanlun_dual_resonance"
+    assert all_strategies[2]["name"] == "chanlun_strategy"
 
     st = get_strategy("chanlun_resonance")
     assert st.name == "chanlun_resonance"
     assert "共振" in st.display_name
+
+    st2 = get_strategy("chanlun_dual_resonance")
+    assert st2.name == "chanlun_dual_resonance"
+    assert "二级共振" in st2.display_name
 
 
 def test_evaluate_chanlun_resonance_strategy_all_satisfied():
@@ -554,5 +559,253 @@ def test_chanlun_resonance_002463_strictly_vetoed():
             period="ALL_CASCADE"
         )
         assert res is None, "002463.SZ must return None under strict resonance conditions!"
+
+
+def test_evaluate_chanlun_dual_resonance_all_satisfied():
+    """Verify chanlun_dual_resonance selects stock when:
+    1. 周日30F: 周线最近一笔为向下笔 并且 周线出现1买
+    2. 日30F5F: 日线最近一笔为向下笔 并且 日线出现1买
+    3. 次级别: 出现2买或3买
+    """
+    st = get_strategy("chanlun_dual_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    def mock_dual_resonance_side_effect(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-21 10:30", "type": "2BUY", "label": "30M 2买", "is_buy": True, "level": "mid", "price": 10.1},
+                        {"date": "2026-10-22 14:00", "type": "3BUY", "label": "5M 3买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_dual_resonance_side_effect):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is not None
+        assert "二级共振" in res["status_label"]
+        assert "周线1买" in res["status_label"]
+        assert "日线1买" in res["status_label"]
+        assert res["high_period"] == "WEEK"
+        assert res["period_preset"] == "DUAL_CASCADE"
+
+
+def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
+    """Verify chanlun_dual_resonance rejects stock if any of the 3 conditions is missing."""
+    st = get_strategy("chanlun_dual_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # Case A: 周线最近一笔不是向下笔 (向上笔)
+    def mock_week_bi_up(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "up"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-22 14:00", "type": "2BUY", "label": "5M 2买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_week_bi_up):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is None, "Must reject when week bi is UP!"
+
+    # Case B: 周线出现 2买 而非 1买
+    def mock_week_not_1buy(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-22 14:00", "type": "2BUY", "label": "5M 2买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_week_not_1buy):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is None, "Must reject when week has no 1BUY!"
+
+    # Case C: 日线不是向下笔 (向上笔)
+    def mock_day_bi_up(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "up"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-22 14:00", "type": "2BUY", "label": "5M 2买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_day_bi_up):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is None, "Must reject when day bi is UP!"
+
+    # Case D: 日线出现 2买 而非 1买
+    def mock_day_not_1buy(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "2BUY", "label": "日线2买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-22 14:00", "type": "2BUY", "label": "5M 2买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_day_not_1buy):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is None, "Must reject when day has no 1BUY!"
+
+    # Case E: 次级别没有 2买或3买 (只有 1BUY 或无买点)
+    def mock_sub_no_2or3buy(code, periods, count, force_refresh):
+        p_tuple = tuple(periods)
+        if p_tuple == ("WEEK", "DAY", "30F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 2, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.8},
+                    ]
+                }
+            }
+        elif p_tuple == ("DAY", "30F", "5F"):
+            return {
+                "summary": {"high_state": {"is_bearish": False, "recent_mmd_bars_ago": 1, "bi_direction": "down"}},
+                "unified_chart": {
+                    "mmd_marks": [
+                        {"date": "2026-10-18", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "high", "price": 10.0},
+                        {"date": "2026-10-22 14:00", "type": "1BUY", "label": "5M 1买", "is_buy": True, "level": "low", "price": 10.15},
+                    ]
+                }
+            }
+        return None
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_sub_no_2or3buy):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_dual_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="DUAL_CASCADE"
+        )
+        assert res is None, "Must reject when sub-level has no 2BUY or 3BUY!"
+
 
 

@@ -74,16 +74,51 @@ def run_screener(
     period: str = "DAY_30F_5F",
     force_refresh: bool = False,
     output_dir: str | Path | None = None,
-    lookback_bars: int = 22
+    lookback_bars: int = 22,
+    strategy: str = "chanlun_strategy"
 ) -> list[dict]:
     """执行缠论全自动选股并输出结构化结果。"""
     t0 = time.time()
-    preset = parse_chanlun_screener_preset(period)
+    if strategy == "chanlun_resonance" and period in ("DAY_30F_5F", "DAY", ""):
+        period = "ALL_CASCADE"
+    elif strategy == "chanlun_dual_resonance" and period in ("DAY_30F_5F", "DAY", ""):
+        period = "DUAL_CASCADE"
+
+    if period in ("ALL_CASCADE", "DUAL_CASCADE"):
+        if period == "DUAL_CASCADE":
+            preset = {
+                "key": "DUAL_CASCADE",
+                "label": "缠论二级共振 (周日30F周线1买+日30F5F日线1买+次级别2/3买)",
+                "desc": "周日30F向下笔1买+日30F5F向下笔1买+次级别2/3买",
+                "high_name": "周线",
+                "high_p": "WEEK",
+                "high_period": "WEEK",
+                "periods": ["WEEK", "DAY", "30F", "5F"],
+            }
+        else:
+            preset = {
+                "key": "ALL_CASCADE",
+                "label": "全级别三级联共振 (月周日+周日30M+日30M5F)",
+                "desc": "月周日大买+周日30M大买+日30M5F大买+5M2买",
+                "high_name": "月线",
+                "high_p": "MONTH",
+                "high_period": "MONTH",
+                "periods": ["MONTH", "WEEK", "DAY", "30F", "5F"],
+            }
+    else:
+        preset = parse_chanlun_screener_preset(period)
     symbols = get_universe_symbols(universe)
+
+    st_name_map = {
+        "chanlun_resonance": "缠论全级别共振策略 (三级联共振)",
+        "chanlun_dual_resonance": "缠论二级共振策略 (周日30F1买+日30F5F1买+次级别2/3买)",
+        "chanlun_strategy": "缠论1/2/3类买卖点与笔背驰策略",
+    }
+    disp_strategy = st_name_map.get(strategy, strategy)
 
     print("=" * 90)
     print("【EasyTDX 自动化缠论选股运行终端】")
-    print(f"  * 策略名称: 缠论1/2/3类买卖点与笔背驰策略 (chanlun_strategy)")
+    print(f"  * 策略名称: {disp_strategy} ({strategy})")
     print(f"  * 选股周期: {preset['label']} ({preset['desc']})")
     print(f"  * 立体组合: 大周期={preset['high_name']} ({preset['high_p']}) | 跨周期三级套={preset['periods']}")
     print(f"  * 回溯周期: {lookback_bars}个实际交易日 (保证满1个月交易日，排除节假日干扰)")
@@ -98,7 +133,7 @@ def run_screener(
 
     print("\n正在启动多线程高并发选股引擎，请稍候...\n")
     matches = scan_market_strategy(
-        strategy_name="chanlun_strategy",
+        strategy_name=strategy,
         universe=universe,
         period=period,
         lookback_bars=lookback_bars,
@@ -229,6 +264,12 @@ def run_screener(
 def main():
     parser = argparse.ArgumentParser(description="自动执行缠论选股并输出结果 (无需人工选择或干预)")
     parser.add_argument(
+        "--strategy", "-s",
+        default="chanlun_dual_resonance",
+        choices=["chanlun_dual_resonance", "chanlun_resonance", "chanlun_strategy"],
+        help="选股策略 (默认: chanlun_dual_resonance 缠论二级共振策略)"
+    )
+    parser.add_argument(
         "--universe", "-u",
         default="core",
         choices=["core", "hs300", "zz500", "zz1000", "all"],
@@ -236,9 +277,8 @@ def main():
     )
     parser.add_argument(
         "--period", "-p",
-        default="DAY_30F_5F",
-        choices=["DAY_30F_5F", "30F_5F_1F", "WEEK_DAY_30F", "MONTH_WEEK_DAY"],
-        help="缠论级联周期 (默认: DAY_30F_5F 日 30F 5F 大周期日线大买)"
+        default="DUAL_CASCADE",
+        help="缠论级联周期 (默认: DUAL_CASCADE 二级共振 / ALL_CASCADE 全级别共振 / DAY_30F_5F 等)"
     )
     parser.add_argument(
         "--force-refresh", "-f",
@@ -260,6 +300,7 @@ def main():
 
     setup_logger(args.verbose)
     run_screener(
+        strategy=args.strategy,
         universe=args.universe,
         period=args.period,
         force_refresh=args.force_refresh,
