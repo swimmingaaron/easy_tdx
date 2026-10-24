@@ -918,38 +918,117 @@ function stopReplay() {
 // ── 周期与色彩标准映射 (1F红、5F橙、30F黄、日绿、周蓝、月紫，全屏统一) ──────────
 interface PeriodColorTheme {
   primary: string
+  line?: string
   badgeBg: string
+  badgeBorder?: string
   badgeText: string
   zsFill: string
   name: string
   label: string
 }
 
-const PERIOD_THEME_MAP: Record<string, PeriodColorTheme> = {
-  MONTH: { primary: '#a855f7', badgeBg: '#9333ea', badgeText: '#ffffff', zsFill: 'rgba(168, 85, 247, 0.18)', name: '紫', label: '月线' },
-  WEEK:  { primary: '#3b82f6', badgeBg: '#2563eb', badgeText: '#ffffff', zsFill: 'rgba(59, 130, 246, 0.18)', name: '蓝', label: '周线' },
-  DAY:   { primary: '#10b981', badgeBg: '#059669', badgeText: '#ffffff', zsFill: 'rgba(16, 185, 129, 0.18)', name: '绿', label: '日线' },
-  '120F': { primary: '#818cf8', badgeBg: '#4f46e5', badgeText: '#ffffff', zsFill: 'rgba(129, 140, 248, 0.18)', name: '靛', label: '120F' },
-  '60F':  { primary: '#06b6d4', badgeBg: '#0891b2', badgeText: '#ffffff', zsFill: 'rgba(6, 182, 212, 0.18)', name: '青', label: '60F' },
-  '30F':  { primary: '#facc15', badgeBg: '#ca8a04', badgeText: '#1e1b18', zsFill: 'rgba(250, 204, 21, 0.18)', name: '黄', label: '30F' },
-  '15F':  { primary: '#fb923c', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(251, 146, 60, 0.18)', name: '琥珀', label: '15F' },
-  '5F':   { primary: '#f97316', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(249, 115, 22, 0.18)', name: '橙', label: '5F' },
-  '1F':   { primary: '#ef4444', badgeBg: '#dc2626', badgeText: '#ffffff', zsFill: 'rgba(239, 68, 68, 0.18)', name: '红', label: '1F' },
+interface PeriodThemeModeConfig {
+  primary: string
+  line?: string
+  badgeBg: string
+  badgeBorder?: string
+  badgeText: string
+  zsFill: string
 }
 
-function getPeriodTheme(keyOrName?: string): PeriodColorTheme {
-  if (!keyOrName) return { primary: '#94a3b8', badgeBg: '#64748b', badgeText: '#ffffff', zsFill: 'rgba(148, 163, 184, 0.18)', name: '灰', label: '--' }
-  const s = String(keyOrName).trim().toUpperCase()
-  if (s.includes('月') || s.includes('MONTH') || s === 'M') return PERIOD_THEME_MAP['MONTH']
-  if (s.includes('周') || s.includes('WEEK') || s === 'W') return PERIOD_THEME_MAP['WEEK']
-  if (s.includes('日') || s.includes('DAY') || s === 'D') return PERIOD_THEME_MAP['DAY']
-  if (s.includes('120')) return PERIOD_THEME_MAP['120F']
-  if (s.includes('60')) return PERIOD_THEME_MAP['60F']
-  if (s.includes('30')) return PERIOD_THEME_MAP['30F']
-  if (s.includes('15')) return PERIOD_THEME_MAP['15F']
-  if (s.includes('5')) return PERIOD_THEME_MAP['5F']
-  if (s.includes('1')) return PERIOD_THEME_MAP['1F']
-  return PERIOD_THEME_MAP[s] || { primary: '#38bdf8', badgeBg: '#0284c7', badgeText: '#ffffff', zsFill: 'rgba(56, 189, 248, 0.18)', name: '蓝', label: s }
+const PERIOD_THEME_CONFIG: Record<string, { name: string; label: string; dark: PeriodThemeModeConfig; light: PeriodThemeModeConfig }> = {
+  MONTH: {
+    name: '紫',
+    label: '月线',
+    dark:  { primary: '#a78bfa', line: '#a78bfa', badgeBg: 'rgba(124, 58, 237, 0.28)', badgeBorder: '#a78bfa', badgeText: '#f5f3ff', zsFill: 'rgba(167, 139, 250, 0.10)' },
+    light: { primary: '#7c3aed', line: '#7c3aed', badgeBg: '#f3e8ff', badgeBorder: '#d8b4fe', badgeText: '#6b21a8', zsFill: 'rgba(124, 58, 237, 0.05)' }
+  },
+  WEEK: {
+    name: '蓝',
+    label: '周线',
+    dark:  { primary: '#60a5fa', line: '#60a5fa', badgeBg: 'rgba(37, 99, 235, 0.28)', badgeBorder: '#60a5fa', badgeText: '#eff6ff', zsFill: 'rgba(96, 165, 250, 0.10)' },
+    light: { primary: '#2563eb', line: '#2563eb', badgeBg: '#eff6ff', badgeBorder: '#bfdbfe', badgeText: '#1e40af', zsFill: 'rgba(37, 99, 235, 0.05)' }
+  },
+  DAY: {
+    name: '绿',
+    label: '日线',
+    dark:  { primary: '#34d399', line: '#34d399', badgeBg: 'rgba(5, 150, 105, 0.28)', badgeBorder: '#34d399', badgeText: '#ecfdf5', zsFill: 'rgba(52, 211, 153, 0.10)' },
+    light: { primary: '#059669', line: '#059669', badgeBg: '#ecfdf5', badgeBorder: '#a7f3d0', badgeText: '#065f46', zsFill: 'rgba(5, 150, 105, 0.05)' }
+  },
+  '120F': {
+    name: '靛',
+    label: '120F',
+    dark:  { primary: '#818cf8', line: '#818cf8', badgeBg: 'rgba(79, 70, 229, 0.28)', badgeBorder: '#818cf8', badgeText: '#eef2ff', zsFill: 'rgba(129, 140, 248, 0.10)' },
+    light: { primary: '#4f46e5', line: '#4f46e5', badgeBg: '#eef2ff', badgeBorder: '#c7d2fe', badgeText: '#3730a3', zsFill: 'rgba(79, 70, 229, 0.05)' }
+  },
+  '60F': {
+    name: '青',
+    label: '60F',
+    dark:  { primary: '#22d3ee', line: '#22d3ee', badgeBg: 'rgba(8, 145, 178, 0.28)', badgeBorder: '#22d3ee', badgeText: '#ecfeff', zsFill: 'rgba(34, 211, 238, 0.10)' },
+    light: { primary: '#0891b2', line: '#0891b2', badgeBg: '#ecfeff', badgeBorder: '#a5f3fc', badgeText: '#0e7490', zsFill: 'rgba(8, 145, 178, 0.05)' }
+  },
+  '30F': {
+    name: '黄',
+    label: '30F',
+    // 护眼暖琥珀金 (告别刺眼柠檬黄与泥黄褐色)
+    dark:  { primary: '#fbbf24', line: '#fbbf24', badgeBg: 'rgba(217, 119, 6, 0.28)', badgeBorder: '#fbbf24', badgeText: '#fef9c3', zsFill: 'rgba(251, 191, 36, 0.10)' },
+    light: { primary: '#d97706', line: '#d97706', badgeBg: '#fefce8', badgeBorder: '#fef08a', badgeText: '#854d0e', zsFill: 'rgba(217, 119, 6, 0.05)' }
+  },
+  '15F': {
+    name: '琥珀',
+    label: '15F',
+    dark:  { primary: '#fb923c', line: '#fb923c', badgeBg: 'rgba(234, 88, 12, 0.28)', badgeBorder: '#fb923c', badgeText: '#fff7ed', zsFill: 'rgba(251, 146, 60, 0.10)' },
+    light: { primary: '#ea580c', line: '#ea580c', badgeBg: '#fff7ed', badgeBorder: '#fed7aa', badgeText: '#9a3412', zsFill: 'rgba(234, 88, 12, 0.05)' }
+  },
+  '5F': {
+    name: '橙',
+    label: '5F',
+    // 护眼暖珊瑚橙 (柔和温润)
+    dark:  { primary: '#fb923c', line: '#f97316', badgeBg: 'rgba(234, 88, 12, 0.28)', badgeBorder: '#fb923c', badgeText: '#fff7ed', zsFill: 'rgba(249, 115, 22, 0.10)' },
+    light: { primary: '#f97316', line: '#ea580c', badgeBg: '#fff7ed', badgeBorder: '#ffedd5', badgeText: '#c2410c', zsFill: 'rgba(249, 115, 22, 0.05)' }
+  },
+  '1F': {
+    name: '红',
+    label: '1F',
+    // 护眼胭脂茜红 (柔和不刺眼)
+    dark:  { primary: '#f87171', line: '#f87171', badgeBg: 'rgba(220, 38, 38, 0.28)', badgeBorder: '#f87171', badgeText: '#ffe4e6', zsFill: 'rgba(248, 113, 113, 0.10)' },
+    light: { primary: '#e11d48', line: '#dc2626', badgeBg: '#fff1f2', badgeBorder: '#fecdd3', badgeText: '#be123c', zsFill: 'rgba(225, 29, 72, 0.05)' }
+  },
+}
+
+function getPeriodTheme(keyOrName?: string, isDark?: boolean): PeriodColorTheme {
+  if (isDark === undefined) {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      isDark = document.documentElement.classList.contains('dark')
+    } else {
+      isDark = false
+    }
+  }
+  const s = String(keyOrName || '').trim().toUpperCase()
+  let key = '30F'
+  if (s.includes('月') || s.includes('MONTH') || s === 'M') key = 'MONTH'
+  else if (s.includes('周') || s.includes('WEEK') || s === 'W') key = 'WEEK'
+  else if (s.includes('日') || s.includes('DAY') || s === 'D') key = 'DAY'
+  else if (s.includes('120')) key = '120F'
+  else if (s.includes('60')) key = '60F'
+  else if (s.includes('30')) key = '30F'
+  else if (s.includes('15')) key = '15F'
+  else if (s.includes('5')) key = '5F'
+  else if (s.includes('1')) key = '1F'
+  else if (PERIOD_THEME_CONFIG[s]) key = s
+
+  const cfg = PERIOD_THEME_CONFIG[key] || PERIOD_THEME_CONFIG['30F']
+  const modeCfg = isDark ? cfg.dark : cfg.light
+  return {
+    primary: modeCfg.primary,
+    line: modeCfg.line || modeCfg.primary,
+    badgeBg: modeCfg.badgeBg,
+    badgeBorder: modeCfg.badgeBorder || modeCfg.primary,
+    badgeText: modeCfg.badgeText,
+    zsFill: modeCfg.zsFill,
+    name: cfg.name,
+    label: cfg.label,
+  }
 }
 
 function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' | 'right' | 'w4'): any {
@@ -961,24 +1040,26 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     return {}
   }
 
-  // 提取当前图表对应的三级别专属周期色彩（统一颜色：日绿·周蓝·月紫·30F黄·5F橙·1F红）
-  const highTheme = getPeriodTheme(d?.periods?.high?.key || d?.periods?.high?.name)
-  const midTheme = getPeriodTheme(d?.periods?.mid?.key || d?.periods?.mid?.name)
-  const lowTheme = getPeriodTheme(d?.periods?.low?.key || d?.periods?.low?.name)
+  const isDark = document.documentElement.classList.contains('dark')
+
+  // 提取当前图表对应的三级别专属周期色彩（统一护眼温润色系）
+  const highTheme = getPeriodTheme(d?.periods?.high?.key || d?.periods?.high?.name, isDark)
+  const midTheme = getPeriodTheme(d?.periods?.mid?.key || d?.periods?.mid?.name, isDark)
+  const lowTheme = getPeriodTheme(d?.periods?.low?.key || d?.periods?.low?.name, isDark)
 
   // 大级别笔 MarkLines
   const highBiLines = showHighBi.value
     ? uc.high_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: highTheme.primary, width: 3.5, type: 'solid' },
-          itemStyle: { color: highTheme.primary },
-          symbolSize: 5,
+          lineStyle: { color: highTheme.line || highTheme.primary, width: 2.6, type: 'solid' },
+          itemStyle: { color: highTheme.line || highTheme.primary },
+          symbolSize: 4,
         },
         { 
-          coord: b.end,
-          itemStyle: { color: highTheme.primary },
-          symbolSize: 5,
+          coord: b.end, 
+          itemStyle: { color: highTheme.line || highTheme.primary },
+          symbolSize: 4,
         },
       ])
     : []
@@ -988,14 +1069,14 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     ? uc.mid_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: midTheme.primary, width: 2.2, type: 'solid' },
-          itemStyle: { color: midTheme.primary },
-          symbolSize: 4,
+          lineStyle: { color: midTheme.line || midTheme.primary, width: 1.8, type: 'solid' },
+          itemStyle: { color: midTheme.line || midTheme.primary },
+          symbolSize: 3.5,
         },
         { 
           coord: b.end,
-          itemStyle: { color: midTheme.primary },
-          symbolSize: 4,
+          itemStyle: { color: midTheme.line || midTheme.primary },
+          symbolSize: 3.5,
         },
       ])
     : []
@@ -1005,13 +1086,13 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     ? uc.low_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: lowTheme.primary, width: 1.5, type: 'solid' },
-          itemStyle: { color: lowTheme.primary },
+          lineStyle: { color: lowTheme.line || lowTheme.primary, width: 1.3, type: 'solid' },
+          itemStyle: { color: lowTheme.line || lowTheme.primary },
           symbolSize: 3,
         },
         { 
-          coord: b.end,
-          itemStyle: { color: lowTheme.primary },
+          coord: b.end, 
+          itemStyle: { color: lowTheme.line || lowTheme.primary },
           symbolSize: 3,
         },
       ])
@@ -1023,7 +1104,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         {
           name: `[${d.periods.high.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: highTheme.zsFill, borderColor: highTheme.primary, borderWidth: 1.5, borderType: 'dashed' },
+          itemStyle: { color: highTheme.zsFill, borderColor: highTheme.primary, borderWidth: 1.2, borderType: 'dashed' },
           label: { show: true, position: 'top', color: highTheme.primary, fontSize: 10, formatter: `[${d.periods.high.name}${highTheme.name}中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
@@ -1056,14 +1137,11 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       ])
     : []
 
-  const isDark = document.documentElement.classList.contains('dark')
+  // 紧凑微型买卖箭头 (尺寸精炼为 [5.5, 20]，消除遮挡)
+  const ARROW_UP_PATH = 'path://M 0,0 L 2.8,6 L 0.6,6 L 0.6,20 L -0.6,20 L -0.6,6 L -2.8,6 Z'
+  const ARROW_DOWN_PATH = 'path://M 0,20 L 2.8,14 L 0.6,14 L 0.6,0 L -0.6,0 L -0.6,14 L -2.8,14 Z'
 
-  // 向上细长箭头 (用于买点：尖端在顶部 (0,0) 对齐K线低点，箭身向下延伸 40px)
-  const ARROW_UP_PATH = 'path://M 0,0 L 3.5,9 L 0.6,9 L 0.6,40 L -0.6,40 L -0.6,9 L -3.5,9 Z'
-  // 向下细长箭头 (用于卖点：尖端在底部 (0,40) 对齐K线高点，箭身向上延伸 40px)
-  const ARROW_DOWN_PATH = 'path://M 0,40 L 3.5,31 L 0.6,31 L 0.6,0 L -0.6,0 L -0.6,31 L -3.5,31 Z'
-
-  // 多级别买卖点同图呈现 markPoints (参考 send_watchlist_chanlun_wecom.py 细长箭头与胶囊标签)
+  // 多级别买卖点同图呈现 markPoints (护眼胶囊标签：温润底色 + 同色调高对比字体 + 优雅小边距)
   const mmdMarkPoints = showMmdMarks.value
     ? uc.mmd_marks.map((m) => {
         const isBig = m.level === 'high'
@@ -1091,7 +1169,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
 
         const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`
         const tagColor = theme.badgeBg
-        const tagBorder = theme.primary
+        const tagBorder = theme.badgeBorder || theme.primary
         const tagTextColor = theme.badgeText
 
         return {
@@ -1099,14 +1177,14 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           coord: m.coord,
           value: displayText,
           symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
-          symbolSize: [7, 42],
+          symbolSize: [5.5, 20],
           symbolOffset: m.is_buy ? [0, '50%'] : [0, '-50%'],
           itemStyle: {
-            color: tagColor,
-            borderColor: tagBorder,
-            borderWidth: 1.0,
-            shadowBlur: 4,
-            shadowColor: tagColor,
+            color: theme.primary,
+            borderColor: isDark ? 'rgba(0, 0, 0, 0.4)' : '#ffffff',
+            borderWidth: 0.8,
+            shadowBlur: isDark ? 2 : 0,
+            shadowColor: 'transparent',
           },
           label: {
             show: true,
@@ -1116,13 +1194,14 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             color: tagTextColor,
             backgroundColor: tagColor,
             borderColor: tagBorder,
-            borderWidth: 1.2,
-            borderRadius: 4,
-            padding: [3, 6],
+            borderWidth: 1.0,
+            borderRadius: 3,
+            padding: [1.5, 4.5],
             fontWeight: 'bold',
-            fontSize: 10,
-            shadowBlur: 4,
-            shadowColor: 'rgba(0, 0, 0, 0.5)',
+            fontSize: 9.5,
+            fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
+            shadowBlur: isDark ? 3 : 0,
+            shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent',
           },
         }
       })
