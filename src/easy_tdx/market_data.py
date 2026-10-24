@@ -343,8 +343,8 @@ def fetch_security_kline(
         effective_req_count = min(count, 120)
         pull_count = 120
     elif category == KlineCategory.WEEK:
-        effective_req_count = min(count, 250)
-        pull_count = 250
+        effective_req_count = min(count, 800)
+        pull_count = max(count, 800)
     elif category == KlineCategory.DAY:
         effective_req_count = min(max(count, 500), 800) if count <= 800 else count
         pull_count = max(count, 800)

@@ -10824,7 +10824,7 @@
                     <span style="color:#A855F7">MA20:${bar.ma20 ? Number(bar.ma20).toFixed(2) : '—'}</span>
                     <span style="color:#F97316">MA30:${bar.ma30 ? Number(bar.ma30).toFixed(2) : '—'}</span>
                     <span style="color:#22C55E">MA60:${bar.ma60 ? Number(bar.ma60).toFixed(2) : '—'}</span>
-                    ${currentKpPeriod === 'DAY' ? `<span style="color:#38BDF8">MA250:${bar.ma250 ? Number(bar.ma250).toFixed(2) : '—'}</span>` : ''}
+                    ${['DAY', 'WEEK'].includes(currentKpPeriod) ? `<span style="color:#38BDF8">MA250:${bar.ma250 ? Number(bar.ma250).toFixed(2) : '—'}</span>` : ''}
                     ${isBollActive && bar.boll_up ? `<span style="color:#E879F9; font-weight:600;">BOLL:${Number(bar.boll_up).toFixed(2)}/${Number(bar.boll_mid).toFixed(2)}/${Number(bar.boll_low).toFixed(2)}</span>` : ''}
                     ${subMaLine}
                     ${isZigActive && bar.zig !== undefined && bar.zig !== null ? `
@@ -11178,13 +11178,13 @@
                 if (b.ma30 == null) b.ma30 = ma30[i];
             });
             const ma60 = bars.map(b => b.ma60);
-            const isDayPeriod = currentKpPeriod === 'DAY';
-            const ma250 = isDayPeriod ? bars.map((b, i) => {
+            const isMa250Period = ['DAY', 'WEEK'].includes(currentKpPeriod);
+            const ma250 = isMa250Period ? bars.map((b, i) => {
                 if (b.ma250 !== undefined && b.ma250 !== null) return b.ma250;
                 if (i < 249) return null;
                 let s = 0; for (let j = i - 249; j <= i; j++) s += Number(bars[j].close || 0); return Number((s / 250).toFixed(2));
             }) : [];
-            if (isDayPeriod) {
+            if (isMa250Period) {
                 bars.forEach((b, i) => {
                     if (b.ma250 == null) b.ma250 = ma250[i];
                 });
@@ -12540,7 +12540,7 @@
                     { name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma20, showSymbol: false, lineStyle: { width: 1.1, color: '#A855F7' } },
                     { name: 'MA30', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma30, showSymbol: false, lineStyle: { width: 1.1, color: '#F97316' } },
                     { name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma60, showSymbol: false, lineStyle: { width: 1.1, color: '#22C55E' } },
-                    ...(isDayPeriod && ma250.some(v => v !== null && v !== undefined) ? [{ name: 'MA250', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma250, showSymbol: false, lineStyle: { width: 1.2, color: '#38BDF8' } }] : []),
+                    ...(isMa250Period && ma250.some(v => v !== null && v !== undefined) ? [{ name: 'MA250', type: 'line', xAxisIndex: 0, yAxisIndex: 0, data: ma250, showSymbol: false, lineStyle: { width: 1.2, color: '#38BDF8' } }] : []),
                     ...middleSeries,
                     ...bottomInflowSeries,
                     ...(isZigActive && zigResult && zigResult.turnLines && zigResult.turnLines.length > 0 ? [{
@@ -12731,7 +12731,7 @@
                 if (b.ma20) { yMin = Math.min(yMin, b.ma20); yMax = Math.max(yMax, b.ma20); }
                 if (b.ma30) { yMin = Math.min(yMin, b.ma30); yMax = Math.max(yMax, b.ma30); }
                 if (b.ma60) { yMin = Math.min(yMin, b.ma60); yMax = Math.max(yMax, b.ma60); }
-                if (isDayPeriod && b.ma250) { yMin = Math.min(yMin, b.ma250); yMax = Math.max(yMax, b.ma250); }
+                if (isMa250Period && b.ma250) { yMin = Math.min(yMin, b.ma250); yMax = Math.max(yMax, b.ma250); }
                 if (isBollActive && b.boll_up && b.boll_low) {
                     yMax = Math.max(yMax, Number(b.boll_up));
                     yMin = Math.min(yMin, Number(b.boll_low));
