@@ -223,6 +223,7 @@ function buildOption(): echarts.EChartsCoreOption {
   const ma20 = calcMA(20, props.bars)
   const ma30 = calcMA(30, props.bars)
   const ma60 = calcMA(60, props.bars)
+  const ma250 = calcMA(250, props.bars)
 
   // 计算九转序列 (TD Sequential)
   const { tdHigh, tdLow } = calcTD(props.bars)
@@ -339,6 +340,7 @@ function buildOption(): echarts.EChartsCoreOption {
         const m20 = ma20[dataIndex] !== '-' ? Number(ma20[dataIndex]).toFixed(2) : '-'
         const m30 = ma30[dataIndex] !== '-' ? Number(ma30[dataIndex]).toFixed(2) : '-'
         const m60 = ma60[dataIndex] !== '-' ? Number(ma60[dataIndex]).toFixed(2) : '-'
+        const m250 = ma250[dataIndex] !== '-' ? Number(ma250[dataIndex]).toFixed(2) : '-'
 
         let tdInfo = ''
         if (tdHigh[dataIndex] > 0) {
@@ -359,7 +361,7 @@ function buildOption(): echarts.EChartsCoreOption {
           html += `<div>成交量: <span style="color:#e6e8eb; font-family:monospace;">${(bar.vol / 100).toFixed(0)}手</span></div>`
         }
         html += `<div style="margin-top:4px; padding-top:4px; border-top:1px dashed #383f4d; font-family:monospace; font-size:11px;">`
-        html += `<span style="color:#ffd800;">MA5:${m5}</span> <span style="color:#d15cee;">MA10:${m10}</span> <span style="color:#4cd964;">MA20:${m20}</span> <span style="color:#f97316;">MA30:${m30}</span> <span style="color:#38bdf8;">MA60:${m60}</span>`
+        html += `<span style="color:#ffd800;">MA5:${m5}</span> <span style="color:#d15cee;">MA10:${m10}</span> <span style="color:#4cd964;">MA20:${m20}</span> <span style="color:#f97316;">MA30:${m30}</span> <span style="color:#38bdf8;">MA60:${m60}</span> <span style="color:#818cf8;">MA250:${m250}</span>`
         if (tdInfo) {
           html += `<div>九转: ${tdInfo}</div>`
         }
@@ -369,7 +371,7 @@ function buildOption(): echarts.EChartsCoreOption {
       },
     },
     legend: {
-      data: [klineName, 'MA5', 'MA10', 'MA20', 'MA30', 'MA60', '成交额'],
+      data: [klineName, 'MA5', 'MA10', 'MA20', 'MA30', 'MA60', 'MA250', '成交额'],
       top: 0,
       textStyle: { color: '#e6e8eb' },
     },
@@ -520,7 +522,17 @@ function buildOption(): echarts.EChartsCoreOption {
         showSymbol: false,
         lineStyle: { width: 1.2, color: '#38bdf8' },
       },
-      // 5: 成交额柱状图
+      {
+        name: 'MA250',
+        type: 'line',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: ma250,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 1.2, color: '#818cf8' },
+      },
+      // 6: 成交额柱状图
       {
         name: '成交额',
         type: 'bar',

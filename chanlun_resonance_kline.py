@@ -96,6 +96,15 @@ logger = logging.getLogger("chanlun_resonance")
 # ==============================================================================
 
 PERIOD_SPECS: dict[str, dict[str, Any]] = {
+    "SEASON": {
+        "aliases": ["SEASON", "QUARTER", "QUARTERLY", "季线", "季", "Q"],
+        "weight": 90,
+        "market_cat": "SEASON",
+        "chan_freq": "quarterly",
+        "label": "季线 (SEASON)",
+        "short_name": "季线",
+        "date_fmt": "%Y-%m",
+    },
     "MONTH": {
         "aliases": ["MONTH", "MONTHLY", "月线", "月", "M"],
         "weight": 80,

@@ -460,6 +460,7 @@ def get_kline(
     ma20 = MA(c, 20)
     ma30 = MA(c, min(30, len(c)))
     ma60 = MA(c, min(60, len(c)))
+    ma250 = MA(c, min(250, len(c)))
 
     # Volume & Turnover MAs & ratio (过去5日均量基准不含当日自身)
     v_ma5 = MA(v, 5)
@@ -612,6 +613,7 @@ def get_kline(
             "ma20": safe_float(ma20[i]),
             "ma30": safe_float(ma30[i]),
             "ma60": safe_float(ma60[i]),
+            "ma250": safe_float(ma250[i]),
             "vol_ma5": safe_float(v_ma5[i]),
             "vol_ma10": safe_float(v_ma10[i]),
             "vol_ratio": safe_float(vol_ratios[i], 1.0),
@@ -1096,6 +1098,7 @@ def get_kline(
             "ma20": last_bar["ma20"],
             "ma30": last_bar["ma30"],
             "ma60": last_bar["ma60"],
+            "ma250": last_bar.get("ma250"),
             "datetime": last_bar["datetime"]
         },
         "zig_summary": {

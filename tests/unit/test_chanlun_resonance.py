@@ -23,6 +23,9 @@ def test_period_normalization():
     assert normalize_period("30m") == "30F"
     assert normalize_period("120F") == "120F"
     assert normalize_period("月线") == "MONTH"
+    assert normalize_period("季线") == "SEASON"
+    assert normalize_period("季") == "SEASON"
+    assert normalize_period("Q") == "SEASON"
     assert normalize_period("5F") == "5F"
 
     with pytest.raises(ValueError):
@@ -40,6 +43,9 @@ def test_parse_three_periods():
 
     p2 = parse_three_periods("120F, 月线, 5F")
     assert p2 == ["MONTH", "120F", "5F"]
+
+    p3 = parse_three_periods("季线,月线,周线")
+    assert p3 == ["SEASON", "MONTH", "WEEK"]
 
     # 错误测试：少于3个或多于3个
     with pytest.raises(ValueError):
