@@ -915,6 +915,43 @@ function stopReplay() {
 }
 
 // ── ECharts 配置生成 ─────────────────────────────────────────────────────────
+// ── 周期与色彩标准映射 (1F红、5F橙、30F黄、日绿、周蓝、月紫，全屏统一) ──────────
+interface PeriodColorTheme {
+  primary: string
+  badgeBg: string
+  badgeText: string
+  zsFill: string
+  name: string
+  label: string
+}
+
+const PERIOD_THEME_MAP: Record<string, PeriodColorTheme> = {
+  MONTH: { primary: '#a855f7', badgeBg: '#9333ea', badgeText: '#ffffff', zsFill: 'rgba(168, 85, 247, 0.18)', name: '紫', label: '月线' },
+  WEEK:  { primary: '#3b82f6', badgeBg: '#2563eb', badgeText: '#ffffff', zsFill: 'rgba(59, 130, 246, 0.18)', name: '蓝', label: '周线' },
+  DAY:   { primary: '#10b981', badgeBg: '#059669', badgeText: '#ffffff', zsFill: 'rgba(16, 185, 129, 0.18)', name: '绿', label: '日线' },
+  '120F': { primary: '#818cf8', badgeBg: '#4f46e5', badgeText: '#ffffff', zsFill: 'rgba(129, 140, 248, 0.18)', name: '靛', label: '120F' },
+  '60F':  { primary: '#06b6d4', badgeBg: '#0891b2', badgeText: '#ffffff', zsFill: 'rgba(6, 182, 212, 0.18)', name: '青', label: '60F' },
+  '30F':  { primary: '#facc15', badgeBg: '#ca8a04', badgeText: '#1e1b18', zsFill: 'rgba(250, 204, 21, 0.18)', name: '黄', label: '30F' },
+  '15F':  { primary: '#fb923c', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(251, 146, 60, 0.18)', name: '琥珀', label: '15F' },
+  '5F':   { primary: '#f97316', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(249, 115, 22, 0.18)', name: '橙', label: '5F' },
+  '1F':   { primary: '#f43f5e', badgeBg: '#e11d48', badgeText: '#ffffff', zsFill: 'rgba(244, 63, 94, 0.18)', name: '红', label: '1F' },
+}
+
+function getPeriodTheme(keyOrName?: string): PeriodColorTheme {
+  if (!keyOrName) return { primary: '#94a3b8', badgeBg: '#64748b', badgeText: '#ffffff', zsFill: 'rgba(148, 163, 184, 0.18)', name: '灰', label: '--' }
+  const s = String(keyOrName).trim().toUpperCase()
+  if (s.includes('月') || s === 'MONTH' || s === 'MONTHLY' || s === 'M') return PERIOD_THEME_MAP['MONTH']
+  if (s.includes('周') || s === 'WEEK' || s === 'WEEKLY' || s === 'W') return PERIOD_THEME_MAP['WEEK']
+  if (s.includes('日') || s === 'DAY' || s === 'DAILY' || s === 'D') return PERIOD_THEME_MAP['DAY']
+  if (s.includes('120')) return PERIOD_THEME_MAP['120F']
+  if (s.includes('60')) return PERIOD_THEME_MAP['60F']
+  if (s.includes('30')) return PERIOD_THEME_MAP['30F']
+  if (s.includes('15')) return PERIOD_THEME_MAP['15F']
+  if (s.includes('5')) return PERIOD_THEME_MAP['5F']
+  if (s.includes('1')) return PERIOD_THEME_MAP['1F']
+  return PERIOD_THEME_MAP[s] || { primary: '#38bdf8', badgeBg: '#0284c7', badgeText: '#ffffff', zsFill: 'rgba(56, 189, 248, 0.18)', name: '蓝', label: s }
+}
+
 function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' | 'right' | 'w4'): any {
   const uc = (isKlineMerged.value && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
     ? d.merged_chart
@@ -924,91 +961,96 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     return {}
   }
 
-  // 大级别笔 MarkLines (大周期：紫色粗线，置顶主导)
+  // 提取当前图表对应的三级别专属周期色彩（统一颜色：日绿·周蓝·月紫·30F黄·5F橙·1F红）
+  const highTheme = getPeriodTheme(d?.periods?.high?.key || d?.periods?.high?.name)
+  const midTheme = getPeriodTheme(d?.periods?.mid?.key || d?.periods?.mid?.name)
+  const lowTheme = getPeriodTheme(d?.periods?.low?.key || d?.periods?.low?.name)
+
+  // 大级别笔 MarkLines
   const highBiLines = showHighBi.value
     ? uc.high_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: '#c084fc', width: 3.5, type: 'solid' },
-          itemStyle: { color: '#c084fc' },
+          lineStyle: { color: highTheme.primary, width: 3.5, type: 'solid' },
+          itemStyle: { color: highTheme.primary },
           symbolSize: 5,
         },
         { 
           coord: b.end,
-          itemStyle: { color: '#c084fc' },
+          itemStyle: { color: highTheme.primary },
           symbolSize: 5,
         },
       ])
     : []
 
-  // 中级别笔 MarkLines (中周期：黄色中粗线)
+  // 中级别笔 MarkLines
   const midBiLines = showMidBi.value
     ? uc.mid_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: '#facc15', width: 2.2, type: 'solid' },
-          itemStyle: { color: '#facc15' },
+          lineStyle: { color: midTheme.primary, width: 2.2, type: 'solid' },
+          itemStyle: { color: midTheme.primary },
           symbolSize: 4,
         },
         { 
           coord: b.end,
-          itemStyle: { color: '#facc15' },
+          itemStyle: { color: midTheme.primary },
           symbolSize: 4,
         },
       ])
     : []
 
-  // 小级别笔 MarkLines (小周期：蓝色细线，基础层级)
+  // 小级别笔 MarkLines
   const lowBiLines = showLowBi.value
     ? uc.low_bis.map((b) => [
         { 
           coord: b.start, 
-          lineStyle: { color: '#3b82f6', width: 1.5, type: 'solid' },
-          itemStyle: { color: '#3b82f6' },
+          lineStyle: { color: lowTheme.primary, width: 1.5, type: 'solid' },
+          itemStyle: { color: lowTheme.primary },
           symbolSize: 3,
         },
         { 
           coord: b.end,
-          itemStyle: { color: '#3b82f6' },
+          itemStyle: { color: lowTheme.primary },
           symbolSize: 3,
         },
       ])
     : []
 
-  // 大级别中枢 MarkAreas (紫色半透明箱体)
+  // 大级别中枢 MarkAreas
   const highZsAreas = showHighZs.value
     ? uc.high_zss.map((zs) => [
         {
           name: `[${d.periods.high.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(147, 51, 234, 0.20)', borderColor: '#c084fc', borderWidth: 1.5, borderType: 'dashed' },
-          label: { show: true, position: 'top', color: '#c084fc', fontSize: 10, formatter: `[${d.periods.high.name}紫色中枢]` },
+          itemStyle: { color: highTheme.zsFill, borderColor: highTheme.primary, borderWidth: 1.5, borderType: 'dashed' },
+          label: { show: true, position: 'top', color: highTheme.primary, fontSize: 10, formatter: `[${d.periods.high.name}${highTheme.name}中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
     : []
 
-  // 中级别中枢 MarkAreas (黄色半透明箱体)
+  // 中级别中枢 MarkAreas
   const midZsAreas = showMidZs.value
     ? uc.mid_zss.map((zs) => [
         {
           name: `[${d.periods.mid.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(202, 138, 4, 0.20)', borderColor: '#facc15', borderWidth: 1.0, borderType: 'dashed' },
-          label: { show: true, position: 'top', color: '#facc15', fontSize: 10, formatter: `[${d.periods.mid.name}黄色中枢]` },
+          itemStyle: { color: midTheme.zsFill, borderColor: midTheme.primary, borderWidth: 1.0, borderType: 'dashed' },
+          label: { show: true, position: 'top', color: midTheme.primary, fontSize: 10, formatter: `[${d.periods.mid.name}${midTheme.name}中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
     : []
 
-  // 小级别中枢 MarkAreas (微观蓝色箱体)
+  // 小级别中枢 MarkAreas
   const lowZsAreas = showLowZs.value
     ? uc.low_zss.map((zs) => [
         {
           name: `[${d.periods.low.name}中枢]`,
           coord: [zs.start_date, zs.zg],
-          itemStyle: { color: 'rgba(59, 130, 246, 0.16)', borderColor: '#3b82f6', borderWidth: 0.8, borderType: 'dotted' },
-          label: { show: true, position: 'insideTopLeft', color: '#3b82f6', fontSize: 9, formatter: `[${d.periods.low.name}蓝色中枢]` },
+          itemStyle: { color: lowTheme.zsFill, borderColor: lowTheme.primary, borderWidth: 0.8, borderType: 'dotted' },
+          label: { show: true, position: 'insideTopLeft', color: lowTheme.primary, fontSize: 9, formatter: `[${d.periods.low.name}${lowTheme.name}中枢]` },
         },
         { coord: [zs.end_date, zs.zd] },
       ])
@@ -1026,8 +1068,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     ? uc.mmd_marks.map((m) => {
         const isBig = m.level === 'high'
         const isMid = m.level === 'mid'
+        const theme = isBig ? highTheme : (isMid ? midTheme : lowTheme)
 
-        // 提取级别名称 (如 5F, 30F, 日, 周, 月)
         let levelName = '小'
         if (isBig) {
           levelName = d?.periods?.high?.name ? d.periods.high.name.replace('线', '') : '大'
@@ -1037,7 +1079,6 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           levelName = d?.periods?.low?.name ? d.periods.low.name.replace('线', '') : '小'
         }
 
-        // 统一买卖点精炼文案 (与 send_watchlist_chanlun_wecom.py 保持完全一致)
         const mType = (m.type || '').toLowerCase()
         let typeStr = ''
         if (mType.includes('1buy')) typeStr = '1买(底背)'
@@ -1049,34 +1090,9 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         else typeStr = m.short_label || m.label || m.type
 
         const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`
-
-        // 颜色与层级视觉定义 (参考 send_watchlist_chanlun_wecom.py):
-        // 大级别点：高贵紫 (#9333ea)，浅紫边 (#c084fc)，白字
-        // 次级别点：买点金黄 (#facc15, 深色字)，卖点橙红 (#d97706, 白字)
-        // 基准小级别：买点赤红 (#f23645, 白字)，卖点翡翠绿 (#089981, 白字)
-        let tagColor = m.is_buy ? '#f23645' : '#089981'
-        let tagBorder = '#ffffff'
-        let tagTextColor = '#ffffff'
-
-        if (isBig) {
-          tagColor = '#9333ea'
-          tagBorder = '#c084fc'
-          tagTextColor = '#ffffff'
-        } else if (isMid) {
-          if (m.is_buy) {
-            tagColor = '#facc15'
-            tagBorder = '#ffffff'
-            tagTextColor = '#1e1b18'
-          } else {
-            tagColor = '#d97706'
-            tagBorder = '#ffffff'
-            tagTextColor = '#ffffff'
-          }
-        } else {
-          tagColor = m.is_buy ? '#f23645' : '#089981'
-          tagBorder = '#ffffff'
-          tagTextColor = '#ffffff'
-        }
+        const tagColor = theme.badgeBg
+        const tagBorder = theme.primary
+        const tagTextColor = theme.badgeText
 
         return {
           name: m.type,
@@ -1972,19 +1988,19 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         name: `大级别笔(${d.periods.high.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#c084fc', width: 3.5 },
+        lineStyle: { color: highTheme.primary, width: 3.5 },
       },
       {
         name: `中级别笔(${d.periods.mid.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#facc15', width: 2.2 },
+        lineStyle: { color: midTheme.primary, width: 2.2 },
       },
       {
         name: `小级别笔(${d.periods.low.name})`,
         type: 'line',
         data: [],
-        lineStyle: { color: '#3b82f6', width: 1.5 },
+        lineStyle: { color: lowTheme.primary, width: 1.5 },
       },
       ...subSeries,
     ],
@@ -3013,6 +3029,19 @@ onBeforeUnmount(() => {
 
         <span class="sub-sep">|</span>
 
+        <!-- 4. 统一周期色彩指引条 -->
+        <div class="control-group period-color-legend">
+          <span class="label">周期色标:</span>
+          <span class="p-color-item" style="color: #a855f7;">●月</span>
+          <span class="p-color-item" style="color: #3b82f6;">●周</span>
+          <span class="p-color-item" style="color: #10b981;">●日</span>
+          <span class="p-color-item" style="color: #facc15;">●30F</span>
+          <span class="p-color-item" style="color: #f97316;">●5F</span>
+          <span class="p-color-item" style="color: #f43f5e;">●1F</span>
+        </div>
+
+        <span class="sub-sep">|</span>
+
         <!-- 2. 主图图层 级联菜单 (显示全部元素，带 √ 表示 enable显示，否则 disable不显示) -->
         <div class="control-group">
           <span class="label">主图:</span>
@@ -3109,7 +3138,7 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill left-pill">
-              窗1: {{ chanDataLeft?.periods.high.name || '周' }}·{{ chanDataLeft?.periods.mid.name || '日' }}·{{ chanDataLeft?.periods.low.name || '30F' }}
+              窗1: <span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.high?.key || 'WEEK').primary }">{{ chanDataLeft?.periods?.high?.name || '周' }}</span>·<span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.mid?.key || 'DAY').primary }">{{ chanDataLeft?.periods?.mid?.name || '日' }}</span>·<span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
               <span v-if="activeWindow === 'left'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3151,7 +3180,7 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w2-pill">
-              窗2: {{ chanDataW2?.periods.high.name || '月' }}·{{ chanDataW2?.periods.mid.name || '周' }}·{{ chanDataW2?.periods.low.name || '日' }}
+              窗2: <span :style="{ color: getPeriodTheme(chanDataW2?.periods?.high?.key || 'MONTH').primary }">{{ chanDataW2?.periods?.high?.name || '月' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW2?.periods?.mid?.key || 'WEEK').primary }">{{ chanDataW2?.periods?.mid?.name || '周' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW2?.periods?.low?.key || 'DAY').primary }">{{ chanDataW2?.periods?.low?.name || '日' }}</span>
               <span v-if="activeWindow === 'w2'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3190,7 +3219,7 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill right-pill">
-              窗3: {{ chanDataRight?.periods.high.name || '日' }}·{{ chanDataRight?.periods.mid.name || '30F' }}·{{ chanDataRight?.periods.low.name || '5F' }}
+              窗3: <span :style="{ color: getPeriodTheme(chanDataRight?.periods?.high?.key || 'DAY').primary }">{{ chanDataRight?.periods?.high?.name || '日' }}</span>·<span :style="{ color: getPeriodTheme(chanDataRight?.periods?.mid?.key || '30F').primary }">{{ chanDataRight?.periods?.mid?.name || '30F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
               <span v-if="activeWindow === 'right'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3229,7 +3258,7 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w4-pill">
-              窗4: {{ chanDataW4?.periods.high.name || '30F' }}·{{ chanDataW4?.periods.mid.name || '5F' }}·{{ chanDataW4?.periods.low.name || '1F' }}
+              窗4: <span :style="{ color: getPeriodTheme(chanDataW4?.periods?.high?.key || '30F').primary }">{{ chanDataW4?.periods?.high?.name || '30F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW4?.periods?.mid?.key || '5F').primary }">{{ chanDataW4?.periods?.mid?.name || '5F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
               <span v-if="activeWindow === 'w4'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3766,6 +3795,18 @@ onBeforeUnmount(() => {
   border-color: #2962ff;
   color: #2962ff;
   font-weight: bold;
+}
+.period-color-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: bold;
+}
+.p-color-item {
+  display: inline-flex;
+  align-items: center;
 }
 .custom-periods {
   display: flex;
