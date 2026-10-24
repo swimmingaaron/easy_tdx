@@ -4792,14 +4792,14 @@
                         </div>
 
                         <!-- 统一周期色彩标识指引 -->
-                        <div class="hidden xl:flex items-center space-x-1 text-[11px] font-mono select-none px-2 py-0.5 rounded bg-slate-900/70 border border-slate-800 mr-1 shrink-0 shadow-sm">
-                            <span class="text-slate-400 font-sans text-[10px] mr-0.5">周期色标:</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #a855f7;">●月</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #3b82f6;">●周</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #10b981;">●日</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #facc15;">●30F</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #f97316;">●5F</span>
-                            <span class="px-1 py-0.2 rounded font-bold" style="color: #f43f5e;">●1F</span>
+                        <div class="hidden xl:flex items-center space-x-1.5 text-[11px] font-mono select-none px-2 py-0.5 rounded bg-slate-900/70 border border-slate-800 mr-1 shrink-0 shadow-sm">
+                            <span class="text-slate-400 font-sans text-[10px] mr-0.5">周期基准色:</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #a855f7;">●月(紫)</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #3b82f6;">●周(蓝)</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #10b981;">●日(绿)</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #facc15;">●30F(黄)</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #f97316;">●5F(橙)</span>
+                            <span class="px-0.5 py-0.2 rounded font-bold" style="color: #ef4444;">●1F(红)</span>
                         </div>
                         <!-- 键盘快捷键提示 (大屏展示) -->
                         <div class="hidden 2xl:flex items-center space-x-1.5 text-[10px] font-sans text-slate-500 select-none mr-1 shrink-0">
@@ -4826,13 +4826,13 @@
                     <!-- 顶部条：第1窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-950 text-purple-300 border border-purple-800 shrink-0">窗1: 周·日·30F</span>
-                            <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-purple-600 dark:text-purple-400 tracking-wide flex items-center">
+                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-900/90 text-slate-300 border border-slate-700 shrink-0">窗1: 周·日·30F</span>
+                            <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-slate-200 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
-                            <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-purple-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                            <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
@@ -4872,13 +4872,13 @@
                     <!-- 顶部条：第2窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">窗2: 月·周·日</span>
-                            <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-emerald-600 dark:text-emerald-400 tracking-wide flex items-center">
+                            <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-900/90 text-slate-300 border border-slate-700 shrink-0">窗2: 月·周·日</span>
+                            <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-slate-200 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w2">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
-                            <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-emerald-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                            <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
@@ -4918,13 +4918,13 @@
                     <!-- 顶部条：第3窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 shrink-0">窗3: 日·30F·5F</span>
-                            <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-cyan-600 dark:text-cyan-400 tracking-wide flex items-center">
+                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-900/90 text-slate-300 border border-slate-700 shrink-0">窗3: 日·30F·5F</span>
+                            <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-slate-200 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-right">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
-                            <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-cyan-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                            <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
@@ -4964,13 +4964,13 @@
                     <!-- 顶部条：第4窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-800 shrink-0">窗4: 30F·5F·1F</span>
-                            <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-amber-600 dark:text-amber-400 tracking-wide flex items-center">
+                            <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-900/90 text-slate-300 border border-slate-700 shrink-0">窗4: 30F·5F·1F</span>
+                            <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-slate-200 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w4">--</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-1.5">
-                            <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-amber-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
+                            <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-slate-900 border border-slate-700 text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
@@ -23145,15 +23145,15 @@
                 const singleP = parts[0].trim();
                 const name = periodNames[singleP] || singleP;
                 const theme = getPeriodTheme(singleP);
-                return `窗${winNum}: <span style="color:${theme.primary}; font-weight:bold;">${name}</span> (单周期)`;
+                return `<span class="text-slate-400">窗${winNum}:</span> <span style="color:${theme.primary}; font-weight:bold;">●${name}</span> <span class="text-slate-400 text-[10px]">(单周期)</span>`;
             }
             const coloredParts = parts.map(p => {
                 const cleanP = p.trim();
                 const name = periodNames[cleanP] || cleanP;
                 const theme = getPeriodTheme(cleanP);
-                return `<span style="color:${theme.primary}; font-weight:bold;">${name}</span>`;
+                return `<span style="color:${theme.primary}; font-weight:bold;">●${name}</span>`;
             });
-            return `窗${winNum}: ${coloredParts.join('·')}`;
+            return `<span class="text-slate-400">窗${winNum}:</span> ${coloredParts.join('<span class="text-slate-500 mx-0.5">·</span>')}`;
         }
         
         window.applyChanlunWindowPreset = function(target, presetStr) {
@@ -23250,7 +23250,7 @@
                     if (isActive) {
                         pill.innerHTML = `${baseTxt} <span class="bg-purple-600 text-white text-[10px] px-1.5 py-0.2 rounded font-bold ml-1 tracking-tight">主控回溯</span>`;
                     } else {
-                        pill.innerText = baseTxt;
+                        pill.innerHTML = baseTxt;
                     }
                 }
             });
@@ -23318,22 +23318,22 @@
             const sPresetLeft = document.getElementById('cl-select-preset-left');
             if (sPresetLeft) sPresetLeft.value = _clLeftPeriods;
             const pElLeft = document.getElementById('cl-pill-left');
-            if (pElLeft) pElLeft.innerText = `窗1: ${_clLeftPeriods.replace(/,/g, '·')}`;
+            if (pElLeft) pElLeft.innerHTML = formatChanlunPresetPillText(1, _clLeftPeriods);
 
             const sPresetW2 = document.getElementById('cl-select-preset-w2');
             if (sPresetW2) sPresetW2.value = _clW2Periods;
             const pElW2 = document.getElementById('cl-pill-w2');
-            if (pElW2) pElW2.innerText = `窗2: ${_clW2Periods.replace(/,/g, '·')}`;
+            if (pElW2) pElW2.innerHTML = formatChanlunPresetPillText(2, _clW2Periods);
 
             const sPresetRight = document.getElementById('cl-select-preset-right');
             if (sPresetRight) sPresetRight.value = _clRightPeriods;
             const pElRight = document.getElementById('cl-pill-right');
-            if (pElRight) pElRight.innerText = `窗3: ${_clRightPeriods.replace(/,/g, '·')}`;
+            if (pElRight) pElRight.innerHTML = formatChanlunPresetPillText(3, _clRightPeriods);
 
             const sPresetW4 = document.getElementById('cl-select-preset-w4');
             if (sPresetW4) sPresetW4.value = _clW4Periods;
             const pElW4 = document.getElementById('cl-pill-w4');
-            if (pElW4) pElW4.innerText = `窗4: ${_clW4Periods.replace(/,/g, '·')}`;
+            if (pElW4) pElW4.innerHTML = formatChanlunPresetPillText(4, _clW4Periods);
 
             initChanlunStockSearch();
 
@@ -24213,7 +24213,7 @@
             }
         }
 
-                const PERIOD_THEME_MAP = {
+        const PERIOD_THEME_MAP = {
             'MONTH': { primary: '#a855f7', badgeBg: '#9333ea', badgeText: '#ffffff', zsFill: 'rgba(168, 85, 247, 0.18)', name: '紫', label: '月线' },
             'WEEK':  { primary: '#3b82f6', badgeBg: '#2563eb', badgeText: '#ffffff', zsFill: 'rgba(59, 130, 246, 0.18)', name: '蓝', label: '周线' },
             'DAY':   { primary: '#10b981', badgeBg: '#059669', badgeText: '#ffffff', zsFill: 'rgba(16, 185, 129, 0.18)', name: '绿', label: '日线' },
@@ -24222,15 +24222,15 @@
             '30F':   { primary: '#facc15', badgeBg: '#ca8a04', badgeText: '#1e1b18', zsFill: 'rgba(250, 204, 21, 0.18)', name: '黄', label: '30F' },
             '15F':   { primary: '#fb923c', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(251, 146, 60, 0.18)', name: '琥珀', label: '15F' },
             '5F':    { primary: '#f97316', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(249, 115, 22, 0.18)', name: '橙', label: '5F' },
-            '1F':    { primary: '#f43f5e', badgeBg: '#e11d48', badgeText: '#ffffff', zsFill: 'rgba(244, 63, 94, 0.18)', name: '红', label: '1F' },
+            '1F':    { primary: '#ef4444', badgeBg: '#dc2626', badgeText: '#ffffff', zsFill: 'rgba(239, 68, 68, 0.18)', name: '红', label: '1F' },
         };
 
         function getPeriodTheme(keyOrName) {
             if (!keyOrName) return { primary: '#94a3b8', badgeBg: '#64748b', badgeText: '#ffffff', zsFill: 'rgba(148, 163, 184, 0.18)', name: '灰', label: '--' };
             const s = String(keyOrName).trim().toUpperCase();
-            if (s.includes('月') || s === 'MONTH' || s === 'MONTHLY' || s === 'M') return PERIOD_THEME_MAP['MONTH'];
-            if (s.includes('周') || s === 'WEEK' || s === 'WEEKLY' || s === 'W') return PERIOD_THEME_MAP['WEEK'];
-            if (s.includes('日') || s === 'DAY' || s === 'DAILY' || s === 'D') return PERIOD_THEME_MAP['DAY'];
+            if (s.includes('月') || s.includes('MONTH') || s === 'M') return PERIOD_THEME_MAP['MONTH'];
+            if (s.includes('周') || s.includes('WEEK') || s === 'W') return PERIOD_THEME_MAP['WEEK'];
+            if (s.includes('日') || s.includes('DAY') || s === 'D') return PERIOD_THEME_MAP['DAY'];
             if (s.includes('120')) return PERIOD_THEME_MAP['120F'];
             if (s.includes('60')) return PERIOD_THEME_MAP['60F'];
             if (s.includes('30')) return PERIOD_THEME_MAP['30F'];

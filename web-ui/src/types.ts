@@ -596,6 +596,9 @@ export interface ChanlunResonanceResponse {
     resonance_count: number
     is_backtracking: boolean
     cutoff_date: string | null
+    is_single_period?: boolean
+    period?: string
+    period_name?: string
   }
   resonances: ChanlunResonanceSignal[]
   unified_chart: UnifiedChartData

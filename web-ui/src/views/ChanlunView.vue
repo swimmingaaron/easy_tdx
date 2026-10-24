@@ -934,15 +934,15 @@ const PERIOD_THEME_MAP: Record<string, PeriodColorTheme> = {
   '30F':  { primary: '#facc15', badgeBg: '#ca8a04', badgeText: '#1e1b18', zsFill: 'rgba(250, 204, 21, 0.18)', name: '黄', label: '30F' },
   '15F':  { primary: '#fb923c', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(251, 146, 60, 0.18)', name: '琥珀', label: '15F' },
   '5F':   { primary: '#f97316', badgeBg: '#ea580c', badgeText: '#ffffff', zsFill: 'rgba(249, 115, 22, 0.18)', name: '橙', label: '5F' },
-  '1F':   { primary: '#f43f5e', badgeBg: '#e11d48', badgeText: '#ffffff', zsFill: 'rgba(244, 63, 94, 0.18)', name: '红', label: '1F' },
+  '1F':   { primary: '#ef4444', badgeBg: '#dc2626', badgeText: '#ffffff', zsFill: 'rgba(239, 68, 68, 0.18)', name: '红', label: '1F' },
 }
 
 function getPeriodTheme(keyOrName?: string): PeriodColorTheme {
   if (!keyOrName) return { primary: '#94a3b8', badgeBg: '#64748b', badgeText: '#ffffff', zsFill: 'rgba(148, 163, 184, 0.18)', name: '灰', label: '--' }
   const s = String(keyOrName).trim().toUpperCase()
-  if (s.includes('月') || s === 'MONTH' || s === 'MONTHLY' || s === 'M') return PERIOD_THEME_MAP['MONTH']
-  if (s.includes('周') || s === 'WEEK' || s === 'WEEKLY' || s === 'W') return PERIOD_THEME_MAP['WEEK']
-  if (s.includes('日') || s === 'DAY' || s === 'DAILY' || s === 'D') return PERIOD_THEME_MAP['DAY']
+  if (s.includes('月') || s.includes('MONTH') || s === 'M') return PERIOD_THEME_MAP['MONTH']
+  if (s.includes('周') || s.includes('WEEK') || s === 'W') return PERIOD_THEME_MAP['WEEK']
+  if (s.includes('日') || s.includes('DAY') || s === 'D') return PERIOD_THEME_MAP['DAY']
   if (s.includes('120')) return PERIOD_THEME_MAP['120F']
   if (s.includes('60')) return PERIOD_THEME_MAP['60F']
   if (s.includes('30')) return PERIOD_THEME_MAP['30F']
@@ -1563,6 +1563,10 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   }
 
 
+  const highBiLegendName = `大笔·${d.periods.high.name}(${highTheme.name})`
+  const midBiLegendName = `中笔·${d.periods.mid.name}(${midTheme.name})`
+  const lowBiLegendName = `小笔·${d.periods.low.name}(${lowTheme.name})`
+
   const option: echarts.EChartsCoreOption = {
     backgroundColor: '#131722',
     animation: false,
@@ -1777,9 +1781,9 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     legend: {
       data: [
         '基准K线',
-        `大级别笔(${d.periods.high.name})`,
-        `中级别笔(${d.periods.mid.name})`,
-        `小级别笔(${d.periods.low.name})`,
+        highBiLegendName,
+        midBiLegendName,
+        lowBiLegendName,
         ...(isSubAmount ? ['成交额'] : []),
         ...(isSubInflow ? ['主力净流入', '流入MA3', '流入MA5', '流入MA10'] : []),
         ...(isSubMacd ? ['MACD', 'DIF', 'DEA'] : []),
@@ -1789,9 +1793,9 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       ],
       selected: {
         基准K线: true,
-        [`大级别笔(${d.periods.high.name})`]: showHighBi.value,
-        [`中级别笔(${d.periods.mid.name})`]: showMidBi.value,
-        [`小级别笔(${d.periods.low.name})`]: showLowBi.value,
+        [highBiLegendName]: showHighBi.value,
+        [midBiLegendName]: showMidBi.value,
+        [lowBiLegendName]: showLowBi.value,
         成交额: true,
         主力净流入: true,
         流入MA3: true,
@@ -1985,21 +1989,27 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         },
       },
       {
-        name: `大级别笔(${d.periods.high.name})`,
+        name: highBiLegendName,
         type: 'line',
         data: [],
+        color: highTheme.primary,
+        itemStyle: { color: highTheme.primary },
         lineStyle: { color: highTheme.primary, width: 3.5 },
       },
       {
-        name: `中级别笔(${d.periods.mid.name})`,
+        name: midBiLegendName,
         type: 'line',
         data: [],
+        color: midTheme.primary,
+        itemStyle: { color: midTheme.primary },
         lineStyle: { color: midTheme.primary, width: 2.2 },
       },
       {
-        name: `小级别笔(${d.periods.low.name})`,
+        name: lowBiLegendName,
         type: 'line',
         data: [],
+        color: lowTheme.primary,
+        itemStyle: { color: lowTheme.primary },
         lineStyle: { color: lowTheme.primary, width: 1.5 },
       },
       ...subSeries,
@@ -2105,6 +2115,21 @@ function getChartDates(data?: ChanlunResonanceResponse | null): string[] {
   return data.unified_chart?.dates || []
 }
 
+function bindLegendEvents(inst: echarts.ECharts) {
+  inst.on('legendselectchanged', (params: any) => {
+    if (params && params.name) {
+      if (params.name.startsWith('大笔')) {
+        showHighBi.value = !!params.selected[params.name]
+      } else if (params.name.startsWith('中笔')) {
+        showMidBi.value = !!params.selected[params.name]
+      } else if (params.name.startsWith('小笔')) {
+        showLowBi.value = !!params.selected[params.name]
+      }
+      renderChart()
+    }
+  })
+}
+
 function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
@@ -2112,6 +2137,7 @@ function renderChart() {
       chartInstanceLeft.on('click', () => { setActiveWindow('left') })
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
+      bindLegendEvents(chartInstanceLeft)
       chartInstanceLeft.on('updateAxisPointer', (event: any) => {
         const dates = getChartDates(chanDataLeft.value)
         if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
@@ -2137,6 +2163,7 @@ function renderChart() {
         chartInstanceW2.on('click', () => { setActiveWindow('w2') })
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
+        bindLegendEvents(chartInstanceW2)
         chartInstanceW2.on('updateAxisPointer', (event: any) => {
           const dates = getChartDates(chanDataW2.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
@@ -2159,6 +2186,7 @@ function renderChart() {
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
+        bindLegendEvents(chartInstanceRight)
         chartInstanceRight.on('updateAxisPointer', (event: any) => {
           const dates = getChartDates(chanDataRight.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
@@ -2181,6 +2209,7 @@ function renderChart() {
         chartInstanceW4.on('click', () => { setActiveWindow('w4') })
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
+        bindLegendEvents(chartInstanceW4)
         chartInstanceW4.on('updateAxisPointer', (event: any) => {
           const dates = getChartDates(chanDataW4.value)
           if (event && typeof event.dataIndex === 'number' && dates[event.dataIndex]) {
@@ -2204,6 +2233,7 @@ function renderChart() {
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
+        bindLegendEvents(chartInstanceRight)
         chartInstanceRight.on('dblclick', (params: any) => {
           const dates = getChartDates(chanDataRight.value)
           let targetDate: string | null = null
@@ -2995,16 +3025,16 @@ onBeforeUnmount(() => {
 
       <!-- 三级多空定态 -->
       <div class="states-summary">
-        <div class="state-chip high">
-          <span class="chip-title">【大级别·{{ chanData.periods.high.name }}】</span>
+        <div class="state-chip high" :style="{ borderLeftColor: getPeriodTheme(chanData.periods.high.key).primary }">
+          <span class="chip-title">【大级别·<span :style="{ color: getPeriodTheme(chanData.periods.high.key).primary }">{{ chanData.periods.high.name }}</span>】</span>
           <span class="chip-val">{{ chanData.summary.high_state.detail }}</span>
         </div>
-        <div class="state-chip mid">
-          <span class="chip-title">【中级别·{{ chanData.periods.mid.name }}】</span>
+        <div class="state-chip mid" :style="{ borderLeftColor: getPeriodTheme(chanData.periods.mid.key).primary }">
+          <span class="chip-title">【中级别·<span :style="{ color: getPeriodTheme(chanData.periods.mid.key).primary }">{{ chanData.periods.mid.name }}</span>】</span>
           <span class="chip-val">{{ chanData.summary.mid_state.detail }}</span>
         </div>
-        <div class="state-chip low">
-          <span class="chip-title">【基准小·{{ chanData.periods.low.name }}】</span>
+        <div class="state-chip low" :style="{ borderLeftColor: getPeriodTheme(chanData.periods.low.key).primary }">
+          <span class="chip-title">【基准小·<span :style="{ color: getPeriodTheme(chanData.periods.low.key).primary }">{{ chanData.periods.low.name }}</span>】</span>
           <span class="chip-val">{{ chanData.summary.low_state.detail }}</span>
         </div>
         <div class="state-chip resonance-stat">
@@ -3032,12 +3062,12 @@ onBeforeUnmount(() => {
         <!-- 4. 统一周期色彩指引条 -->
         <div class="control-group period-color-legend">
           <span class="label">周期色标:</span>
-          <span class="p-color-item" style="color: #a855f7;">●月</span>
-          <span class="p-color-item" style="color: #3b82f6;">●周</span>
-          <span class="p-color-item" style="color: #10b981;">●日</span>
-          <span class="p-color-item" style="color: #facc15;">●30F</span>
-          <span class="p-color-item" style="color: #f97316;">●5F</span>
-          <span class="p-color-item" style="color: #f43f5e;">●1F</span>
+          <span class="p-color-item" style="color: #a855f7;">●月(紫)</span>
+          <span class="p-color-item" style="color: #3b82f6;">●周(蓝)</span>
+          <span class="p-color-item" style="color: #10b981;">●日(绿)</span>
+          <span class="p-color-item" style="color: #facc15;">●30F(黄)</span>
+          <span class="p-color-item" style="color: #f97316;">●5F(橙)</span>
+          <span class="p-color-item" style="color: #ef4444;">●1F(红)</span>
         </div>
 
         <span class="sub-sep">|</span>
@@ -3047,12 +3077,12 @@ onBeforeUnmount(() => {
           <span class="label">主图:</span>
           <select class="cascading-select" @change="onMainLayersSelect($event)">
             <option value="" disabled selected>图层开关 ({{ activeLayersCount }}/8)</option>
-            <option value="highBi">大笔(紫) {{ showHighBi ? '√' : '' }}</option>
-            <option value="highZs">大中枢 {{ showHighZs ? '√' : '' }}</option>
-            <option value="midBi">中笔(黄) {{ showMidBi ? '√' : '' }}</option>
-            <option value="midZs">中中枢 {{ showMidZs ? '√' : '' }}</option>
-            <option value="lowBi">小笔(蓝) {{ showLowBi ? '√' : '' }}</option>
-            <option value="lowZs">小中枢 {{ showLowZs ? '√' : '' }}</option>
+            <option value="highBi">大级别笔 {{ showHighBi ? '√' : '' }}</option>
+            <option value="highZs">大级别中枢 {{ showHighZs ? '√' : '' }}</option>
+            <option value="midBi">中级别笔 {{ showMidBi ? '√' : '' }}</option>
+            <option value="midZs">中级别中枢 {{ showMidZs ? '√' : '' }}</option>
+            <option value="lowBi">小级别笔 {{ showLowBi ? '√' : '' }}</option>
+            <option value="lowZs">小级别中枢 {{ showLowZs ? '√' : '' }}</option>
             <option value="mmd">买卖点 {{ showMmdMarks ? '√' : '' }}</option>
             <option value="res">★共振信号 {{ showResonanceMarks ? '√' : '' }}</option>
             <option value="__ALL_ON__">── 全部开启 √ ──</option>
@@ -3138,7 +3168,17 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill left-pill">
-              窗1: <span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.high?.key || 'WEEK').primary }">{{ chanDataLeft?.periods?.high?.name || '周' }}</span>·<span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.mid?.key || 'DAY').primary }">{{ chanDataLeft?.periods?.mid?.name || '日' }}</span>·<span :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
+              <span class="win-idx">窗1:</span>
+              <template v-if="chanDataLeft?.summary?.is_single_period">
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">●{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
+              </template>
+              <template v-else>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.high?.key || 'WEEK').primary }">●{{ chanDataLeft?.periods?.high?.name || '周' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.mid?.key || 'DAY').primary }">●{{ chanDataLeft?.periods?.mid?.name || '日' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">●{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
+              </template>
               <span v-if="activeWindow === 'left'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3180,7 +3220,17 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w2-pill">
-              窗2: <span :style="{ color: getPeriodTheme(chanDataW2?.periods?.high?.key || 'MONTH').primary }">{{ chanDataW2?.periods?.high?.name || '月' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW2?.periods?.mid?.key || 'WEEK').primary }">{{ chanDataW2?.periods?.mid?.name || '周' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW2?.periods?.low?.key || 'DAY').primary }">{{ chanDataW2?.periods?.low?.name || '日' }}</span>
+              <span class="win-idx">窗2:</span>
+              <template v-if="chanDataW2?.summary?.is_single_period">
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW2?.periods?.low?.key || 'DAY').primary }">●{{ chanDataW2?.periods?.low?.name || '日' }}</span>
+              </template>
+              <template v-else>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW2?.periods?.high?.key || 'MONTH').primary }">●{{ chanDataW2?.periods?.high?.name || '月' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW2?.periods?.mid?.key || 'WEEK').primary }">●{{ chanDataW2?.periods?.mid?.name || '周' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW2?.periods?.low?.key || 'DAY').primary }">●{{ chanDataW2?.periods?.low?.name || '日' }}</span>
+              </template>
               <span v-if="activeWindow === 'w2'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3219,7 +3269,17 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill right-pill">
-              窗3: <span :style="{ color: getPeriodTheme(chanDataRight?.periods?.high?.key || 'DAY').primary }">{{ chanDataRight?.periods?.high?.name || '日' }}</span>·<span :style="{ color: getPeriodTheme(chanDataRight?.periods?.mid?.key || '30F').primary }">{{ chanDataRight?.periods?.mid?.name || '30F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
+              <span class="win-idx">窗3:</span>
+              <template v-if="chanDataRight?.summary?.is_single_period">
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">●{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
+              </template>
+              <template v-else>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.high?.key || 'DAY').primary }">●{{ chanDataRight?.periods?.high?.name || '日' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.mid?.key || '30F').primary }">●{{ chanDataRight?.periods?.mid?.name || '30F' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">●{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
+              </template>
               <span v-if="activeWindow === 'right'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -3258,7 +3318,17 @@ onBeforeUnmount(() => {
         <div class="window-card-header">
           <div class="win-tag-box">
             <span class="win-pill w4-pill">
-              窗4: <span :style="{ color: getPeriodTheme(chanDataW4?.periods?.high?.key || '30F').primary }">{{ chanDataW4?.periods?.high?.name || '30F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW4?.periods?.mid?.key || '5F').primary }">{{ chanDataW4?.periods?.mid?.name || '5F' }}</span>·<span :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
+              <span class="win-idx">窗4:</span>
+              <template v-if="chanDataW4?.summary?.is_single_period">
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">●{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
+              </template>
+              <template v-else>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.high?.key || '30F').primary }">●{{ chanDataW4?.periods?.high?.name || '30F' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.mid?.key || '5F').primary }">●{{ chanDataW4?.periods?.mid?.name || '5F' }}</span>
+                <span class="p-dot-sep">·</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">●{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
+              </template>
               <span v-if="activeWindow === 'w4'" class="win-active-badge">主控回溯</span>
             </span>
             <div class="win-stock-header-info">
@@ -4169,30 +4239,34 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .win-pill {
-  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
   border-radius: 4px;
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid #334155;
   font-weight: bold;
   font-size: 11px;
 }
-.left-pill {
-  background: rgba(147, 51, 234, 0.25);
-  color: #c084fc;
-  border: 1px solid rgba(192, 132, 252, 0.4);
+.win-idx {
+  color: #94a3b8;
+  font-weight: 700;
+  margin-right: 2px;
 }
-.w2-pill {
-  background: rgba(16, 185, 129, 0.25);
-  color: #6ee7b7;
-  border: 1px solid rgba(110, 231, 183, 0.4);
+.p-dot-item {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
 }
-.right-pill {
-  background: rgba(6, 182, 212, 0.25);
-  color: #67e8f9;
-  border: 1px solid rgba(103, 232, 249, 0.4);
+.p-dot-sep {
+  color: #64748b;
+  font-size: 10px;
 }
-.w4-pill {
-  background: rgba(245, 158, 11, 0.25);
-  color: #fcd34d;
-  border: 1px solid rgba(252, 211, 77, 0.4);
+.left-pill, .w2-pill, .right-pill, .w4-pill {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid #334155;
+  color: #e2e8f0;
 }
 .win-stock-header-info {
   display: flex;
