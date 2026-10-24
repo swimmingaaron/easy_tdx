@@ -990,9 +990,9 @@ const PERIOD_THEME_CONFIG: Record<string, { name: string; label: string; dark: P
   '1F': {
     name: '红',
     label: '1F',
-    // 护眼胭脂茜红 (柔和不刺眼)
-    dark:  { primary: '#f87171', line: '#f87171', badgeBg: 'rgba(220, 38, 38, 0.28)', badgeBorder: '#f87171', badgeText: '#ffe4e6', zsFill: 'rgba(248, 113, 113, 0.10)' },
-    light: { primary: '#e11d48', line: '#dc2626', badgeBg: '#fff1f2', badgeBorder: '#fecdd3', badgeText: '#be123c', zsFill: 'rgba(225, 29, 72, 0.05)' }
+    // 纯正鲜红 (鲜艳醒目，纯真红色，告别偏紫/偏粉感)
+    dark:  { primary: '#ff4d4f', line: '#ff4d4f', badgeBg: 'rgba(255, 34, 34, 0.32)', badgeBorder: '#ff4d4f', badgeText: '#ffffff', zsFill: 'rgba(255, 34, 34, 0.12)' },
+    light: { primary: '#ff1f1f', line: '#ff1f1f', badgeBg: '#fff1f0', badgeBorder: '#ff4d4f', badgeText: '#cf1322', zsFill: 'rgba(255, 31, 31, 0.05)' }
   },
 }
 
@@ -3141,12 +3141,12 @@ onBeforeUnmount(() => {
         <!-- 4. 统一周期色彩指引条 -->
         <div class="control-group period-color-legend">
           <span class="label">周期色标:</span>
-          <span class="p-color-item" style="color: #a855f7;">●月(紫)</span>
-          <span class="p-color-item" style="color: #3b82f6;">●周(蓝)</span>
-          <span class="p-color-item" style="color: #10b981;">●日(绿)</span>
-          <span class="p-color-item" style="color: #facc15;">●30F(黄)</span>
+          <span class="p-color-item" style="color: #7c3aed;">●月(紫)</span>
+          <span class="p-color-item" style="color: #2563eb;">●周(蓝)</span>
+          <span class="p-color-item" style="color: #059669;">●日(绿)</span>
+          <span class="p-color-item" style="color: #d97706;">●30F(黄)</span>
           <span class="p-color-item" style="color: #f97316;">●5F(橙)</span>
-          <span class="p-color-item" style="color: #ef4444;">●1F(红)</span>
+          <span class="p-color-item" style="color: #ff1f1f;">●1F(鲜红)</span>
         </div>
 
         <span class="sub-sep">|</span>
