@@ -455,12 +455,14 @@ def get_kline(
     v = df["volume"].values
 
     # Moving averages
-    ma5 = MA(c, 5)
-    ma10 = MA(c, 10)
-    ma20 = MA(c, 20)
-    ma30 = MA(c, min(30, len(c)))
-    ma60 = MA(c, min(60, len(c)))
-    ma250 = MA(c, min(250, len(c)))
+    ma5 = MA(c, 5) if len(c) >= 5 else np.full(len(c), np.nan)
+    ma10 = MA(c, 10) if len(c) >= 10 else np.full(len(c), np.nan)
+    ma20 = MA(c, 20) if len(c) >= 20 else np.full(len(c), np.nan)
+    ma30 = MA(c, 30) if len(c) >= 30 else np.full(len(c), np.nan)
+    ma60 = MA(c, 60) if len(c) >= 60 else np.full(len(c), np.nan)
+    # MA250 (年线) 专属于日线级别 (DAY)，且仅在真实数据充足 (>=250根) 时计算；周/月/季/分钟线不适用年线
+    is_day_period = str(period).strip().upper() in ("DAY", "DAILY", "D")
+    ma250 = MA(c, 250) if (is_day_period and len(c) >= 250) else np.full(len(c), np.nan)
 
     # Volume & Turnover MAs & ratio (过去5日均量基准不含当日自身)
     v_ma5 = MA(v, 5)
