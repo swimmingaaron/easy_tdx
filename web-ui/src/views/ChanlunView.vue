@@ -45,6 +45,7 @@ const popularStocks = ref<ChanlunHotStockItem[]>([
 
 // ── 多周期设置 ───────────────────────────────────────────────────────────────
 const periodPresets = [
+  { label: '季·月·周 (超长线)', value: 'SEASON,MONTH,WEEK' },
   { label: '标准 (日·30F·5F)', value: 'DAY,30F,5F' },
   { label: '超短 (30F·5F·1F)', value: '30F,5F,1F' },
   { label: '波段 (周·日·30F)', value: 'WEEK,DAY,30F' },
@@ -60,6 +61,7 @@ const periodPresets = [
   { label: '日 (单周期)', value: 'DAY' },
   { label: '周 (单周期)', value: 'WEEK' },
   { label: '月 (单周期)', value: 'MONTH' },
+  { label: '季 (单周期)', value: 'SEASON' },
 ]
 // 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 上下分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
@@ -937,6 +939,12 @@ interface PeriodThemeModeConfig {
 }
 
 const PERIOD_THEME_CONFIG: Record<string, { name: string; label: string; dark: PeriodThemeModeConfig; light: PeriodThemeModeConfig }> = {
+  SEASON: {
+    name: '洋红',
+    label: '季线',
+    dark:  { primary: '#e879f9', line: '#e879f9', badgeBg: 'rgba(192, 38, 211, 0.28)', badgeBorder: '#e879f9', badgeText: '#fdf4ff', zsFill: 'rgba(232, 121, 249, 0.10)' },
+    light: { primary: '#c026d3', line: '#c026d3', badgeBg: '#fdf4ff', badgeBorder: '#f5d0fe', badgeText: '#701a75', zsFill: 'rgba(192, 38, 211, 0.05)' }
+  },
   MONTH: {
     name: '紫',
     label: '月线',
@@ -1006,7 +1014,8 @@ function getPeriodTheme(keyOrName?: string, isDark?: boolean): PeriodColorTheme 
   }
   const s = String(keyOrName || '').trim().toUpperCase()
   let key = '30F'
-  if (s.includes('月') || s.includes('MONTH') || s === 'M') key = 'MONTH'
+  if (s.includes('季') || s.includes('SEASON') || s.includes('QUARTER') || s === 'Q') key = 'SEASON'
+  else if (s.includes('月') || s.includes('MONTH') || s === 'M') key = 'MONTH'
   else if (s.includes('周') || s.includes('WEEK') || s === 'W') key = 'WEEK'
   else if (s.includes('日') || s.includes('DAY') || s === 'D') key = 'DAY'
   else if (s.includes('120')) key = '120F'

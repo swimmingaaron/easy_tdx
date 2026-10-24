@@ -495,6 +495,15 @@ def clear_resonance_kline_cache(code: str | None = None) -> None:
 # ==============================================================================
 
 PERIOD_SPECS: dict[str, dict[str, Any]] = {
+    "SEASON": {
+        "aliases": ["SEASON", "QUARTER", "QUARTERLY", "季线", "季", "Q"],
+        "weight": 100,
+        "market_cat": "SEASON",
+        "chan_freq": "quarterly",
+        "label": "季线 (SEASON)",
+        "short_name": "季线",
+        "date_fmt": "%Y-%m",
+    },
     "MONTH": {
         "aliases": ["MONTH", "MONTHLY", "月线", "月", "M"],
         "weight": 90,
@@ -728,6 +737,7 @@ class ResonanceSignal:
 # 各周期有效买卖点回溯窗口（根数），根据 K 线时间粒度动态配置
 # 原则：覆盖约 1~2 周的交易时间
 _PERIOD_MMD_WINDOW: dict[str, int] = {
+    "SEASON": 2,   # 季线：2根 ≈ 半年
     "MONTH": 3,    # 月线：3根 ≈ 一个季度
     "WEEK":  6,    # 周线：6根 ≈ 1.5个月
     "DAY":  20,    # 日线：20根 ≈ 1个月
@@ -1128,7 +1138,9 @@ def map_pivot_to_base(
 
     # 2. 根据周期类型确定基准周期的候选搜索时间窗口
     p_upper = period_key.upper()
-    if p_upper in ("MONTH", "M"):
+    if p_upper in ("SEASON", "QUARTER", "QUARTERLY", "Q"):
+        mask = (base_dts.dt.year == anchor_dt.year) & ((base_dts.dt.month - 1) // 3 == (anchor_dt.month - 1) // 3)
+    elif p_upper in ("MONTH", "M"):
         mask = (base_dts.dt.year == anchor_dt.year) & (base_dts.dt.month == anchor_dt.month)
     elif p_upper in ("WEEK", "W"):
         w_start = (anchor_dt - pd.Timedelta(days=6)).date()
@@ -1253,21 +1265,22 @@ def analyze_multi_period_resonance(
                 return _RESONANCE_BACKTRACK_ANALYSIS_CACHE[backtrack_cache_key]
 
     # 4.1 请求 K 线基准根数（严格对齐周期特性深度规划）:
+    # 季线 (SEASON): 最大拉取 60 根（覆盖约 15 年）；
     # 月线 (MONTH): 最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
     # 周线 (WEEK): 最大安全拉取 250 根（覆盖约 5 年）；
     # 日线 : 维持 500~800 根；
     # 30M 5F 1F 分钟线 : 维持 3000 根
     if screener_mode:
         req_counts = {
-            high_p: 120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 500),
-            mid_p: 250 if mid_p == "WEEK" else 500,
-            low_p: 500,
+            high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 500)),
+            mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 500),
+            low_p: 250 if low_p == "WEEK" else 500,
         }
     else:
         req_counts = {
-            high_p: 120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 800),
-            mid_p: 250 if mid_p == "WEEK" else 800,
-            low_p: 800,
+            high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 800)),
+            mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 800),
+            low_p: 250 if low_p == "WEEK" else 800,
         }
     # 30M / 5F / 1F 分钟线：统一维持 3000 根
     for p in p_list:
@@ -1297,7 +1310,9 @@ def analyze_multi_period_resonance(
     def _fetch_one_period(p_name: str) -> tuple[str, pd.DataFrame]:
         spec_item = PERIOD_SPECS[p_name]
         needed_cnt = req_counts[p_name]
-        if p_name == "MONTH":
+        if p_name in ("SEASON", "QUARTER"):
+            target_cnt = 60  # 季线最大拉取 60 根
+        elif p_name == "MONTH":
             target_cnt = 120  # 最大安全拉取 120 根
         elif p_name == "WEEK":
             target_cnt = 250  # 最大安全拉取 250 根

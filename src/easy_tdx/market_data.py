@@ -336,7 +336,10 @@ def fetch_security_kline(
     # 日线 ： 维持 500~800 根；
     # 30M 5F 1F 分钟线 ： 维持 3000 根
     effective_req_count = count
-    if category == KlineCategory.MONTH:
+    if category in (KlineCategory.SEASON, KlineCategory.YEAR):
+        effective_req_count = min(count, 60)
+        pull_count = 60
+    elif category == KlineCategory.MONTH:
         effective_req_count = min(count, 120)
         pull_count = 120
     elif category == KlineCategory.WEEK:

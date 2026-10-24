@@ -164,6 +164,18 @@ class KlineDiskCache:
 
         p_upper = str(period).strip().upper()
 
+        # 0. 季线 (SEASON)
+        if any(x in p_upper for x in ("SEASON", "QUARTER", "Q")):
+            try:
+                latest_d = datetime.date.fromisoformat(latest_date_str)
+                cur_yq = (latest_d.year, (latest_d.month - 1) // 3)
+                exp_yq = (expected_closed_date.year, (expected_closed_date.month - 1) // 3)
+                if cur_yq < exp_yq:
+                    return False
+                return not is_trade_session()
+            except Exception:
+                return False
+
         # 1. 周线 (WEEK)
         if "WEEK" in p_upper or p_upper == "W":
             try:
@@ -180,6 +192,7 @@ class KlineDiskCache:
         # 2. 月线 (MONTH)
         if "MONTH" in p_upper or p_upper == "M":
             try:
+                latest_d = datetime.date.fromisoformat(latest_date_str)
                 cur_ym = (latest_d.year, latest_d.month)
                 exp_ym = (expected_closed_date.year, expected_closed_date.month)
                 if cur_ym < exp_ym:

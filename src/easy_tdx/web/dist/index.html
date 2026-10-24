@@ -4834,6 +4834,7 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
+                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                     <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
@@ -4851,6 +4852,7 @@
                                     <option value="DAY">日 (单周期)</option>
                                     <option value="WEEK">周 (单周期)</option>
                                     <option value="MONTH">月 (单周期)</option>
+                                    <option value="SEASON">季 (单周期)</option>
                                 </optgroup>
                             </select>
                             <div id="cl-pattern-overlay" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
@@ -4880,6 +4882,7 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w2" onchange="applyChanlunWindowPreset('w2', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
+                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                     <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
@@ -4897,6 +4900,7 @@
                                     <option value="DAY">日 (单周期)</option>
                                     <option value="WEEK">周 (单周期)</option>
                                     <option value="MONTH">月 (单周期)</option>
+                                    <option value="SEASON">季 (单周期)</option>
                                 </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-w2" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
@@ -4926,6 +4930,7 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
+                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
                                     <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                     <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
@@ -4943,6 +4948,7 @@
                                     <option value="DAY">日 (单周期)</option>
                                     <option value="WEEK">周 (单周期)</option>
                                     <option value="MONTH">月 (单周期)</option>
+                                    <option value="SEASON">季 (单周期)</option>
                                 </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-right" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
@@ -4972,6 +4978,7 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
+                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
                                     <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
@@ -4989,6 +4996,7 @@
                                     <option value="DAY">日 (单周期)</option>
                                     <option value="WEEK">周 (单周期)</option>
                                     <option value="MONTH">月 (单周期)</option>
+                                    <option value="SEASON">季 (单周期)</option>
                                 </optgroup>
                             </select>
                             <div id="cl-pattern-overlay-w4" class="flex items-center space-x-1 text-[11px] font-sans font-medium"></div>
@@ -23138,7 +23146,7 @@
         function formatChanlunPresetPillText(winNum, presetStr) {
             const periodNames = {
                 '1F': '1F', '5F': '5F', '15F': '15F', '30F': '30F', '60F': '60F', '120F': '120F',
-                'DAY': '日', 'WEEK': '周', 'MONTH': '月'
+                'DAY': '日', 'WEEK': '周', 'MONTH': '月', 'SEASON': '季'
             };
             const parts = (presetStr || '').split(',');
             if (parts.length === 1 || (parts.length === 3 && parts[0] === parts[1] && parts[1] === parts[2])) {
@@ -24214,6 +24222,12 @@
         }
 
         const PERIOD_THEME_CONFIG = {
+            'SEASON': {
+                name: '洋红',
+                label: '季线',
+                dark:  { primary: '#e879f9', line: '#e879f9', badgeBg: 'rgba(192, 38, 211, 0.28)', badgeBorder: '#e879f9', badgeText: '#fdf4ff', zsFill: 'rgba(232, 121, 249, 0.10)' },
+                light: { primary: '#c026d3', line: '#c026d3', badgeBg: '#fdf4ff', badgeBorder: '#f5d0fe', badgeText: '#701a75', zsFill: 'rgba(192, 38, 211, 0.05)' }
+            },
             'MONTH': {
                 name: '紫',
                 label: '月线',
@@ -24283,7 +24297,8 @@
             }
             const s = String(keyOrName || '').trim().toUpperCase();
             let key = '30F';
-            if (s.includes('月') || s.includes('MONTH') || s === 'M') key = 'MONTH';
+            if (s.includes('季') || s.includes('SEASON') || s.includes('QUARTER') || s === 'Q') key = 'SEASON';
+            else if (s.includes('月') || s.includes('MONTH') || s === 'M') key = 'MONTH';
             else if (s.includes('周') || s.includes('WEEK') || s === 'W') key = 'WEEK';
             else if (s.includes('日') || s.includes('DAY') || s === 'D') key = 'DAY';
             else if (s.includes('120')) key = '120F';
