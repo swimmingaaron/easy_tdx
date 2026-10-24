@@ -25300,12 +25300,8 @@
                         if (matchedMmds.length > 0) {
                             mmdHtml = matchedMmds.map(m => {
                                 const isBuy = m.is_buy;
-                                const isSteady = (m.category && m.category.includes('steady')) || (m.label && m.label.includes('稳健'));
                                 const isBig = m.level === 'high' || (m.label && m.label.includes('大级别'));
-                                let mmdBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.22)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)');
-                                let mmdBorder = isBuy ? '#ef4444' : '#10b981';
-                                let mmdColor = isDark ? (isBuy ? '#fca5a5' : '#86efac') : (isBuy ? '#991b1b' : '#064e3b');
-                                let icon = isBuy ? '🎯' : '⚠️';
+                                const isMid = m.level === 'mid' || (m.label && m.label.includes('次级别'));
                                 const theme = isBig ? highTheme : (isMid ? midTheme : lowTheme);
                                 const mmdBg = isDark ? theme.zsFill : 'rgba(255, 255, 255, 0.95)';
                                 const mmdBorder = theme.primary;
@@ -25758,19 +25754,25 @@
                         ${mmdHtml}
                     `;
                 } else {
+                    const hDir = s.high_state?.bi_direction === 'up';
+                    const mDir = s.mid_state?.bi_direction === 'up';
+                    const lMmd = s.low_state?.recent_mmd;
                     const hTheme = getPeriodTheme(d?.periods?.high?.key || d?.periods?.high?.name);
                     const mTheme = getPeriodTheme(d?.periods?.mid?.key || d?.periods?.mid?.name);
                     const lTheme = getPeriodTheme(d?.periods?.low?.key || d?.periods?.low?.name);
+                    const hName = d?.periods?.high?.name || '大级别';
+                    const mName = d?.periods?.mid?.name || '中级别';
+                    const lName = d?.periods?.low?.name || '小级别';
                     patternOverlay.innerHTML = `
                         <span style="color: ${hTheme.primary}; border: 1px solid ${hTheme.primary}; background: ${hTheme.zsFill};" class="px-2 py-0.5 rounded shadow-sm font-bold text-[10.5px]">
-                            ${d.periods.high.name}: ${hDir ? '▲向上笔' : '▼向下笔'}
+                            ${hName}: ${hDir ? '▲向上笔' : '▼向下笔'}
                         </span>
                         <span style="color: ${mTheme.primary}; border: 1px solid ${mTheme.primary}; background: ${mTheme.zsFill};" class="px-2 py-0.5 rounded shadow-sm font-bold text-[10.5px]">
-                            ${d.periods.mid.name}: ${mDir ? '▲向上笔' : '▼向下笔'}
+                            ${mName}: ${mDir ? '▲向上笔' : '▼向下笔'}
                         </span>
                         <span style="color: ${lTheme.primary}; border: 1px solid ${lTheme.primary}; background: ${lTheme.zsFill};" class="px-2 py-0.5 rounded shadow-sm font-bold text-[10.5px]">
-                            ${d.periods.low.name}: ${lMmd ? ('🎯 ' + lMmd) : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
-                        </span>`
+                            ${lName}: ${lMmd ? ('🎯 ' + lMmd) : (s.low_state?.bi_direction === 'up' ? '▲向上笔' : '▼向下笔')}
+                        </span>`;
                 }
             }
 
