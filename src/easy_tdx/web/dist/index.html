@@ -4644,6 +4644,14 @@
                             <span id="cl-watchlist-text">加入</span>
                         </button>
 
+                        <!-- 打开K线弹窗链接按钮 -->
+                        <button id="cl-btn-open-kline" onclick="openChanlunKlineModal()"
+                            class="flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs"
+                            title="打开当前标的【K线行情】多周期技术指标弹窗">
+                            <i data-lucide="candlestick-chart" class="w-3.5 h-3.5 text-amber-500"></i>
+                            <span>K线</span>
+                        </button>
+
                         <button id="cl-btn-refresh-all" onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
                             <i id="cl-btn-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         </button>
@@ -26234,6 +26242,16 @@
             }
             updateChanlunWatchlistButton();
         }
+
+        function openChanlunKlineModal() {
+            const code = String(_clCurrentCode || window._clCurrentCode || '').replace(/[^0-9a-zA-Z]/g, '');
+            if (!code) return;
+            const sName = window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || code;
+            if (typeof openKlineModal === 'function') {
+                openKlineModal(code, sName);
+            }
+        }
+        window.openChanlunKlineModal = openChanlunKlineModal;
 
         function onChanlunCustomPeriodChange(changed = 'low') {
             let hEl = document.getElementById('cl-select-high');

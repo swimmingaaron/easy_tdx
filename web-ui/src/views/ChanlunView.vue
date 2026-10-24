@@ -277,6 +277,17 @@ async function toggleWatchlist() {
   }
 }
 
+function openKlinePopup() {
+  const c = code.value.replace(/[^0-9a-zA-Z]/g, '')
+  if (!c) return
+  const sName = chanDataLeft.value?.name || code.value
+  if (typeof (window as any).openKlineModal === 'function') {
+    (window as any).openKlineModal(c, sName)
+  } else {
+    window.open(`/?code=${c}`, '_blank')
+  }
+}
+
 const periodLowLabel = computed(() => {
   const map: Record<string, string> = {
     MONTH: '月线',
@@ -3038,6 +3049,13 @@ onBeforeUnmount(() => {
           >
             <span>{{ isInWatchlist ? '★ 删除' : '☆ 加入' }}</span>
           </button>
+          <button
+            class="tool-btn kline-btn"
+            @click="openKlinePopup"
+            title="打开当前标的【K线行情】多周期技术指标弹窗"
+          >
+            <span>📊 K线</span>
+          </button>
           <button class="icon-btn" @click="loadData(true)" :title="`立即刷新最新${periodLowLabel}K线数据`">
             🔄
           </button>
@@ -3810,6 +3828,16 @@ onBeforeUnmount(() => {
   font-size: 11px;
   padding: 3px 6px;
   border-radius: 4px;
+}
+.kline-btn {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: #a5b4fc;
+}
+.kline-btn:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: #818cf8;
+  color: #ffffff;
 }
 .icon-btn {
   background: #181b27;
