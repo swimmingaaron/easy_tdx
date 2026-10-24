@@ -66,12 +66,12 @@ const periodPresets = [
 // 窗口分屏模式：'quad' (默认四窗口: 2x2网格) | 'dual' (双窗口: 上下分屏对比) | 'single' (单窗口全屏)
 const splitMode = ref<'quad' | 'dual' | 'single'>('quad')
 
-// 窗口 1 周期 (默认: 周·日·30F)
-const leftPeriods = ref('WEEK,DAY,30F')
-const leftActivePreset = ref('WEEK,DAY,30F')
-const leftPeriodHigh = ref('WEEK')
-const leftPeriodMid = ref('DAY')
-const leftPeriodLow = ref('30F')
+// 窗口 1 周期 (默认: 季·月·周)
+const leftPeriods = ref('SEASON,MONTH,WEEK')
+const leftActivePreset = ref('SEASON,MONTH,WEEK')
+const leftPeriodHigh = ref('SEASON')
+const leftPeriodMid = ref('MONTH')
+const leftPeriodLow = ref('WEEK')
 
 // 窗口 2 周期 (默认: 月·周·日)
 const w2Periods = ref('MONTH,WEEK,DAY')
@@ -80,19 +80,19 @@ const w2PeriodHigh = ref('MONTH')
 const w2PeriodMid = ref('WEEK')
 const w2PeriodLow = ref('DAY')
 
-// 窗口 3 周期 (默认: 日·30F·5F)
-const rightPeriods = ref('DAY,30F,5F')
-const rightActivePreset = ref('DAY,30F,5F')
-const rightPeriodHigh = ref('DAY')
-const rightPeriodMid = ref('30F')
-const rightPeriodLow = ref('5F')
+// 窗口 3 周期 (默认: 周·日·30F)
+const rightPeriods = ref('WEEK,DAY,30F')
+const rightActivePreset = ref('WEEK,DAY,30F')
+const rightPeriodHigh = ref('WEEK')
+const rightPeriodMid = ref('DAY')
+const rightPeriodLow = ref('30F')
 
-// 窗口 4 周期 (默认: 30F·5F·1F)
-const w4Periods = ref('30F,5F,1F')
-const w4ActivePreset = ref('30F,5F,1F')
-const w4PeriodHigh = ref('30F')
-const w4PeriodMid = ref('5F')
-const w4PeriodLow = ref('1F')
+// 窗口 4 周期 (默认: 日·30F·5F)
+const w4Periods = ref('DAY,30F,5F')
+const w4ActivePreset = ref('DAY,30F,5F')
+const w4PeriodHigh = ref('DAY')
+const w4PeriodMid = ref('30F')
+const w4PeriodLow = ref('5F')
 
 // 兼容单窗口时的主周期双向绑定 (代理到左窗)
 const periodLow = computed({
@@ -3246,7 +3246,7 @@ onBeforeUnmount(() => {
 
     <!-- 主图表区 (支持单窗口 / 双窗口 / 四窗口) -->
     <div class="charts-split-container" :class="{ 'is-quad': splitMode === 'quad', 'is-dual': splitMode === 'dual' }">
-      <!-- 窗口 1: 周·日·30F (左窗/第1窗) -->
+      <!-- 窗口 1: 季·月·周 (左窗/第1窗) -->
       <div
         class="chart-window-card left-card"
         :class="{ 'is-active-window': activeWindow === 'left' }"
@@ -3258,14 +3258,14 @@ onBeforeUnmount(() => {
             <span class="win-pill left-pill">
               <span class="win-idx">窗1:</span>
               <template v-if="chanDataLeft?.summary?.is_single_period">
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">●{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || 'WEEK').primary }">●{{ chanDataLeft?.periods?.low?.name || '周' }}</span>
               </template>
               <template v-else>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.high?.key || 'WEEK').primary }">●{{ chanDataLeft?.periods?.high?.name || '周' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.high?.key || 'SEASON').primary }">●{{ chanDataLeft?.periods?.high?.name || '季' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.mid?.key || 'DAY').primary }">●{{ chanDataLeft?.periods?.mid?.name || '日' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.mid?.key || 'MONTH').primary }">●{{ chanDataLeft?.periods?.mid?.name || '月' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || '30F').primary }">●{{ chanDataLeft?.periods?.low?.name || '30F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataLeft?.periods?.low?.key || 'WEEK').primary }">●{{ chanDataLeft?.periods?.low?.name || '周' }}</span>
               </template>
               <span v-if="activeWindow === 'left'" class="win-active-badge">主控回溯</span>
             </span>
@@ -3346,7 +3346,7 @@ onBeforeUnmount(() => {
         <div ref="chartContainerW2" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 3: 日·30F·5F (双窗口或四窗口激活时显示) -->
+      <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
       <div
         v-if="splitMode === 'dual' || splitMode === 'quad'"
         class="chart-window-card right-card"
@@ -3359,14 +3359,14 @@ onBeforeUnmount(() => {
             <span class="win-pill right-pill">
               <span class="win-idx">窗3:</span>
               <template v-if="chanDataRight?.summary?.is_single_period">
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">●{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '30F').primary }">●{{ chanDataRight?.periods?.low?.name || '30F' }}</span>
               </template>
               <template v-else>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.high?.key || 'DAY').primary }">●{{ chanDataRight?.periods?.high?.name || '日' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.high?.key || 'WEEK').primary }">●{{ chanDataRight?.periods?.high?.name || '周' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.mid?.key || '30F').primary }">●{{ chanDataRight?.periods?.mid?.name || '30F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.mid?.key || 'DAY').primary }">●{{ chanDataRight?.periods?.mid?.name || '日' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '5F').primary }">●{{ chanDataRight?.periods?.low?.name || '5F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataRight?.periods?.low?.key || '30F').primary }">●{{ chanDataRight?.periods?.low?.name || '30F' }}</span>
               </template>
               <span v-if="activeWindow === 'right'" class="win-active-badge">主控回溯</span>
             </span>
@@ -3395,7 +3395,7 @@ onBeforeUnmount(() => {
         <div ref="chartContainerRight" class="main-echart"></div>
       </div>
 
-      <!-- 窗口 4: 30F·5F·1F (四窗口模式激活时显示) -->
+      <!-- 窗口 4: 日·30F·5F (四窗口模式激活时显示) -->
       <div
         v-if="splitMode === 'quad'"
         class="chart-window-card w4-card"
@@ -3408,14 +3408,14 @@ onBeforeUnmount(() => {
             <span class="win-pill w4-pill">
               <span class="win-idx">窗4:</span>
               <template v-if="chanDataW4?.summary?.is_single_period">
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">●{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '5F').primary }">●{{ chanDataW4?.periods?.low?.name || '5F' }}</span>
               </template>
               <template v-else>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.high?.key || '30F').primary }">●{{ chanDataW4?.periods?.high?.name || '30F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.high?.key || 'DAY').primary }">●{{ chanDataW4?.periods?.high?.name || '日' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.mid?.key || '5F').primary }">●{{ chanDataW4?.periods?.mid?.name || '5F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.mid?.key || '30F').primary }">●{{ chanDataW4?.periods?.mid?.name || '30F' }}</span>
                 <span class="p-dot-sep">·</span>
-                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '1F').primary }">●{{ chanDataW4?.periods?.low?.name || '1F' }}</span>
+                <span class="p-dot-item" :style="{ color: getPeriodTheme(chanDataW4?.periods?.low?.key || '5F').primary }">●{{ chanDataW4?.periods?.low?.name || '5F' }}</span>
               </template>
               <span v-if="activeWindow === 'w4'" class="win-active-badge">主控回溯</span>
             </span>

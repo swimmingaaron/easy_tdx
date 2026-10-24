@@ -4815,7 +4815,7 @@
 
             <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏，默认四窗口) -->
             <div id="cl-charts-split-container" class="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
-                <!-- 窗口 1: 日·30F·5F (左上窗/第1窗) -->
+                <!-- 窗口 1: 季·月·周 (左上窗/第1窗) -->
                 <div id="cl-chart-card-left" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
@@ -4826,7 +4826,7 @@
                     <!-- 顶部条：第1窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗1: 周·日·30F</span>
+                            <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗1: 季·月·周</span>
                             <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text">--</span>
                             </div>
@@ -4834,10 +4834,10 @@
                         <div class="flex items-center space-x-1.5">
                             <select id="cl-select-preset-left" onchange="applyChanlunWindowPreset('left', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
-                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
+                                    <option value="SEASON,MONTH,WEEK" selected>季·月·周 (超长线)</option>
                                     <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
-                                    <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
+                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
                                     <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                     <option value="DAY,60F,15F">日·60F·15F (日内)</option>
                                     <option value="60F,30F,5F">60F·30F·5F (短线)</option>
@@ -4911,7 +4911,7 @@
                     <div id="chanlun-echart-w2" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 3: 日·30F·5F (左下窗/第3窗) -->
+                <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
                 <div id="cl-chart-card-right" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
@@ -4922,7 +4922,7 @@
                     <!-- 顶部条：第3窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗3: 日·30F·5F</span>
+                            <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗3: 周·日·30F</span>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-right">--</span>
                             </div>
@@ -4931,9 +4931,9 @@
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
-                                    <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
+                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
                                     <option value="30F,5F,1F">30F·5F·1F (超短)</option>
-                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                    <option value="WEEK,DAY,30F" selected>周·日·30F (波段)</option>
                                     <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                     <option value="DAY,60F,15F">日·60F·15F (日内)</option>
                                     <option value="60F,30F,5F">60F·30F·5F (短线)</option>
@@ -4959,7 +4959,7 @@
                     <div id="chanlun-echart-right" class="w-full flex-1 min-h-0" style="width: 100%; height: 100%;"></div>
                 </div>
 
-                <!-- 窗口 4: 30F·5F·1F (右下窗/第4窗) -->
+                <!-- 窗口 4: 日·30F·5F (右下窗/第4窗) -->
                 <div id="cl-chart-card-w4" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
@@ -4970,7 +4970,7 @@
                     <!-- 顶部条：第4窗标识 + 预设切换 + 形态胶囊 -->
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗4: 30F·5F·1F</span>
+                            <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗4: 日·30F·5F</span>
                             <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w4">--</span>
                             </div>
@@ -4979,8 +4979,8 @@
                             <select id="cl-select-preset-w4" onchange="applyChanlunWindowPreset('w4', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
                                 <optgroup label="多周期立体共振">
                                     <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
-                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
-                                    <option value="30F,5F,1F" selected>30F·5F·1F (超短)</option>
+                                    <option value="DAY,30F,5F" selected>日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F">30F·5F·1F (超短)</option>
                                     <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
                                     <option value="MONTH,WEEK,DAY">月·周·日 (长线)</option>
                                     <option value="DAY,60F,15F">日·60F·15F (日内)</option>
@@ -23010,11 +23010,11 @@
         window._clCurrentCode = _clCurrentCode;
         window._clCurrentCodeChangedByUser = _clCurrentCodeChangedByUser;
         let _clWindowMode = 'quad'; // 'quad' (四窗口) | 'dual' (双窗口) | 'single' (单窗口全屏)
-        let _clLeftPeriods = 'WEEK,DAY,30F';   // 窗口 1: 周·日·30F
-        let _clW2Periods = 'MONTH,WEEK,DAY';  // 窗口 2: 月·周·日
-        let _clRightPeriods = 'DAY,30F,5F';   // 窗口 3: 日·30F·5F
-        let _clW4Periods = '30F,5F,1F';       // 窗口 4: 30F·5F·1F
-        let _clPeriods = 'WEEK,DAY,30F';
+        let _clLeftPeriods = 'SEASON,MONTH,WEEK';   // 窗口 1: 季·月·周
+        let _clW2Periods = 'MONTH,WEEK,DAY';      // 窗口 2: 月·周·日
+        let _clRightPeriods = 'WEEK,DAY,30F';      // 窗口 3: 周·日·30F
+        let _clW4Periods = 'DAY,30F,5F';          // 窗口 4: 日·30F·5F
+        let _clPeriods = 'SEASON,MONTH,WEEK';
         let _clCachedData = null;
         let _clLeftCachedData = null;
         let _clW2CachedData = null;
@@ -25711,7 +25711,7 @@
             let domId = 'chanlun-echart-main';
             let titleElId = 'cl-chart-title-text';
             let patternElId = 'cl-pattern-overlay';
-            let periodLabel = _clLeftPeriods || '周·日·30F';
+            let periodLabel = _clLeftPeriods || '季·月·周';
             let instanceProp = 'chanlunChart';
 
             if (side === 'w2') {
@@ -25724,13 +25724,13 @@
                 domId = 'chanlun-echart-right';
                 titleElId = 'cl-chart-title-text-right';
                 patternElId = 'cl-pattern-overlay-right';
-                periodLabel = _clRightPeriods || '日·30F·5F';
+                periodLabel = _clRightPeriods || '周·日·30F';
                 instanceProp = 'chanlunChartRight';
             } else if (side === 'w4') {
                 domId = 'chanlun-echart-w4';
                 titleElId = 'cl-chart-title-text-w4';
                 patternElId = 'cl-pattern-overlay-w4';
-                periodLabel = _clW4Periods || '30F·5F·1F';
+                periodLabel = _clW4Periods || '日·30F·5F';
                 instanceProp = 'chanlunChartW4';
             }
 
