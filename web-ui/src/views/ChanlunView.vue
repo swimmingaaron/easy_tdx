@@ -981,11 +981,11 @@ const PERIOD_THEME_CONFIG: Record<string, { name: string; label: string; dark: P
     light: { primary: '#ea580c', line: '#ea580c', badgeBg: '#fff7ed', badgeBorder: '#fed7aa', badgeText: '#9a3412', zsFill: 'rgba(234, 88, 12, 0.05)' }
   },
   '5F': {
-    name: '橙',
+    name: '青',
     label: '5F',
-    // 护眼暖珊瑚橙 (柔和温润)
-    dark:  { primary: '#fb923c', line: '#f97316', badgeBg: 'rgba(234, 88, 12, 0.28)', badgeBorder: '#fb923c', badgeText: '#fff7ed', zsFill: 'rgba(249, 115, 22, 0.10)' },
-    light: { primary: '#f97316', line: '#ea580c', badgeBg: '#fff7ed', badgeBorder: '#ffedd5', badgeText: '#c2410c', zsFill: 'rgba(249, 115, 22, 0.05)' }
+    // 湖青/碧蓝 (与 30F金黄、1F鲜红 形成「冷暖三原色」极致对比)
+    dark:  { primary: '#38bdf8', line: '#38bdf8', badgeBg: 'rgba(2, 132, 199, 0.30)', badgeBorder: '#38bdf8', badgeText: '#f0f9ff', zsFill: 'rgba(56, 189, 248, 0.12)' },
+    light: { primary: '#0284c7', line: '#0284c7', badgeBg: '#f0f9ff', badgeBorder: '#38bdf8', badgeText: '#0369a1', zsFill: 'rgba(2, 132, 199, 0.05)' }
   },
   '1F': {
     name: '红',
@@ -3145,7 +3145,7 @@ onBeforeUnmount(() => {
           <span class="p-color-item" style="color: #2563eb;">●周(蓝)</span>
           <span class="p-color-item" style="color: #059669;">●日(绿)</span>
           <span class="p-color-item" style="color: #d97706;">●30F(黄)</span>
-          <span class="p-color-item" style="color: #f97316;">●5F(橙)</span>
+          <span class="p-color-item" style="color: #0284c7;">●5F(青)</span>
           <span class="p-color-item" style="color: #ff1f1f;">●1F(鲜红)</span>
         </div>
 
