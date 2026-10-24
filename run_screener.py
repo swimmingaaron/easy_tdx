@@ -21,7 +21,7 @@ import signal
 import sys
 import threading
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -202,10 +202,130 @@ def display_period_menu(strategy_name: str) -> str:
         return "DAY"
 
 
+def parse_time_param(time_input: str | None) -> tuple[int, str, str]:
+    """解析时间参数/回溯窗口，支持天数(如 22)、时间缩写(如 1m, 1w, 2m, 3m) 或具体起始日期(如 2026-09-24)
+    
+    返回: (lookback_bars, time_desc, start_date_str)
+    默认: 22 交易日 (约1个月前 / 30自然日)
+    """
+    today = date.today()
+    s = str(time_input or "").strip().lower()
+
+    if not s or s in ("1m", "1月", "1月前", "month", "1month", "30d", "30天"):
+        bars = 22
+        cal_days = 30
+        st_date = today - timedelta(days=cal_days)
+        return bars, "1个月前 (22交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("1w", "1周", "1周前", "week", "1week", "5d", "5天"):
+        bars = 5
+        st_date = today - timedelta(days=7)
+        return bars, "1周前 (5交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("2w", "2周", "2周前", "10d", "10天"):
+        bars = 10
+        st_date = today - timedelta(days=14)
+        return bars, "2周前 (10交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("2m", "2月", "2月前", "60d", "60天"):
+        bars = 44
+        st_date = today - timedelta(days=60)
+        return bars, "2个月前 (44交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("3m", "3月", "3月前", "90d", "90天", "quarter"):
+        bars = 66
+        st_date = today - timedelta(days=90)
+        return bars, "3个月前 (66交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("6m", "半年", "半年内", "180d"):
+        bars = 125
+        st_date = today - timedelta(days=180)
+        return bars, "半年内 (125交易日)", st_date.strftime("%Y-%m-%d")
+
+    if s in ("1y", "1年", "1年内", "365d", "year"):
+        bars = 250
+        st_date = today - timedelta(days=365)
+        return bars, "1年内 (250交易日)", st_date.strftime("%Y-%m-%d")
+
+    # 尝试解析为纯数字 (交易日天数或自然天数)
+    clean_num = s.rstrip("d天日bars")
+    if clean_num.isdigit():
+        val = int(clean_num)
+        bars = max(1, val)
+        cal_days = max(1, int(bars * 7 / 5))
+        st_date = today - timedelta(days=cal_days)
+        return bars, f"{bars} 交易日前", st_date.strftime("%Y-%m-%d")
+
+    # 尝试解析为具体日期 (YYYY-MM-DD, YYYY/MM/DD, YYYYMMDD)
+    date_clean = s.replace("/", "-").replace(".", "")
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            target_dt = datetime.strptime(date_clean, fmt).date()
+            diff_days = (today - target_dt).days
+            if diff_days <= 0:
+                bars = 1
+                return bars, f"{target_dt.strftime('%Y-%m-%d')} (今日最新)", target_dt.strftime("%Y-%m-%d")
+            # 估算交易日 (约为自然日的 5/7)
+            bars = max(1, int(diff_days * 5 / 7))
+            return bars, f"{target_dt.strftime('%Y-%m-%d')} 至今 (约{bars}交易日)", target_dt.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    # 兜底默认 1 个月前 (22 交易日)
+    bars = 22
+    st_date = today - timedelta(days=30)
+    return bars, "1个月前 (22交易日)", st_date.strftime("%Y-%m-%d")
+
+
+def display_time_menu(strategy_name: str) -> tuple[int, str, str]:
+    """打印时间参数与信号回溯窗口选项并提示选择（默认 1: 1个月前 / 22交易日）"""
+    print("\n" + "=" * 80)
+    print(_colored("【第三步：时间范围与信号回溯】请选择买点有效时效（默认: 1个月前）：", Colors.BOLD + Colors.CYAN))
+    print("=" * 80)
+
+    options = [
+        ("1m", "1个月前 (22 交易日，兼顾稳定性与时效波段)", "【默认推荐】捕捉近一个月内出现的优质买点与共振转折"),
+        ("1w", "1周前 (5 交易日，极速超短)", "仅锁定近 5 个交易日内刚刚启动的最新买点"),
+        ("2w", "2周前 (10 交易日，短线主升)", "捕捉半月内确认次级别2/3买并刚开始加速拉升的标的"),
+        ("2m", "2个月前 (44 交易日，中线波段)", "跟踪近两月来筑底反转的中期上升趋势标的"),
+        ("3m", "3个月前 (66 交易日，大波段底部布局)", "季度级别大底部反转信号"),
+        ("custom", "自定义天数或起始日期", "手动输入交易日天数(如 15)或具体日期(如 2026-09-24)"),
+    ]
+
+    for seq, (t_code, t_name, t_desc) in enumerate(options, 1):
+        if seq == 1:
+            print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(t_code, Colors.BOLD):8s} {t_name} {_colored('[默认推荐]', Colors.GREEN)}")
+        else:
+            print(f"  [{seq}] {t_code:8s} {t_name}")
+        print(f"      {_colored('└─ ' + t_desc, Colors.CYAN)}")
+
+    prompt_txt = _colored("\n请输入时间范围序号 [1-6] 或天数/日期 (直接回车默认: 1. 1m 一个月前): ", Colors.BOLD + Colors.GREEN)
+    choice = input(prompt_txt).strip()
+
+    if not choice or choice == "1":
+        res = parse_time_param("1m")
+        print(_colored(f"已选择时间范围: {res[1]} (起始约 {res[2]} 至今)", Colors.GREEN))
+        return res
+    if choice.isdigit() and 1 <= int(choice) <= len(options):
+        sel_code = options[int(choice) - 1][0]
+        if sel_code == "custom":
+            custom_input = input(_colored("请输入自定义交易日天数(如 15)或具体日期(如 2026-09-24): ", Colors.YELLOW)).strip()
+            res = parse_time_param(custom_input)
+            print(_colored(f"已设置时间范围: {res[1]} (起始约 {res[2]} 至今)", Colors.GREEN))
+            return res
+        res = parse_time_param(sel_code)
+        print(_colored(f"已选择时间范围: {res[1]} (起始约 {res[2]} 至今)", Colors.GREEN))
+        return res
+
+    res = parse_time_param(choice)
+    print(_colored(f"已设置时间范围: {res[1]} (起始约 {res[2]} 至今)", Colors.GREEN))
+    return res
+
+
 def display_universe_menu() -> tuple[str, list[str] | None]:
     """打印选股范围选项并提示选择（默认 1: all 全市场全部股票）"""
     print("\n" + "=" * 80)
-    print(_colored("【第三步：选股范围】请选择扫描范围（默认: 全市场全A股）：", Colors.BOLD + Colors.CYAN))
+    print(_colored("【第四步：选股范围】请选择扫描范围（默认: 全市场全A股）：", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
 
     all_cnt = len(get_universe_symbols("all"))
@@ -250,7 +370,7 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
 def display_concurrency_menu() -> tuple[int, bool]:
     """配置并发线程数与缓存刷新行为"""
     print("\n" + "=" * 80)
-    print(_colored("【第四步：多线程并发与缓存设置】", Colors.BOLD + Colors.CYAN))
+    print(_colored("【第五步：多线程并发与缓存设置】", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
 
     # 1. 线程数（动态读取当前系统 CPU 逻辑核心/最大线程数）
@@ -273,10 +393,11 @@ def display_concurrency_menu() -> tuple[int, bool]:
     return workers, force_refresh
 
 
-def print_results_table(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, elapsed_sec: float) -> None:
+def print_results_table(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, elapsed_sec: float, time_desc: str = "") -> None:
     """以精美表格形式格式化输出最终选股命中结果"""
     print("\n" + "=" * 118)
-    header_title = f"【选股完成】策略: {strategy_name} | 周期: {period} | 范围: {universe} | 命中: {len(results)} 只 | 耗时: {elapsed_sec:.2f}s"
+    time_tag = f" | 回溯: {time_desc}" if time_desc else " | 回溯: 1个月前"
+    header_title = f"【选股完成】策略: {strategy_name} | 周期: {period}{time_tag} | 范围: {universe} | 命中: {len(results)} 只 | 耗时: {elapsed_sec:.2f}s"
     print(_colored(header_title, Colors.BOLD + Colors.GREEN))
     print("=" * 118)
 
@@ -328,7 +449,16 @@ def print_results_table(results: list[dict[str, Any]], strategy_name: str, perio
     print("=" * 118 + "\n")
 
 
-def export_results(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, total_scanned: int = 0) -> tuple[Path, Path]:
+def export_results(
+    results: list[dict[str, Any]], 
+    strategy_name: str, 
+    period: str, 
+    universe: str, 
+    total_scanned: int = 0,
+    lookback_bars: int = 22,
+    time_desc: str = "",
+    start_date: str = ""
+) -> tuple[Path, Path]:
     """将选股结果导出为 CSV 与 JSON 持久化报告，并同步写入 data/screener_cache 确保 48 大策略选股系统直接无缝复用"""
     output_dir = Path.cwd() / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -351,6 +481,9 @@ def export_results(results: list[dict[str, Any]], strategy_name: str, period: st
         "strategy": strategy_name,
         "universe": universe,
         "period": p_clean,
+        "lookback_bars": lookback_bars,
+        "time_desc": time_desc,
+        "start_date": start_date,
         "total_count": total_cnt,
         "date": today_str,
         "timestamp": time.time(),
@@ -411,6 +544,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="easy_tdx 全市场多策略多线程并发选股执行工具")
     parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略 / 可选 chanlun_dual_resonance 缠论二级共振策略等）")
     parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: ALL_CASCADE 全级别三级联共振 / DUAL_CASCADE 二级共振 / DAY）")
+    parser.add_argument("-t", "--time", "--lookback", dest="time_param", type=str, default="", help="信号回溯时间范围：支持天数(如 22)、时间跨度(如 1m, 1w, 2m, 3m) 或具体起始日期(如 2026-09-24)（默认: 1m / 22交易日，即约一月前）")
     parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/代码列表（默认: all）")
     cpu_threads = max(1, os.cpu_count() or 4)
     parser.add_argument("-w", "--workers", type=int, default=0, help=f"并发线程数（默认: 当前CPU最大线程数 {cpu_threads}）")
@@ -450,10 +584,13 @@ def main() -> None:
         # 2. 周期选择
         period = display_period_menu(strategy_name)
 
-        # 3. 选股范围选择
+        # 3. 时间范围选择
+        lookback_bars, time_desc, start_date_str = display_time_menu(strategy_name)
+
+        # 4. 选股范围选择
         universe_choice, custom_symbols = display_universe_menu()
 
-        # 4. 并发线程与缓存设置
+        # 5. 并发线程与缓存设置
         max_workers, force_refresh = display_concurrency_menu()
     else:
         strategy_name = args.strategy.strip() or "chanlun_resonance"
@@ -469,9 +606,10 @@ def main() -> None:
             period = "DAY"
         universe_choice = args.universe.strip() or "all"
         custom_symbols = None
-        if "," in universe_choice:
+        if "," in universe_choice or universe_choice.isdigit():
             custom_symbols = [c.strip().zfill(6) for c in universe_choice.split(",") if c.strip()]
             universe_choice = "custom"
+        lookback_bars, time_desc, start_date_str = parse_time_param(args.time_param or "1m")
         max_workers = args.workers if args.workers > 0 else cpu_threads
         force_refresh = args.refresh
 
@@ -487,6 +625,7 @@ def main() -> None:
     print(_colored(f"【准备就绪，开始多线程选股扫描】", Colors.BOLD + Colors.CYAN))
     print(f"● 选股策略: {_colored(strategy_name, Colors.GREEN + Colors.BOLD)} ({get_strategy(strategy_name).display_name})")
     print(f"● 执行周期: {_colored(period, Colors.GREEN)}")
+    print(f"● 信号时效: {_colored(f'{time_desc} (起始约 {start_date_str} 至今)', Colors.CYAN)}")
     print(f"● 选股范围: {_colored(universe_desc, Colors.YELLOW)}")
     print(f"● 并发配置: {_colored(str(max_workers) + ' 线程', Colors.BOLD)}")
     print(f"● 行情来源: {_colored('通达信实时行情服务器 (自动写入本地 cache)', Colors.CYAN)}")
@@ -533,7 +672,7 @@ def main() -> None:
             symbols=symbols_to_scan,
             universe=universe_choice if not custom_symbols else "custom",
             period=period,
-            lookback_bars=22,
+            lookback_bars=lookback_bars,
             use_cache=not force_refresh,
             force_refresh=force_refresh,
             progress_callback=progress_callback,
@@ -548,10 +687,19 @@ def main() -> None:
     print()  # 换行
 
     # 格式化打印结果表格
-    print_results_table(results, strategy_name, period, universe_choice, elapsed_total)
+    print_results_table(results, strategy_name, period, universe_choice, elapsed_total, time_desc=time_desc)
 
     # 导出报表与同步缓存 (无论是否命中皆生成标准结构，确保 48 大策略系统直接无缝复用)
-    csv_p, json_p = export_results(results, strategy_name, period, universe_choice, total_scanned=len(symbols_to_scan))
+    csv_p, json_p = export_results(
+        results, 
+        strategy_name, 
+        period, 
+        universe_choice, 
+        total_scanned=len(symbols_to_scan),
+        lookback_bars=lookback_bars,
+        time_desc=time_desc,
+        start_date=start_date_str
+    )
     print(_colored(f"[+] 选股结果报表与系统缓存已自动同步更新 (与 48 大策略选股系统完全一致):", Colors.BOLD + Colors.CYAN))
     if results:
         print(f"   CSV 报表 : {_colored(str(csv_p), Colors.GREEN)}")

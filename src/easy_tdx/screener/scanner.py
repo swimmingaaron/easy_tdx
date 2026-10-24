@@ -46,7 +46,7 @@ def _get_cache_file(strategy_name: str, universe: str, period: str = "DAY") -> P
     p_clean = str(period).strip().upper()
     return _get_cache_dir() / f"{strategy_name}_{universe}_{p_clean}_{today_str}.json"
 
-def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected_total: int = 0, force_refresh: bool = False) -> list[dict[str, Any]] | None:
+def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected_total: int = 0, force_refresh: bool = False, lookback_bars: int = 0) -> list[dict[str, Any]] | None:
     if force_refresh:
         return None
     today_str = date.today().strftime("%Y%m%d")
@@ -96,6 +96,9 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
                 cached_total = len(data)
 
             if matches is not None:
+                if lookback_bars > 0:
+                    matches = [m for m in matches if int(m.get("days_ago") or 0) <= lookback_bars]
+
                 # 检查是否为当日生成的缓存 (同日扫描结果具有高度复用价值)
                 is_same_day = (cached_date == today_str) or (today_str in cache_f.name)
                 
@@ -741,7 +744,12 @@ def _evaluate_stock_for_strategy(
                 trigger_loc = len(sig_df) - 1
                 days_ago = 0
 
-            # 价格与风控防线：最新收盘价不得跌破买点止损位
+            # 1. 严格时效性控制：买点必须在指定时间窗口内 (默认一月前 / 22交易日)
+            effective_lookback = lookback_bars if lookback_bars > 0 else 22
+            if days_ago > effective_lookback:
+                return None
+
+            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
             if trigger_p > 0:
@@ -885,7 +893,12 @@ def _evaluate_stock_for_strategy(
                 trigger_loc = len(sig_df) - 1
                 days_ago = 0
 
-            # 价格与风控防线：最新收盘价不得跌破买点止损位
+            # 1. 严格时效性控制：买点必须在指定时间窗口内 (默认一月前 / 22交易日)
+            effective_lookback = lookback_bars if lookback_bars > 0 else 22
+            if days_ago > effective_lookback:
+                return None
+
+            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
             if trigger_p > 0:
@@ -1519,7 +1532,7 @@ def scan_market_strategy(
 
     # 1. Check disk cache if symbols is not custom and not force_refresh
     if not is_custom_symbols and use_cache and not force_refresh:
-        cached = _load_cache(strategy_name, universe, period=period, expected_total=total_count, force_refresh=force_refresh)
+        cached = _load_cache(strategy_name, universe, period=period, expected_total=total_count, force_refresh=force_refresh, lookback_bars=lookback_bars)
         if cached is not None:
             if progress_callback:
                 progress_callback(total_count, total_count, len(cached), 100.0)
