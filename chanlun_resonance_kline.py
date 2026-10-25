@@ -1914,10 +1914,15 @@ def analyze_and_plot_resonance(
             base_period: bars_count,
         }
 
-    # 分钟级别控制充足数量：5F/1F默认 2500 根 (约 52 个交易日，确保覆盖日线最近一根完成线段)
+    # 分钟级别控制充足数量：5F/5M默认 6000 根 (约 125 个交易日，确保充分覆盖日线大级别走势与完整中枢)；1F默认 2500 根
     # 随后由绘图引擎智能裁剪对齐到日线线段起点
     for p in p_list:
-        if p in ("5F", "5M", "1F", "1M"):
+        if p in ("5F", "5M"):
+            if bars_count is None:
+                req_counts[p] = 6000
+            else:
+                req_counts[p] = max(req_counts.get(p, 0), bars_count)
+        elif p in ("1F", "1M"):
             if bars_count is None:
                 req_counts[p] = 2500
             else:

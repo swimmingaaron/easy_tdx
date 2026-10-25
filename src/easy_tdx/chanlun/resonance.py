@@ -1267,9 +1267,7 @@ def analyze_multi_period_resonance(
     # 4.1 请求 K 线基准根数（严格对齐周期特性深度规划）:
     # 季线 (SEASON): 最大拉取 60 根（覆盖约 15 年）；
     # 月线 (MONTH): 最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
-    # 周线 (WEEK): 最大安全拉取 250 根（覆盖约 5 年）；
-    # 日线 : 维持 500~800 根；
-    # 30M 5F 1F 分钟线 : 维持 3000 根
+    # 5F 分钟线 : 维持 6000 根； 30M 15F 1F 分钟线 : 维持 3000 根
     if screener_mode:
         req_counts = {
             high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 500)),
@@ -1282,9 +1280,11 @@ def analyze_multi_period_resonance(
             mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 800),
             low_p: 250 if low_p == "WEEK" else 800,
         }
-    # 30M / 5F / 1F 分钟线：统一维持 3000 根
+    # 5F 分钟线维持 6000 根；30M / 15F / 1F 分钟线维持 3000 根
     for p in p_list:
-        if p in ("30F", "30M", "15F", "15M", "5F", "5M", "1F", "1M"):
+        if p in ("5F", "5M"):
+            req_counts[p] = 6000
+        elif p in ("30F", "30M", "15F", "15M", "1F", "1M"):
             req_counts[p] = 3000
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
@@ -1318,8 +1318,10 @@ def analyze_multi_period_resonance(
             target_cnt = 250  # 最大安全拉取 250 根
         elif p_name in ("DAY", "120M", "60M"):
             target_cnt = 500 if screener_mode else 800  # 日线维持 500~800 根
-        elif p_name in ("30F", "30M", "15F", "15M", "5F", "5M", "1F", "1M"):
-            target_cnt = 3000  # 30M 5F 1F 分钟线维持 3000 根
+        elif p_name in ("5F", "5M"):
+            target_cnt = 6000  # 5F 分钟线维持 6000 根
+        elif p_name in ("30F", "30M", "15F", "15M", "1F", "1M"):
+            target_cnt = 3000  # 30M 15F 1F 分钟线维持 3000 根
         else:
             target_cnt = max(needed_cnt, 800)
 

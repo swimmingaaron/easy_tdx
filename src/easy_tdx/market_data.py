@@ -334,7 +334,7 @@ def fetch_security_kline(
     # 月线 (MONTH)：最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
     # 周线 (WEEK)：最大安全拉取 250 根（覆盖约 5 年）；
     # 日线 ： 维持 500~800 根；
-    # 30M 5F 1F 分钟线 ： 维持 3000 根
+    # 5F 分钟线 ： 维持 6000 根； 30M 15F 1F 分钟线 ： 维持 3000 根
     effective_req_count = count
     if category in (KlineCategory.SEASON, KlineCategory.YEAR):
         effective_req_count = min(count, 60)
@@ -348,7 +348,9 @@ def fetch_security_kline(
     elif category == KlineCategory.DAY:
         effective_req_count = min(max(count, 500), 800) if count <= 800 else count
         pull_count = max(count, 800)
-    elif category in (KlineCategory.MIN_1, KlineCategory.MIN_5, KlineCategory.MIN_15, KlineCategory.MIN_30):
+    elif category == KlineCategory.MIN_5:
+        pull_count = max(count, 6000)
+    elif category in (KlineCategory.MIN_1, KlineCategory.MIN_15, KlineCategory.MIN_30):
         pull_count = max(count, 3000)
     else:
         pull_count = max(count, 800)
