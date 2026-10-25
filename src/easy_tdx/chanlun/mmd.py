@@ -127,7 +127,13 @@ def _check_buy_point(
             )
 
     # ── 2. 一类买点：处于中枢下方 (bi.low < zs.zd)，底背驰衰竭点
-    if bi.low < zs.zd:
+    # 缠论公理：一买必须跌破前一个同向向下笔的低点（创新低）！
+    # 若未创新低（回踩高于或平于前低），绝不构成底背驰一买，必须留给二类买点判定！
+    bi_idx = bi.index
+    prev_down_bi = all_bis[bi_idx - 2] if bi_idx >= 2 and bi_idx - 2 < len(all_bis) and all_bis[bi_idx - 2].direction == Direction.DOWN else None
+    is_lower_than_prev = (prev_down_bi is None or bi.low < prev_down_bi.low * 0.998)
+
+    if bi.low < zs.zd and is_lower_than_prev:
         if _check_force_decreasing(
             bi, all_bis, Direction.DOWN, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
         ):
@@ -140,9 +146,7 @@ def _check_buy_point(
 
     # ── 3. 二类买点：一买之后或中枢下方探底后，回踩不创新低（兼容平底/双底）
     # 要求：1) 高于或平于前一个向下笔低点；2) 发生在中枢下沿或中枢建立/突破初期的第一折回踩
-    bi_idx = bi.index
     if bi_idx >= 2:
-        prev_down_bi = all_bis[bi_idx - 2] if bi_idx - 2 < len(all_bis) else None
         if prev_down_bi and prev_down_bi.direction == Direction.DOWN:
             if bi.low >= prev_down_bi.low * 0.998:
                 is_valid_2buy = False
@@ -185,7 +189,13 @@ def _check_sell_point(
             )
 
     # ── 2. 一类卖点：处于中枢上方 (bi.high > zs.zg)，顶背驰衰竭点
-    if bi.high > zs.zg:
+    # 缠论公理：一卖必须突破前一个同向向上笔的高点（创新高）！
+    # 若未创新高（反弹受阻于前高），绝不构成顶背驰一卖，必须留给二类卖点判定！
+    bi_idx = bi.index
+    prev_up_bi = all_bis[bi_idx - 2] if bi_idx >= 2 and bi_idx - 2 < len(all_bis) and all_bis[bi_idx - 2].direction == Direction.UP else None
+    is_higher_than_prev = (prev_up_bi is None or bi.high > prev_up_bi.high * 1.002)
+
+    if bi.high > zs.zg and is_higher_than_prev:
         if _check_force_decreasing(
             bi, all_bis, Direction.UP, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
         ):
@@ -197,9 +207,7 @@ def _check_sell_point(
             )
 
     # ── 3. 二类卖点：一卖之后或中枢冲顶后，反弹不创新高（兼容双顶/平顶滞涨受阻）
-    bi_idx = bi.index
     if bi_idx >= 2:
-        prev_up_bi = all_bis[bi_idx - 2] if bi_idx - 2 < len(all_bis) else None
         if prev_up_bi and prev_up_bi.direction == Direction.UP:
             if bi.high <= prev_up_bi.high * 1.002:
                 is_valid_2sell = False
@@ -237,6 +245,7 @@ def _check_force_decreasing(
     )
 
     # 缠论背驰核心定义：离开段不仅可以和紧邻前一笔比，更要回溯比对中枢进入段及同向峰值笔 (a段与c段比较)
+    # 严格约束：不能越过比自身更极端的中间笔去和更早的笔比背驰（即在区间[j, bi_idx)内当前笔必须是最极端的低点/高点）
     for j in range(bi_idx - 1, max(-1, bi_idx - 10), -1):
         prev = all_bis[j]
         if prev.direction == direction:
@@ -246,11 +255,13 @@ def _check_force_decreasing(
 
             if direction == Direction.DOWN:
                 # 价格创新低且力度衰竭 (底背驰)
-                if bi.low <= prev.low and curr_force < prev_force:
+                min_intermediate_low = min((all_bis[k].low for k in range(j, bi_idx) if all_bis[k].direction == Direction.DOWN), default=bi.low)
+                if bi.low <= prev.low and bi.low <= min_intermediate_low and curr_force < prev_force:
                     return True
             else:
                 # 价格创新高且力度衰竭 (顶背驰)
-                if bi.high >= prev.high and curr_force < prev_force:
+                max_intermediate_high = max((all_bis[k].high for k in range(j, bi_idx) if all_bis[k].direction == Direction.UP), default=bi.high)
+                if bi.high >= prev.high and bi.high >= max_intermediate_high and curr_force < prev_force:
                     return True
 
     return False

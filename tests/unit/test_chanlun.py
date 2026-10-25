@@ -873,3 +873,50 @@ class TestChanlunMergedChart:
         assert mid.direction == "down"
         assert mid.high == 15.0  # 高点取较低: min(17, 16, 15) = 15
         assert mid.low == 12.0   # 低点取最小: min(12, 13, 14) = 12
+
+    def test_higher_low_after_1buy_is_2buy_not_1buy(self) -> None:
+        """测试缠论公理：一买之后回踩不创新低（low >= prev_low）必须判定为二买(2BUY)，绝不能误判为一买(1BUY)。"""
+        from easy_tdx.chanlun.types import Direction, MMDType, MMD, ZS
+        from easy_tdx.chanlun.mmd import _check_buy_point
+
+        class DummyK:
+            def __init__(self, d: str, k_idx: int):
+                self.date = d
+                self.k_index = k_idx
+
+        class DummyFX:
+            def __init__(self, val: float, d: str, k_idx: int):
+                self.val = val
+                self.k = DummyK(d, k_idx)
+
+        class DummyBI:
+            def __init__(self, idx: int, s_val: float, e_val: float, s_d: str, e_d: str, s_idx: int, e_idx: int):
+                self.index = idx
+                self.direction = Direction.UP if e_val > s_val else Direction.DOWN
+                self.start = DummyFX(s_val, s_d, s_idx)
+                self.end = DummyFX(e_val, e_d, e_idx)
+                self.high = max(s_val, e_val)
+                self.low = min(s_val, e_val)
+
+        # 构建一个下跌中枢以及一买后的回踩：
+        # bi0: 下跌 (20 -> 14)
+        # bi1: 反弹 (14 -> 17)
+        # bi2: 回落 (17 -> 15)
+        # bi3: 离开中枢跌至一买底背驰 (15 -> 11.60) -> 1BUY
+        # bi4: 一买后次级别向上反弹 (11.60 -> 13.00)
+        # bi5: 次次回踩不破前低 (13.00 -> 12.00) -> 必须是 2BUY，绝不是 1BUY!
+        b0 = DummyBI(0, 20.0, 14.0, "2026-01-01", "2026-01-05", 0, 4)
+        b1 = DummyBI(1, 14.0, 17.0, "2026-01-05", "2026-01-10", 4, 8)
+        b2 = DummyBI(2, 17.0, 15.0, "2026-01-10", "2026-01-15", 8, 12)
+        b3 = DummyBI(3, 15.0, 11.6, "2026-01-15", "2026-01-20", 12, 16)
+        b4 = DummyBI(4, 11.6, 13.0, "2026-01-20", "2026-01-25", 16, 20)
+        b5 = DummyBI(5, 13.0, 12.0, "2026-01-25", "2026-01-30", 20, 24)
+
+        all_bis = [b0, b1, b2, b3, b4, b5]
+        zs = ZS(zd=14.0, zg=17.0, dd=11.6, gg=20.0, lines=[b0, b1, b2])
+
+        mmd = _check_buy_point(b5, zs, all_bis)
+        assert mmd is not None
+        assert mmd.mmd_type == MMDType.BUY_2
+        assert "二类买点" in mmd.msg
+
