@@ -24362,117 +24362,6 @@
             };
         }
 
-        /**
-         * 语义化地图缩放分级显示 (LOD Level of Detail) 算法：
-         * 仿照地图缩放原理 (如省级/市级/街区)：
-         * 1. 远景宏观 (visibleBars > 130 根)：仅显示核心立体共振买卖点、大级别买卖点与中级别顶底背驰核心1买1卖；小级别全部折叠隐藏，彻底解决标签重叠遮挡。
-         * 2. 中景波段 (65 < visibleBars <= 130 根)：展开显示中级别所有买卖点 (1/2/3买卖) 与小级别核心1买1卖。
-         * 3. 局部特写 (visibleBars <= 65 根)：纤毫毕现，展开显示大、中、小级别的所有局部 1/2/3 买卖点及顶底分型。
-         */
-        function filterChanlunLODMarkPoints(allMmdMarks, resMarks, fractalMarks, visibleBars, isSinglePeriod) {
-            resMarks = resMarks || [];
-            fractalMarks = fractalMarks || [];
-            allMmdMarks = allMmdMarks || [];
-
-            // 收集共振点所在的日期，避免同根 K 线上重叠覆盖
-            const resDates = new Set();
-            for (let i = 0; i < resMarks.length; i++) {
-                const r = resMarks[i];
-                if (r && r.coord && r.coord[0]) resDates.add(String(r.coord[0]));
-            }
-
-            // Tier 3: 局部特写 (visibleBars <= 65) -> 显示所有买卖点与顶底分型
-            if (visibleBars <= 65) {
-                return [...fractalMarks, ...allMmdMarks, ...resMarks];
-            }
-
-            // Tier 2: 中景波段 (65 < visibleBars <= 130) -> 大级别全部 + 中级别全部 + 小级别核心1买1卖
-            if (visibleBars <= 130) {
-                const seenMidDates = new Set();
-                const filteredMmd = allMmdMarks.filter(m => {
-                    const lvl = m._level || 'low';
-                    const mType = (m._type || '').toUpperCase();
-                    const isFirst = mType.includes('1BUY') || mType.includes('1SELL') || mType.includes('1买') || mType.includes('1卖');
-                    const mDate = String(m._date || (m.coord ? m.coord[0] : ''));
-
-                    // 同根 K 线上已有共振大点时，抑制小级别次级买卖点重叠
-                    if (lvl === 'low' && resDates.has(mDate)) return false;
-
-                    if (isSinglePeriod) {
-                        const isSecond = mType.includes('2BUY') || mType.includes('2SELL') || mType.includes('2买') || mType.includes('2卖');
-                        return isFirst || isSecond;
-                    }
-                    if (lvl === 'high') return true;
-                    if (lvl === 'mid') {
-                        seenMidDates.add(mDate);
-                        return true;
-                    }
-                    // 小级别：仅显示核心 1买/1卖，若同日已有中级别点则抑制
-                    if (lvl === 'low') {
-                        if (seenMidDates.has(mDate)) return false;
-                        return isFirst;
-                    }
-                    return false;
-                });
-                return [...filteredMmd, ...resMarks];
-            }
-
-            // Tier 1: 远景全局 (visibleBars > 130) -> 仅显示大级别全部 + 中级别核心1买1卖 + 共振点
-            const filteredMmd = allMmdMarks.filter(m => {
-                const lvl = m._level || 'low';
-                const mType = (m._type || '').toUpperCase();
-                const isFirst = mType.includes('1BUY') || mType.includes('1SELL') || mType.includes('1买') || mType.includes('1卖');
-                const mDate = String(m._date || (m.coord ? m.coord[0] : ''));
-
-                if (resDates.has(mDate) && lvl !== 'high') return false;
-
-                if (isSinglePeriod) {
-                    return isFirst;
-                }
-                if (lvl === 'high') return true;
-                if (lvl === 'mid' && isFirst) return true;
-                // 小级别在跨度较大时全部隐藏
-                return false;
-            });
-            return [...filteredMmd, ...resMarks];
-        }
-
-        function handleChanlunLODZoom(instance) {
-            if (!instance || !instance._clAllMmdMarks || !instance._clDatesLength) return;
-            const opt = instance.getOption();
-            const dz = opt && opt.dataZoom && opt.dataZoom[0];
-            if (!dz) return;
-
-            const totalBars = instance._clDatesLength;
-            let visibleBars = totalBars;
-            if (typeof dz.start === 'number' && typeof dz.end === 'number') {
-                const span = Math.max(0.1, dz.end - dz.start);
-                visibleBars = Math.max(1, Math.round((span / 100) * totalBars));
-            } else if (typeof dz.startValue === 'number' && typeof dz.endValue === 'number') {
-                visibleBars = Math.max(1, Math.round(dz.endValue - dz.startValue + 1));
-            }
-
-            const newTier = visibleBars <= 65 ? 3 : (visibleBars <= 130 ? 2 : 1);
-            if (newTier !== instance._clCurrentLODTier) {
-                instance._clCurrentLODTier = newTier;
-                const filteredMarks = filterChanlunLODMarkPoints(
-                    instance._clAllMmdMarks,
-                    instance._clResMarks,
-                    instance._clFractalMarks,
-                    visibleBars,
-                    instance._clIsSinglePeriod
-                );
-                instance.setOption({
-                    series: [{
-                        id: 'cl-candlestick-series',
-                        markPoint: {
-                            data: filteredMarks
-                        }
-                    }]
-                }, false);
-            }
-        }
-
         function buildChanlunEchartOption(d, isDark, prevDataZoom, side) {
             if (!d || !d.unified_chart) return null;
             const uc = (_clMergeKlines && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
@@ -24634,11 +24523,7 @@
                         fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
                         shadowBlur: isDark ? 3 : 0,
                         shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent'
-                    },
-                    _level: m.level || 'low',
-                    _type: (m.type || '').toUpperCase(),
-                    _date: m.date || (m.coord ? m.coord[0] : ''),
-                    _isBuy: m.is_buy
+                    }
                 };
             }) : [];
 
@@ -24670,9 +24555,7 @@
                         fontWeight: 'bold',
                         fontSize: 10.5,
                         formatter: r.label
-                    },
-                    _isRes: true,
-                    _date: r.date || (r.coord ? r.coord[0] : '')
+                    }
                 };
             }) : [];
 
@@ -24729,9 +24612,7 @@
                         borderWidth: 0.8,
                         borderRadius: 2,
                         padding: [1, 2]
-                    },
-                    _isFractal: true,
-                    _date: f.date || (f.coord ? f.coord[0] : '')
+                    }
                 };
             });
 
@@ -25480,19 +25361,6 @@
             })();
             const finalEnd = prevDataZoom ? prevDataZoom.end : defaultZoomEnd;
 
-            // 地图缩放分级显示 (LOD)：计算当前视口跨度柱数与初始分级 Tier
-            const isSinglePeriod = Boolean(d && d.summary && d.summary.is_single_period);
-            const currentZoomSpan = Math.max(0.1, finalEnd - finalStart);
-            const visibleBars = Math.max(1, Math.round((currentZoomSpan / 100) * dates.length));
-            const currentTier = visibleBars <= 65 ? 3 : (visibleBars <= 130 ? 2 : 1);
-            const initialLODMarks = filterChanlunLODMarkPoints(
-                mmdMarkPoints,
-                resMarkPoints,
-                fractalMarkPoints,
-                visibleBars,
-                isSinglePeriod
-            );
-
             const option = {
                 backgroundColor: 'transparent',
                 animation: false,
@@ -25796,7 +25664,6 @@
                     // 基准蜡烛图 (参考K线弹窗配色)
                     {
                         name: '基准K线',
-                        id: 'cl-candlestick-series',
                         type: 'candlestick',
                         barWidth: '55%',
                         barMaxWidth: 14,
@@ -25810,7 +25677,11 @@
                             borderColor0: '#089981'
                         },
                         markPoint: {
-                            data: initialLODMarks
+                            data: [
+                                ...fractalMarkPoints,
+                                ...mmdMarkPoints,
+                                ...resMarkPoints
+                            ]
                         },
                         markLine: {
                             data: [
@@ -25833,15 +25704,6 @@
                     // 副图指标系列
                     ...subSeries
                 ]
-            };
-
-            option._clMarksMeta = {
-                mmdMarkPoints: mmdMarkPoints,
-                resMarkPoints: resMarkPoints,
-                fractalMarkPoints: fractalMarkPoints,
-                datesLength: dates.length,
-                isSinglePeriod: isSinglePeriod,
-                tier: currentTier
             };
 
             return option;
@@ -25928,6 +25790,11 @@
             if (!instance) {
                 instance = echarts.init(chartDom, isDark ? 'dark' : null);
                 instance._clThemeMode = isDark ? 'dark' : 'light';
+                if (side === 'left' || side === 'w1') {
+                    instance.on('dataZoom', () => {
+                        updateChanlunVisibleExtrema();
+                    });
+                }
                 window[instanceProp] = instance;
             }
 
@@ -26045,26 +25912,9 @@
 
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
             if (opt) {
-                if (opt._clMarksMeta) {
-                    instance._clAllMmdMarks = opt._clMarksMeta.mmdMarkPoints;
-                    instance._clResMarks = opt._clMarksMeta.resMarkPoints;
-                    instance._clFractalMarks = opt._clMarksMeta.fractalMarkPoints;
-                    instance._clDatesLength = opt._clMarksMeta.datesLength;
-                    instance._clIsSinglePeriod = opt._clMarksMeta.isSinglePeriod;
-                    instance._clCurrentLODTier = opt._clMarksMeta.tier;
-                }
                 instance.setOption(opt, true);
                 try { instance.resize(); } catch (_) {}
             }
-
-            // 监听 dataZoom 缩放，实时依据地图缩放分级显示买卖点
-            instance.off('dataZoom');
-            instance.on('dataZoom', () => {
-                if (side === 'left' || side === 'w1') {
-                    updateChanlunVisibleExtrema();
-                }
-                handleChanlunLODZoom(instance);
-            });
 
             // 鼠标点击图表任意区域时，将该窗口设为回溯主控窗口
             instance.off('click');

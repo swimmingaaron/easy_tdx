@@ -1051,113 +1051,6 @@ function getPeriodTheme(keyOrName?: string, isDark?: boolean): PeriodColorTheme 
   }
 }
 
-/**
- * 语义化地图缩放分级显示 (LOD Level of Detail) 算法：
- * 仿照地图缩放原理 (如省级/市级/街区)：
- * 1. 远景宏观 (visibleBars > 130 根)：仅显示核心立体共振买卖点、大级别买卖点与中级别顶底背驰核心1买1卖；小级别全部折叠隐藏，彻底解决标签重叠遮挡。
- * 2. 中景波段 (65 < visibleBars <= 130 根)：展开显示中级别所有买卖点 (1/2/3买卖) 与小级别核心1买1卖。
- * 3. 局部特写 (visibleBars <= 65 根)：纤毫毕现，展开显示大、中、小级别的所有局部 1/2/3 买卖点及顶底分型。
- */
-function filterChanlunLODMarkPoints(allMmdMarks: any[], resMarks: any[], fractalMarks: any[], visibleBars: number, isSinglePeriod: boolean): any[] {
-  resMarks = resMarks || []
-  fractalMarks = fractalMarks || []
-  allMmdMarks = allMmdMarks || []
-
-  const resDates = new Set<string>()
-  for (let i = 0; i < resMarks.length; i++) {
-    const r = resMarks[i]
-    if (r && r.coord && r.coord[0]) resDates.add(String(r.coord[0]))
-  }
-
-  // Tier 3: 局部特写 (visibleBars <= 65) -> 显示所有买卖点与顶底分型
-  if (visibleBars <= 65) {
-    return [...fractalMarks, ...allMmdMarks, ...resMarks]
-  }
-
-  // Tier 2: 中景波段 (65 < visibleBars <= 130) -> 大级别全部 + 中级别全部 + 小级别核心1买1卖
-  if (visibleBars <= 130) {
-    const seenMidDates = new Set<string>()
-    const filteredMmd = allMmdMarks.filter((m: any) => {
-      const lvl = m._level || 'low'
-      const mType = (m._type || '').toUpperCase()
-      const isFirst = mType.includes('1BUY') || mType.includes('1SELL') || mType.includes('1买') || mType.includes('1卖')
-      const mDate = String(m._date || (m.coord ? m.coord[0] : ''))
-
-      if (lvl === 'low' && resDates.has(mDate)) return false
-
-      if (isSinglePeriod) {
-        const isSecond = mType.includes('2BUY') || mType.includes('2SELL') || mType.includes('2买') || mType.includes('2卖')
-        return isFirst || isSecond
-      }
-      if (lvl === 'high') return true
-      if (lvl === 'mid') {
-        seenMidDates.add(mDate)
-        return true
-      }
-      if (lvl === 'low') {
-        if (seenMidDates.has(mDate)) return false
-        return isFirst
-      }
-      return false
-    })
-    return [...filteredMmd, ...resMarks]
-  }
-
-  // Tier 1: 远景全局 (visibleBars > 130) -> 仅显示大级别全部 + 中级别核心1买1卖 + 共振点
-  const filteredMmd = allMmdMarks.filter((m: any) => {
-    const lvl = m._level || 'low'
-    const mType = (m._type || '').toUpperCase()
-    const isFirst = mType.includes('1BUY') || mType.includes('1SELL') || mType.includes('1买') || mType.includes('1卖')
-    const mDate = String(m._date || (m.coord ? m.coord[0] : ''))
-
-    if (resDates.has(mDate) && lvl !== 'high') return false
-
-    if (isSinglePeriod) {
-      return isFirst
-    }
-    if (lvl === 'high') return true
-    if (lvl === 'mid' && isFirst) return true
-    return false
-  })
-  return [...filteredMmd, ...resMarks]
-}
-
-function handleChanlunLODZoom(instance: any) {
-  if (!instance || !instance._clAllMmdMarks || !instance._clDatesLength) return
-  const opt = instance.getOption()
-  const dz = opt && opt.dataZoom && opt.dataZoom[0]
-  if (!dz) return
-
-  const totalBars = instance._clDatesLength
-  let visibleBars = totalBars
-  if (typeof dz.start === 'number' && typeof dz.end === 'number') {
-    const span = Math.max(0.1, dz.end - dz.start)
-    visibleBars = Math.max(1, Math.round((span / 100) * totalBars))
-  } else if (typeof dz.startValue === 'number' && typeof dz.endValue === 'number') {
-    visibleBars = Math.max(1, Math.round(dz.endValue - dz.startValue + 1))
-  }
-
-  const newTier = visibleBars <= 65 ? 3 : (visibleBars <= 130 ? 2 : 1)
-  if (newTier !== instance._clCurrentLODTier) {
-    instance._clCurrentLODTier = newTier
-    const filteredMarks = filterChanlunLODMarkPoints(
-      instance._clAllMmdMarks,
-      instance._clResMarks,
-      [],
-      visibleBars,
-      instance._clIsSinglePeriod
-    )
-    instance.setOption({
-      series: [{
-        id: 'cl-candlestick-series',
-        markPoint: {
-          data: filteredMarks,
-        },
-      }],
-    }, false)
-  }
-}
-
 function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' | 'right' | 'w4'): any {
   const uc = (isKlineMerged.value && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
     ? d.merged_chart
@@ -1330,10 +1223,6 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             shadowBlur: isDark ? 3 : 0,
             shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent',
           },
-          _level: m.level || 'low',
-          _type: (m.type || '').toUpperCase(),
-          _date: m.date || (m.coord ? m.coord[0] : ''),
-          _isBuy: m.is_buy,
         }
       })
     : []
@@ -1368,8 +1257,6 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             fontSize: 10.5,
             formatter: r.label,
           },
-          _isRes: true,
-          _date: r.date || (r.coord ? r.coord[0] : ''),
         }
       })
     : []
@@ -1779,56 +1666,6 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   const midBiLegendName = `中笔·${d.periods.mid.name}(${midTheme.name})`
   const lowBiLegendName = `小笔·${d.periods.low.name}(${lowTheme.name})`
 
-  // 保证每个窗口默认显示窗口中，有且只有一个完整的大周期线段
-  const totalBars = uc.dates ? uc.dates.length : 0
-  let defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100)
-  let defaultZoomEnd = 100
-
-  const highBis = uc.high_bis || []
-  if (highBis.length > 0 && totalBars > 0) {
-    const targetBi = highBis[highBis.length - 1]
-    const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null
-
-    const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
-    let leftMargin = 4
-    if (prevBi) {
-      const prevStartIdx = Math.max(0, prevBi.start_idx)
-      const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
-      leftMargin = Math.min(leftMargin, allowedMargin)
-    }
-    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
-
-    defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
-    defaultZoomEnd = 100
-  } else if ((uc.mid_bis || []).length > 0 && totalBars > 0) {
-    const midBis = uc.mid_bis || []
-    const targetBi = midBis[midBis.length - 1]
-    const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null
-    const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
-    let leftMargin = 4
-    if (prevBi) {
-      const prevStartIdx = Math.max(0, prevBi.start_idx)
-      const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
-      leftMargin = Math.min(leftMargin, allowedMargin)
-    }
-    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
-    defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
-    defaultZoomEnd = 100
-  }
-
-  // 地图缩放分级显示 (LOD)：计算当前视口跨度柱数与初始分级 Tier
-  const isSinglePeriod = Boolean(d && d.summary && d.summary.is_single_period)
-  const initialZoomSpan = Math.max(0.1, defaultZoomEnd - defaultZoomStart)
-  const visibleBars = Math.max(1, Math.round((initialZoomSpan / 100) * totalBars))
-  const currentTier = visibleBars <= 65 ? 3 : (visibleBars <= 130 ? 2 : 1)
-  const initialLODMarks = filterChanlunLODMarkPoints(
-    mmdMarkPoints,
-    resonanceMarkPoints,
-    [],
-    visibleBars,
-    isSinglePeriod
-  )
-
   const option: echarts.EChartsCoreOption = {
     backgroundColor: '#131722',
     animation: false,
@@ -2148,32 +1985,77 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         },
       },
     ],
-    dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: [0, 1],
-        minValueSpan: 10,
-        start: defaultZoomStart,
-        end: defaultZoomEnd,
-      },
-      {
-        type: 'slider',
-        xAxisIndex: [0, 1],
-        bottom: 4,
-        height: 14,
-        minValueSpan: 10,
-        borderColor: '#2a2e39',
-        backgroundColor: '#181b27',
-        fillerColor: 'rgba(41, 98, 255, 0.25)',
-        textStyle: { color: '#888888', fontSize: 10 },
-        start: defaultZoomStart,
-        end: defaultZoomEnd,
-      },
-    ],
+    ...(() => {
+      // 保证每个窗口默认显示窗口中，有且只有一个完整的大周期线段
+      const totalBars = uc.dates ? uc.dates.length : 0
+      let defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100)
+      let defaultZoomEnd = 100
+
+      const highBis = uc.high_bis || []
+      if (highBis.length > 0 && totalBars > 0) {
+        const targetBi = highBis[highBis.length - 1]
+        const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null
+
+        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+
+        // 留出适度左边距（例如 3~5 根K线），确保起始顶点圆形标记和分型清晰展现；
+        // 同时边距严控不超过与前一条线段起点的间距，确保前一条线段在视野内不完整，
+        // 从而保证当前默认显示窗口中有且仅有一个完整的大周期线段。
+        let leftMargin = 4
+        if (prevBi) {
+          const prevStartIdx = Math.max(0, prevBi.start_idx)
+          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+          leftMargin = Math.min(leftMargin, allowedMargin)
+        }
+        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+
+        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+        defaultZoomEnd = 100
+      } else if ((uc.mid_bis || []).length > 0 && totalBars > 0) {
+        // 兜底：若暂无大级别笔，则退化使用中级别最新完整线段
+        const midBis = uc.mid_bis || []
+        const targetBi = midBis[midBis.length - 1]
+        const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null
+        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+        let leftMargin = 4
+        if (prevBi) {
+          const prevStartIdx = Math.max(0, prevBi.start_idx)
+          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+          leftMargin = Math.min(leftMargin, allowedMargin)
+        }
+        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+        defaultZoomEnd = 100
+      }
+
+      return {
+        dataZoom: [
+          {
+            type: 'inside',
+            xAxisIndex: [0, 1],
+            minValueSpan: 10,
+            start: defaultZoomStart,
+            end: defaultZoomEnd,
+          },
+          {
+            type: 'slider',
+            xAxisIndex: [0, 1],
+            bottom: 4,
+            height: 14,
+            minValueSpan: 10,
+            borderColor: '#2a2e39',
+            backgroundColor: '#181b27',
+            fillerColor: 'rgba(41, 98, 255, 0.25)',
+            textStyle: { color: '#888888', fontSize: 10 },
+            start: defaultZoomStart,
+            end: defaultZoomEnd,
+          },
+        ],
+      }
+    })(),
     series: [
       {
         name: '基准K线',
-        id: 'cl-candlestick-series',
         type: 'candlestick',
         barWidth: '55%',
         barMaxWidth: 14,
@@ -2185,7 +2067,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           borderColor0: '#089981',
         },
         markPoint: {
-          data: initialLODMarks,
+          data: [...mmdMarkPoints, ...resonanceMarkPoints],
         },
         markLine: {
           data: [
@@ -2231,14 +2113,6 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       },
       ...subSeries,
     ],
-  }
-
-  ;(option as any)._clMarksMeta = {
-    mmdMarkPoints,
-    resonanceMarkPoints,
-    datesLength: totalBars,
-    isSinglePeriod,
-    tier: currentTier,
   }
 
   return option
@@ -2355,21 +2229,6 @@ function bindLegendEvents(inst: echarts.ECharts) {
   })
 }
 
-function applyChartMarksMeta(inst: any, option: any) {
-  if (!inst || !option) return
-  if (option._clMarksMeta) {
-    inst._clAllMmdMarks = option._clMarksMeta.mmdMarkPoints
-    inst._clResMarks = option._clMarksMeta.resonanceMarkPoints
-    inst._clDatesLength = option._clMarksMeta.datesLength
-    inst._clIsSinglePeriod = option._clMarksMeta.isSinglePeriod
-    inst._clCurrentLODTier = option._clMarksMeta.tier
-  }
-  if (!inst._clLODBound) {
-    inst._clLODBound = true
-    inst.on('dataZoom', () => { handleChanlunLODZoom(inst) })
-  }
-}
-
 function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
@@ -2393,7 +2252,6 @@ function renderChart() {
       window.addEventListener('resize', handleResize)
     }
     const optionLeft = buildChanlunOption(chanDataLeft.value, 'left')
-    applyChartMarksMeta(chartInstanceLeft, optionLeft)
     chartInstanceLeft.setOption(optionLeft, { notMerge: true, lazyUpdate: true })
   }
 
@@ -2419,7 +2277,6 @@ function renderChart() {
         })
       }
       const optionW2 = buildChanlunOption(chanDataW2.value, 'w2')
-      applyChartMarksMeta(chartInstanceW2, optionW2)
       chartInstanceW2.setOption(optionW2, { notMerge: true, lazyUpdate: true })
     }
     if (chartContainerRight.value && chanDataRight.value) {
@@ -2443,7 +2300,6 @@ function renderChart() {
         })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
-      applyChartMarksMeta(chartInstanceRight, optionRight)
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
     }
     if (chartContainerW4.value && chanDataW4.value) {
@@ -2467,7 +2323,6 @@ function renderChart() {
         })
       }
       const optionW4 = buildChanlunOption(chanDataW4.value, 'w4')
-      applyChartMarksMeta(chartInstanceW4, optionW4)
       chartInstanceW4.setOption(optionW4, { notMerge: true, lazyUpdate: true })
     }
   } else if (splitMode.value === 'dual') {
@@ -2487,7 +2342,6 @@ function renderChart() {
         })
       }
       const optionRight = buildChanlunOption(chanDataRight.value, 'right')
-      applyChartMarksMeta(chartInstanceRight, optionRight)
       chartInstanceRight.setOption(optionRight, { notMerge: true, lazyUpdate: true })
     }
   }
