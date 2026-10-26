@@ -349,7 +349,7 @@ def fetch_security_kline(
         effective_req_count = min(max(count, 500), 800) if count <= 800 else count
         pull_count = max(count, 800)
     elif category == KlineCategory.MIN_5:
-        pull_count = max(count, 12000)
+        pull_count = max(count, 3000)
     elif category in (KlineCategory.MIN_1, KlineCategory.MIN_15, KlineCategory.MIN_30):
         pull_count = max(count, 3000)
     else:

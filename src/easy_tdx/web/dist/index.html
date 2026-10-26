@@ -23892,7 +23892,7 @@
                     const query = new URLSearchParams();
                     query.set('code', _clCurrentCode);
                     query.set('periods', periods);
-                    const reqCount = (periods.includes('5F') || periods.includes('1F') || periods.includes('15F') || periods.includes('30F')) ? '3000' : '800';
+                    const reqCount = (periods.includes('5F') || periods.includes('1F') || periods.includes('15F') || periods.includes('30F')) ? '1500' : '800';
                     query.set('count', reqCount);
                     if (_clIsBacktracking && _clBacktrackDate) {
                         query.set('cutoff_date', _clBacktrackDate);
@@ -23907,73 +23907,82 @@
                     return await resp.json();
                 }
 
-                const promises = [fetchResonance(_clLeftPeriods)];
+                // 单窗口渲染器：数据一旦就绪立即渲染上屏并隐藏该窗口遮罩，出图优先级最高！
+                async function renderWindowProgressive(key, periods, isPrimary = false) {
+                    const data = await fetchResonance(periods);
+                    if (reqCode !== _clCurrentCode) return null;
+                    if (_clIsBacktracking && reqDate !== _clBacktrackDate) return null;
+
+                    // 写入本地缓存
+                    if (key === 'left') {
+                        _clLeftCachedData = data;
+                        _clCachedData = data;
+                        _clBacktrackCache.set(cacheKeyLeft, data);
+                        if (!_clIsBacktracking && data.summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, data.summary.latest_date), data);
+                        }
+                    } else if (key === 'w2') {
+                        _clW2CachedData = data;
+                        _clBacktrackCache.set(cacheKeyW2, data);
+                        if (!_clIsBacktracking && data.summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW2Periods, data.summary.latest_date), data);
+                        }
+                    } else if (key === 'right') {
+                        _clRightCachedData = data;
+                        _clBacktrackCache.set(cacheKeyRight, data);
+                        if (!_clIsBacktracking && data.summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, data.summary.latest_date), data);
+                        }
+                    } else if (key === 'w4') {
+                        _clW4CachedData = data;
+                        _clBacktrackCache.set(cacheKeyW4, data);
+                        if (!_clIsBacktracking && data.summary?.latest_date) {
+                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW4Periods, data.summary.latest_date), data);
+                        }
+                    }
+
+                    // 立即隐藏该窗口 loading 遮罩
+                    const overlayId = (key === 'left') ? 'cl-loading-overlay' :
+                                      (key === 'w2') ? 'cl-loading-overlay-w2' :
+                                      (key === 'right') ? 'cl-loading-overlay-right' : 'cl-loading-overlay-w4';
+                    const ov = document.getElementById(overlayId);
+                    if (ov) ov.style.display = 'none';
+
+                    // 立即绘制该窗口 K 线！优先秒级呈现在用户眼前！
+                    renderSingleChanlunChart(key, data);
+
+                    // 主窗口数据就绪时立即刷新顶部概览卡片、时间轴与信号表
+                    if (isPrimary) {
+                        updateChanlunOverview(data);
+                        updateChanlunTimeline(data);
+                        renderChanlunSignalsTable(data);
+                    }
+                    return data;
+                }
+
+                // 核心加速：主窗口（当前视口主图）拥有最高优先级，立即发起并优先出图！
+                const primaryKey = (_clActiveWindow && ['left', 'w2', 'right', 'w4'].includes(_clActiveWindow)) ? _clActiveWindow : 'left';
+                const primaryPeriod = (primaryKey === 'left') ? _clLeftPeriods :
+                                      (primaryKey === 'w2') ? _clW2Periods :
+                                      (primaryKey === 'right') ? _clRightPeriods : _clW4Periods;
+
+                // 优先渲染主窗口 K 线图！
+                const primaryPromise = renderWindowProgressive(primaryKey, primaryPeriod, true);
+
+                // 其余副窗口流式并发拉取，每个窗口数据好了立刻出图，互不阻塞
+                const secondaryPromises = [];
                 if (_clWindowMode === 'quad') {
-                    promises.push(fetchResonance(_clW2Periods));
-                    promises.push(fetchResonance(_clRightPeriods));
-                    promises.push(fetchResonance(_clW4Periods));
+                    if (primaryKey !== 'left') secondaryPromises.push(renderWindowProgressive('left', _clLeftPeriods, false));
+                    if (primaryKey !== 'w2') secondaryPromises.push(renderWindowProgressive('w2', _clW2Periods, false));
+                    if (primaryKey !== 'right') secondaryPromises.push(renderWindowProgressive('right', _clRightPeriods, false));
+                    if (primaryKey !== 'w4') secondaryPromises.push(renderWindowProgressive('w4', _clW4Periods, false));
                 } else if (_clWindowMode === 'dual') {
-                    promises.push(fetchResonance(_clRightPeriods));
+                    if (primaryKey !== 'left') secondaryPromises.push(renderWindowProgressive('left', _clLeftPeriods, false));
+                    if (primaryKey !== 'right') secondaryPromises.push(renderWindowProgressive('right', _clRightPeriods, false));
                 }
 
-                const results = await Promise.all(promises);
-
-                // 过滤过期请求响应，防止由于网络乱序造成旧数据覆盖新截断点
-                if (reqCode !== _clCurrentCode) return;
-                if (_clIsBacktracking && reqDate !== _clBacktrackDate) return;
-
-                _clLeftCachedData = results[0];
-                _clCachedData = results[0];
-
-                // 写入客户端本地内存回溯缓存池
-                _clBacktrackCache.set(cacheKeyLeft, results[0]);
-                if (!_clIsBacktracking && results[0].summary && results[0].summary.latest_date) {
-                    _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, results[0].summary.latest_date), results[0]);
-                }
-
-                if (_clWindowMode === 'quad') {
-                    if (results[1]) {
-                        _clW2CachedData = results[1];
-                        _clBacktrackCache.set(cacheKeyW2, results[1]);
-                        if (!_clIsBacktracking && results[1].summary?.latest_date) {
-                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW2Periods, results[1].summary.latest_date), results[1]);
-                        }
-                    }
-                    if (results[2]) {
-                        _clRightCachedData = results[2];
-                        _clBacktrackCache.set(cacheKeyRight, results[2]);
-                        if (!_clIsBacktracking && results[2].summary?.latest_date) {
-                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, results[2].summary.latest_date), results[2]);
-                        }
-                    }
-                    if (results[3]) {
-                        _clW4CachedData = results[3];
-                        _clBacktrackCache.set(cacheKeyW4, results[3]);
-                        if (!_clIsBacktracking && results[3].summary?.latest_date) {
-                            _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clW4Periods, results[3].summary.latest_date), results[3]);
-                        }
-                    }
-                } else if (_clWindowMode === 'dual' && results[1]) {
-                    _clRightCachedData = results[1];
-                    _clBacktrackCache.set(cacheKeyRight, results[1]);
-                    if (!_clIsBacktracking && results[1].summary && results[1].summary.latest_date) {
-                        _clBacktrackCache.set(getClBacktrackKey(_clCurrentCode, _clRightPeriods, results[1].summary.latest_date), results[1]);
-                    }
-                }
-
-                // 更新概览卡片、时间轴与表格
-                updateChanlunOverview(_clLeftCachedData);
-                updateChanlunTimeline(_clLeftCachedData);
-                renderChanlunSignalsTable(_clLeftCachedData);
-                renderSingleChanlunChart('left', _clLeftCachedData);
-
-                if (_clWindowMode === 'quad') {
-                    if (_clW2CachedData) renderSingleChanlunChart('w2', _clW2CachedData);
-                    if (_clRightCachedData) renderSingleChanlunChart('right', _clRightCachedData);
-                    if (_clW4CachedData) renderSingleChanlunChart('w4', _clW4CachedData);
-                } else if (_clWindowMode === 'dual' && _clRightCachedData) {
-                    renderSingleChanlunChart('right', _clRightCachedData);
-                }
+                // 等待全部窗口流式完成
+                await Promise.allSettled([primaryPromise, ...secondaryPromises]);
                 setTimeout(adjustChanlunLayoutHeight, 50);
 
             } catch (err) {
