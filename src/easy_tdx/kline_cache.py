@@ -81,8 +81,12 @@ class KlineDiskCache:
         clean_adj = str(adjust).strip().upper()
         return self.base_dir / f"{pfx}{clean_sym}_{clean_p}_{clean_adj}.pkl"
 
+    def _get_meta_path(self, symbol: str, period: Any, adjust: Any = "QFQ") -> pathlib.Path:
+        fp = self._get_file_path(symbol, period, adjust)
+        return fp.with_suffix(".meta.json")
+
     def read_cached(self, symbol: str, period: str, adjust: str = "QFQ") -> pd.DataFrame | None:
-        """从本地磁盘读取 K 线缓存。"""
+        """从本地磁盘读取 K 线缓存（含新股全量历史状态）。"""
         fp = self._get_file_path(symbol, period, adjust)
         if not fp.is_file():
             return None
@@ -90,6 +94,17 @@ class KlineDiskCache:
             with open(fp, "rb") as f:
                 df = pd.read_pickle(f)
             if isinstance(df, pd.DataFrame) and not df.empty and ("datetime" in df.columns or "date" in df.columns):
+                # 尝试读取元数据文件辅助恢复 full_history（防止 pickle 跨环境丢失 attrs）
+                meta_fp = self._get_meta_path(symbol, period, adjust)
+                if meta_fp.is_file():
+                    try:
+                        import json
+                        with open(meta_fp, "r", encoding="utf-8") as mf:
+                            meta = json.load(mf)
+                        if meta.get("full_history"):
+                            df.attrs["full_history"] = True
+                    except Exception:
+                        pass
                 return df
         except Exception as e:
             logger.debug("读取本地 K 线缓存异常 %s %s: %s", symbol, period, e)
@@ -99,16 +114,55 @@ class KlineDiskCache:
                 pass
         return None
 
-    def write_cached(self, symbol: str, period: str, df: pd.DataFrame, adjust: str = "QFQ") -> None:
-        """写入/更新本地磁盘 K 线缓存。"""
+    def write_cached(
+        self,
+        symbol: str,
+        period: str,
+        df: pd.DataFrame,
+        adjust: str = "QFQ",
+        full_history: bool | None = None,
+    ) -> None:
+        """写入/更新本地磁盘 K 线缓存（针对 5F 保留最多 16000 根，支持新股全历史标记）。"""
         if df is None or df.empty or len(df) == 0:
             return
         fp = self._get_file_path(symbol, period, adjust)
+        meta_fp = self._get_meta_path(symbol, period, adjust)
         try:
-            # 限制单文件最大保留 5000 根以控制磁盘大小与读取耗时
-            save_df = df.iloc[-5000:].copy().reset_index(drop=True)
+            p_upper = str(period).strip().upper()
+            if any(k in p_upper for k in ("5F", "5M")):
+                max_keep = 16000  # 保证 12000 根 5F 分钟线完整持久化并留有充裕余量
+            elif any(k in p_upper for k in ("1F", "1M", "15F", "15M", "30F", "30M")):
+                max_keep = 6000
+            else:
+                max_keep = 5000
+
+            save_df = df.iloc[-max_keep:].copy().reset_index(drop=True)
+
+            # 保留或设置新股全量历史属性
+            is_full = (
+                full_history
+                if full_history is not None
+                else bool(getattr(df, "attrs", {}).get("full_history", False))
+            )
+            save_df.attrs["full_history"] = is_full
+
             with open(fp, "wb") as f:
                 save_df.to_pickle(f)
+
+            # 同步写轻量元数据文件供快速读取
+            try:
+                import json
+                meta_data = {
+                    "symbol": symbol,
+                    "period": period,
+                    "adjust": adjust,
+                    "count": len(save_df),
+                    "full_history": is_full,
+                }
+                with open(meta_fp, "w", encoding="utf-8") as mf:
+                    json.dump(meta_data, mf)
+            except Exception:
+                pass
         except Exception as e:
             logger.debug("写入本地 K 线缓存异常 %s %s: %s", symbol, period, e)
 
@@ -120,7 +174,7 @@ class KlineDiskCache:
         new_df: pd.DataFrame | None,
         adjust: str = "QFQ",
     ) -> pd.DataFrame:
-        """增量合并已有数据与新数据，去重排序并持久化。"""
+        """增量合并已有数据与新数据，去重排序并持久化（自动继承新股 full_history 标记）。"""
         if existing_df is None or existing_df.empty:
             if new_df is not None and not new_df.empty:
                 self.write_cached(symbol, period, new_df, adjust)
@@ -144,7 +198,14 @@ class KlineDiskCache:
             combined.sort_values(by=dt_col, inplace=True)
             combined.reset_index(drop=True, inplace=True)
 
-        self.write_cached(symbol, period, combined, adjust)
+        # 继承新股全历史标记
+        is_full = bool(
+            getattr(existing_df, "attrs", {}).get("full_history", False)
+            or getattr(new_df, "attrs", {}).get("full_history", False)
+        )
+        combined.attrs["full_history"] = is_full
+
+        self.write_cached(symbol, period, combined, adjust, full_history=is_full)
         return combined
 
     def is_up_to_date(self, df: pd.DataFrame, period: str) -> bool:

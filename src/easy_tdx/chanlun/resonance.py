@@ -1267,7 +1267,7 @@ def analyze_multi_period_resonance(
     # 4.1 请求 K 线基准根数（严格对齐周期特性深度规划）:
     # 季线 (SEASON): 最大拉取 60 根（覆盖约 15 年）；
     # 月线 (MONTH): 最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
-    # 5F 分钟线 : 维持 6000 根； 30M 15F 1F 分钟线 : 维持 3000 根
+    # 5F 分钟线 : 维持 12000 根（覆盖约 1 年历史大周期）； 30M 15F 1F 分钟线 : 维持 3000 根
     if screener_mode:
         req_counts = {
             high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 500)),
@@ -1280,10 +1280,10 @@ def analyze_multi_period_resonance(
             mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 800),
             low_p: 250 if low_p == "WEEK" else 800,
         }
-    # 5F 分钟线维持 6000 根；30M / 15F / 1F 分钟线维持 3000 根
+    # 5F 分钟线维持 12000 根；30M / 15F / 1F 分钟线维持 3000 根
     for p in p_list:
         if p in ("5F", "5M"):
-            req_counts[p] = 6000
+            req_counts[p] = 12000
         elif p in ("30F", "30M", "15F", "15M", "1F", "1M"):
             req_counts[p] = 3000
 
@@ -1319,7 +1319,7 @@ def analyze_multi_period_resonance(
         elif p_name in ("DAY", "120M", "60M"):
             target_cnt = 500 if screener_mode else 800  # 日线维持 500~800 根
         elif p_name in ("5F", "5M"):
-            target_cnt = 6000  # 5F 分钟线维持 6000 根
+            target_cnt = 12000  # 5F 分钟线维持 12000 根（支持约 1 年历史大周期）
         elif p_name in ("30F", "30M", "15F", "15M", "1F", "1M"):
             target_cnt = 3000  # 30M 15F 1F 分钟线维持 3000 根
         else:
@@ -1334,10 +1334,13 @@ def analyze_multi_period_resonance(
                         if is_backtracking or (now_ts - c_time < REALTIME_CACHE_TTL):
                             return p_name, c_df
 
-        # 2. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB）
+        # 2. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB，支持新股 full_history 容错）
         disk_cache = get_global_kline_disk_cache()
         cached_df = disk_cache.read_cached(clean_code, p_name)
-        if cached_df is not None and not cached_df.empty and len(cached_df) >= target_cnt and not effective_force_refresh:
+        is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
+        is_satisfied = (len(cached_df) >= target_cnt) or is_full_history if cached_df is not None else False
+
+        if cached_df is not None and not cached_df.empty and is_satisfied and not effective_force_refresh:
             # 严格检查磁盘缓存是否已到达最新理论收盘状态
             if disk_cache.is_up_to_date(cached_df, p_name):
                 with _RESONANCE_CACHE_LOCK:
@@ -1401,6 +1404,9 @@ def analyze_multi_period_resonance(
         if df_fetched is None or df_fetched.empty:
             df_fetched = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
         else:
+            # 新股容错：若返回条数未达到请求目标（如新股只有数百根），标记为已拉满全量历史，后续免除重复全量网络请求
+            if len(df_fetched) < target_cnt and target_cnt >= 1000:
+                df_fetched.attrs["full_history"] = True
             disk_cache.write_cached(clean_code, p_name, df_fetched)
             with _RESONANCE_CACHE_LOCK:
                 _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, df_fetched)
@@ -1540,36 +1546,67 @@ def analyze_multi_period_resonance(
 
     # 组装基准 K 线坐标轴与图表序列
     n_base = len(base_df)
-    dates = base_df["datetime"].astype(str).tolist() if not base_df.empty else []
-    candles = (
-        base_df[["open", "close", "low", "high"]].values.tolist()
-        if not base_df.empty
-        else []
-    )
-    if not base_df.empty:
-        vols = base_df["volume"].values
-        closes_arr = base_df["close"].values
-        opens_arr = base_df["open"].values
-        volumes = [
-            [i, float(vols[i]), 1 if closes_arr[i] >= opens_arr[i] else -1]
-            for i in range(n_base)
+    if n_base == 0:
+        # 新股极端容错：若标的暂无任何基准 K 线，直接返回标准空结构
+        return {
+            "status": "success",
+            "code": clean_code,
+            "name": stock_name,
+            "summary": {
+                "high_state": current_high_state.to_dict() if hasattr(current_high_state, "to_dict") else current_high_state,
+                "mid_state": current_mid_state.to_dict() if hasattr(current_mid_state, "to_dict") else current_mid_state,
+                "low_state": current_low_state.to_dict() if hasattr(current_low_state, "to_dict") else current_low_state,
+                "latest_date": str(latest_dt),
+                "latest_price": 0.0,
+            },
+            "unified_chart": {
+                "dates": [],
+                "candles": [],
+                "volumes": [],
+                "amounts": [],
+                "high_bis": [],
+                "high_zss": [],
+                "mid_bis": [],
+                "mid_zss": [],
+                "low_bis": [],
+                "low_zss": [],
+                "xds": [],
+                "fractal_marks": [],
+                "mmd_marks": [],
+                "res_marks": [],
+                "macd": {"hist": [], "dif": [], "dea": [], "marks": []},
+            },
+            "resonances": [],
+            "levels_data": {},
+            "backtrack_timeline": {
+                "min_date": "",
+                "max_date": "",
+                "available_dates": [],
+                "current_date": "",
+                "total_bars": 0,
+            },
+        }
+
+    dates = base_df["datetime"].astype(str).tolist()
+    candles = base_df[["open", "close", "low", "high"]].values.tolist()
+    vols = base_df["volume"].values
+    closes_arr = base_df["close"].values
+    opens_arr = base_df["open"].values
+    volumes = [
+        [i, float(vols[i]), 1 if closes_arr[i] >= opens_arr[i] else -1]
+        for i in range(n_base)
+    ]
+    amts = base_df["amount"].values if "amount" in base_df.columns else None
+    amounts = [
+        [
+            i,
+            float(amts[i]) if (amts is not None and pd.notna(amts[i]) and float(amts[i]) > 0) else float(vols[i] * closes_arr[i]),
+            1 if closes_arr[i] >= opens_arr[i] else -1,
         ]
-        amts = base_df["amount"].values if "amount" in base_df.columns else None
-        amounts = [
-            [
-                i,
-                float(amts[i]) if (amts is not None and pd.notna(amts[i]) and float(amts[i]) > 0) else float(vols[i] * closes_arr[i]),
-                1 if closes_arr[i] >= opens_arr[i] else -1,
-            ]
-            for i in range(n_base)
-        ]
-        base_dts = pd.to_datetime(base_df["datetime"].astype(str))
-        base_dts_list = [t.to_pydatetime() for t in base_dts]
-    else:
-        volumes = []
-        amounts = []
-        base_dts = pd.Series(dtype="datetime64[ns]")
-        base_dts_list = []
+        for i in range(n_base)
+    ]
+    base_dts = pd.to_datetime(base_df["datetime"].astype(str))
+    base_dts_list = [t.to_pydatetime() for t in base_dts]
 
     # 1. 映射大级别笔与中枢 (单周期模式下跳过，稍后由单周期线段填充)
     high_bis = []
@@ -2265,6 +2302,7 @@ def analyze_multi_period_resonance(
     chg_pct = round((latest_close - prev_close) / prev_close * 100, 2) if prev_close else 0.0
 
     result_data = {
+        "status": "success",
         "code": clean_code,
         "name": stock_name,
         "periods": {

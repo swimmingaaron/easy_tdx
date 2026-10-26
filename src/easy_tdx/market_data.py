@@ -334,7 +334,7 @@ def fetch_security_kline(
     # 月线 (MONTH)：最大安全拉取 120 根（覆盖 10 年，既完全满足缠论大中枢构建，又彻底避开 2002 年远古减法负价区）；
     # 周线 (WEEK)：最大安全拉取 250 根（覆盖约 5 年）；
     # 日线 ： 维持 500~800 根；
-    # 5F 分钟线 ： 维持 6000 根； 30M 15F 1F 分钟线 ： 维持 3000 根
+    # 5F 分钟线 ： 维持 12000 根； 30M 15F 1F 分钟线 ： 维持 3000 根
     effective_req_count = count
     if category in (KlineCategory.SEASON, KlineCategory.YEAR):
         effective_req_count = min(count, 60)
@@ -349,14 +349,16 @@ def fetch_security_kline(
         effective_req_count = min(max(count, 500), 800) if count <= 800 else count
         pull_count = max(count, 800)
     elif category == KlineCategory.MIN_5:
-        pull_count = max(count, 6000)
+        pull_count = max(count, 12000)
     elif category in (KlineCategory.MIN_1, KlineCategory.MIN_15, KlineCategory.MIN_30):
         pull_count = max(count, 3000)
     else:
         pull_count = max(count, 800)
 
-    # 1.1 若已有本地缓存，且数量已满足需求，且非强制刷新
-    if cached_df is not None and not cached_df.empty and len(cached_df) >= effective_req_count and not force_refresh:
+    # 1.1 若已有本地缓存，检查是否已满足需求（针对新股 full_history 容错：历史已拉满时不因不足 12000 根而重复全量拉取）
+    is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
+    is_satisfied = (len(cached_df) >= effective_req_count) or is_full_history
+    if cached_df is not None and not cached_df.empty and is_satisfied and not force_refresh:
         # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
         if disk_cache.is_up_to_date(cached_df, cache_suffix):
             res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
@@ -381,6 +383,9 @@ def fetch_security_kline(
     # 2. 磁盘无缓存或数量不足或 force_refresh：根据周期自适应配置拉取深度填补磁盘
     raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
     if raw_df is not None and not raw_df.empty:
+        # 新股容错：若返回条数未达到目标深度（如新股只有数百根），标记为已拉满全量历史，后续免除重复全量网络请求
+        if len(raw_df) < pull_count and pull_count >= 1000:
+            raw_df.attrs["full_history"] = True
         disk_cache.write_cached(cache_sym, cache_suffix, raw_df, adj_val.name)
         res = raw_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
         _CACHE[cache_key] = (now, res)
