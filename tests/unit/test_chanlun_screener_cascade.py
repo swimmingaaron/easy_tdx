@@ -245,14 +245,14 @@ def test_evaluate_chanlun_strategy_filters_top_sell_downtrend():
 
 
 def test_screener_request_models_defaults():
-    """Verify router request models and discovery default to chanlun_resonance."""
+    """Verify router request models and discovery default to chanlun_resonance and MONTH_WEEK_DAY."""
     req_scan = ScreenerScanRequest()
     assert req_scan.strategy == "chanlun_resonance"
-    assert req_scan.period == "ALL_CASCADE"
+    assert req_scan.period == "MONTH_WEEK_DAY"
 
     req_task = ScreenerTaskStartRequest(universe="core")
     assert req_task.strategy == "chanlun_resonance"
-    assert req_task.period == "ALL_CASCADE"
+    assert req_task.period == "MONTH_WEEK_DAY"
 
 
 def test_strategy_registry_includes_chanlun_resonance():

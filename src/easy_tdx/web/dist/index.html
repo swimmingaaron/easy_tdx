@@ -3156,10 +3156,10 @@
                             <span class="text-[11px] text-slate-400 font-medium">周期:</span>
                             <select id="screener-period-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="DAY_30F_5F" selected>📅 日 30F 5F (日线主升3买 · 默认)</option>
-                                <option value="30F_5F_1F">⏱️ 30F 5F 1F (30F主升3买)</option>
-                                <option value="WEEK_DAY_30F">📊 周 日 30F (周线主升3买)</option>
-                                <option value="MONTH_WEEK_DAY">📈 月 周 日 (月线主升3买)</option>
+                                <option value="MONTH_WEEK_DAY" selected>📈 月周日 共振 (日线 2买/3买 · 默认推荐)</option>
+                                <option value="SEASON_MONTH_WEEK">🏛️ 季月周 共振 (周线 2买/3买)</option>
+                                <option value="WEEK_DAY_30F">⏱️ 周日30F 共振 (30F 2买/3买)</option>
+                                <option value="ALL_CASCADE">💎 全级别三级联共振 (月周日+周日30M+日30M5F)</option>
                             </select>
                         </div>
 
@@ -18272,7 +18272,16 @@
         let screenerPollTimer = null;
 
         const CHANLUN_RESONANCE_PERIOD_OPTIONS = [
-            { value: 'ALL_CASCADE', text: '💎 月周日+周日30M+日30M5F (三级联终极共振 · 默认)', selected: true }
+            { value: 'MONTH_WEEK_DAY', text: '📈 月周日 共振 (日线 2买/3买 · 默认推荐)', selected: true },
+            { value: 'SEASON_MONTH_WEEK', text: '🏛️ 季月周 共振 (周线 2买/3买)' },
+            { value: 'WEEK_DAY_30F', text: '⏱️ 周日30F 共振 (30F 2买/3买)' },
+            { value: 'ALL_CASCADE', text: '💎 全级别三级联共振 (月周日+周日30M+日30M5F)' }
+        ];
+
+        const CHANLUN_DUAL_RESONANCE_PERIOD_OPTIONS = [
+            { value: 'DUAL_CASCADE', text: '💎 二级级联共振 (周日30F+日30F5F · 默认推荐)', selected: true },
+            { value: 'DAY_30F_5F', text: '📅 日 30F 5F (日线1买+30F中枢+5M 2/3买)' },
+            { value: 'WEEK_DAY_30F', text: '📊 周 日 30F (周线1买+日线中枢+30M 2/3买)' }
         ];
 
         const CHANLUN_PERIOD_OPTIONS = [
@@ -18298,6 +18307,8 @@
             let targetOptions = STANDARD_PERIOD_OPTIONS;
             if (strategy === 'chanlun_resonance') {
                 targetOptions = CHANLUN_RESONANCE_PERIOD_OPTIONS;
+            } else if (strategy === 'chanlun_dual_resonance') {
+                targetOptions = CHANLUN_DUAL_RESONANCE_PERIOD_OPTIONS;
             } else if (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily') {
                 targetOptions = CHANLUN_PERIOD_OPTIONS;
             }
@@ -18328,13 +18339,15 @@
             const forceInput = document.getElementById('screener-force-refresh');
             const periodSel = document.getElementById('screener-period-select');
             const uni = uniSel ? uniSel.value : 'core';
-            const period = periodSel ? periodSel.value : 'ALL_CASCADE';
+            const period = periodSel ? periodSel.value : 'MONTH_WEEK_DAY';
             const periodMap = {
-                'ALL_CASCADE': '三级联终极共振',
+                'MONTH_WEEK_DAY': '月周日 共振',
+                'SEASON_MONTH_WEEK': '季月周 共振',
+                'WEEK_DAY_30F': '周日30F 共振',
+                'ALL_CASCADE': '全级别三级联共振',
+                'DUAL_CASCADE': '二级级联共振',
                 '30F_5F_1F': '30F 5F 1F (大买)',
                 'DAY_30F_5F': '日 30F 5F (大买)',
-                'WEEK_DAY_30F': '周 日 30F (大买)',
-                'MONTH_WEEK_DAY': '月 周 日 (大买)',
                 '30M': '30分钟',
                 '60M': '60分钟',
                 '120M': '120分钟',
@@ -18871,8 +18884,9 @@
                 window._screenerTsFetching = true;
                 const activePeriod = (document.getElementById('screener-period-select')?.value || 'DAY').toLowerCase();
                 const pMap = {
-                    'day': 'day', '30m': '30m', '60m': '60m', '120m': '120m', 'week': 'week', 'month': 'month',
-                    '30f_5f_1f': '30m', 'day_30f_5f': 'day', 'week_day_30f': 'week', 'month_week_day': 'month'
+                    'day': 'day', '30m': '30m', '60m': '60m', '120m': '120m', 'week': 'week', 'month': 'month', 'season': 'season',
+                    '30f_5f_1f': '30m', 'day_30f_5f': 'day', 'week_day_30f': '30m', 'month_week_day': 'day',
+                    'season_month_week': 'week', 'all_cascade': 'day', 'dual_cascade': 'day'
                 };
                 const reqPeriod = pMap[activePeriod] || 'day';
                 fetch(`/api/trading_system/dashboard?symbols=${missingCodes.slice(0, 50).join(',')}&period=${reqPeriod}`)
@@ -18997,6 +19011,23 @@
                         'MONTH_WEEK_DAY': 'MONTH,WEEK,DAY'
                     };
                     periodsArg = presetPeriodMap[curPeriod] || 'DAY,30F,5F';
+                    periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
+                } else if (curStrat === 'chanlun_resonance') {
+                    const resPeriodMap = {
+                        'SEASON_MONTH_WEEK': 'SEASON,MONTH,WEEK',
+                        'MONTH_WEEK_DAY': 'MONTH,WEEK,DAY',
+                        'WEEK_DAY_30F': 'WEEK,DAY,30F',
+                        'ALL_CASCADE': 'MONTH,WEEK,DAY'
+                    };
+                    periodsArg = resPeriodMap[curPeriod] || 'MONTH,WEEK,DAY';
+                    periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
+                } else if (curStrat === 'chanlun_dual_resonance') {
+                    const dualPeriodMap = {
+                        'DUAL_CASCADE': 'WEEK,DAY,30F',
+                        'DAY_30F_5F': 'DAY,30F,5F',
+                        'WEEK_DAY_30F': 'WEEK,DAY,30F'
+                    };
+                    periodsArg = dualPeriodMap[curPeriod] || 'WEEK,DAY,30F';
                     periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
                 }
                 const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${periodsQuery}`;
