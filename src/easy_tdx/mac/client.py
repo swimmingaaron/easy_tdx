@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Awaitable
 from dataclasses import asdict
@@ -72,6 +73,10 @@ _KLINE_PAGE_SIZE = 700
 _BOARD_MEMBERS_PAGE_SIZE = 80
 
 _logger = logging.getLogger(__name__)
+
+# 全局除权除息缓存与锁，避免多线程/多实例重复向行情服务器请求静态除权数据
+_GLOBAL_XDXR_CACHE: dict[tuple[int, str], pd.DataFrame] = {}
+_GLOBAL_XDXR_LOCK = threading.Lock()
 
 
 def _convert_board_code(board_symbol: str) -> int:
@@ -442,14 +447,26 @@ class MacClient:
         结果按 (market, code) 缓存。失败返回 None（调用方降级）。
         """
         key = (market, code)
+        with _GLOBAL_XDXR_LOCK:
+            if key in _GLOBAL_XDXR_CACHE:
+                return _GLOBAL_XDXR_CACHE[key]
         if key in self._xdxr_cache:
             return self._xdxr_cache[key]
         try:
             # 函数内 import 避免循环依赖（client 依赖 mac，mac 不应依赖 client）
             from .. import Market
-            from ..client import TdxClient
+            from ..market_data import _TDX_POOL, _get_or_create_client
 
-            with TdxClient.from_best_host(timeout=self._timeout) as tc:
+            pool = _TDX_POOL
+            cli = pool.acquire()
+            xd = None
+            try:
+                xd = cli.get_xdxr_info(Market(market), code)
+                pool.release(cli, success=True)
+            except Exception:
+                pool.release(cli, success=False)
+                # 备选单例客户端
+                tc = _get_or_create_client()
                 xd = tc.get_xdxr_info(Market(market), code)
         except Exception as exc:  # noqa: BLE001 - 降级，不中断 kline 获取
             _logger.warning(
@@ -461,6 +478,8 @@ class MacClient:
             return None
         if xd is None or xd.empty:
             return None
+        with _GLOBAL_XDXR_LOCK:
+            _GLOBAL_XDXR_CACHE[key] = xd
         self._xdxr_cache[key] = xd
         return xd
 

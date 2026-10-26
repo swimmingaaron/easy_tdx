@@ -422,8 +422,8 @@ class ChanlunUnifiedResonancePlotter:
 
         if latest_high_bi is not None:
             target_start_dt = latest_high_bi.start.k.date
-            dt_series = pd.to_datetime(base_df["datetime"])
-            matched_idxs = np.where(dt_series >= pd.to_datetime(target_start_dt))[0]
+            dt_series = pd.to_datetime(base_df["datetime"], format="mixed")
+            matched_idxs = np.where(dt_series >= pd.to_datetime(target_start_dt, format="mixed"))[0]
             if len(matched_idxs) > 0:
                 # 左侧预留 15 根小周期安全余量，保证日线笔起点端点清晰可见且不顶格
                 cut_idx = max(0, matched_idxs[0] - 15)

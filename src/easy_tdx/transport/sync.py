@@ -246,8 +246,8 @@ class TdxConnection:
         thread = self._heartbeat_thread
         if stop_event is not None:
             stop_event.set()
-        if thread is not None:
-            thread.join(timeout=2.0)
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=0.1)
         self._stop_event = None
         self._heartbeat_thread = None
         self._heartbeat_interval = 0
@@ -296,17 +296,22 @@ class TdxConnection:
     def _send_setup(self) -> None:
         """按序发送三条握手命令并丢弃响应。"""
         assert self._sock is not None
-        for cmd_bytes in SETUP_COMMANDS:
-            self._sock.sendall(cmd_bytes)
-            # 读取并丢弃握手响应
-            try:
-                hdr_buf = self._recv_exact(HEADER_SIZE)
-                hdr = parse_header(hdr_buf)
-                if hdr.zipsize > 0:
-                    self._recv_exact(hdr.zipsize)
-            except (OSError, TdxError):
-                # 部分服务器的握手无响应，忽略错误
-                pass
+        old_timeout = self._sock.gettimeout()
+        try:
+            self._sock.settimeout(min(1.0, old_timeout if old_timeout is not None else 1.0))
+            for cmd_bytes in SETUP_COMMANDS:
+                self._sock.sendall(cmd_bytes)
+                # 读取并丢弃握手响应
+                try:
+                    hdr_buf = self._recv_exact(HEADER_SIZE)
+                    hdr = parse_header(hdr_buf)
+                    if hdr.zipsize > 0:
+                        self._recv_exact(hdr.zipsize)
+                except (OSError, TdxError):
+                    # 部分服务器的握手无响应，忽略错误
+                    pass
+        finally:
+            self._sock.settimeout(old_timeout)
 
     def _recv_exact(self, n: int) -> bytes:
         """循环 recv 直到读满 n 字节。"""

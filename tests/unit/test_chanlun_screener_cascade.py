@@ -289,7 +289,7 @@ def test_evaluate_chanlun_resonance_strategy_all_satisfied():
     })
 
     # Mock resonance for the 3 distinct multi-period cascades
-    def mock_resonance_side_effect(code, periods, count, force_refresh):
+    def mock_resonance_side_effect(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("MONTH", "WEEK", "DAY"):
             return {
@@ -354,7 +354,7 @@ def test_evaluate_chanlun_resonance_strategy_fails_when_condition_missing():
     })
 
     # Suppose condition 3 (5M 2BUY) is missing (only has 3SELL)
-    def mock_missing_5m(code, periods, count, force_refresh):
+    def mock_missing_5m(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("MONTH", "WEEK", "DAY"):
             return {
@@ -575,7 +575,7 @@ def test_evaluate_chanlun_dual_resonance_all_satisfied():
         "volume": [10000] * 25, "amount": [100000] * 25,
     })
 
-    def mock_dual_resonance_side_effect(code, periods, count, force_refresh):
+    def mock_dual_resonance_side_effect(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -628,7 +628,7 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
     })
 
     # Case A: 周线最近一笔不是向下笔 (向上笔)
-    def mock_week_bi_up(code, periods, count, force_refresh):
+    def mock_week_bi_up(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -664,7 +664,7 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
         assert res is None, "Must reject when week bi is UP!"
 
     # Case B: 周线出现 2买 而非 1买
-    def mock_week_not_1buy(code, periods, count, force_refresh):
+    def mock_week_not_1buy(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -700,7 +700,7 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
         assert res is None, "Must reject when week has no 1BUY!"
 
     # Case C: 日线不是向下笔 (向上笔)
-    def mock_day_bi_up(code, periods, count, force_refresh):
+    def mock_day_bi_up(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -736,7 +736,7 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
         assert res is None, "Must reject when day bi is UP!"
 
     # Case D: 日线出现 2买 而非 1买
-    def mock_day_not_1buy(code, periods, count, force_refresh):
+    def mock_day_not_1buy(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -772,7 +772,7 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
         assert res is None, "Must reject when day has no 1BUY!"
 
     # Case E: 次级别没有 2买或3买 (只有 1BUY 或无买点)
-    def mock_sub_no_2or3buy(code, periods, count, force_refresh):
+    def mock_sub_no_2or3buy(code, periods, count, force_refresh, *args, **kwargs):
         p_tuple = tuple(periods)
         if p_tuple == ("WEEK", "DAY", "30F"):
             return {
@@ -818,7 +818,7 @@ def test_evaluate_chanlun_resonance_season_month_week():
         "volume": [10000] * 25, "amount": [100000] * 25,
     })
 
-    def mock_smw(code, periods, count, force_refresh):
+    def mock_smw(code, periods, count, force_refresh, *args, **kwargs):
         return {
             "summary": {
                 "high_state": {"is_bearish": False},
@@ -861,7 +861,7 @@ def test_evaluate_chanlun_resonance_month_week_day():
         "volume": [10000] * 25, "amount": [100000] * 25,
     })
 
-    def mock_mwd(code, periods, count, force_refresh):
+    def mock_mwd(code, periods, count, force_refresh, *args, **kwargs):
         return {
             "summary": {
                 "high_state": {"is_bearish": False},
@@ -904,7 +904,7 @@ def test_evaluate_chanlun_resonance_week_day_30f():
         "volume": [10000] * 25, "amount": [100000] * 25,
     })
 
-    def mock_wd30(code, periods, count, force_refresh):
+    def mock_wd30(code, periods, count, force_refresh, *args, **kwargs):
         return {
             "summary": {
                 "high_state": {"is_bearish": False},
@@ -948,7 +948,7 @@ def test_evaluate_chanlun_resonance_rejects_when_no_2or3buy():
     })
 
     # Low level has ONLY 1BUY, no 2BUY or 3BUY
-    def mock_only_1buy(code, periods, count, force_refresh):
+    def mock_only_1buy(code, periods, count, force_refresh, *args, **kwargs):
         return {
             "summary": {
                 "high_state": {"is_bearish": False},
@@ -988,7 +988,7 @@ def test_evaluate_chanlun_resonance_rejects_when_bearish_or_sell_broken():
     })
 
     # High state is bearish
-    def mock_bearish(code, periods, count, force_refresh):
+    def mock_bearish(code, periods, count, force_refresh, *args, **kwargs):
         return {
             "summary": {
                 "high_state": {"is_bearish": True},

@@ -1407,11 +1407,12 @@ def analyze_multi_period_resonance(
 
         return p_name, df_fetched
 
-    # 4.3 并发拉取独立周期数据
+    # 4.3 并发拉取独立周期数据（screener_mode 下顺序拉取，避免嵌套线程池与 GIL 争用）
     raw_dfs: dict[str, pd.DataFrame] = {}
-    if len(needed_fetch_periods) == 1:
-        p_name, df_res = _fetch_one_period(needed_fetch_periods[0])
-        raw_dfs[p_name] = df_res
+    if screener_mode or len(needed_fetch_periods) == 1:
+        for p_name in needed_fetch_periods:
+            _, df_res = _fetch_one_period(p_name)
+            raw_dfs[p_name] = df_res
     else:
         with ThreadPoolExecutor(max_workers=min(len(needed_fetch_periods), 4)) as pool:
             futs = [pool.submit(_fetch_one_period, p_name) for p_name in needed_fetch_periods]
@@ -1475,6 +1476,9 @@ def analyze_multi_period_resonance(
         ana_res = ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[low_p]["chan_freq"]).process_klines(dfs[low_p])
         for p in p_list:
             results[p] = ana_res
+    elif screener_mode:
+        for p in p_list:
+            results[p] = ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[p]["chan_freq"]).process_klines(dfs[p])
     else:
         with ThreadPoolExecutor(max_workers=3) as pool:
             ana_futs = {
@@ -1497,6 +1501,42 @@ def analyze_multi_period_resonance(
     current_high_state = engine.get_period_state_at(high_p, latest_dt)
     current_mid_state = engine.get_period_state_at(mid_p, latest_dt)
     current_low_state = engine.get_period_state_at(low_p, latest_dt)
+
+    # 选股极速模式：跳过前端图表渲染与副图计算，毫秒级快速提取多空态势与核心买卖点直接返回
+    if screener_mode:
+        mmd_marks = []
+        for p_lvl, p_key in [("high", high_p), ("mid", mid_p), ("low", low_p)]:
+            p_res = results.get(p_key)
+            if p_res:
+                for mmd in p_res.mmds:
+                    if mmd.bi:
+                        dt_str = str(mmd.bi.end.k.date)
+                        m_type = mmd.mmd_type.value.upper()
+                        is_buy = "BUY" in m_type
+                        mmd_marks.append({
+                            "coord": [dt_str, float(mmd.bi.end.val)],
+                            "date": dt_str,
+                            "price": round(float(mmd.bi.end.val), 2),
+                            "type": m_type,
+                            "level": p_lvl,
+                            "label": m_type,
+                            "is_buy": is_buy,
+                            "msg": f"{p_key}: {mmd.msg}",
+                        })
+        return {
+            "status": "success",
+            "summary": {
+                "high_state": current_high_state,
+                "mid_state": current_mid_state,
+                "low_state": current_low_state,
+                "latest_date": str(latest_dt),
+                "latest_price": float(base_df["close"].iloc[-1]) if not base_df.empty else 0.0,
+            },
+            "unified_chart": {
+                "mmd_marks": mmd_marks,
+            },
+            "resonances": resonances,
+        }
 
     # 组装基准 K 线坐标轴与图表序列
     n_base = len(base_df)

@@ -77,7 +77,7 @@ class TdxConnectionPool:
         n_hosts = len(PRIMARY_HOSTS)
         for attempt in range(min(6, n_hosts)):
             host = PRIMARY_HOSTS[(idx + attempt) % n_hosts]
-            cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=True)
+            cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=False)
             try:
                 cli.connect()
                 return cli
@@ -191,7 +191,7 @@ def _get_or_create_client() -> TdxClient:
 
         for host in PRIMARY_HOSTS:
             try:
-                cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=True)
+                cli = TdxClient(host=host, port=7709, timeout=2.5, auto_reconnect=False)
                 cli.connect()
                 _TDX_CLIENT = cli
                 logger.info(f"TDX client connected successfully to {host}:7709")
