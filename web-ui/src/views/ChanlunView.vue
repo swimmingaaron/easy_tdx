@@ -3764,6 +3764,9 @@ onBeforeUnmount(() => {
 
 /* 顶部工具栏 */
 .chanlun-toolbar {
+  position: relative;
+  z-index: 50;
+  overflow: visible;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3856,7 +3859,7 @@ onBeforeUnmount(() => {
   list-style: none;
   padding: 4px 0;
   margin: 4px 0 0 0;
-  z-index: 100;
+  z-index: 99999;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 .suggest-dropdown li {

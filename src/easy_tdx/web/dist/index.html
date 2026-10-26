@@ -1594,11 +1594,20 @@
             border: 1px solid #334155 !important;
             box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7) !important;
             color: #f8fafc !important;
+            z-index: 99999 !important;
+        }
+
+        /* 确保缠论搜索下拉框及主控面板处于绝对最顶层，不被下方图表卡片裁切或遮挡 */
+        #view-chanlun > .glass-card:first-child {
+            position: relative !important;
+            z-index: 50 !important;
+            overflow: visible !important;
         }
 
         /* Force inner text colors inside all dropdown menus overriding light mode */
         html.light .dropdown-menu,
         html.light #kp-search-dropdown,
+        html.light #cl-search-dropdown,
         html.light #bt-kline-search-dropdown,
         html.light #bt-symbol-dropdown,
         html.light #opt-symbol-dropdown,
@@ -1610,6 +1619,7 @@
 
         html.light .dropdown-menu div,
         html.light #kp-search-dropdown div,
+        html.light #cl-search-dropdown div,
         html.light #bt-kline-search-dropdown div,
         html.light #bt-symbol-dropdown div,
         html.light #opt-symbol-dropdown div,
@@ -4589,9 +4599,9 @@
         <!-- ==================== 12. 缠论多周期立体同图共振 (Chanlun Resonance) ==================== -->
         <section id="view-chanlun" class="space-y-3 hidden !mt-0 !pt-0">
             <!-- 缠论主控面板卡片 (参考K线弹窗风格: 标的属性/现价/极值/估值指标/操作工具) -->
-            <div class="glass-card bg-[#0b0f19]/85 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4 space-y-2.5 shadow-xl backdrop-blur-xl">
+            <div class="glass-card bg-[#0b0f19]/85 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3 sm:p-4 space-y-2.5 shadow-xl backdrop-blur-xl relative z-40 overflow-visible">
                 <!-- Row 1: Stock Symbol, Name, Live Price, Strategy/Resonance Status, Visible Extrema, Valuation & Tools -->
-                <div class="border-b border-slate-200 dark:border-slate-800/80 pb-2 space-y-2">
+                <div class="border-b border-slate-200 dark:border-slate-800/80 pb-2 space-y-2 relative z-40 overflow-visible">
                     <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap gap-y-1.5">
                         <span id="cl-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">主</span>
                         <span id="cl-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">000001.SZ</span>
@@ -4656,7 +4666,7 @@
                     </div>
 
                     <!-- 操作按钮与快速搜索栏 -->
-                    <div class="flex items-center space-x-1.5 text-xs flex-wrap gap-y-1">
+                    <div class="flex items-center space-x-1.5 text-xs flex-wrap gap-y-1 relative z-50">
                         <!-- 实时自动刷新指示器 (随当前选择区间套的最小周期联动，5F=300秒, 15F=900秒, 30F=1800秒, 日线=86400秒) -->
                         <div id="cl-live-indicator" onclick="toggleChanlunAutoRefresh()"
                             class="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-700 font-mono text-[10px] font-medium shrink-0 select-none cursor-pointer"
@@ -4691,7 +4701,7 @@
                         <span class="text-slate-700 mx-0.5 select-none">|</span>
 
                         <!-- 标的快速搜索输入框 (参考K线弹窗 kp-search-input 带自动补全下拉框) -->
-                        <div class="relative shrink-0">
+                        <div class="relative shrink-0 z-50">
                             <div class="relative flex items-center">
                                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-purple-400 pointer-events-none"></i>
                                 <input type="text" id="cl-stock-input" value="000001" placeholder="🔍 股票代码/拼音/名称..." autocomplete="off"
@@ -4705,8 +4715,8 @@
                                 </button>
                             </div>
                             <div id="cl-search-dropdown"
-                                style="display: none;"
-                                class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto z-[999] rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
+                                style="display: none; z-index: 99999 !important;"
+                                class="dropdown-menu absolute top-full left-0 mt-1 w-64 max-h-80 overflow-y-auto z-[99999] rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-md divide-y divide-slate-800/60">
                             </div>
                         </div>
 
