@@ -138,6 +138,29 @@ function setActiveWindow(target: 'left' | 'w2' | 'right' | 'w4') {
   }
 }
 
+// ── 设备检测（PC端默认开启买卖点，手机/Pad等移动设备默认关闭） ───────────────
+function checkIsMobileOrTablet(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+
+  // 1. 移动与平板设备典型 User Agent
+  const ua = (navigator.userAgent || '').toLowerCase()
+  const isMobileUa = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(ua)
+  if (isMobileUa) return true
+
+  // 2. 现代 iPadOS (iOS 13+ iPad 伪装为 MacIntel，但具备多点触控)
+  const isIPadOS =
+    (navigator.platform === 'MacIntel' || navigator.userAgent.includes('Macintosh')) &&
+    Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+  if (isIPadOS) return true
+
+  // 3. 触控支持 + 屏幕尺寸判断 (覆盖主流手机与平板 Pad，触控且非桌面大屏)
+  const hasTouch = 'ontouchstart' in window || Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0)
+  const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  const isNarrowScreen = window.innerWidth <= 1024 || window.innerHeight <= 1024
+
+  return (hasTouch || isCoarsePointer) && isNarrowScreen
+}
+
 // ── 图层控制 ───────────────────────────────────────────────────────────
 const showHighBi = ref(true)
 const showHighZs = ref(true)
@@ -145,7 +168,8 @@ const showMidBi = ref(true)
 const showMidZs = ref(true)
 const showLowBi = ref(true)
 const showLowZs = ref(true)
-const showMmdMarks = ref(true)
+// 缠论K线买卖点：电脑PC端默认开启，移动设备如手机/Pad上默认关闭
+const showMmdMarks = ref(!checkIsMobileOrTablet())
 const showResonanceMarks = ref(false)
 const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
 const isKlineMerged = ref(false) // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭

@@ -1553,16 +1553,31 @@ def export_interactive_html(
     <script>
         const D = {payload_json};
         const myChart = echarts.init(document.getElementById('chart'), 'dark');
+        const isMobileOrTablet = (() => {{
+            if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+            const ua = (navigator.userAgent || '').toLowerCase();
+            const isMobileUa = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(ua);
+            if (isMobileUa) return true;
+            const isIPadOS = (navigator.platform === 'MacIntel' || navigator.userAgent.includes('Macintosh')) &&
+                Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+            if (isIPadOS) return true;
+            const hasTouch = 'ontouchstart' in window || Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+            const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+            const isNarrowScreen = window.innerWidth <= 1024 || window.innerHeight <= 1024;
+            return (hasTouch || isCoarsePointer) && isNarrowScreen;
+        }})();
+
         const option = {{
             backgroundColor: '#181b27',
             animation: false,
             legend: {{
-                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '★共振信号', '成交额', 'MACD', 'RSI6', 'RSI12', 'RSI24', 'KDJ_K', 'KDJ_D', 'KDJ_J', 'EXP12', 'EXP50'],
+                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '买卖点', '★共振信号', '成交额', 'MACD', 'RSI6', 'RSI12', 'RSI24', 'KDJ_K', 'KDJ_D', 'KDJ_J', 'EXP12', 'EXP50'],
                 selected: {{
                     '基准K线': true,
                     '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true,
                     '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})': true,
                     '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true,
+                    '买卖点': !isMobileOrTablet,
                     '★共振信号': false,
                     '成交额': true,
                     'MACD': false,
@@ -1664,7 +1679,12 @@ def export_interactive_html(
                     barWidth: '55%',
                     barMaxWidth: 14,
                     data: D.candles,
-                    itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }},
+                    itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }}
+                }},
+                {{
+                    name: '买卖点',
+                    type: 'line',
+                    data: [],
                     markPoint: {{ data: D.mmd_marks }}
                 }},
                 {{
