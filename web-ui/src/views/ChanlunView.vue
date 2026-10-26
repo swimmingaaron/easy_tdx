@@ -163,9 +163,9 @@ function checkIsMobileOrTablet(): boolean {
 
 // ── 图层控制 ───────────────────────────────────────────────────────────
 const showHighBi = ref(true)
-const showHighZs = ref(true)
+const showHighZs = ref(false) // 主图大中枢：默认关闭 disable
 const showMidBi = ref(true)
-const showMidZs = ref(true)
+const showMidZs = ref(false)  // 主图中中枢：默认关闭 disable
 const showLowBi = ref(true)
 const showLowZs = ref(true)
 // 缠论K线买卖点：电脑PC端默认开启，移动设备如手机/Pad上默认关闭
