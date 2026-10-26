@@ -668,6 +668,65 @@ async function selectStock(c: string) {
   loadData(false)
 }
 
+// ── 选股策略标的导航 ──────────────────────────────────────────────────────────
+interface ScreenerNavItem {
+  code: string
+  name?: string
+  period?: string
+  chan_periods?: string[] | string | null
+}
+
+const screenerNavList = ref<ScreenerNavItem[]>([])
+
+function loadScreenerNavList() {
+  try {
+    const raw = localStorage.getItem('easy_tdx_screener_nav_stocks')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        screenerNavList.value = parsed
+      }
+    }
+  } catch {}
+}
+
+const currentNavIndex = computed(() => {
+  if (screenerNavList.value.length === 0) return -1
+  const cur = (code.value || '').trim()
+  return screenerNavList.value.findIndex((item) => (item.code || '').trim() === cur)
+})
+
+const navInfoText = computed(() => {
+  const total = screenerNavList.value.length
+  if (total === 0) return '--/--'
+  if (currentNavIndex.value === -1) return `--/${total}`
+  return `${currentNavIndex.value + 1}/${total}`
+})
+
+function switchPrevNavStock() {
+  if (screenerNavList.value.length === 0) return
+  const idx = currentNavIndex.value
+  let targetIdx = idx - 1
+  if (idx === -1) targetIdx = 0
+  if (targetIdx < 0) return
+  const target = screenerNavList.value[targetIdx]
+  if (target?.code) {
+    selectStock(target.code)
+  }
+}
+
+function switchNextNavStock() {
+  if (screenerNavList.value.length === 0) return
+  const idx = currentNavIndex.value
+  let targetIdx = idx + 1
+  if (idx === -1) targetIdx = 0
+  if (targetIdx >= screenerNavList.value.length) return
+  const target = screenerNavList.value[targetIdx]
+  if (target?.code) {
+    selectStock(target.code)
+  }
+}
+
 // 联想搜索
 async function onSearchInput() {
   const kw = searchKeyword.value.trim()
@@ -2423,11 +2482,18 @@ function handleKeyDown(e: KeyboardEvent) {
   } else if (e.key === 'End') {
     e.preventDefault()
     exitBacktracking()
+  } else if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft') || e.key === '[') {
+    e.preventDefault()
+    switchPrevNavStock()
+  } else if (e.key === 'PageDown' || (e.altKey && e.key === 'ArrowRight') || e.key === ']') {
+    e.preventDefault()
+    switchNextNavStock()
   }
 }
 
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  loadScreenerNavList()
   let qCode = (route.query.code || route.query.symbol) as string | undefined
   if (!qCode && typeof window !== 'undefined') {
     const raw = (window.location.hash || '') + '&' + (window.location.search || '')
@@ -3054,6 +3120,27 @@ onBeforeUnmount(() => {
 
       <!-- 右侧：实时与回溯切换控制器 -->
       <div class="toolbar-right">
+        <!-- 选股策略标的快速导航组件 (上一个 / 1/113 / 下一个) -->
+        <div v-if="screenerNavList.length > 0" class="cl-nav-stock-group" title="选股策略标的快速切换 (快捷键: PageUp/PageDown 或 Alt+←/→)">
+          <button
+            class="cl-nav-btn"
+            :disabled="currentNavIndex <= 0 && currentNavIndex !== -1"
+            @click="switchPrevNavStock"
+            title="上一个标的 (快捷键: PageUp 或 Alt+←)"
+          >
+            <span class="cl-nav-arrow">&lt;</span> 上一个
+          </button>
+          <span class="cl-nav-info" title="当前标的在选股策略结果中的序号">{{ navInfoText }}</span>
+          <button
+            class="cl-nav-btn"
+            :disabled="currentNavIndex >= screenerNavList.length - 1"
+            @click="switchNextNavStock"
+            title="下一个标的 (快捷键: PageDown 或 Alt+→)"
+          >
+            下一个 <span class="cl-nav-arrow">&gt;</span>
+          </button>
+        </div>
+
         <!-- 实时刷新与休市开关 + 加入/移出自选 -->
         <div class="refresh-box">
           <button
@@ -4783,6 +4870,51 @@ onBeforeUnmount(() => {
   font-size: 10.5px;
   color: #94a3b8;
   cursor: pointer;
+}
+
+.cl-nav-stock-group {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 8px;
+  padding: 2px 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+.cl-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cl-nav-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(51, 65, 85, 0.8);
+}
+.cl-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.cl-nav-info {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  padding: 0 6px;
+  user-select: none;
+}
+.cl-nav-arrow {
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 /* 形态匹配选股弹窗样式 */

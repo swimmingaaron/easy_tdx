@@ -459,6 +459,21 @@
             color: #0284c7 !important;
         }
 
+        html.light #cl-nav-group {
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.light #cl-prev-btn, html.light #cl-next-btn {
+            color: #334155 !important;
+        }
+        html.light #cl-prev-btn:hover:not(:disabled), html.light #cl-next-btn:hover:not(:disabled) {
+            color: #0f172a !important;
+            background: #e2e8f0 !important;
+        }
+        html.light #cl-nav-info {
+            color: #0284c7 !important;
+        }
+
         /* ==================== 缠论 K 线工作台：亮色模式适配 (对齐 K 线弹窗全套高级护眼风格) ==================== */
         html.light #view-chanlun .glass-card {
             background: rgba(255, 255, 255, 0.96) !important;
@@ -4621,6 +4636,23 @@
                             <span class="text-slate-700">|</span>
                             <span>主力净流 <strong class="font-mono font-semibold" id="cl-main-net">--</strong></span>
                         </div>
+
+                        <!-- 选股策略标的导航组件 (上一个 / 1/113 / 下一个) -->
+                        <div id="cl-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm shrink-0" title="选股策略标的快速切换 (快捷键: PageUp/PageDown 或 Alt+←/→)">
+                            <button id="cl-prev-btn" onclick="switchChanlunPrevStock()"
+                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                                title="上一个标的 (快捷键: PageUp 或 Alt+←)">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                <span>上一个</span>
+                            </button>
+                            <span id="cl-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在选股策略结果中的序号">--/--</span>
+                            <button id="cl-next-btn" onclick="switchChanlunNextStock()"
+                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                                title="下一个标的 (快捷键: PageDown 或 Alt+→)">
+                                <span>下一个</span>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- 操作按钮与快速搜索栏 -->
@@ -6802,6 +6834,7 @@
                             setTimeout(() => {
                                 if (typeof initChanlun === 'function') initChanlun();
                                 if (typeof adjustChanlunLayoutHeight === 'function') adjustChanlunLayoutHeight();
+                                if (typeof updateChanlunNavButtons === 'function') updateChanlunNavButtons();
                                 if (window.chanlunChart) window.chanlunChart.resize();
                                 if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
                                 if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
@@ -7011,6 +7044,7 @@
                         if (cleanCode) {
                             if (typeof selectChanlunStock === 'function') {
                                 selectChanlunStock(cleanCode);
+                                if (typeof updateChanlunNavButtons === 'function') updateChanlunNavButtons();
                             } else {
                                 window._clCurrentCode = cleanCode;
                                 window._clCurrentCodeChangedByUser = true;
@@ -7028,6 +7062,11 @@
             if (!cleanCode) return;
             const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
             const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${pParam}`;
+
+            // 保存选股策略筛选标的至 localStorage，以便在新标签页中可上下切换
+            if (typeof saveScreenerNavStocks === 'function' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                saveScreenerNavStocks(window._lastScreenerMatches, window._lastScreenerStrategy);
+            }
 
             // 如果链接已有原生 target="_blank" 属性，由浏览器原生在新标签页中打开
             if (event && event.currentTarget && event.currentTarget.tagName === 'A' && event.currentTarget.target === '_blank') {
@@ -7869,6 +7908,180 @@
             openKlineModal(sym, name, period, list);
         }
 
+        // ==================== 缠论标的导航 (选股策略筛选标的快速切换) ==================== //
+        const SCREENER_NAV_STORAGE_KEY = 'easy_tdx_screener_nav_stocks';
+
+        function saveScreenerNavStocks(matches, strategyName = '') {
+            if (!Array.isArray(matches) || matches.length === 0) return;
+            try {
+                const navList = matches.map(m => ({
+                    code: String(m.code || m.symbol || m.stock_code || '').trim().replace(/[^0-9]/g, ''),
+                    name: String(m.name || m.stock_name || '').trim(),
+                    period: m.period || '',
+                    chan_periods: m.chan_periods || null
+                })).filter(x => !!x.code);
+                if (navList.length > 0) {
+                    localStorage.setItem(SCREENER_NAV_STORAGE_KEY, JSON.stringify(navList));
+                    if (strategyName) {
+                        localStorage.setItem('easy_tdx_screener_strategy', strategyName);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to save screener nav stocks:', e);
+            }
+        }
+
+        function getChanlunScreenerStockList() {
+            // 1. 优先使用当前窗口内存中的选股结果
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                return window._lastScreenerMatches;
+            }
+            // 2. 从 localStorage 读取（支持新标签页打开与跨页面同步）
+            try {
+                const raw = localStorage.getItem(SCREENER_NAV_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            } catch (e) { }
+            return [];
+        }
+
+        function getActiveChanlunStockNav() {
+            const list = getChanlunScreenerStockList();
+            if (!list || list.length === 0) {
+                return { list: [], index: -1 };
+            }
+            const curCode = normalizeStockCode(window._clCurrentCode || '000001');
+            const curName = String(window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || '').trim();
+
+            const idx = findStockIndexInList(list, curCode, curName);
+            return { list, index: idx };
+        }
+
+        function updateChanlunNavButtons() {
+            const prevBtn = document.getElementById('cl-prev-btn');
+            const nextBtn = document.getElementById('cl-next-btn');
+            const navInfo = document.getElementById('cl-nav-info');
+            if (!prevBtn || !nextBtn || !navInfo) return;
+
+            const { list, index } = getActiveChanlunStockNav();
+            if (!list || list.length === 0) {
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                prevBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                nextBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                navInfo.innerText = '--/--';
+                prevBtn.title = '暂无选股策略标的列表';
+                nextBtn.title = '暂无选股策略标的列表';
+                return;
+            }
+
+            const total = list.length;
+            if (index === -1) {
+                // 当前标的不在选股策略列表中，但有选股列表，支持点击跳入第1只
+                navInfo.innerText = `--/${total}`;
+                prevBtn.disabled = false;
+                nextBtn.disabled = false;
+                prevBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                nextBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                const first = list[0];
+                const firstName = first.name || first.stock_name || first.code || '第一只';
+                prevBtn.title = `跳转选股结果首只标的: ${firstName}`;
+                nextBtn.title = `跳转选股结果首只标的: ${firstName}`;
+                return;
+            }
+
+            navInfo.innerText = `${index + 1}/${total}`;
+
+            // Previous stock button
+            if (index > 0) {
+                prevBtn.disabled = false;
+                prevBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                const prevItem = list[index - 1];
+                const prevName = prevItem.name || prevItem.stock_name || prevItem.code || '上一只';
+                prevBtn.title = `上一个: ${prevName} (快捷键: PageUp 或 Alt+←)`;
+            } else {
+                prevBtn.disabled = true;
+                prevBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                prevBtn.title = '已经是第一只标的';
+            }
+
+            // Next stock button
+            if (index < total - 1) {
+                nextBtn.disabled = false;
+                nextBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+                const nextItem = list[index + 1];
+                const nextName = nextItem.name || nextItem.stock_name || nextItem.code || '下一只';
+                nextBtn.title = `下一个: ${nextName} (快捷键: PageDown 或 Alt+→)`;
+            } else {
+                nextBtn.disabled = true;
+                nextBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                nextBtn.title = '已经是最后一只标的';
+            }
+        }
+
+        function switchChanlunPrevStock() {
+            const { list, index } = getActiveChanlunStockNav();
+            if (!list || list.length === 0) return;
+            let targetIdx = index - 1;
+            if (index === -1) targetIdx = 0;
+            if (targetIdx < 0) return;
+            const target = list[targetIdx];
+            const code = String(target.code || target.symbol || target.stock_code || '').trim().replace(/[^0-9]/g, '');
+            if (!code) return;
+
+            if (target.chan_periods) {
+                const pStr = Array.isArray(target.chan_periods) ? target.chan_periods.join(',') : String(target.chan_periods);
+                if (typeof applyChanlunPreset === 'function') {
+                    applyChanlunPreset(pStr);
+                }
+            }
+
+            if (typeof selectChanlunStock === 'function') {
+                selectChanlunStock(code);
+            }
+            try {
+                window.history.replaceState(null, '', `/#chanlun?code=${code}`);
+            } catch (e) { }
+            updateChanlunNavButtons();
+        }
+
+        function switchChanlunNextStock() {
+            const { list, index } = getActiveChanlunStockNav();
+            if (!list || list.length === 0) return;
+            let targetIdx = index + 1;
+            if (index === -1) targetIdx = 0;
+            if (targetIdx >= list.length) return;
+            const target = list[targetIdx];
+            const code = String(target.code || target.symbol || target.stock_code || '').trim().replace(/[^0-9]/g, '');
+            if (!code) return;
+
+            if (target.chan_periods) {
+                const pStr = Array.isArray(target.chan_periods) ? target.chan_periods.join(',') : String(target.chan_periods);
+                if (typeof applyChanlunPreset === 'function') {
+                    applyChanlunPreset(pStr);
+                }
+            }
+
+            if (typeof selectChanlunStock === 'function') {
+                selectChanlunStock(code);
+            }
+            try {
+                window.history.replaceState(null, '', `/#chanlun?code=${code}`);
+            } catch (e) { }
+            updateChanlunNavButtons();
+        }
+
+        window.saveScreenerNavStocks = saveScreenerNavStocks;
+        window.getChanlunScreenerStockList = getChanlunScreenerStockList;
+        window.getActiveChanlunStockNav = getActiveChanlunStockNav;
+        window.updateChanlunNavButtons = updateChanlunNavButtons;
+        window.switchChanlunPrevStock = switchChanlunPrevStock;
+        window.switchChanlunNextStock = switchChanlunNextStock;
+
         window.switchKlinePrevStock = switchKlinePrevStock;
         window.switchKlineNextStock = switchKlineNextStock;
         window.updateKlineNavButtons = updateKlineNavButtons;
@@ -8503,6 +8716,18 @@
                     } else if (e.code === 'Space') {
                         e.preventDefault();
                         toggleBtReplayPlay();
+                    }
+                }
+
+                const clView = document.getElementById('view-chanlun');
+                const isClActive = clView && !clView.classList.contains('hidden');
+                if (isClActive && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                    if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft') || e.key === '[') {
+                        e.preventDefault();
+                        switchChanlunPrevStock();
+                    } else if (e.key === 'PageDown' || (e.altKey && e.key === 'ArrowRight') || e.key === ']') {
+                        e.preventDefault();
+                        switchChanlunNextStock();
                     }
                 }
             }
@@ -18586,6 +18811,12 @@
             window._lastScreenerMatches = matches || [];
             if (strategyName) window._lastScreenerStrategy = strategyName;
             if (universeDesc) window._lastScreenerUniverse = universeDesc;
+            if (typeof saveScreenerNavStocks === 'function' && Array.isArray(matches) && matches.length > 0) {
+                saveScreenerNavStocks(matches, strategyName);
+            }
+            if (typeof updateChanlunNavButtons === 'function') {
+                updateChanlunNavButtons();
+            }
             screenerCurrentPage = 1;
             renderScreenerTablePage();
         }
@@ -24091,6 +24322,11 @@
                 window._clLastMetricsCode = d.code;
                 fetchKlineQuoteMetrics(d.code);
             }
+
+            // 7. 同步更新选股策略标的导航状态 (上一个 / 1/113 / 下一个)
+            if (typeof updateChanlunNavButtons === 'function') {
+                updateChanlunNavButtons();
+            }
         }
 
         async function fetchKlineQuoteMetrics(code) {
@@ -26174,6 +26410,9 @@
             renderChanlunPopularStocks();
             clearClBacktrackCache();
             exitChanlunBacktrack();
+            if (typeof updateChanlunNavButtons === 'function') {
+                updateChanlunNavButtons();
+            }
             loadChanlunData(true);
         }
 
