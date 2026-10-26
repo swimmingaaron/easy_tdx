@@ -7063,9 +7063,25 @@
             const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
             const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${pParam}`;
 
-            // 保存选股策略筛选标的至 localStorage，以便在新标签页中可上下切换
-            if (typeof saveScreenerNavStocks === 'function' && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
-                saveScreenerNavStocks(window._lastScreenerMatches, window._lastScreenerStrategy);
+            // 保存来源标的池（交易系统行情池、选股策略、自选股等）至 localStorage，以便在新标签页中可上下切换
+            let foundNavList = null;
+            if (typeof resolveNavListForStock === 'function') {
+                foundNavList = resolveNavListForStock(cleanCode, name);
+            }
+            if (!foundNavList && typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) {
+                foundNavList = tsAllRows;
+            }
+            if (!foundNavList && Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) {
+                foundNavList = window._lastTradingSystemRows;
+            }
+            if (!foundNavList && Array.isArray(window.tsRowsData) && window.tsRowsData.length > 0) {
+                foundNavList = window.tsRowsData;
+            }
+            if (!foundNavList && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                foundNavList = window._lastScreenerMatches;
+            }
+            if (foundNavList && typeof saveScreenerNavStocks === 'function') {
+                saveScreenerNavStocks(foundNavList);
             }
 
             // 如果链接已有原生 target="_blank" 属性，由浏览器原生在新标签页中打开
@@ -7908,8 +7924,56 @@
             openKlineModal(sym, name, period, list);
         }
 
-        // ==================== 缠论标的导航 (选股策略筛选标的快速切换) ==================== //
+        // ==================== 缠论标的导航 (选股策略与行情池快速切换) ==================== //
         const SCREENER_NAV_STORAGE_KEY = 'easy_tdx_screener_nav_stocks';
+
+        function resolveNavListForStock(code, name) {
+            const sym = normalizeStockCode(code);
+            const curTab = (typeof getActiveTabName === 'function') ? getActiveTabName() : ((window.location.hash || '').replace('#', '').trim() || 'dashboard');
+
+            const candidateLists = [];
+
+            // 1. 如果当前在交易系统，优先交易系统全量与过滤列表
+            if (curTab === 'tradingsystem') {
+                if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
+                if (typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) candidateLists.push(tsAllRows);
+                if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
+                if (typeof tsRowsData !== 'undefined' && Array.isArray(tsRowsData) && tsRowsData.length > 0) candidateLists.push(tsRowsData);
+                if (Array.isArray(window.tsRowsData) && window.tsRowsData.length > 0) candidateLists.push(window.tsRowsData);
+            } else if (curTab === 'screener') {
+                if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
+            }
+
+            // 2. 依次检查全量候选行情池
+            if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
+            if (typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) candidateLists.push(tsAllRows);
+            if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
+            if (typeof tsRowsData !== 'undefined' && Array.isArray(tsRowsData) && tsRowsData.length > 0) candidateLists.push(tsRowsData);
+            if (Array.isArray(window.tsRowsData) && window.tsRowsData.length > 0) candidateLists.push(window.tsRowsData);
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
+            if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && window.CURRENT_SECTOR_STOCKS_DATA.length > 0) candidateLists.push(window.CURRENT_SECTOR_STOCKS_DATA);
+            if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
+            if (Array.isArray(window._cachedLadderStocks) && window._cachedLadderStocks.length > 0) candidateLists.push(window._cachedLadderStocks);
+            if (Array.isArray(window._cachedAnomaliesStream) && window._cachedAnomaliesStream.length > 0) candidateLists.push(window._cachedAnomaliesStream);
+            if (Array.isArray(window._cachedAnomaliesAuction) && window._cachedAnomaliesAuction.length > 0) candidateLists.push(window._cachedAnomaliesAuction);
+            if (Array.isArray(window._cachedAnomaliesIntraday) && window._cachedAnomaliesIntraday.length > 0) candidateLists.push(window._cachedAnomaliesIntraday);
+            if (Array.isArray(window._cachedAnomaliesDeviation) && window._cachedAnomaliesDeviation.length > 0) candidateLists.push(window._cachedAnomaliesDeviation);
+            if (Array.isArray(window._cachedSectorLeadersAllStocks) && window._cachedSectorLeadersAllStocks.length > 0) candidateLists.push(window._cachedSectorLeadersAllStocks);
+            if (Array.isArray(window._lastAiReviewList) && window._lastAiReviewList.length > 0) candidateLists.push(window._lastAiReviewList);
+            if (typeof finaFilteredRows !== 'undefined' && Array.isArray(finaFilteredRows) && finaFilteredRows.length > 0) candidateLists.push(finaFilteredRows);
+            if (Array.isArray(window._lastFinaRows) && window._lastFinaRows.length > 0) candidateLists.push(window._lastFinaRows);
+
+            for (const cl of candidateLists) {
+                if (!cl || cl.length === 0) continue;
+                const idx = findStockIndexInList(cl, sym, name);
+                if (idx !== -1) {
+                    return cl;
+                }
+            }
+            return null;
+        }
+
+        window.resolveNavListForStock = resolveNavListForStock;
 
         function saveScreenerNavStocks(matches, strategyName = '') {
             if (!Array.isArray(matches) || matches.length === 0) return;
@@ -7932,9 +7996,9 @@
         }
 
         function getChanlunScreenerStockList() {
-            // 1. 优先使用当前窗口内存中的选股结果
-            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
-                return window._lastScreenerMatches;
+            // 1. 优先使用当前窗口显式指定的导航列表
+            if (Array.isArray(window._currentChanlunNavList) && window._currentChanlunNavList.length > 0) {
+                return window._currentChanlunNavList;
             }
             // 2. 从 localStorage 读取（支持新标签页打开与跨页面同步）
             try {
@@ -7946,6 +8010,19 @@
                     }
                 }
             } catch (e) { }
+            // 3. 内存回退：如果在当前单页应用中，检查内存中各行情池中是否包含当前股票
+            const curCode = normalizeStockCode(window._clCurrentCode || '000001');
+            const curName = String(window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || '').trim();
+            if (typeof resolveNavListForStock === 'function') {
+                const fallbackList = resolveNavListForStock(curCode, curName);
+                if (fallbackList && fallbackList.length > 0) {
+                    window._currentChanlunNavList = fallbackList;
+                    return fallbackList;
+                }
+            }
+            if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
+                return window._lastScreenerMatches;
+            }
             return [];
         }
 
@@ -21138,6 +21215,10 @@
 
         function renderTsTable(rows, mode) {
             tsAllRows = rows || [];
+            window._lastTradingSystemRows = tsAllRows;
+            if (Array.isArray(tsAllRows) && tsAllRows.length > 0 && typeof saveScreenerNavStocks === 'function') {
+                saveScreenerNavStocks(tsAllRows, '交易系统实时行情池');
+            }
             tsCurrentPage = 1;
             renderTsTablePage();
         }
@@ -23663,6 +23744,9 @@
                 window._clCurrentCode = urlCode;
                 _clCurrentCodeChangedByUser = true;
                 window._clCurrentCodeChangedByUser = true;
+            }
+            if (typeof updateChanlunNavButtons === 'function') {
+                updateChanlunNavButtons();
             }
 
             renderChanlunPopularStocks();
