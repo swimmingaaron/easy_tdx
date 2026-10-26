@@ -57,9 +57,16 @@ def find_zss(
         zd = max(b0.low, b1.low, b2.low)
 
         if zg > zd:
-            # 前三笔重叠成立，创建标准中枢
             gg = max(b0.high, b1.high, b2.high)
             dd = min(b0.low, b1.low, b2.low)
+            span = gg - dd
+
+            # 过滤单边暴跌或暴涨中的极微弱虚假停顿（中枢有效区间高度占三笔总跨度不足 5%）
+            if span > 0 and (zg - zd) / span < 0.05:
+                i += 1
+                continue
+
+            # 前三笔重叠成立，创建标准中枢
             dir_str = "up" if b0.direction == Direction.DOWN else "down"
 
             zs = ZS(

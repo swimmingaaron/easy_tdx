@@ -1526,16 +1526,16 @@ def analyze_multi_period_resonance(
         return {
             "status": "success",
             "summary": {
-                "high_state": current_high_state,
-                "mid_state": current_mid_state,
-                "low_state": current_low_state,
+                "high_state": current_high_state.to_dict() if hasattr(current_high_state, "to_dict") else current_high_state,
+                "mid_state": current_mid_state.to_dict() if hasattr(current_mid_state, "to_dict") else current_mid_state,
+                "low_state": current_low_state.to_dict() if hasattr(current_low_state, "to_dict") else current_low_state,
                 "latest_date": str(latest_dt),
                 "latest_price": float(base_df["close"].iloc[-1]) if not base_df.empty else 0.0,
             },
             "unified_chart": {
                 "mmd_marks": mmd_marks,
             },
-            "resonances": resonances,
+            "resonances": [r.to_dict() if hasattr(r, "to_dict") else r for r in resonances],
         }
 
     # 组装基准 K 线坐标轴与图表序列

@@ -116,7 +116,15 @@ def _check_buy_point(
         if bi.index >= 1:
             prev_bi = all_bis[bi.index - 1]
             # 离开笔必须是向上笔且创出高于中枢上沿的新高
-            if prev_bi.direction == Direction.UP and prev_bi.high < zs.zg:
+            if prev_bi.direction == Direction.UP:
+                if prev_bi.high < zs.zg:
+                    is_breakout = False
+                # 缠论公理：若向上离开笔本身已发生顶背驰（1SELL），表明多头动能衰竭转折，次回调不构成三买！
+                if _check_force_decreasing(
+                    prev_bi, all_bis, Direction.UP, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
+                ):
+                    is_breakout = False
+            else:
                 is_breakout = False
         if is_breakout:
             return MMD(
@@ -148,7 +156,16 @@ def _check_buy_point(
     # 要求：1) 高于或平于前一个向下笔低点；2) 发生在中枢下沿或中枢建立/突破初期的第一折回踩
     if bi_idx >= 2:
         if prev_down_bi and prev_down_bi.direction == Direction.DOWN:
-            if bi.low >= prev_down_bi.low * 0.998:
+            prev_up_bi = all_bis[bi_idx - 1] if bi_idx >= 1 else None
+            # 缠论公理：二买绝不能是自高位顶背驰/创波段最高点之后的第一笔下杀！
+            # 若中间向上笔大幅冲顶创出高位新高（prev_up_bi.high >= zs.gg 且创局部最高），
+            # 则当前笔只是见顶下杀第一笔，绝非二买
+            is_peak_first_drop = False
+            if prev_up_bi and prev_up_bi.direction == Direction.UP:
+                if prev_up_bi.high >= zs.gg and prev_up_bi.high > prev_down_bi.high:
+                    is_peak_first_drop = True
+
+            if not is_peak_first_drop and bi.low >= prev_down_bi.low * 0.998:
                 is_valid_2buy = False
                 if prev_down_bi.low <= zs.zd or bi.low >= zs.zd:
                     is_valid_2buy = True
@@ -178,7 +195,15 @@ def _check_sell_point(
         is_breakdown = True
         if bi.index >= 1:
             prev_bi = all_bis[bi.index - 1]
-            if prev_bi.direction == Direction.DOWN and prev_bi.low > zs.zd:
+            if prev_bi.direction == Direction.DOWN:
+                if prev_bi.low > zs.zd:
+                    is_breakdown = False
+                # 缠论公理：若向下离开笔本身已发生底背驰（1BUY），表明空头动能衰竭转折，次反弹不构成三卖！
+                if _check_force_decreasing(
+                    prev_bi, all_bis, Direction.DOWN, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
+                ):
+                    is_breakdown = False
+            else:
                 is_breakdown = False
         if is_breakdown:
             return MMD(
@@ -209,7 +234,16 @@ def _check_sell_point(
     # ── 3. 二类卖点：一卖之后或中枢冲顶后，反弹不创新高（兼容双顶/平顶滞涨受阻）
     if bi_idx >= 2:
         if prev_up_bi and prev_up_bi.direction == Direction.UP:
-            if bi.high <= prev_up_bi.high * 1.002:
+            prev_down_bi = all_bis[bi_idx - 1] if bi_idx >= 1 else None
+            # 缠论公理：二卖绝不能是自低位底背驰/创波段大底之后的第一笔反抽！
+            # 若中间向下笔探底创出低位新低（prev_down_bi.low <= zs.dd 且创局部最低），
+            # 则当前笔是自底见底反转第一笔，绝非二卖
+            is_bottom_first_bounce = False
+            if prev_down_bi and prev_down_bi.direction == Direction.DOWN:
+                if prev_down_bi.low <= zs.dd and prev_down_bi.low < prev_up_bi.low:
+                    is_bottom_first_bounce = True
+
+            if not is_bottom_first_bounce and bi.high <= prev_up_bi.high * 1.002:
                 is_valid_2sell = False
                 if prev_up_bi.high >= zs.zg or bi.high <= zs.zg:
                     is_valid_2sell = True

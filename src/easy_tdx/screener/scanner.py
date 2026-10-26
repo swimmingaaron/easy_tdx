@@ -546,6 +546,15 @@ def _is_top_sell_downtrend(sym: str, period: str = "MONTH", force_refresh: bool 
         return False
 
 
+def _safe_state_val(state: Any, key: str, default: Any = None) -> Any:
+    """安全获取 PeriodState 对象或 dict 的属性/键值，防御性防止 AttributeError"""
+    if state is None:
+        return default
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
+
+
 def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
     """解析缠论选股的 4 级联周期，默认为 日 30F 5F (DAY_30F_5F)。"""
     if not raw_period:
@@ -649,13 +658,13 @@ def _evaluate_stock_for_strategy(
                 mid_state = sum_smw.get("mid_state", {})
 
                 # 季线趋势良好，不能处于明确空头破位
-                if high_state.get("is_bearish", False):
+                if _safe_state_val(high_state, "is_bearish", False):
                     return None
                 if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
                     return None
 
                 # 月线趋势良好，排除月线见顶大卖杀跌
-                if mid_state.get("is_bearish", False):
+                if _safe_state_val(mid_state, "is_bearish", False):
                     return None
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
@@ -705,13 +714,13 @@ def _evaluate_stock_for_strategy(
                 mid_state = sum_mwd.get("mid_state", {})
 
                 # 月线排除见顶大卖杀跌与空头
-                if high_state.get("is_bearish", False):
+                if _safe_state_val(high_state, "is_bearish", False):
                     return None
                 if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
                     return None
 
                 # 周线排除见顶杀跌与空头
-                if mid_state.get("is_bearish", False):
+                if _safe_state_val(mid_state, "is_bearish", False):
                     return None
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
@@ -759,13 +768,13 @@ def _evaluate_stock_for_strategy(
                 mid_state = sum_wd30.get("mid_state", {})
 
                 # 周线排除见顶杀跌与空头
-                if high_state.get("is_bearish", False):
+                if _safe_state_val(high_state, "is_bearish", False):
                     return None
                 if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
                     return None
 
                 # 日线排除空头
-                if mid_state.get("is_bearish", False):
+                if _safe_state_val(mid_state, "is_bearish", False):
                     return None
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
@@ -814,14 +823,14 @@ def _evaluate_stock_for_strategy(
                 last_m_high = high_mwd[-1]
                 if not last_m_high.get("is_buy", False) or "SELL" in str(last_m_high.get("type", "")).upper() or "卖" in str(last_m_high.get("label", "")):
                     return None
-                m_bars_ago = high_state_m.get("recent_mmd_bars_ago")
+                m_bars_ago = _safe_state_val(high_state_m, "recent_mmd_bars_ago")
                 if m_bars_ago is not None and int(m_bars_ago) > 8:
                     return None
                 # 1.2 月线保持上升趋势
-                if high_state_m.get("is_bearish", False) or mid_state_w.get("is_bearish", False):
+                if _safe_state_val(high_state_m, "is_bearish", False) or _safe_state_val(mid_state_w, "is_bearish", False):
                     return None
                 # 1.3 月线最近一笔是向下笔
-                m_bi_dir = str(high_state_m.get("bi_direction", "")).lower()
+                m_bi_dir = str(_safe_state_val(high_state_m, "bi_direction", "")).lower()
                 if m_bi_dir not in ("down", "向下", "向下笔"):
                     return None
                 # 1.4 同时日线出现 1买
@@ -857,14 +866,14 @@ def _evaluate_stock_for_strategy(
                 last_w_high = high_wd30[-1]
                 if not last_w_high.get("is_buy", False) or "SELL" in str(last_w_high.get("type", "")).upper() or "卖" in str(last_w_high.get("label", "")):
                     return None
-                w_bars_ago = high_state_w.get("recent_mmd_bars_ago")
+                w_bars_ago = _safe_state_val(high_state_w, "recent_mmd_bars_ago")
                 if w_bars_ago is not None and int(w_bars_ago) > 8:
                     return None
                 # 2.2 周线保持上升趋势
-                if high_state_w.get("is_bearish", False):
+                if _safe_state_val(high_state_w, "is_bearish", False):
                     return None
                 # 2.3 周线最近一笔是向下笔
-                w_bi_dir = str(high_state_w.get("bi_direction", "")).lower()
+                w_bi_dir = str(_safe_state_val(high_state_w, "bi_direction", "")).lower()
                 if w_bi_dir not in ("down", "向下", "向下笔"):
                     return None
                 # 2.4 同时 30M 出现 1买
@@ -898,11 +907,11 @@ def _evaluate_stock_for_strategy(
                 last_d_high = high_d30f5[-1]
                 if not last_d_high.get("is_buy", False) or "SELL" in str(last_d_high.get("type", "")).upper() or "卖" in str(last_d_high.get("label", "")):
                     return None
-                d_bars_ago = high_state_d.get("recent_mmd_bars_ago")
+                d_bars_ago = _safe_state_val(high_state_d, "recent_mmd_bars_ago")
                 if d_bars_ago is not None and int(d_bars_ago) > 15:
                     return None
                 # 3.2 日线最近一笔是向下笔
-                d_bi_dir = str(high_state_d.get("bi_direction", "")).lower()
+                d_bi_dir = str(_safe_state_val(high_state_d, "bi_direction", "")).lower()
                 if d_bi_dir not in ("down", "向下", "向下笔"):
                     return None
                 # 3.3 同时 5M 出现 2买
