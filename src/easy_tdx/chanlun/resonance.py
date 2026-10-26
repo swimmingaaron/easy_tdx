@@ -1280,12 +1280,12 @@ def analyze_multi_period_resonance(
             mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 800),
             low_p: 250 if low_p == "WEEK" else 800,
         }
-    # 5F 分钟线维持 12000 根；30M / 15F / 1F 分钟线维持 3000 根
+    # 5F / 30F / 15F / 1F 分钟线动态适配：由调用者传入的 count 驱动（支持缩放动态按需扩充，默认 800 根秒出）
     for p in p_list:
         if p in ("5F", "5M"):
-            req_counts[p] = 12000
+            req_counts[p] = min(max(count, 800), 12000)
         elif p in ("30F", "30M", "15F", "15M", "1F", "1M"):
-            req_counts[p] = 3000
+            req_counts[p] = min(max(count, 800), 6000)
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
     effective_force_refresh = False if is_backtracking else force_refresh
@@ -1317,11 +1317,12 @@ def analyze_multi_period_resonance(
         elif p_name == "WEEK":
             target_cnt = 250  # 最大安全拉取 250 根
         elif p_name in ("DAY", "120M", "60M"):
-            target_cnt = 500 if screener_mode else 800  # 日线维持 500~800 根
+            target_cnt = 500 if screener_mode else max(needed_cnt, 800)
         elif p_name in ("5F", "5M"):
-            target_cnt = 12000  # 5F 分钟线维持 12000 根（支持约 1 年历史大周期）
+            # 5F 分钟线动态适配：由前端请求深度或缩放自适应驱动，默认 800 根极速秒出，缩放时按需放大，最大支持 12000 根
+            target_cnt = min(max(needed_cnt, 800), 12000)
         elif p_name in ("30F", "30M", "15F", "15M", "1F", "1M"):
-            target_cnt = 3000  # 30M 15F 1F 分钟线维持 3000 根
+            target_cnt = min(max(needed_cnt, 800), 6000)
         else:
             target_cnt = max(needed_cnt, 800)
 

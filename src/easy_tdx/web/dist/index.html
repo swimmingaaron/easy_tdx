@@ -23812,6 +23812,9 @@
         }
 
         let _clBacktrackAbortController = null;
+        let _clWindowCustomCounts = { left: 800, w2: 800, right: 800, w4: 800 };
+        let _clExpandingWindows = new Set();
+        let _clZoomDebounceTimers = {};
 
         async function loadChanlunData(forceRefresh = false) {
             if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode) return;
@@ -23888,12 +23891,12 @@
             if (loadingOverlayW4 && _clWindowMode === 'quad') loadingOverlayW4.style.display = (!hasW4Data && !_clIsBacktracking) ? 'flex' : 'none';
 
             try {
-                async function fetchResonance(periods) {
+                async function fetchResonance(periods, customCount = null) {
                     const query = new URLSearchParams();
                     query.set('code', _clCurrentCode);
                     query.set('periods', periods);
-                    const reqCount = (periods.includes('5F') || periods.includes('1F') || periods.includes('15F') || periods.includes('30F')) ? '1500' : '800';
-                    query.set('count', reqCount);
+                    const reqCount = customCount || 800;
+                    query.set('count', String(reqCount));
                     if (_clIsBacktracking && _clBacktrackDate) {
                         query.set('cutoff_date', _clBacktrackDate);
                     }
@@ -23909,7 +23912,8 @@
 
                 // 单窗口渲染器：数据一旦就绪立即渲染上屏并隐藏该窗口遮罩，出图优先级最高！
                 async function renderWindowProgressive(key, periods, isPrimary = false) {
-                    const data = await fetchResonance(periods);
+                    const targetCount = _clWindowCustomCounts[key] || 800;
+                    const data = await fetchResonance(periods, targetCount);
                     if (reqCode !== _clCurrentCode) return null;
                     if (_clIsBacktracking && reqDate !== _clBacktrackDate) return null;
 
@@ -26175,11 +26179,14 @@
             if (!instance) {
                 instance = echarts.init(chartDom, isDark ? 'dark' : null);
                 instance._clThemeMode = isDark ? 'dark' : 'light';
-                if (side === 'left' || side === 'w1') {
-                    instance.on('dataZoom', () => {
+                instance.on('dataZoom', () => {
+                    if (side === 'left' || side === 'w1') {
                         updateChanlunVisibleExtrema();
-                    });
-                }
+                    }
+                    if (typeof checkAndTriggerDynamicZoom === 'function') {
+                        checkAndTriggerDynamicZoom(side, instance);
+                    }
+                });
                 window[instanceProp] = instance;
             }
 
@@ -26508,6 +26515,7 @@
             window._clCurrentCode = codeVal;
             _clCurrentCodeChangedByUser = true;
             window._clCurrentCodeChangedByUser = true;
+            _clWindowCustomCounts = { left: 800, w2: 800, right: 800, w4: 800 };
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
             renderChanlunPopularStocks();
@@ -27168,17 +27176,87 @@
             }
         }
 
-        // ==================== 缠论 K 线缩放 (通达信快捷键: ↑ 放大 / ↓ 缩小) ==================== //
-        function zoomChanlunChart(factor) {
-            const charts = [window.chanlunChart];
-            if (_clWindowMode === 'quad') {
-                if (window.chanlunChartW2) charts.push(window.chanlunChartW2);
-                if (window.chanlunChartRight) charts.push(window.chanlunChartRight);
-                if (window.chanlunChartW4) charts.push(window.chanlunChartW4);
-            } else if (_clWindowMode === 'dual' && window.chanlunChartRight) {
-                charts.push(window.chanlunChartRight);
+        // ==================== 缠论 K 线动态缩放扩充与快捷键 ==================== //
+        async function expandChanlunWindowHistory(side) {
+            if (_clExpandingWindows.has(side)) return;
+            const curCount = _clWindowCustomCounts[side] || 800;
+            if (curCount >= 12000) return; // 已经达到历史拉取最大上限
+
+            // 根数按阶梯动态扩充：800 -> 2000 -> 4000 -> 8000 -> 12000
+            let nextCount = 2000;
+            if (curCount < 1000) nextCount = 2000;
+            else if (curCount < 2500) nextCount = 4000;
+            else if (curCount < 5000) nextCount = 8000;
+            else nextCount = 12000;
+            nextCount = Math.min(12000, Math.round(nextCount));
+
+            _clWindowCustomCounts[side] = nextCount;
+            _clExpandingWindows.add(side);
+
+            // 获取该窗口当前对应的周期配置
+            let periods = _clLeftPeriods;
+            if (side === 'w2') periods = _clW2Periods;
+            else if (side === 'right') periods = _clRightPeriods;
+            else if (side === 'w4') periods = _clW4Periods;
+
+            try {
+                const query = new URLSearchParams();
+                query.set('code', _clCurrentCode);
+                query.set('periods', periods);
+                query.set('count', String(nextCount));
+                if (_clIsBacktracking && _clBacktrackDate) {
+                    query.set('cutoff_date', _clBacktrackDate);
+                }
+
+                const resp = await fetch(`/api/v1/chanlun/resonance?${query.toString()}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+
+                // 缓存并静默平滑重绘图表，保持用户的视觉范围
+                if (side === 'left') {
+                    _clLeftCachedData = data;
+                    _clCachedData = data;
+                } else if (side === 'w2') {
+                    _clW2CachedData = data;
+                } else if (side === 'right') {
+                    _clRightCachedData = data;
+                } else if (side === 'w4') {
+                    _clW4CachedData = data;
+                }
+
+                renderSingleChanlunChart(side, data);
+            } catch (e) {
+                console.warn('Dynamic expand history failed:', e);
+            } finally {
+                _clExpandingWindows.delete(side);
             }
-            charts.forEach(chart => {
+        }
+
+        function checkAndTriggerDynamicZoom(side, instance) {
+            if (!instance) return;
+            const opt = instance.getOption();
+            if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
+            const start = opt.dataZoom[0].start;
+            // 当视口向左缩放或平移到接近最左侧 (start <= 3%) 时，防抖触发动态扩充根数
+            if (start !== undefined && start !== null && start <= 3) {
+                if (_clZoomDebounceTimers[side]) clearTimeout(_clZoomDebounceTimers[side]);
+                _clZoomDebounceTimers[side] = setTimeout(() => {
+                    expandChanlunWindowHistory(side);
+                }, 300);
+            }
+        }
+
+        function zoomChanlunChart(factor) {
+            const chartMap = { left: window.chanlunChart };
+            if (_clWindowMode === 'quad') {
+                chartMap.w2 = window.chanlunChartW2;
+                chartMap.right = window.chanlunChartRight;
+                chartMap.w4 = window.chanlunChartW4;
+            } else if (_clWindowMode === 'dual') {
+                chartMap.right = window.chanlunChartRight;
+            }
+
+            Object.entries(chartMap).forEach(([side, chart]) => {
                 if (!chart) return;
                 const opt = chart.getOption();
                 if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return;
@@ -27198,6 +27276,11 @@
                     start: newStart,
                     end: newEnd
                 });
+
+                // 若用户缩小且已经处于左边缘 (newStart <= 5%)，动态拉取更多历史
+                if (factor > 1 && newStart <= 5) {
+                    expandChanlunWindowHistory(side);
+                }
             });
         }
 
