@@ -356,14 +356,15 @@ def fetch_security_kline(
         pull_count = max(count, 800)
 
     # 1.1 若已有本地缓存，检查是否已满足需求（针对新股 full_history 容错：历史已拉满时不因不足 12000 根而重复全量拉取）
-    is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
-    is_satisfied = (len(cached_df) >= effective_req_count) or is_full_history
-    if cached_df is not None and not cached_df.empty and is_satisfied and not force_refresh:
-        # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
-        if disk_cache.is_up_to_date(cached_df, cache_suffix):
-            res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
-            _CACHE[cache_key] = (now, res)
-            return res
+    if cached_df is not None and not cached_df.empty and not force_refresh:
+        is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
+        is_satisfied = (len(cached_df) >= effective_req_count) or is_full_history
+        if is_satisfied:
+            # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
+            if disk_cache.is_up_to_date(cached_df, cache_suffix):
+                res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
+                _CACHE[cache_key] = (now, res)
+                return res
 
         # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
         try:
