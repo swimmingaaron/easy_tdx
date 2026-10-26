@@ -4705,11 +4705,11 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
                             <select id="cl-select-main-layers" onchange="toggleChanlunLayerFromSelect(this)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="" disabled selected id="cl-opt-summary">图层开关 (6/8)</option>
+                                <option value="" disabled selected id="cl-opt-summary">图层开关 (4/8)</option>
                                 <option value="highBi" id="cl-opt-highBi">大笔(紫) √</option>
-                                <option value="highZs" id="cl-opt-highZs">大中枢 √</option>
+                                <option value="highZs" id="cl-opt-highZs">大中枢</option>
                                 <option value="midBi" id="cl-opt-midBi">中笔(黄) √</option>
-                                <option value="midZs" id="cl-opt-midZs">中中枢 √</option>
+                                <option value="midZs" id="cl-opt-midZs">中中枢</option>
                                 <option value="lowBi" id="cl-opt-lowBi">小笔(蓝) √</option>
                                 <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
                                 <option value="mmd" id="cl-opt-mmd">买卖点</option>
@@ -23673,14 +23673,28 @@
             }
         }
 
+        function checkChanlunMobileOrTablet() {
+            if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+            const ua = (navigator.userAgent || '').toLowerCase();
+            const isMobileUa = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(ua);
+            if (isMobileUa) return true;
+            const isIPadOS = (navigator.platform === 'MacIntel' || navigator.userAgent.includes('Macintosh')) &&
+                Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+            if (isIPadOS) return true;
+            const hasTouch = 'ontouchstart' in window || Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+            const isCoarsePointer = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+            const isNarrowScreen = window.innerWidth <= 1024 || window.innerHeight <= 1024;
+            return (hasTouch || isCoarsePointer) && isNarrowScreen;
+        }
+
         let _clLayers = {
             highBi: true,
-            highZs: true,
+            highZs: false, // 主图大中枢：默认关闭 disable
             midBi: true,
-            midZs: true,
+            midZs: false,  // 主图中中枢：默认关闭 disable
             lowBi: true,
             lowZs: true,
-            mmd: true,
+            mmd: !checkChanlunMobileOrTablet(), // 电脑PC端默认开启，移动设备(手机/Pad)默认关闭
             res: false
         };
         let _clSubIndicator = 'amount'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
@@ -23725,6 +23739,7 @@
                 selMain.value = "";
             }
         }
+        updateChanlunLayerButtons();
 
         window.toggleChanlunLayerFromSelect = function(sel) {
             const val = sel.value;
