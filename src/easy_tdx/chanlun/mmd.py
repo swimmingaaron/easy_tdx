@@ -51,12 +51,14 @@ def find_mmds(
 
     for bi in bis:
         # 寻找与该笔生命周期和结构相匹配的中枢
+        # 缠论公理：买卖点必须基于已形成的中枢，杜绝由未来尚未开始的中枢产生穿越误判
+        best_mmd: MMD | None = None
         for zs in reversed(zss):
             if zs.lines:
                 zs_start_bi_idx = zs.lines[0].index
                 zs_end_bi_idx = zs.lines[-1].index
                 # 笔不能早于中枢产生之前 (杜绝未来中枢穿越)
-                if bi.index < zs_start_bi_idx - 1:
+                if bi.index < zs_start_bi_idx:
                     continue
                 # 笔距离中枢结束不能跨越过远（超过6笔已属后续走势）
                 if bi.index - zs_end_bi_idx > 6:
@@ -74,8 +76,17 @@ def find_mmds(
                 bi, zs, bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
             )
             if mmd is not None:
-                mmds.append(mmd)
-                break  # 每笔最多赋予一个主买卖点
+                # 若命中高确定性的三类买卖点（突破回抽确认），具有最高优先权，直接锁定
+                if mmd.mmd_type in (MMDType.BUY_3, MMDType.SELL_3):
+                    best_mmd = mmd
+                    break
+                elif best_mmd is None:
+                    best_mmd = mmd
+                    # 若已命中最近中枢的其他买卖点，且后续不再有3买3卖，则保留并终止
+                    break
+
+        if best_mmd is not None:
+            mmds.append(best_mmd)
 
     return mmds
 
@@ -118,11 +129,6 @@ def _check_buy_point(
             # 离开笔必须是向上笔且创出高于中枢上沿的新高
             if prev_bi.direction == Direction.UP:
                 if prev_bi.high < zs.zg:
-                    is_breakout = False
-                # 缠论公理：若向上离开笔本身已发生顶背驰（1SELL），表明多头动能衰竭转折，次回调不构成三买！
-                if _check_force_decreasing(
-                    prev_bi, all_bis, Direction.UP, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
-                ):
                     is_breakout = False
             else:
                 is_breakout = False
@@ -197,11 +203,6 @@ def _check_sell_point(
             prev_bi = all_bis[bi.index - 1]
             if prev_bi.direction == Direction.DOWN:
                 if prev_bi.low > zs.zd:
-                    is_breakdown = False
-                # 缠论公理：若向下离开笔本身已发生底背驰（1BUY），表明空头动能衰竭转折，次反弹不构成三卖！
-                if _check_force_decreasing(
-                    prev_bi, all_bis, Direction.DOWN, closes=closes, config=config, macd_hist=macd_hist, force_cache=force_cache
-                ):
                     is_breakdown = False
             else:
                 is_breakdown = False
