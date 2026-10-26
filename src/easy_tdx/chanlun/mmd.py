@@ -63,17 +63,17 @@ def find_mmds(
                 # 笔距离中枢结束不能跨越过远（超过6笔已属后续走势）
                 if bi.index - zs_end_bi_idx > 6:
                     continue
-                # 三类买点：必须发生在中枢突破离开阶段
+                # 三类买点初筛：必须发生在中枢突破离开后的第1次回抽 (距中枢结束<=2笔)
                 if bi.direction == Direction.DOWN and bi.low >= zs.zg:
-                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 4:
+                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 2:
                         continue
-                # 三类卖点：必须发生在中枢跌破离开阶段
+                # 三类卖点初筛：必须发生在中枢跌破离开后的第1次反抽 (距中枢结束<=2笔)
                 if bi.direction == Direction.UP and bi.high <= zs.zd:
-                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 4:
+                    if bi.index < zs_end_bi_idx or (bi.index - zs_end_bi_idx) > 2:
                         continue
 
             mmd = _check_bi_mmd(
-                bi, zs, bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+                bi, zs, bis, all_zss=zss, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
             )
             if mmd is not None:
                 # 若命中高确定性的三类买卖点（突破回抽确认），具有最高优先权，直接锁定
@@ -95,6 +95,7 @@ def _check_bi_mmd(
     bi: BI,
     zs: ZS,
     all_bis: list[BI],
+    all_zss: list[ZS] | None = None,
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
     macd_hist: list[float] | None = None,
@@ -103,11 +104,11 @@ def _check_bi_mmd(
     """检查单笔是否在某中枢附近形成买卖点。"""
     if bi.direction == Direction.DOWN:
         return _check_buy_point(
-            bi, zs, all_bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+            bi, zs, all_bis, all_zss=all_zss, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
         )
     else:
         return _check_sell_point(
-            bi, zs, all_bis, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
+            bi, zs, all_bis, all_zss=all_zss, config=config, closes=closes, macd_hist=macd_hist, force_cache=force_cache
         )
 
 
@@ -115,30 +116,55 @@ def _check_buy_point(
     bi: BI,
     zs: ZS,
     all_bis: list[BI],
+    all_zss: list[ZS] | None = None,
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
     macd_hist: list[float] | None = None,
     force_cache: dict[int, float] | None = None,
 ) -> MMD | None:
     """检查向下笔是否形成买点。"""
-    # ── 1. 三类买点（优先判定）：向上突破中枢后，次回调不跌破中枢上沿 (bi.low >= zs.zg)
+    # ── 1. 三类买点（《教你炒股票20课》走势中枢级别扩张与第三类买卖点定理）：
+    # 核心定义：一个次级别走势类型向上离开中枢，然后以一个次级别走势类型回试，其低点不跌破 ZG，则构成第三类买点。
+    # 缠中说禅公理与硬性约束：
+    # 1) 价格条件：回踩低点不跌破中枢上沿 (bi.low >= zs.zg)；
+    # 2) 必须是第一次回试！并不是任何回调回抽都是第三类买卖点，必须是突破离开后的第1次次回调；
+    # 3) 中枢接力阻断：离开原中枢后，不能已经形成新的同级别中枢（若已形成新中枢，原中枢历史使命结束）；
+    # 4) 非中枢内部笔：当前笔自身绝不能属于任何中枢的构成笔（中枢内部震荡绝非三买）。
     if bi.low >= zs.zg:
-        is_breakout = True
-        if bi.index >= 1:
-            prev_bi = all_bis[bi.index - 1]
-            # 离开笔必须是向上笔且创出高于中枢上沿的新高
-            if prev_bi.direction == Direction.UP:
-                if prev_bi.high < zs.zg:
-                    is_breakout = False
-            else:
-                is_breakout = False
-        if is_breakout:
-            return MMD(
-                mmd_type=MMDType.BUY_3,
-                zs=zs,
-                bi=bi,
-                msg=f"中枢上沿强力支撑，三类买点 (low={bi.low:.2f} >= zg={zs.zg:.2f})",
-            )
+        zs_end_idx = zs.lines[-1].index if zs.lines else zs.index
+        is_first_pullback = False
+        if bi.index == zs_end_idx + 1:
+            # 情况 A：中枢最后一笔本身即向上离开中枢
+            prev_bi = all_bis[zs_end_idx] if 0 <= zs_end_idx < len(all_bis) else None
+            if prev_bi and prev_bi.direction == Direction.UP and prev_bi.high > zs.zg:
+                is_first_pullback = True
+        elif bi.index == zs_end_idx + 2 and 0 <= zs_end_idx + 1 < len(all_bis):
+            # 情况 B：中枢完成后紧接着的一笔向上离开中枢，当前笔是离开后的首次回踩
+            out_bi = all_bis[zs_end_idx + 1]
+            if out_bi.direction == Direction.UP and out_bi.high > zs.zg:
+                is_first_pullback = True
+
+        if is_first_pullback:
+            is_valid_3buy = True
+            if all_zss:
+                for other_zs in all_zss:
+                    if other_zs.lines:
+                        # 4) 当前笔自身不能是任何中枢的内部构成笔
+                        if any(b.index == bi.index for b in other_zs.lines):
+                            is_valid_3buy = False
+                            break
+                        # 3) 离开原中枢后，不能已经形成新的同级别中枢 (新中枢起始于原中枢之后且已在当前笔前形成)
+                        other_start_idx = other_zs.lines[0].index
+                        if other_start_idx > zs_end_idx and other_start_idx <= bi.index:
+                            is_valid_3buy = False
+                            break
+            if is_valid_3buy:
+                return MMD(
+                    mmd_type=MMDType.BUY_3,
+                    zs=zs,
+                    bi=bi,
+                    msg=f"中枢上沿强力支撑，三类买点 (low={bi.low:.2f} >= zg={zs.zg:.2f})",
+                )
 
     # ── 2. 一类买点：处于中枢下方 (bi.low < zs.zd)，底背驰衰竭点
     # 缠论公理：一买必须跌破前一个同向向下笔的低点（创新低）！
@@ -190,29 +216,55 @@ def _check_sell_point(
     bi: BI,
     zs: ZS,
     all_bis: list[BI],
+    all_zss: list[ZS] | None = None,
     config: ChanlunConfig | None = None,
     closes: list[float] | None = None,
     macd_hist: list[float] | None = None,
     force_cache: dict[int, float] | None = None,
 ) -> MMD | None:
     """检查向上笔是否形成卖点。"""
-    # ── 1. 三类卖点（优先判定）：跌破中枢后，反弹不突破中枢下沿 (bi.high <= zs.zd)
+    # ── 1. 三类卖点（《教你炒股票20课》走势中枢级别扩张与第三类买卖点定理）：
+    # 核心定义：一个次级别走势类型向下离开中枢，然后以一个次级别走势类型回抽，其高点不升破 ZD，则构成第三类卖点。
+    # 缠中说禅公理与硬性约束：
+    # 1) 价格条件：反抽高点不升破中枢下沿 (bi.high <= zs.zd)；
+    # 2) 必须是第一次反抽！并不是任何反弹回抽都是第三类买卖点，必须是跌破离开后的第1次次反弹；
+    # 3) 中枢接力阻断：跌破原中枢后，不能已经形成新的同级别中枢；
+    # 4) 非中枢内部笔：当前笔自身绝不能属于任何中枢的构成笔。
     if bi.high <= zs.zd:
-        is_breakdown = True
-        if bi.index >= 1:
-            prev_bi = all_bis[bi.index - 1]
-            if prev_bi.direction == Direction.DOWN:
-                if prev_bi.low > zs.zd:
-                    is_breakdown = False
-            else:
-                is_breakdown = False
-        if is_breakdown:
-            return MMD(
-                mmd_type=MMDType.SELL_3,
-                zs=zs,
-                bi=bi,
-                msg=f"反弹受阻于中枢下沿，三类卖点 (high={bi.high:.2f} <= zd={zs.zd:.2f})",
-            )
+        zs_end_idx = zs.lines[-1].index if zs.lines else zs.index
+        is_first_bounce = False
+        if bi.index == zs_end_idx + 1:
+            # 情况 A：中枢最后一笔本身即向下跌破中枢
+            prev_bi = all_bis[zs_end_idx] if 0 <= zs_end_idx < len(all_bis) else None
+            if prev_bi and prev_bi.direction == Direction.DOWN and prev_bi.low < zs.zd:
+                is_first_bounce = True
+        elif bi.index == zs_end_idx + 2 and 0 <= zs_end_idx + 1 < len(all_bis):
+            # 情况 B：中枢完成后紧接着的一笔向下跌破离开，当前笔是离开后的首次反抽
+            out_bi = all_bis[zs_end_idx + 1]
+            if out_bi.direction == Direction.DOWN and out_bi.low < zs.zd:
+                is_first_bounce = True
+
+        if is_first_bounce:
+            is_valid_3sell = True
+            if all_zss:
+                for other_zs in all_zss:
+                    if other_zs.lines:
+                        # 4) 当前笔自身不能是任何中枢的内部构成笔
+                        if any(b.index == bi.index for b in other_zs.lines):
+                            is_valid_3sell = False
+                            break
+                        # 3) 跌破原中枢后，不能已经形成新的同级别中枢
+                        other_start_idx = other_zs.lines[0].index
+                        if other_start_idx > zs_end_idx and other_start_idx <= bi.index:
+                            is_valid_3sell = False
+                            break
+            if is_valid_3sell:
+                return MMD(
+                    mmd_type=MMDType.SELL_3,
+                    zs=zs,
+                    bi=bi,
+                    msg=f"反弹受阻于中枢下沿，三类卖点 (high={bi.high:.2f} <= zd={zs.zd:.2f})",
+                )
 
     # ── 2. 一类卖点：处于中枢上方 (bi.high > zs.zg)，顶背驰衰竭点
     # 缠论公理：一卖必须突破前一个同向向上笔的高点（创新高）！

@@ -920,3 +920,108 @@ class TestChanlunMergedChart:
         assert mmd.mmd_type == MMDType.BUY_2
         assert "二类买点" in mmd.msg
 
+    def test_czsc_lesson20_buy3_first_pullback_only(self) -> None:
+        """缠论第20课走势中枢级别扩张及第三类买卖点定理：
+        向上离开中枢后，以一个次级别走势类型回试，其低点不跌破 ZG，构成第三类买点。
+        必须是突破后的【第1次首次回试】！第2次回踩绝不是3买。
+        """
+        from easy_tdx.chanlun.mmd import find_mmds
+        from easy_tdx.chanlun.types import MMDType, ZS
+
+        class DummyK:
+            def __init__(self, d: str, k_idx: int):
+                self.date = d
+                self.k_index = k_idx
+
+        class DummyFX:
+            def __init__(self, val: float, d: str, k_idx: int):
+                self.val = val
+                self.k = DummyK(d, k_idx)
+
+        class DummyBI:
+            def __init__(self, idx: int, s_val: float, e_val: float):
+                self.index = idx
+                self.direction = Direction.UP if e_val > s_val else Direction.DOWN
+                self.start = DummyFX(s_val, f"2026-01-{idx:02d}", idx * 5)
+                self.end = DummyFX(e_val, f"2026-01-{idx+1:02d}", (idx + 1) * 5)
+                self.high = max(s_val, e_val)
+                self.low = min(s_val, e_val)
+
+        # 构建中枢：zd=10.0, zg=15.0
+        # b0: 10->15 (UP)
+        # b1: 15->11 (DOWN)
+        # b2: 11->14 (UP)
+        b0 = DummyBI(0, 10.0, 15.0)
+        b1 = DummyBI(1, 15.0, 11.0)
+        b2 = DummyBI(2, 11.0, 14.0)
+        zs = ZS(zd=11.0, zg=14.0, dd=10.0, gg=15.0, lines=[b0, b1, b2])
+
+        # b3: 向上离开中枢 (14.0 -> 20.0, UP) 突破 zg=14.0
+        b3 = DummyBI(3, 14.0, 20.0)
+        # b4: 首次回踩 (20.0 -> 16.0, DOWN) 不破 zg=14.0 -> 这是标准的 3 买！
+        b4 = DummyBI(4, 20.0, 16.0)
+        # b5: 再次冲高 (16.0 -> 22.0, UP)
+        b5 = DummyBI(5, 16.0, 22.0)
+        # b6: 第二次回踩 (22.0 -> 15.0, DOWN) 虽然 low=15.0 >= zg=14.0，但绝不是 3 买！
+        b6 = DummyBI(6, 22.0, 15.0)
+
+        all_bis = [b0, b1, b2, b3, b4, b5, b6]
+        mmds = find_mmds(all_bis, [zs])
+
+        # 检查买点：b4 是 3 买，b6 绝不可被判定为 3 买
+        buy_mmds = [m for m in mmds if m.mmd_type == MMDType.BUY_3]
+        assert len(buy_mmds) == 1
+        assert buy_mmds[0].bi.index == 4  # 仅首次回踩 b4 是 3 买
+
+    def test_czsc_lesson20_buy3_blocked_by_new_zs(self) -> None:
+        """逸豪新材周线场景回归：离开原中枢后形成了新的同级别中枢，
+        原老中枢使命终结，新中枢内部的回踩绝不可跨中枢被误判为老中枢的 3 买。
+        """
+        from easy_tdx.chanlun.mmd import find_mmds
+        from easy_tdx.chanlun.types import MMDType, ZS
+
+        class DummyK:
+            def __init__(self, d: str, k_idx: int):
+                self.date = d
+                self.k_index = k_idx
+
+        class DummyFX:
+            def __init__(self, val: float, d: str, k_idx: int):
+                self.val = val
+                self.k = DummyK(d, k_idx)
+
+        class DummyBI:
+            def __init__(self, idx: int, s_val: float, e_val: float):
+                self.index = idx
+                self.direction = Direction.UP if e_val > s_val else Direction.DOWN
+                self.start = DummyFX(s_val, f"2026-01-{idx:02d}", idx * 5)
+                self.end = DummyFX(e_val, f"2026-01-{idx+1:02d}", (idx + 1) * 5)
+                self.high = max(s_val, e_val)
+                self.low = min(s_val, e_val)
+
+        # 老中枢 ZS0: lines [b0, b1, b2], zd=10, zg=15
+        b0 = DummyBI(0, 10.0, 15.0)
+        b1 = DummyBI(1, 15.0, 11.0)
+        b2 = DummyBI(2, 11.0, 14.0)
+        zs0 = ZS(zd=11.0, zg=14.0, dd=10.0, gg=15.0, lines=[b0, b1, b2])
+
+        # 向上离开老中枢并走高
+        b3 = DummyBI(3, 14.0, 40.0)
+
+        # 在高位震荡形成新中枢 ZS1: lines [b4, b5, b6]
+        b4 = DummyBI(4, 40.0, 25.0)
+        b5 = DummyBI(5, 25.0, 35.0)
+        b6 = DummyBI(6, 35.0, 26.0)
+        zs1 = ZS(zd=26.0, zg=35.0, dd=25.0, gg=40.0, lines=[b4, b5, b6])
+
+        # 走势在 2026-07 回调至 25.0 (b7)
+        b7 = DummyBI(7, 35.0, 25.0)
+
+        all_bis = [b0, b1, b2, b3, b4, b5, b6, b7]
+        mmds = find_mmds(all_bis, [zs0, zs1])
+
+        # zs0 绝不能在 b7 处产生 3 买
+        zs0_3buys = [m for m in mmds if m.zs == zs0 and m.mmd_type == MMDType.BUY_3]
+        assert len(zs0_3buys) == 0
+
+
