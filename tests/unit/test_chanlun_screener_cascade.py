@@ -808,4 +808,212 @@ def test_evaluate_chanlun_dual_resonance_fails_when_condition_missing():
         assert res is None, "Must reject when sub-level has no 2BUY or 3BUY!"
 
 
+def test_evaluate_chanlun_resonance_season_month_week():
+    """Verify SEASON_MONTH_WEEK resonance filters stocks with week-level 2BUY or 3BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    def mock_smw(code, periods, count, force_refresh):
+        return {
+            "summary": {
+                "high_state": {"is_bearish": False},
+                "mid_state": {"is_bearish": False},
+                "low_state": {"is_bearish": False},
+            },
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-06", "type": "1BUY", "label": "季线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-09", "type": "2BUY", "label": "月线2买", "is_buy": True, "level": "mid", "price": 9.5},
+                    {"date": "2026-10-18", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_smw):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="SEASON_MONTH_WEEK"
+        )
+        assert res is not None
+        assert "季月周共振" in res["status_label"]
+        assert "周线2买" in res["status_label"]
+        assert res["period_preset"] == "SEASON_MONTH_WEEK"
+        assert res["chan_periods"] == ["SEASON", "MONTH", "WEEK"]
+
+
+def test_evaluate_chanlun_resonance_month_week_day():
+    """Verify MONTH_WEEK_DAY resonance filters stocks with daily-level 2BUY or 3BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    def mock_mwd(code, periods, count, force_refresh):
+        return {
+            "summary": {
+                "high_state": {"is_bearish": False},
+                "mid_state": {"is_bearish": False},
+                "low_state": {"is_bearish": False},
+            },
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-08", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-09-20", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "mid", "price": 9.5},
+                    {"date": "2026-10-20", "type": "3BUY", "label": "日线3买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_mwd):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="MONTH_WEEK_DAY"
+        )
+        assert res is not None
+        assert "月周日共振" in res["status_label"]
+        assert "日线3买" in res["status_label"]
+        assert res["period_preset"] == "MONTH_WEEK_DAY"
+        assert res["chan_periods"] == ["MONTH", "WEEK", "DAY"]
+
+
+def test_evaluate_chanlun_resonance_week_day_30f():
+    """Verify WEEK_DAY_30F resonance filters stocks with 30F-level 2BUY or 3BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d} {10+i//4:02d}:{15*(i%4):02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    def mock_wd30(code, periods, count, force_refresh):
+        return {
+            "summary": {
+                "high_state": {"is_bearish": False},
+                "mid_state": {"is_bearish": False},
+                "low_state": {"is_bearish": False},
+            },
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-09-10", "type": "1BUY", "label": "周线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-10-15", "type": "2BUY", "label": "日线2买", "is_buy": True, "level": "mid", "price": 9.6},
+                    {"date": "2026-10-21 14:00", "type": "2BUY", "label": "30F2买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_wd30):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="WEEK_DAY_30F"
+        )
+        assert res is not None
+        assert "周日30F共振" in res["status_label"]
+        assert "30F2买" in res["status_label"]
+        assert res["period_preset"] == "WEEK_DAY_30F"
+        assert res["chan_periods"] == ["WEEK", "DAY", "30F"]
+
+
+def test_evaluate_chanlun_resonance_rejects_when_no_2or3buy():
+    """Verify chanlun_resonance rejects stock when low-level period has only 1BUY instead of 2BUY or 3BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # Low level has ONLY 1BUY, no 2BUY or 3BUY
+    def mock_only_1buy(code, periods, count, force_refresh):
+        return {
+            "summary": {
+                "high_state": {"is_bearish": False},
+                "mid_state": {"is_bearish": False},
+                "low_state": {"is_bearish": False},
+            },
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-08", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-09-20", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "mid", "price": 9.5},
+                    {"date": "2026-10-20", "type": "1BUY", "label": "日线1买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_only_1buy):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="MONTH_WEEK_DAY"
+        )
+        assert res is None, "Must reject stock when daily level only has 1BUY and no 2BUY/3BUY!"
+
+
+def test_evaluate_chanlun_resonance_rejects_when_bearish_or_sell_broken():
+    """Verify chanlun_resonance rejects stock when high/mid level is bearish or latest mark is 3SELL."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # High state is bearish
+    def mock_bearish(code, periods, count, force_refresh):
+        return {
+            "summary": {
+                "high_state": {"is_bearish": True},
+                "mid_state": {"is_bearish": False},
+                "low_state": {"is_bearish": False},
+            },
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-08", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-10-20", "type": "2BUY", "label": "日线2买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_bearish):
+        res = _evaluate_stock_for_strategy(
+            sym="600519",
+            strategy_name="chanlun_resonance",
+            st=st,
+            lookback_bars=20,
+            force_refresh=False,
+            period="MONTH_WEEK_DAY"
+        )
+        assert res is None, "Must reject stock when monthly level is bearish!"
+
+
 

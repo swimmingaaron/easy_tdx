@@ -226,7 +226,7 @@ def run_screener(
     with open(latest_json, "w", encoding="utf-8") as f:
         json.dump(report_payload, f, ensure_ascii=False, indent=2)
 
-    # 同步写入 data/screener_cache 供 Web UI 48大策略选股器及 run_screener.py 直接秒级复用
+    # 同步写入 data/screener_cache 供 Web UI 48大策略选股器及 run_scanner.py 直接秒级复用
     try:
         from easy_tdx.screener.scanner import _save_cache
         p_name = preset.get("key") or period

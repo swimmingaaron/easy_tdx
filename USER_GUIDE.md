@@ -143,23 +143,24 @@ python run.py --help
 3. 毫秒级完成扫描，在表格中清晰输出**股票代码**、**股票名称**、最新价格、主力资金流入、换手率、状态标签（如“最新[缠论30F大买]”）等核心指标。
 4. 点击每行末尾的 **【诊断】** 或 **【缠论】**，可直接将该标的送入 4D 财报体检或以选定的跨周期参数在新标签中打开缠论多周期立体共振系统！
 
-#### 3.5.1 独立 Python 多线程并发选股控制脚本 (`run_screener.py`)
+#### 3.5.1 独立 Python 多线程并发选股控制脚本 (`run_scanner.py`)
 系统提供了独立的 Python 控制终端脚本，支持以交互式序列号菜单或命令行参数调度 48+ 全量策略库：
 
 ```bash
 # 1. 交互式菜单一键运行（直接连续回车即可使用默认最佳推荐）
-python run_screener.py
+python run_scanner.py
 
 # 交互选择说明：
 # - 战略（策略）：列出全量策略与序列号，直接回车默认 [1] 缠论共振策略 (三级联共振校验)
-# - 周期：列出各周期与区间套预设，直接回车默认 [1] ALL_CASCADE 全级别三级联共振
+# - 周期：列出各周期与区间套预设，直接回车默认 [2] MONTH_WEEK_DAY 月周日共振
 # - 范围：列出全市场(all 5200+)、核心龙头(core)、沪深300(hs300)等，直接回车默认 [1] all 全市场
-# - 多线程并发：默认 32 线程并发快速执行；
+# - 多线程并发：默认当前 CPU 最大线程数并发快速执行；
 # - 缓存控制：自动从通达信服务器拉取最新数据，并写入 data/screener_cache/ 与 data/kline_cache/，二次执行秒级复用。
 
 # 2. 命令行静默/快速执行（支持定时任务/脚本集成）
-python run_screener.py -s chanlun_resonance -p ALL_CASCADE -u all -w 32
-python run_screener.py -s weekly_big_bull_consolidation -p WEEK -u hs300 -w 16
+python run_scanner.py -s chanlun_resonance -p MONTH_WEEK_DAY -u all -w 32
+python run_scanner.py -s chanlun_resonance -p SEASON_MONTH_WEEK -u all -w 32
+python run_scanner.py -s weekly_big_bull_consolidation -p WEEK -u hs300 -w 16
 ```
 运行完成后将在控制台输出高亮股票命中表格，并自动在 `output/` 目录导出 `.csv` 和 `.json` 结果报表。
 

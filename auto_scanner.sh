@@ -80,7 +80,7 @@ if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--dual-scan" ] || [ "
         echo "============================================================" >> "$LOG_FILE"
 
         if command -v caffeinate >/dev/null 2>&1; then
-            caffeinate -i "$PYTHON_BIN" run_screener.py \
+            caffeinate -i "$PYTHON_BIN" run_scanner.py \
                 -s chanlun_resonance \
                 -p ALL_CASCADE \
                 -u all \
@@ -88,7 +88,7 @@ if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--dual-scan" ] || [ "
                 --refresh \
                 --no-interactive >> "$LOG_FILE" 2>&1
         else
-            "$PYTHON_BIN" run_screener.py \
+            "$PYTHON_BIN" run_scanner.py \
                 -s chanlun_resonance \
                 -p ALL_CASCADE \
                 -u all \
@@ -118,7 +118,7 @@ if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--dual-scan" ] || [ "
         echo "============================================================" >> "$LOG_FILE"
 
         if command -v caffeinate >/dev/null 2>&1; then
-            caffeinate -i "$PYTHON_BIN" run_screener.py \
+            caffeinate -i "$PYTHON_BIN" run_scanner.py \
                 -s chanlun_dual_resonance \
                 -p DUAL_CASCADE \
                 -u all \
@@ -126,7 +126,7 @@ if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--dual-scan" ] || [ "
                 --refresh \
                 --no-interactive >> "$LOG_FILE" 2>&1
         else
-            "$PYTHON_BIN" run_screener.py \
+            "$PYTHON_BIN" run_scanner.py \
                 -s chanlun_dual_resonance \
                 -p DUAL_CASCADE \
                 -u all \

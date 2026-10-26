@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""全市场多策略多线程并发选股执行脚本 (run_screener.py)
+"""全市场多策略多线程并发选股执行脚本 (run_scanner.py)
 
 功能特性：
 1. 交互式菜单：按序号快速选择战略（策略）、周期、选股范围（支持直接回车默认运行）；
-2. 推荐模式：缠论三级联共振 (chanlun_resonance, ALL_CASCADE) 与 缠论二级共振 (chanlun_dual_resonance, DUAL_CASCADE, 周日30F周线1买+日30F5F日线1买+次级别2/3买)；
+2. 推荐模式：缠论三级联共振 (chanlun_resonance) 与 缠论二级共振 (chanlun_dual_resonance)；
 3. 多线程并发：支持动态指定线程数 (默认程序自适应判断当前系统CPU最大线程数)；
 4. 缓存加速：从通达信行情服务器拉取数据并自动持久化保存在本地 cache 中，二次运行秒级复用；
 5. 结果导出：自动在终端格式化输出命中列表，并生成 CSV 和 JSON 结果报表；
@@ -127,6 +127,31 @@ def display_period_menu(strategy_name: str) -> str:
     print(_colored("【第二步：周期选择】请选择策略执行周期：", Colors.BOLD + Colors.CYAN))
     print("=" * 80)
 
+    if strategy_name == "chanlun_resonance":
+        periods = [
+            ("SEASON_MONTH_WEEK", "季月周 共振 (周线 2买/3买)", "季月大趋势多头共振，筛选周线上出现2买或3买的优质标的"),
+            ("MONTH_WEEK_DAY", "月周日 共振 (日线 2买/3买 · 默认推荐)", "【默认推荐】月周大趋势多头共振，筛选日线上出现2买或3买的起爆标的"),
+            ("WEEK_DAY_30F", "周日30F 共振 (30F 2买/3买)", "周日趋势多头共振，筛选30分钟级别上出现2买或3买的精准进场标的"),
+            ("ALL_CASCADE", "全级别三级联共振 (月周日+周日30M+日30M5F)", "全级别大买严苛共振，要求月周日、周日30M、日30M5F全部满足"),
+        ]
+        for seq, (p_code, p_name, p_desc) in enumerate(periods, 1):
+            if seq == 2:
+                print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(p_code, Colors.BOLD):18s} {p_name} {_colored('[默认推荐]', Colors.GREEN)}")
+            else:
+                print(f"  [{seq}] {p_code:18s} {p_name}")
+            print(f"      {_colored('└─ ' + p_desc, Colors.CYAN)}")
+
+        prompt_txt = _colored("\n请输入周期序号 [1-4] (直接回车默认: 2. MONTH_WEEK_DAY 月周日共振): ", Colors.BOLD + Colors.GREEN)
+        choice = input(prompt_txt).strip()
+        if not choice or choice == "2":
+            return "MONTH_WEEK_DAY"
+        if choice.isdigit() and 1 <= int(choice) <= len(periods):
+            return periods[int(choice) - 1][0]
+        for p_code, _, _ in periods:
+            if choice.upper() == p_code:
+                return p_code
+        return "MONTH_WEEK_DAY"
+
     if strategy_name == "chanlun_dual_resonance":
         periods = [
             ("DUAL_CASCADE", "二级级联共振 (周日30F+日30F5F)", "【默认推荐】周日30F周线1买+日30F5F日线1买+次级别2/3买"),
@@ -155,29 +180,30 @@ def display_period_menu(strategy_name: str) -> str:
 
     if is_chanlun:
         periods = [
-            ("ALL_CASCADE", "全级别三级联共振 (月周日+周日30M+日30M5F)", "【默认推荐】月周日大买+周日30M大买+日30M5F大买+5M2买"),
+            ("SEASON_MONTH_WEEK", "季月周 共振 (周线 2买/3买)", "季月大买多头趋势共振 + 周线 2买/3买"),
+            ("MONTH_WEEK_DAY", "月周日 共振 (日线 2买/3买 · 默认推荐)", "【默认推荐】月周大买多头趋势共振 + 日线 2买/3买"),
+            ("WEEK_DAY_30F", "周日30F 共振 (30F 2买/3买)", "周日大买多头趋势共振 + 30F 2买/3买"),
             ("DAY_30F_5F", "日 30F 5F 区间套", "日线大买+30F中枢承接+5M 2买"),
-            ("WEEK_DAY_30F", "周 日 30F 区间套", "周线大买+日线稳健中枢+30M 1买"),
-            ("MONTH_WEEK_DAY", "月 周 日 区间套", "超大级别月线大买+日线 1买"),
+            ("ALL_CASCADE", "全级别三级联共振 (月周日+周日30M+日30M5F)", "月周日大买+周日30M大买+日30M5F大买+5M2买"),
             ("30F_5F_1F", "30F 5F 1F 区间套", "超短日内高频 T+0 买卖点联动"),
         ]
         for seq, (p_code, p_name, p_desc) in enumerate(periods, 1):
-            if seq == 1:
+            if seq == 2:
                 print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(p_code, Colors.BOLD):18s} {p_name} {_colored('[默认推荐]', Colors.GREEN)}")
             else:
                 print(f"  [{seq}] {p_code:18s} {p_name}")
             print(f"      {_colored('└─ ' + p_desc, Colors.CYAN)}")
 
-        prompt_txt = _colored("\n请输入周期序号 [1-5] (直接回车默认: 1. ALL_CASCADE 全级别共振): ", Colors.BOLD + Colors.GREEN)
+        prompt_txt = _colored("\n请输入周期序号 [1-6] (直接回车默认: 2. MONTH_WEEK_DAY 月周日共振): ", Colors.BOLD + Colors.GREEN)
         choice = input(prompt_txt).strip()
-        if not choice or choice == "1":
-            return "ALL_CASCADE"
+        if not choice or choice == "2":
+            return "MONTH_WEEK_DAY"
         if choice.isdigit() and 1 <= int(choice) <= len(periods):
             return periods[int(choice) - 1][0]
         for p_code, _, _ in periods:
             if choice.upper() == p_code:
                 return p_code
-        return "ALL_CASCADE"
+        return "MONTH_WEEK_DAY"
     else:
         periods = [
             ("DAY", "日线 (主选周期，信号稳健，过滤盘中噪音)", "默认推荐"),
@@ -465,7 +491,7 @@ def export_results(
 
     today_str = date.today().strftime("%Y%m%d")
     p_clean = str(period).strip().upper()
-    base_name = f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}"
+    base_name = f"scanner_{strategy_name}_{universe}_{p_clean}_{today_str}"
     csv_file = output_dir / f"{base_name}.csv"
     json_file = output_dir / f"{base_name}.json"
 
@@ -543,7 +569,7 @@ def export_results(
 def main() -> None:
     parser = argparse.ArgumentParser(description="easy_tdx 全市场多策略多线程并发选股执行工具")
     parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略 / 可选 chanlun_dual_resonance 缠论二级共振策略等）")
-    parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: ALL_CASCADE 全级别三级联共振 / DUAL_CASCADE 二级共振 / DAY）")
+    parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: MONTH_WEEK_DAY 月周日共振 / 可选 SEASON_MONTH_WEEK 季月周共振, WEEK_DAY_30F 周日30F共振, ALL_CASCADE 全级别共振等）")
     parser.add_argument("-t", "--time", "--lookback", dest="time_param", type=str, default="", help="信号回溯时间范围：支持天数(如 22)、时间跨度(如 1m, 1w, 2m, 3m) 或具体起始日期(如 2026-09-24)（默认: 1m / 22交易日，即约一月前）")
     parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/代码列表（默认: all）")
     cpu_threads = max(1, os.cpu_count() or 4)
@@ -595,11 +621,15 @@ def main() -> None:
     else:
         strategy_name = args.strategy.strip() or "chanlun_resonance"
         if args.period.strip():
-            period = args.period.strip()
+            raw_p = args.period.strip()
+            if strategy_name == "chanlun_resonance" and raw_p in ("1", "2", "3", "4"):
+                period = {"1": "SEASON_MONTH_WEEK", "2": "MONTH_WEEK_DAY", "3": "WEEK_DAY_30F", "4": "ALL_CASCADE"}[raw_p]
+            else:
+                period = raw_p
         elif strategy_name == "chanlun_dual_resonance":
             period = "DUAL_CASCADE"
         elif strategy_name == "chanlun_resonance":
-            period = "ALL_CASCADE"
+            period = "MONTH_WEEK_DAY"
         elif strategy_name == "chanlun_strategy":
             period = "DAY_30F_5F"
         else:

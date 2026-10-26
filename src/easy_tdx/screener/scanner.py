@@ -59,20 +59,24 @@ def _load_cache(strategy_name: str, universe: str, period: str = "DAY", expected
         if not cands and p_clean == "DAY":
             cands = sorted(_get_cache_dir().glob(f"{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
         
-        # 兼容读取 run_screener.py 导出到 output/ 下的缓存
+        # 兼容读取 run_scanner.py / run_screener.py 导出到 output/ 下的缓存
         if not cands:
             repo_root = Path(__file__).resolve().parents[3]
             for out_cand in [repo_root / "output", Path.cwd() / "output"]:
                 if out_cand.exists():
-                    cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
+                    cands = sorted(out_cand.glob(f"scanner_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
+                    if not cands:
+                        cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_{p_clean}_*.json"), key=lambda p: p.name, reverse=True)
                     if not cands and p_clean == "DAY":
-                        cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+                        cands = sorted(out_cand.glob(f"scanner_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
+                        if not cands:
+                            cands = sorted(out_cand.glob(f"screener_{strategy_name}_{universe}_*.json"), key=lambda p: p.name, reverse=True)
                     if cands:
                         break
         
         if cands:
             cache_f = cands[0]
-            logger.info(f"Fallback to screener cache: {cache_f.name}")
+            logger.info(f"Fallback to scanner/screener cache: {cache_f.name}")
 
     if cache_f.exists():
         try:
@@ -136,11 +140,11 @@ def _save_cache(strategy_name: str, universe: str, total_count: int, matches: li
             json.dump(payload, f, ensure_ascii=False, indent=2)
         logger.info(f"Saved {len(matches)} matches to screener cache {cache_f.name} (scanned={total_count})")
 
-        # 同步写入 output/ 目录供 run_screener.py 及外部工具直接双向复用
+        # 同步写入 output/ 目录供 run_scanner.py 及外部工具直接双向复用
         repo_root = Path(__file__).resolve().parents[3]
         output_dir = repo_root / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
-        out_json = output_dir / f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}.json"
+        out_json = output_dir / f"scanner_{strategy_name}_{universe}_{p_clean}_{today_str}.json"
         with open(out_json, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
@@ -148,7 +152,7 @@ def _save_cache(strategy_name: str, universe: str, total_count: int, matches: li
         if matches:
             try:
                 import pandas as pd
-                out_csv = output_dir / f"screener_{strategy_name}_{universe}_{p_clean}_{today_str}.csv"
+                out_csv = output_dir / f"scanner_{strategy_name}_{universe}_{p_clean}_{today_str}.csv"
                 clean_rows = []
                 for r in matches:
                     days = r.get("days_ago") or 0
@@ -448,6 +452,16 @@ def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = Fal
 # 3. 周 日 30F: 筛选条件 大周期周线出现大买且保持上升趋势，同时30M出现1买
 # 4. 月 周 日: 筛选条件 大周期月线出现大买且保持上升趋势，同时日线出现1买
 CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
+    "SEASON_MONTH_WEEK": {
+        "key": "SEASON_MONTH_WEEK",
+        "periods": ["SEASON", "MONTH", "WEEK"],
+        "high_p": "SEASON",
+        "high_period": "SEASON",
+        "high_name": "季线",
+        "kline_period": "SEASON",
+        "label": "季 月 周",
+        "desc": "季月周 (季月大买多头趋势共振 + 周线 2买/3买)",
+    },
     "30F_5F_1F": {
         "key": "30F_5F_1F",
         "periods": ["30F", "5F", "1F"],
@@ -539,6 +553,10 @@ def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
 
     clean = str(raw_period).strip().upper().replace(" ", "_").replace("-", "_").replace(",", "_")
 
+    # 0. 季 月 周
+    if "SEASON_MONTH_WEEK" in clean or ("SEASON" in clean and "MONTH" in clean and "WEEK" in clean) or ("季" in str(raw_period) and "月" in str(raw_period) and "周" in str(raw_period)) or clean in ("SEASON", "SEASONAL", "S"):
+        return CHANLUN_PERIOD_PRESETS["SEASON_MONTH_WEEK"]
+
     # 1. 30F 5F 1F
     if "30F_5F_1F" in clean or ("30F" in clean and "5F" in clean and "1F" in clean) or clean in ("30M", "30F", "1M", "5M"):
         return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
@@ -566,10 +584,30 @@ def _evaluate_stock_for_strategy(
     period: str = "DAY",
     force_refresh: bool = False
 ) -> dict[str, Any] | None:
+    res_mode = None
     if strategy_name == "chanlun_strategy":
         cl_preset = parse_chanlun_screener_preset(period)
         eval_period = cl_preset["kline_period"]
-    elif strategy_name in ("chanlun_resonance", "chanlun_dual_resonance"):
+    elif strategy_name == "chanlun_resonance":
+        cl_preset = None
+        raw_p = str(period or "").strip().upper()
+        if raw_p in ("ALL_CASCADE", "ALL", "CASCADE", "级联"):
+            res_mode = "ALL_CASCADE"
+            eval_period = "DAY"
+        elif "SEASON" in raw_p or "季" in str(period):
+            res_mode = "SEASON_MONTH_WEEK"
+            eval_period = "WEEK"
+        elif ("30F" in raw_p or "30M" in raw_p or "30分" in str(period)) and ("WEEK" in raw_p or "周" in str(period) or raw_p in ("30F", "30M")):
+            res_mode = "WEEK_DAY_30F"
+            eval_period = "30M"
+        elif "MONTH" in raw_p or "月" in str(period):
+            res_mode = "MONTH_WEEK_DAY"
+            eval_period = "DAY"
+        else:
+            # 默认共振模式为月周日共振
+            res_mode = "MONTH_WEEK_DAY"
+            eval_period = "DAY"
+    elif strategy_name == "chanlun_dual_resonance":
         cl_preset = None
         eval_period = "DAY"
     else:
@@ -582,154 +620,314 @@ def _evaluate_stock_for_strategy(
 
     try:
         if strategy_name == "chanlun_resonance":
-            # -------------------------------------------------------------
-            # 缠论共振策略：必须全部同时满足下列三个条件：
-            # 1. 月周日区间套：月线最近一次转折是大买，月线保持上升趋势（非空头，无月线见顶大卖杀跌破位，周线非空头），月线最近一笔是向下笔，同时日线出现 1买；
-            # 2. 周日30M区间套：周线最近一次转折是大买，周线保持上升趋势（排除周线见顶杀跌），周线最近一笔是向下笔，同时 30M 出现 1买；
-            # 3. 日30M5F区间套：日线最近一次转折是大买，日线最近一笔是向下笔，同时 5M 出现 2买。
-            # 任何一个条件不满足均一票否决（如 002463.SZ 返回 None）。
-            # -------------------------------------------------------------
             from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
 
-            # 全局大级别防线：月线不可处于大卖见顶杀跌趋势中
-            if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
-                return None
+            if res_mode == "SEASON_MONTH_WEEK":
+                # -------------------------------------------------------------
+                # 1. 季月周 共振：季月大买多头趋势共振，筛选出周线上出现2买3买的标的
+                # -------------------------------------------------------------
+                res_smw = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["SEASON", "MONTH", "WEEK"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_smw:
+                    return None
 
-            # 条件 1：月周日区间套 (MONTH_WEEK_DAY)
-            res_mwd = analyze_multi_period_resonance(
-                code=sym,
-                periods=["MONTH", "WEEK", "DAY"],
-                count=300,
-                force_refresh=force_refresh
-            )
-            if not res_mwd:
-                return None
-            high_mwd = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
-            low_mwd = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
-            if not high_mwd:
-                return None
-            sum_mwd = res_mwd.get("summary", {})
-            high_state_m = sum_mwd.get("high_state", {})
-            mid_state_w = sum_mwd.get("mid_state", {})
+                high_mmds = [m for m in res_smw.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                mid_mmds = [m for m in res_smw.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+                low_mmds = [m for m in res_smw.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
 
-            # 1.1 月线最近一次转折是大买
-            last_m_high = high_mwd[-1]
-            if not last_m_high.get("is_buy", False) or "SELL" in str(last_m_high.get("type", "")).upper() or "卖" in str(last_m_high.get("label", "")):
-                return None
-            m_bars_ago = high_state_m.get("recent_mmd_bars_ago")
-            if m_bars_ago is not None and int(m_bars_ago) > 8:
-                return None
-            # 1.2 月线保持上升趋势 (月线非空头，排除见顶杀跌，周线非空头)
-            if high_state_m.get("is_bearish", False) or mid_state_w.get("is_bearish", False):
-                return None
-            if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
-                return None
-            # 1.3 月线最近一笔是向下笔
-            m_bi_dir = str(high_state_m.get("bi_direction", "")).lower()
-            if m_bi_dir not in ("down", "向下", "向下笔"):
-                return None
-            # 1.4 同时日线出现 1买
-            day_1buys = [
-                m for m in low_mwd
-                if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
-            ]
-            if not day_1buys:
-                return None
-            if low_mwd and not low_mwd[-1].get("is_buy", False):
-                return None
+                sum_smw = res_smw.get("summary", {})
+                high_state = sum_smw.get("high_state", {})
+                mid_state = sum_smw.get("mid_state", {})
 
-            # 条件 2：周日30M区间套 (WEEK_DAY_30F)
-            if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
-                return None
-            res_wd30 = analyze_multi_period_resonance(
-                code=sym,
-                periods=["WEEK", "DAY", "30F"],
-                count=300,
-                force_refresh=force_refresh
-            )
-            if not res_wd30:
-                return None
-            high_wd30 = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
-            low_wd30 = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
-            if not high_wd30:
-                return None
-            sum_wd30 = res_wd30.get("summary", {})
-            high_state_w = sum_wd30.get("high_state", {})
+                # 季线趋势良好，不能处于明确空头破位
+                if high_state.get("is_bearish", False):
+                    return None
+                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                    return None
 
-            # 2.1 周线最近一次转折是大买
-            last_w_high = high_wd30[-1]
-            if not last_w_high.get("is_buy", False) or "SELL" in str(last_w_high.get("type", "")).upper() or "卖" in str(last_w_high.get("label", "")):
-                return None
-            w_bars_ago = high_state_w.get("recent_mmd_bars_ago")
-            if w_bars_ago is not None and int(w_bars_ago) > 8:
-                return None
-            # 2.2 周线保持上升趋势 (排除周线见顶杀跌)
-            if high_state_w.get("is_bearish", False):
-                return None
-            # 2.3 周线最近一笔是向下笔
-            w_bi_dir = str(high_state_w.get("bi_direction", "")).lower()
-            if w_bi_dir not in ("down", "向下", "向下笔"):
-                return None
-            # 2.4 同时 30M 出现 1买
-            f30_1buys = [
-                m for m in low_wd30
-                if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
-            ]
-            if not f30_1buys:
-                return None
-            if low_wd30 and not low_wd30[-1].get("is_buy", False):
-                return None
+                # 月线趋势良好，排除月线见顶大卖杀跌
+                if mid_state.get("is_bearish", False):
+                    return None
+                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                    return None
+                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                    return None
 
-            # 条件 3：日30M5F区间套 (DAY_30F_5F)
-            res_d30f5 = analyze_multi_period_resonance(
-                code=sym,
-                periods=["DAY", "30F", "5F"],
-                count=300,
-                force_refresh=force_refresh
-            )
-            if not res_d30f5:
-                return None
-            high_d30f5 = [m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
-            low_d30f5 = [m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
-            if not high_d30f5:
-                return None
-            sum_d30f5 = res_d30f5.get("summary", {})
-            high_state_d = sum_d30f5.get("high_state", {})
+                # 周线上出现 2买或3买
+                week_buys = [
+                    m for m in low_mmds
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                ]
+                if not week_buys:
+                    return None
 
-            # 3.1 日线最近一次转折是大买
-            last_d_high = high_d30f5[-1]
-            if not last_d_high.get("is_buy", False) or "SELL" in str(last_d_high.get("type", "")).upper() or "卖" in str(last_d_high.get("label", "")):
-                return None
-            d_bars_ago = high_state_d.get("recent_mmd_bars_ago")
-            if d_bars_ago is not None and int(d_bars_ago) > 15:
-                return None
-            # 3.2 日线最近一笔是向下笔
-            d_bi_dir = str(high_state_d.get("bi_direction", "")).lower()
-            if d_bi_dir not in ("down", "向下", "向下笔"):
-                return None
-            # 3.3 同时 5M 出现 2买
-            f5_2buys = [
-                m for m in low_d30f5
-                if m.get("is_buy") and ("2BUY" in str(m.get("type", "")).upper() or "2买" in str(m.get("label", "")))
-            ]
-            if not f5_2buys:
-                return None
-            if low_d30f5 and not low_d30f5[-1].get("is_buy", False):
-                return None
+                # 周线最新买卖点不能被破坏性大卖点破坏 (如 3卖)
+                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
+                    return None
 
-            # 全部满足！选取 5M 2买作为精确买点
-            target_m = f5_2buys[-1]
+                target_m = week_buys[-1]
+                buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
+                chan_tag = f"[季月周共振]季月大买·周线{buy_name}"
+
+            elif res_mode == "MONTH_WEEK_DAY":
+                # -------------------------------------------------------------
+                # 2. 月周日 共振：月周大买多头趋势共振，筛选出日线上出现2买3买的标的
+                # -------------------------------------------------------------
+                res_mwd = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["MONTH", "WEEK", "DAY"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_mwd:
+                    return None
+
+                high_mmds = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                mid_mmds = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+                low_mmds = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
+
+                sum_mwd = res_mwd.get("summary", {})
+                high_state = sum_mwd.get("high_state", {})
+                mid_state = sum_mwd.get("mid_state", {})
+
+                # 月线排除见顶大卖杀跌与空头
+                if high_state.get("is_bearish", False):
+                    return None
+                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                    return None
+                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                    return None
+
+                # 周线排除见顶杀跌与空头
+                if mid_state.get("is_bearish", False):
+                    return None
+                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                    return None
+                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                    return None
+
+                # 日线上出现 2买或3买
+                day_buys = [
+                    m for m in low_mmds
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                ]
+                if not day_buys:
+                    return None
+
+                # 日线最新买卖点不能被破坏性大卖点破坏
+                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
+                    return None
+
+                target_m = day_buys[-1]
+                buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
+                chan_tag = f"[月周日共振]月周大买·日线{buy_name}"
+
+            elif res_mode == "WEEK_DAY_30F":
+                # -------------------------------------------------------------
+                # 3. 周日30F 共振：周日大买多头趋势共振，筛选出30F上出现2买3买的标的
+                # -------------------------------------------------------------
+                res_wd30 = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["WEEK", "DAY", "30F"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_wd30:
+                    return None
+
+                high_mmds = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                mid_mmds = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "mid"]
+                low_mmds = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
+
+                sum_wd30 = res_wd30.get("summary", {})
+                high_state = sum_wd30.get("high_state", {})
+                mid_state = sum_wd30.get("mid_state", {})
+
+                # 周线排除见顶杀跌与空头
+                if high_state.get("is_bearish", False):
+                    return None
+                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                    return None
+                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                    return None
+
+                # 日线排除空头
+                if mid_state.get("is_bearish", False):
+                    return None
+                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                    return None
+
+                # 30F 上出现 2买或3买
+                f30_buys = [
+                    m for m in low_mmds
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                ]
+                if not f30_buys:
+                    return None
+
+                # 30F 最新买卖点不能被破坏性大卖点破坏
+                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
+                    return None
+
+                target_m = f30_buys[-1]
+                buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
+                chan_tag = f"[周日30F共振]周日大买·30F{buy_name}"
+
+            else:
+                # -------------------------------------------------------------
+                # 4. 全级别三级联共振 (ALL_CASCADE 兼容模式)
+                # -------------------------------------------------------------
+                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                    return None
+
+                res_mwd = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["MONTH", "WEEK", "DAY"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_mwd:
+                    return None
+                high_mwd = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                low_mwd = [m for m in res_mwd.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
+                if not high_mwd:
+                    return None
+                sum_mwd = res_mwd.get("summary", {})
+                high_state_m = sum_mwd.get("high_state", {})
+                mid_state_w = sum_mwd.get("mid_state", {})
+
+                # 1.1 月线最近一次转折是大买
+                last_m_high = high_mwd[-1]
+                if not last_m_high.get("is_buy", False) or "SELL" in str(last_m_high.get("type", "")).upper() or "卖" in str(last_m_high.get("label", "")):
+                    return None
+                m_bars_ago = high_state_m.get("recent_mmd_bars_ago")
+                if m_bars_ago is not None and int(m_bars_ago) > 8:
+                    return None
+                # 1.2 月线保持上升趋势
+                if high_state_m.get("is_bearish", False) or mid_state_w.get("is_bearish", False):
+                    return None
+                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                    return None
+                # 1.3 月线最近一笔是向下笔
+                m_bi_dir = str(high_state_m.get("bi_direction", "")).lower()
+                if m_bi_dir not in ("down", "向下", "向下笔"):
+                    return None
+                # 1.4 同时日线出现 1买
+                day_1buys = [
+                    m for m in low_mwd
+                    if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
+                ]
+                if not day_1buys:
+                    return None
+                if low_mwd and not low_mwd[-1].get("is_buy", False):
+                    return None
+
+                # 条件 2：周日30M区间套 (WEEK_DAY_30F)
+                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                    return None
+                res_wd30 = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["WEEK", "DAY", "30F"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_wd30:
+                    return None
+                high_wd30 = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                low_wd30 = [m for m in res_wd30.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
+                if not high_wd30:
+                    return None
+                sum_wd30 = res_wd30.get("summary", {})
+                high_state_w = sum_wd30.get("high_state", {})
+
+                # 2.1 周线最近一次转折是大买
+                last_w_high = high_wd30[-1]
+                if not last_w_high.get("is_buy", False) or "SELL" in str(last_w_high.get("type", "")).upper() or "卖" in str(last_w_high.get("label", "")):
+                    return None
+                w_bars_ago = high_state_w.get("recent_mmd_bars_ago")
+                if w_bars_ago is not None and int(w_bars_ago) > 8:
+                    return None
+                # 2.2 周线保持上升趋势
+                if high_state_w.get("is_bearish", False):
+                    return None
+                # 2.3 周线最近一笔是向下笔
+                w_bi_dir = str(high_state_w.get("bi_direction", "")).lower()
+                if w_bi_dir not in ("down", "向下", "向下笔"):
+                    return None
+                # 2.4 同时 30M 出现 1买
+                f30_1buys = [
+                    m for m in low_wd30
+                    if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
+                ]
+                if not f30_1buys:
+                    return None
+                if low_wd30 and not low_wd30[-1].get("is_buy", False):
+                    return None
+
+                # 条件 3：日30M5F区间套 (DAY_30F_5F)
+                res_d30f5 = analyze_multi_period_resonance(
+                    code=sym,
+                    periods=["DAY", "30F", "5F"],
+                    count=300,
+                    force_refresh=force_refresh
+                )
+                if not res_d30f5:
+                    return None
+                high_d30f5 = [m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "high"]
+                low_d30f5 = [m for m in res_d30f5.get("unified_chart", {}).get("mmd_marks", []) if m.get("level") == "low"]
+                if not high_d30f5:
+                    return None
+                sum_d30f5 = res_d30f5.get("summary", {})
+                high_state_d = sum_d30f5.get("high_state", {})
+
+                # 3.1 日线最近一次转折是大买
+                last_d_high = high_d30f5[-1]
+                if not last_d_high.get("is_buy", False) or "SELL" in str(last_d_high.get("type", "")).upper() or "卖" in str(last_d_high.get("label", "")):
+                    return None
+                d_bars_ago = high_state_d.get("recent_mmd_bars_ago")
+                if d_bars_ago is not None and int(d_bars_ago) > 15:
+                    return None
+                # 3.2 日线最近一笔是向下笔
+                d_bi_dir = str(high_state_d.get("bi_direction", "")).lower()
+                if d_bi_dir not in ("down", "向下", "向下笔"):
+                    return None
+                # 3.3 同时 5M 出现 2买
+                f5_2buys = [
+                    m for m in low_d30f5
+                    if m.get("is_buy") and ("2BUY" in str(m.get("type", "")).upper() or "2买" in str(m.get("label", "")))
+                ]
+                if not f5_2buys:
+                    return None
+                if low_d30f5 and not low_d30f5[-1].get("is_buy", False):
+                    return None
+
+                target_m = f5_2buys[-1]
+                chan_tag = "[缠论全级别共振]月周日1买+周日30M1买+日30M5F2买"
+
             last_m = target_m
             label = str(last_m.get("label", ""))
             m_type = str(last_m.get("type", "")).upper()
-            chan_tag = "[缠论全级别共振]月周日1买+周日30M1买+日30M5F2买"
 
             sig_df = df.copy()
             sig_date_str = str(last_m.get("date", "")).strip()
             date_col = "datetime" if "datetime" in sig_df.columns else "date"
             dt_series = sig_df[date_col].astype(str)
 
-            match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:10])]
+            match_indices = sig_df.index[dt_series.str.startswith(sig_date_str)]
+            if len(match_indices) == 0 and len(sig_date_str) >= 16:
+                match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:16])]
+            if len(match_indices) == 0 and len(sig_date_str) >= 10:
+                match_ge = sig_df.index[dt_series.str.startswith(sig_date_str[:10]) & (dt_series >= sig_date_str)]
+                if len(match_ge) > 0:
+                    match_indices = match_ge[:1]
+                else:
+                    match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:10])]
+            if len(match_indices) == 0 and len(sig_date_str) >= 7 and eval_period in ("MONTH", "SEASON"):
+                match_indices = sig_df.index[dt_series.str.startswith(sig_date_str[:7])]
             if len(match_indices) == 0:
                 match_indices = sig_df.index[dt_series <= sig_date_str]
 
@@ -744,8 +942,14 @@ def _evaluate_stock_for_strategy(
                 trigger_loc = len(sig_df) - 1
                 days_ago = 0
 
-            # 1. 严格时效性控制：买点必须在指定时间窗口内 (默认一月前 / 22交易日)
-            effective_lookback = lookback_bars if lookback_bars > 0 else 22
+            # 1. 严格时效性控制：根据各周期特征自适应调整回溯窗口
+            if res_mode == "SEASON_MONTH_WEEK":
+                effective_lookback = max(8, (lookback_bars // 5 + 1)) if lookback_bars > 0 else 12
+            elif res_mode == "WEEK_DAY_30F":
+                effective_lookback = (lookback_bars * 4) if lookback_bars > 0 else 60
+            else:
+                effective_lookback = lookback_bars if lookback_bars > 0 else 22
+
             if days_ago > effective_lookback:
                 return None
 
@@ -756,7 +960,8 @@ def _evaluate_stock_for_strategy(
                 if last_c < trigger_p * 0.95:
                     return None
                 since_pct = (last_c - trigger_p) / trigger_p * 100.0
-                if since_pct > 25.0:
+                max_rise = 35.0 if res_mode == "SEASON_MONTH_WEEK" else (30.0 if res_mode == "MONTH_WEEK_DAY" else 25.0)
+                if since_pct > max_rise:
                     return None
         elif strategy_name == "chanlun_dual_resonance":
             # -------------------------------------------------------------
@@ -1297,8 +1502,18 @@ def _evaluate_stock_for_strategy(
             p_unit = period_unit_map.get(cl_preset["kline_period"], "期")
             p_name = cl_preset["label"]
         elif strategy_name == "chanlun_resonance":
-            p_unit = "日"
-            p_name = "全级别共振"
+            if res_mode == "SEASON_MONTH_WEEK":
+                p_unit = "周"
+                p_name = "周线"
+            elif res_mode == "WEEK_DAY_30F":
+                p_unit = "根"
+                p_name = "30分钟"
+            elif res_mode == "MONTH_WEEK_DAY":
+                p_unit = "日"
+                p_name = "日线"
+            else:
+                p_unit = "日"
+                p_name = "全级别共振"
         elif strategy_name == "chanlun_dual_resonance":
             p_unit = "日"
             p_name = "二级共振"
@@ -1476,11 +1691,30 @@ def _evaluate_stock_for_strategy(
             "market_cap_str": "--",
         }
         if strategy_name == "chanlun_resonance":
-            res_dict["chan_periods"] = ["MONTH", "WEEK", "DAY", "30F", "5F"]
-            res_dict["high_period"] = "MONTH"
-            res_dict["high_period_name"] = "全周期共振"
-            res_dict["period_preset"] = "ALL_CASCADE"
-            res_dict["period_preset_label"] = "月周日+周日30M+日30M5F全级别共振"
+            if res_mode == "SEASON_MONTH_WEEK":
+                res_dict["chan_periods"] = ["SEASON", "MONTH", "WEEK"]
+                res_dict["high_period"] = "SEASON"
+                res_dict["high_period_name"] = "季线"
+                res_dict["period_preset"] = "SEASON_MONTH_WEEK"
+                res_dict["period_preset_label"] = "季月周共振 (周线2买/3买)"
+            elif res_mode == "WEEK_DAY_30F":
+                res_dict["chan_periods"] = ["WEEK", "DAY", "30F"]
+                res_dict["high_period"] = "WEEK"
+                res_dict["high_period_name"] = "周线"
+                res_dict["period_preset"] = "WEEK_DAY_30F"
+                res_dict["period_preset_label"] = "周日30F共振 (30F 2买/3买)"
+            elif res_mode == "MONTH_WEEK_DAY":
+                res_dict["chan_periods"] = ["MONTH", "WEEK", "DAY"]
+                res_dict["high_period"] = "MONTH"
+                res_dict["high_period_name"] = "月线"
+                res_dict["period_preset"] = "MONTH_WEEK_DAY"
+                res_dict["period_preset_label"] = "月周日共振 (日线2买/3买)"
+            else:
+                res_dict["chan_periods"] = ["MONTH", "WEEK", "DAY", "30F", "5F"]
+                res_dict["high_period"] = "MONTH"
+                res_dict["high_period_name"] = "全周期共振"
+                res_dict["period_preset"] = "ALL_CASCADE"
+                res_dict["period_preset_label"] = "月周日+周日30M+日30M5F全级别共振"
         elif strategy_name == "chanlun_dual_resonance":
             res_dict["chan_periods"] = ["WEEK", "DAY", "30F", "5F"]
             res_dict["high_period"] = "WEEK"
@@ -1516,7 +1750,7 @@ def scan_market_strategy(
         strategy_name = "chanlun_resonance"
 
     if strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
-        period = "ALL_CASCADE"
+        period = "MONTH_WEEK_DAY"
     elif strategy_name == "chanlun_dual_resonance" and (not period or period in ("DAY", "")):
         period = "DUAL_CASCADE"
     elif strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):
