@@ -152,17 +152,18 @@ python run_scanner.py
 
 # 交互选择说明：
 # - 战略（策略）：列出全量策略与序列号，直接回车默认 [1] 缠论共振策略 (三级联共振校验)
-# - 周期：列出各周期与区间套预设，直接回车默认 [2] MONTH_WEEK_DAY 月周日共振
-# - 范围：列出全市场(all 5200+)、核心龙头(core)、沪深300(hs300)等，直接回车默认 [1] all 全市场
+# - 周期：列出各周期与区间套预设，直接回车默认 [1] MONTH_WEEK_DAY_2BUY 月周日共振(日线2买)
+# - 范围：支持全市场(all 5200+)、核心龙头(core)、沪深300(hs300)、中证500/1000，以及【[6] 行业板块专项筛选】（通达信 128 个细分行业板块，如半导体、酿酒、电池、通信设备等）；
 # - 多线程并发：默认当前 CPU 最大线程数并发快速执行；
 # - 缓存控制：自动从通达信服务器拉取最新数据，并写入 data/screener_cache/ 与 data/kline_cache/，二次执行秒级复用。
 
-# 2. 命令行静默/快速执行（支持定时任务/脚本集成）
-python run_scanner.py -s chanlun_resonance -p MONTH_WEEK_DAY -u all -w 32
-python run_scanner.py -s chanlun_resonance -p SEASON_MONTH_WEEK -u all -w 32
+# 2. 命令行静默/快速执行（支持按行业名称或行业代码直接筛选）
+python run_scanner.py -s chanlun_resonance -p 1 -u 半导体 -t 1m
+python run_scanner.py -s bull_trend -u 酿酒 -t 1w
+python run_scanner.py -s chanlun_strategy -u 881319 -t 1m
 python run_scanner.py -s weekly_big_bull_consolidation -p WEEK -u hs300 -w 16
 ```
-运行完成后将在控制台输出高亮股票命中表格，并自动在 `output/` 目录导出 `.csv` 和 `.json` 结果报表。
+运行完成后将在控制台输出高亮股票命中表格（包含“所属行业”列），并自动在 `output/` 目录导出 `.csv` 和 `.json` 结果报表，同时同步存入 `data/screener_cache/` 供 Web 界面秒级复用。
 
 
 ### 3.6 真实回测工作台 (Backtest Station)

@@ -358,17 +358,28 @@ def get_universe_symbols(scope: str = "core", force_refresh: bool = False, sync_
     """Get stock symbols for the requested universe scope.
     
     Args:
-        scope: Universe scope ("core", "hs300", "zz500", "zz1000", "all")
+        scope: Universe scope ("core", "hs300", "zz500", "zz1000", "all", 或行业板块如 "industry:半导体", "881319", "半导体", "酿酒" 等)
         force_refresh: If True and scope is "all", triggers sync_new_stocks to check for new IPOs.
         sync_new: Explicit flag to trigger new stock detection.
     """
-    s = (scope or "core").lower().strip()
+    s = (scope or "core").strip()
+    s_lower = s.lower()
     
-    if (force_refresh or sync_new) and s in ("all", "full", "all_a", "market"):
+    if (force_refresh or sync_new) and s_lower in ("all", "full", "all_a", "market"):
         try:
             sync_new_stocks()
         except Exception as e:
             logger.debug(f"sync_new_stocks skipped: {e}")
+
+    # 1. 行业板块支持 (以 industry: 开头，或包含 hy_，或匹配 128 个行业名称/代码)
+    try:
+        from .industry import find_industry, is_industry_scope
+        if is_industry_scope(s):
+            ind_info = find_industry(s)
+            if ind_info and ind_info.get("symbols"):
+                return list(ind_info["symbols"])
+    except Exception as e:
+        logger.debug(f"find_industry check failed for {s}: {e}")
 
     all_stocks = _load_all_ashares()
     
@@ -376,61 +387,113 @@ def get_universe_symbols(scope: str = "core", force_refresh: bool = False, sync_
     rest = [c for c in all_stocks if c not in core_set]
     ordered_all = CORE_UNIVERSE + rest
 
-    if s == "core":
+    if s_lower == "core":
         return CORE_UNIVERSE
-    elif s in ("hs300", "csi300", "300"):
+    elif s_lower in ("hs300", "csi300", "300"):
         return ordered_all[:300]
-    elif s in ("zz500", "csi500", "500"):
+    elif s_lower in ("zz500", "csi500", "500"):
         return ordered_all[:500]
-    elif s in ("zz1000", "csi1000", "1000"):
+    elif s_lower in ("zz1000", "csi1000", "1000"):
         return ordered_all[:1000]
-    elif s in ("all", "full", "all_a", "market"):
+    elif s_lower in ("all", "full", "all_a", "market"):
         return ordered_all
     else:
+        # 再次兜底尝试匹配行业名称
+        try:
+            from .industry import find_industry
+            ind_info = find_industry(s)
+            if ind_info and ind_info.get("symbols"):
+                return list(ind_info["symbols"])
+        except Exception:
+            pass
         return CORE_UNIVERSE
 
 def get_universe_options() -> list[dict[str, Any]]:
-    """Return universe descriptions for UI rendering."""
+    """Return universe descriptions for UI rendering (通用指数池 + 核心赛道推荐)."""
     all_count = len(_load_all_ashares())
-    return [
+    options = [
         {
             "id": "core",
+            "code": "core",
             "name": "核心龙头精选",
             "count": len(CORE_UNIVERSE),
             "est_time": "~2-3 秒",
             "badge": "秒级响应",
+            "group": "index",
             "desc": f"东方财富全行业最全核心龙头名单精选 ({len(CORE_UNIVERSE)}只)"
         },
         {
             "id": "hs300",
+            "code": "hs300",
             "name": "沪深300标的池",
             "count": 300,
             "est_time": "~6 秒",
             "badge": "快速选股",
+            "group": "index",
             "desc": "A 股规模大、流动性好的 300 只最具代表性蓝筹白马"
         },
         {
             "id": "zz500",
+            "code": "zz500",
             "name": "中证500标的池",
             "count": 500,
             "est_time": "~12 秒",
             "badge": "中盘主力",
+            "group": "index",
             "desc": "聚焦各细分行业高成长、弹性大的优质中盘标的"
         },
         {
             "id": "zz1000",
+            "code": "zz1000",
             "name": "中证1000标的池",
             "count": 1000,
             "est_time": "~25 秒",
             "badge": "活跃小盘",
+            "group": "index",
             "desc": "覆盖中小盘活跃品种，捕捉游资与弹性波段机会"
         },
         {
             "id": "all",
+            "code": "all",
             "name": "全市场全A股",
             "count": all_count,
             "est_time": "后台异步任务",
             "badge": "全量大满贯",
+            "group": "index",
             "desc": f"无死角扫描 A 股全市场 ({all_count} 只标的，支持新股发行自动扩容)，多线程后台异步并发计算"
         }
     ]
+
+    # 加入主流高关注度核心行业板块选项
+    hot_industries = [
+        ("industry:半导体", "半导体芯片", "881319", "芯片先锋"),
+        ("industry:软件服务", "软件与AI服务", "881355", "数字经济"),
+        ("industry:消费电子", "消费电子", "881326", "果链端侧"),
+        ("industry:电池", "锂电池与储能", "881262", "绿色能源"),
+        ("industry:光伏设备", "光伏设备", "881275", "清洁能源"),
+        ("industry:汽车零部件", "汽车零部件", "881218", "汽配智造"),
+        ("industry:化学制药", "化学创新药", "881231", "生物医药"),
+        ("industry:医疗器械", "医疗器械", "881241", "医疗大健康"),
+        ("industry:酿酒", "白酒与酿酒", "881130", "消费白马"),
+        ("industry:证券", "证券金融", "881394", "牛市风向标"),
+        ("industry:航空装备", "军工航空装备", "881288", "大国重器"),
+    ]
+    try:
+        from .industry import find_industry
+        for ind_id, disp_name, ind_code, badge in hot_industries:
+            ind_data = find_industry(ind_code)
+            cnt = ind_data.get("count", 0) if ind_data else 0
+            options.append({
+                "id": ind_id,
+                "name": f"🏭 {disp_name}",
+                "code": ind_code,
+                "count": cnt,
+                "est_time": f"~{max(1, cnt // 25)} 秒",
+                "badge": badge,
+                "group": "industry",
+                "desc": f"通达信官方行业板块【{disp_name}】全部成分股 ({cnt} 只标的深度筛选)"
+            })
+    except Exception as e:
+        logger.debug(f"加载热门行业选项失败: {e}")
+
+    return options

@@ -45,6 +45,7 @@ logger = logging.getLogger("run_screener")
 from easy_tdx.strategies.registry import list_all_strategies, get_strategy
 from easy_tdx.screener.scanner import scan_market_strategy, CHANLUN_PERIOD_PRESETS
 from easy_tdx.screener.universe import get_universe_symbols, get_universe_options, CORE_UNIVERSE, sync_new_stocks
+from easy_tdx.screener.industry import find_industry, is_industry_scope, list_all_industries, get_stock_industry
 
 
 # 终端 ANSI 色彩定义
@@ -367,17 +368,20 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
         ("hs300", "沪深300标的池 (300 只)", "A股规模大、流动性好的最具代表性白马蓝筹", "稳健白马"),
         ("zz500", "中证500标的池 (500 只)", "聚焦各细分行业高成长、弹性大的优质中盘主力", "成长弹性"),
         ("zz1000", "中证1000标的池 (1000 只)", "中小盘活跃品种，捕捉游资与弹性主升机会", "中小盘热点"),
+        ("industry", "行业板块专项筛选 (通达信 128 个细分行业)", "指定行业赛道(如半导体、酿酒、电池、通信设备等)", "行业赛道"),
         ("custom", "自定义股票代码列表", "手动输入股票代码（如 002439, 600519, 000001 等）", "自由定制"),
     ]
 
     for seq, (u_code, u_name, u_desc, badge) in enumerate(options, 1):
         if seq == 1:
             print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(u_code, Colors.BOLD):10s} {u_name} {_colored(badge, Colors.GREEN)}")
+        elif u_code == "industry":
+            print(f"  [{seq}] {_colored(u_code, Colors.BOLD):10s} {u_name} {_colored(badge, Colors.CYAN)}")
         else:
             print(f"  [{seq}] {u_code:10s} {u_name} {_colored(badge, Colors.YELLOW)}")
         print(f"      {_colored('└─ ' + u_desc, Colors.CYAN)}")
 
-    prompt_txt = _colored("\n请输入选股范围序号 [1-6] (直接回车默认: 1. all 全市场全A股): ", Colors.BOLD + Colors.GREEN)
+    prompt_txt = _colored("\n请输入选股范围序号 [1-7] (直接回车默认: 1. all 全市场全A股): ", Colors.BOLD + Colors.GREEN)
     choice = input(prompt_txt).strip()
 
     if not choice or choice == "1":
@@ -386,6 +390,8 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
         seq_num = int(choice)
         if 1 <= seq_num <= len(options):
             u_code = options[seq_num - 1][0]
+            if u_code == "industry":
+                return _prompt_industry_selection()
             if u_code == "custom":
                 raw_codes = input(_colored("请输入自选股票代码（逗号或空格隔开，如 002439,600519）: ", Colors.YELLOW)).strip()
                 symbols = [c.strip().zfill(6) for c in raw_codes.replace("，", ",").replace(" ", ",").split(",") if c.strip()]
@@ -394,9 +400,58 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
 
     for u_code, _, _, _ in options:
         if choice.lower() == u_code:
+            if u_code == "industry":
+                return _prompt_industry_selection()
             return u_code, None
 
+    # 用户可能直接输入了行业名称或代码（如 "半导体"、"881319"、"酿酒"）
+    from easy_tdx.screener.industry import find_industry
+    ind = find_industry(choice)
+    if ind:
+        return f"industry:{ind.name}", None
+
     return "all", None
+
+
+def _prompt_industry_selection() -> tuple[str, list[str] | None]:
+    """子交互菜单：选择细分行业板块"""
+    from easy_tdx.screener.industry import list_all_industries, find_industry
+    hot_industries = [
+        ("半导体", "881319", "集成电路/芯片设计制造封测"),
+        ("通信设备", "881268", "算力硬件/光模块/CPO/5.5G"),
+        ("软件服务", "881270", "AI应用/基础软件/信创国产化"),
+        ("计算机设备", "881271", "AI服务器/算力租赁/边缘计算"),
+        ("互联网", "881272", "数字经济/电商/游戏互动传媒"),
+        ("电池", "881262", "固态电池/锂电/储能系统"),
+        ("汽车类", "881170", "智能驾驶/新能源汽车整车与零部件"),
+        ("酿酒", "881130", "高端白酒/消费复苏核心白马"),
+        ("医药", "881135", "创新药/生物医药/医疗器械出海"),
+        ("有色", "881165", "工业金属/贵金属/稀土新材料"),
+    ]
+
+    print("\n" + "-" * 70)
+    print(_colored("【热门行业赛道推荐】", Colors.BOLD + Colors.CYAN))
+    for i, (name, code, desc) in enumerate(hot_industries, 1):
+        print(f"  [{i:2d}] {name:8s} ({code}) - {desc}")
+    print("-" * 70)
+
+    prompt = _colored("请输入热门序号 [1-10] 或直接输入任意行业名称/代码 (如 光伏设备、881266): ", Colors.BOLD + Colors.GREEN)
+    user_in = input(prompt).strip()
+
+    if user_in.isdigit() and 1 <= int(user_in) <= len(hot_industries):
+        sel_name = hot_industries[int(user_in) - 1][0]
+        return f"industry:{sel_name}", None
+
+    if user_in:
+        ind = find_industry(user_in)
+        if ind:
+            print(_colored(f"✔ 匹配到行业板块: [{ind.code}] {ind.name} (含 {len(ind.symbols)} 只成分股)", Colors.GREEN))
+            return f"industry:{ind.name}", None
+        else:
+            print(_colored(f"[!] 未找到匹配行业 '{user_in}'，默认回退至全市场选股。", Colors.YELLOW))
+            return "all", None
+
+    return "industry:半导体", None
 
 
 def display_concurrency_menu() -> tuple[int, bool]:
@@ -427,27 +482,28 @@ def display_concurrency_menu() -> tuple[int, bool]:
 
 def print_results_table(results: list[dict[str, Any]], strategy_name: str, period: str, universe: str, elapsed_sec: float, time_desc: str = "") -> None:
     """以精美表格形式格式化输出最终选股命中结果"""
-    print("\n" + "=" * 118)
+    print("\n" + "=" * 128)
     time_tag = f" | 回溯: {time_desc}" if time_desc else " | 回溯: 1个月前"
     header_title = f"【选股完成】策略: {strategy_name} | 周期: {period}{time_tag} | 范围: {universe} | 命中: {len(results)} 只 | 耗时: {elapsed_sec:.2f}s"
     print(_colored(header_title, Colors.BOLD + Colors.GREEN))
-    print("=" * 118)
+    print("=" * 128)
 
     if not results:
         print(_colored(" [!] 当前筛选条件下无满足条件的股票（全满足强约束一票否决有效滤除假信号）。", Colors.YELLOW))
-        print("=" * 118 + "\n")
+        print("=" * 128 + "\n")
         return
 
     # 按涨跌幅倒序排列
     sorted_res = sorted(results, key=lambda x: float(x.get("change_pct") or 0.0), reverse=True)
 
-    header = f"{'序号':^4} | {'代码':^8} | {'股票名称':^10} | {'触发价':^8} | {'触发日涨跌':^10} | {'自触发涨幅':^10} | {'触发信号/买卖点':^28} | {'触发日期':^12} | {'距今'}"
+    header = f"{'序号':^4} | {'代码':^8} | {'股票名称':^10} | {'所属行业':^10} | {'触发价':^8} | {'触发日涨跌':^10} | {'自触发涨幅':^10} | {'触发信号/买卖点':^24} | {'触发日期':^12} | {'距今'}"
     print(_colored(header, Colors.BOLD))
-    print("-" * 118)
+    print("-" * 128)
 
     for i, r in enumerate(sorted_res, 1):
         sym = r.get("code") or r.get("symbol") or "--"
         name = r.get("name") or "--"
+        industry = r.get("industry_name") or "--"
         price = float(r.get("price") or 0.0)
         chg = float(r.get("change_pct") or r.get("latest_change_pct") or 0.0)
         since_chg = float(r.get("since_signal_pct") or 0.0)
@@ -474,11 +530,11 @@ def print_results_table(results: list[dict[str, Any]], strategy_name: str, perio
         else:
             since_colored = f"{since_str:>10}"
 
-        print(f"{i:4d} | {sym:8s} | {name:10s} | {price:8.2f} | {chg_colored} | {since_colored} | {pat:28s} | {sig_date:12s} | {days}天前")
+        print(f"{i:4d} | {sym:8s} | {name:10s} | {industry:10s} | {price:8.2f} | {chg_colored} | {since_colored} | {pat:24s} | {sig_date:12s} | {days}天前")
 
-    print("-" * 118)
+    print("-" * 128)
     print(_colored(f"总计选出 {len(sorted_res)} 只标的资产，全部信号已严格通过三级联区间套与大趋势防线校验！", Colors.GREEN + Colors.BOLD))
-    print("=" * 118 + "\n")
+    print("=" * 128 + "\n")
 
 
 def export_results(
@@ -554,6 +610,8 @@ def export_results(
                 clean_rows.append({
                     "代码": r.get("code") or r.get("symbol"),
                     "名称": r.get("name"),
+                    "所属行业": r.get("industry_name") or "--",
+                    "行业代码": r.get("industry_code") or "--",
                     "触发价": r.get("price"),
                     "触发日涨跌%": r.get("change_pct"),
                     "当日涨跌%": latest_chg,
@@ -578,7 +636,7 @@ def main() -> None:
     parser.add_argument("-s", "--strategy", type=str, default="", help="选股策略名称（默认: chanlun_resonance 缠论共振策略 / 可选 chanlun_dual_resonance 缠论二级共振策略等）")
     parser.add_argument("-p", "--period", type=str, default="", help="分析周期（默认: MONTH_WEEK_DAY_2BUY 月周日2买共振 / 可选 1-7序号, MONTH_WEEK_DAY_3BUY, SEASON_MONTH_WEEK_2BUY, SEASON_MONTH_WEEK_3BUY, WEEK_DAY_30F_2BUY, WEEK_DAY_30F_3BUY, ALL_CASCADE 等）")
     parser.add_argument("-t", "--time", "--lookback", dest="time_param", type=str, default="", help="信号回溯时间范围：支持天数(如 22)、时间跨度(如 1m, 1w, 2m, 3m) 或具体起始日期(如 2026-09-24)（默认: 1m / 22交易日，即约一月前）")
-    parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/代码列表（默认: all）")
+    parser.add_argument("-u", "--universe", type=str, default="", help="选股范围：all/core/hs300/zz500/zz1000/行业板块(如 半导体、酿酒、881319)/股票代码列表（默认: all）")
     cpu_threads = max(1, os.cpu_count() or 4)
     parser.add_argument("-w", "--workers", type=int, default=0, help=f"并发线程数（默认: 当前CPU最大线程数 {cpu_threads}）")
     parser.add_argument("--refresh", action="store_true", help="强制从行情服务器穿透下载全量数据")
@@ -652,7 +710,11 @@ def main() -> None:
             period = "DAY"
         universe_choice = args.universe.strip() or "all"
         custom_symbols = None
-        if "," in universe_choice or universe_choice.isdigit():
+        from easy_tdx.screener.industry import is_industry_scope, find_industry
+        if is_industry_scope(universe_choice) or find_industry(universe_choice) is not None:
+            # 确认是行业板块，直接作为 universe_choice
+            pass
+        elif "," in universe_choice or (universe_choice.isdigit() and len(universe_choice) == 6 and not universe_choice.startswith("88")):
             custom_symbols = [c.strip().zfill(6) for c in universe_choice.split(",") if c.strip()]
             universe_choice = "custom"
         lookback_bars, time_desc, start_date_str = parse_time_param(args.time_param or "1m")

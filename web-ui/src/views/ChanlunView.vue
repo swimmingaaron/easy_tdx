@@ -3677,11 +3677,25 @@ onBeforeUnmount(() => {
           <div class="tdx-pm-filter">
             <span>股票池:</span>
             <select v-model="pmUniverse" class="tdx-pm-select" @change="runPatternMatchScan">
-              <option value="core">核心流动性龙头池 (159只 · 推荐极速)</option>
-              <option value="hs300">沪深 300 权重池 (300只)</option>
-              <option value="zz500">中证 500 主力池 (500只)</option>
-              <option value="zz1000">中证 1000 活跃池 (1000只)</option>
-              <option value="all">全市场 A 股 (5200+只)</option>
+              <optgroup label="核心与指数池">
+                <option value="core">核心流动性龙头池 (159只 · 推荐极速)</option>
+                <option value="hs300">沪深 300 权重池 (300只)</option>
+                <option value="zz500">中证 500 主力池 (500只)</option>
+                <option value="zz1000">中证 1000 活跃池 (1000只)</option>
+                <option value="all">全市场 A 股 (5200+只)</option>
+              </optgroup>
+              <optgroup label="🏭 行业板块专项筛选">
+                <option value="industry:半导体">半导体芯片 (158只)</option>
+                <option value="industry:通信设备">通信设备/CPO (128只)</option>
+                <option value="industry:软件服务">软件服务/信创 (266只)</option>
+                <option value="industry:计算机设备">计算机设备/算力 (93只)</option>
+                <option value="industry:电池">电池/储能 (101只)</option>
+                <option value="industry:汽车类">汽车类/智能驾驶 (258只)</option>
+                <option value="industry:酿酒">酿酒/白酒 (39只)</option>
+                <option value="industry:医药">医药/生物制造 (320只)</option>
+                <option value="industry:电气设备">电气设备/光伏 (265只)</option>
+                <option value="industry:有色">有色金属/资源 (137只)</option>
+              </optgroup>
             </select>
             <button class="tdx-pm-btn-rescan" :disabled="pmScanning" @click="runPatternMatchScan">
               {{ pmScanning ? '扫描中...' : '重新匹配' }}

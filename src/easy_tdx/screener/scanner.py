@@ -1800,7 +1800,24 @@ def _evaluate_stock_for_strategy(
             "total_mv_yi": 0.0,
             "market_cap_yi": 0.0,
             "market_cap_str": "--",
+            "industry_name": "--",
+            "industry_code": "",
+            "industry_category": "",
         }
+        try:
+            from .industry import get_stock_industry
+            ind_info = get_stock_industry(sym)
+            if ind_info:
+                ind_n = ind_info.get("name", "--")
+                ind_c = ind_info.get("code", "")
+                res_dict["industry_name"] = ind_n
+                res_dict["industry_code"] = ind_c
+                res_dict["industry_category"] = ind_info.get("category", "")
+                res_dict["industry"] = ind_n
+                res_dict["board_name"] = ind_n
+                res_dict["board_code"] = ind_c
+        except Exception:
+            pass
         if strategy_name == "chanlun_resonance":
             if res_mode == "SEASON_MONTH_WEEK":
                 res_dict["chan_periods"] = ["SEASON", "MONTH", "WEEK"]
@@ -1882,7 +1899,7 @@ def scan_market_strategy(
         strategy_name = "chanlun_resonance"
 
     if strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
-        period = "MONTH_WEEK_DAY"
+        period = "MONTH_WEEK_DAY_2BUY"
     elif strategy_name == "chanlun_dual_resonance" and (not period or period in ("DAY", "")):
         period = "DUAL_CASCADE"
     elif strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):
