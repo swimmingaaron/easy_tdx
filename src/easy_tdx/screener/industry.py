@@ -192,8 +192,115 @@ def find_industry(query: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def list_all_industry_indices() -> List[Dict[str, Any]]:
+    """返回全部 128 个行业板块指数的元数据列表（代码为 881xxx）。"""
+    uni = load_industry_universe()
+    return [
+        {
+            "code": ind["code"],
+            "symbol": ind["code"],
+            "name": ind["name"],
+            "category": ind.get("category", "其他行业"),
+            "member_count": ind.get("count", len(ind.get("symbols", []))),
+            "is_index": True,
+        }
+        for ind in uni.get("industries", [])
+    ]
+
+
+def get_all_industry_index_codes() -> List[str]:
+    """返回全部 128 个通达信细分行业板块指数代码列表（用于板块指数择时选股）。"""
+    uni = load_industry_universe()
+    return [ind["code"] for ind in uni.get("industries", [])]
+
+
+def get_category_industry_index_codes(category_query: str) -> List[str]:
+    """根据大类名称或关键字返回该产业大类下的所有行业板块指数代码。"""
+    clean = str(category_query or "").strip().lower()
+    uni = load_industry_universe()
+    cat_codes = []
+    for cat in uni.get("categories", []):
+        cat_name = cat.get("category", "")
+        if clean in cat_name.lower() or cat_name.lower() in clean:
+            for sub in cat.get("industries", []):
+                cat_codes.append(sub["code"])
+    return cat_codes
+
+
+def get_industry_index_symbols(scope: str) -> List[str]:
+    """核心方法：解析行业板块选股范围，统一返回【行业板块指数自身代码】列表（非成分股）。
+    
+    支持:
+    - 全部行业指数: "industry_index", "industry_indices", "sectors", "industry_all", "boards" -> 返回全部 128 个行业指数代码
+    - 产业大类指数: "industry_index:tmt", "industry:新能源", "tmt" -> 返回属于该大类的细分行业指数代码列表
+    - 单细分行业指数: "industry:半导体", "半导体", "881319" -> 返回 [881319]（半导体行业指数代码自身）
+    """
+    s = str(scope or "").strip().lower()
+    if s.startswith("industry_index:"):
+        sub = s[15:].strip()
+    elif s.startswith("industry:"):
+        sub = s[9:].strip()
+    elif s.startswith("sectors:"):
+        sub = s[8:].strip()
+    else:
+        sub = s
+
+    # 1. 全部行业板块指数
+    if sub in ("", "all", "indices", "index", "sectors", "boards", "full", "industry_index", "industry_indices"):
+        return get_all_industry_index_codes()
+
+    # 2. 优先匹配单个细分行业板块指数 (如 半导体、酿酒、881319 等)
+    ind = find_industry(sub)
+    if ind and not ind.get("is_category"):
+        return [ind["code"]]
+
+    # 3. 产业大类指数池 (英文与中文别名匹配)
+    cat_alias_map = {
+        "tmt": "信息技术与芯片半导体",
+        "tech": "信息技术与芯片半导体",
+        "科技": "信息技术与芯片半导体",
+        "芯片": "信息技术与芯片半导体",
+        "制造": "高端装备与军工制造",
+        "高端制造": "高端装备与军工制造",
+        "新能源": "新能源与电力设备",
+        "光伏": "新能源与电力设备",
+        "消费": "大消费与食品饮料",
+        "商贸": "大消费与食品饮料",
+        "consumption": "大消费与食品饮料",
+        "医药": "医药生物与医疗健康",
+        "医疗": "医药生物与医疗健康",
+        "healthcare": "医药生物与医疗健康",
+        "周期": "周期资源与基础化工",
+        "资源": "周期资源与基础化工",
+        "化工": "周期资源与基础化工",
+        "materials": "周期资源与基础化工",
+        "金融": "金融与地产服务",
+        "地产": "金融与地产服务",
+        "finance": "金融与地产服务",
+        "交通": "汽车与交通运输",
+        "汽车": "汽车与交通运输",
+        "环保": "建筑建材与公共环保",
+        "文娱": "文娱教育与轻工生活",
+    }
+    target_cat = cat_alias_map.get(sub)
+    if target_cat:
+        codes = get_category_industry_index_codes(target_cat)
+        if codes:
+            return codes
+
+    # 尝试匹配大类
+    cat_codes = get_category_industry_index_codes(sub)
+    if cat_codes:
+        return cat_codes
+
+    if ind and ind.get("code"):
+        return [ind["code"]]
+
+    return get_all_industry_index_codes()
+
+
 def get_industry_symbols(key: str) -> List[str]:
-    """根据行业代码或名称获取该行业下的所有成分股代码列表。"""
+    """获取指定行业下的所有成分股代码列表（若需深入分析成分股时使用）。"""
     ind = find_industry(key)
     if ind:
         return list(ind.get("symbols", []))
@@ -201,22 +308,35 @@ def get_industry_symbols(key: str) -> List[str]:
 
 
 def get_stock_industry(symbol: str) -> Optional[Dict[str, str]]:
-    """查询指定股票所属的行业板块信息（代码、行业名称、赛道大类）。"""
-    code = str(symbol or "").strip().zfill(6)
+    """查询指定股票或行业代码所属的行业板块信息（代码、行业名称、赛道大类）。"""
+    code = str(symbol or "").strip()
+    clean_code = code.zfill(6) if code.isdigit() else code
     uni = load_industry_universe()
+
+    # 优先检查是否本身就是 128 个行业板块指数代码
+    for ind in uni.get("industries", []):
+        if ind["code"] == clean_code or ind["code"] == code:
+            return {
+                "code": ind["code"],
+                "name": ind["name"],
+                "category": ind.get("category", "行业板块指数"),
+                "is_index": True,
+            }
+
     stock_map = uni.get("stock_to_industry", {})
-    return stock_map.get(code)
+    return stock_map.get(clean_code)
 
 
 def is_industry_scope(scope: str) -> bool:
-    """快速判断传入的选股范围标识是否属于行业板块。"""
+    """快速判断传入的选股范围标识是否属于行业板块/行业指数。"""
     if not scope:
         return False
     s = str(scope).strip().lower()
     if s in ("core", "hs300", "zz500", "zz1000", "all", "market", "full", "custom"):
         return False
-    if s.startswith("industry:") or s.startswith("hy_") or s.startswith("hy:") or s.startswith("industry_"):
+    if s.startswith("industry:") or s.startswith("industry_index") or s.startswith("industry_") or s.startswith("sectors") or s.startswith("hy_") or s.startswith("hy:"):
         return True
-    # 检查是否能够匹配到具体行业
+    # 检查是否能够匹配到具体行业或大类
     ind = find_industry(scope)
     return ind is not None
+

@@ -3684,17 +3684,14 @@ onBeforeUnmount(() => {
                 <option value="zz1000">中证 1000 活跃池 (1000只)</option>
                 <option value="all">全市场 A 股 (5200+只)</option>
               </optgroup>
-              <optgroup label="🏭 行业板块专项筛选">
-                <option value="industry:半导体">半导体芯片 (158只)</option>
-                <option value="industry:通信设备">通信设备/CPO (128只)</option>
-                <option value="industry:软件服务">软件服务/信创 (266只)</option>
-                <option value="industry:计算机设备">计算机设备/算力 (93只)</option>
-                <option value="industry:电池">电池/储能 (101只)</option>
-                <option value="industry:汽车类">汽车类/智能驾驶 (258只)</option>
-                <option value="industry:酿酒">酿酒/白酒 (39只)</option>
-                <option value="industry:医药">医药/生物制造 (320只)</option>
-                <option value="industry:电气设备">电气设备/光伏 (265只)</option>
-                <option value="industry:有色">有色金属/资源 (137只)</option>
+              <optgroup label="🏭 行业板块指数 (对行业指数整体择时)">
+                <option value="industry_index">全部行业板块指数 (128个行业指数 · 秒级)</option>
+                <option value="industry_index:tmt">科技TMT产业板块指数 (15个)</option>
+                <option value="industry_index:manufacturing">新能源与先进制造指数 (18个)</option>
+                <option value="industry_index:consumption">大消费与商贸服务指数 (16个)</option>
+                <option value="industry_index:healthcare">医药生物与健康指数 (8个)</option>
+                <option value="industry_index:materials">周期资源与大宗商品指数 (20个)</option>
+                <option value="industry_index:finance">大金融与地产发展指数 (8个)</option>
               </optgroup>
             </select>
             <button class="tdx-pm-btn-rescan" :disabled="pmScanning" @click="runPatternMatchScan">

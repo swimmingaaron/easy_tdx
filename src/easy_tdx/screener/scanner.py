@@ -1805,17 +1805,30 @@ def _evaluate_stock_for_strategy(
             "industry_category": "",
         }
         try:
-            from .industry import get_stock_industry
-            ind_info = get_stock_industry(sym)
+            from .industry import get_stock_industry, find_industry
+            ind_info = get_stock_industry(sym) or find_industry(sym)
             if ind_info:
                 ind_n = ind_info.get("name", "--")
                 ind_c = ind_info.get("code", "")
-                res_dict["industry_name"] = ind_n
-                res_dict["industry_code"] = ind_c
-                res_dict["industry_category"] = ind_info.get("category", "")
-                res_dict["industry"] = ind_n
-                res_dict["board_name"] = ind_n
-                res_dict["board_code"] = ind_c
+                cat_n = ind_info.get("category", "")
+                is_idx = ind_info.get("is_index", False) or sym.startswith("88")
+                if is_idx:
+                    res_dict["name"] = ind_n
+                    res_dict["display"] = f"{sym} {ind_n} [行业指数]"
+                    res_dict["industry_name"] = cat_n or ind_n
+                    res_dict["industry_code"] = ind_c
+                    res_dict["industry_category"] = cat_n
+                    res_dict["industry"] = cat_n or ind_n
+                    res_dict["board_name"] = ind_n
+                    res_dict["board_code"] = ind_c
+                    res_dict["is_index"] = True
+                else:
+                    res_dict["industry_name"] = ind_n
+                    res_dict["industry_code"] = ind_c
+                    res_dict["industry_category"] = cat_n
+                    res_dict["industry"] = ind_n
+                    res_dict["board_name"] = ind_n
+                    res_dict["board_code"] = ind_c
         except Exception:
             pass
         if strategy_name == "chanlun_resonance":
@@ -1907,11 +1920,13 @@ def scan_market_strategy(
 
     st = get_strategy(strategy_name)
     
-    if not symbols:
+    if symbols is not None and universe == "core":
+        universe = "custom"
+    elif not symbols:
         symbols = get_universe_symbols(universe, force_refresh=force_refresh)
         
     total_count = len(symbols)
-    is_custom_symbols = (symbols is not None and not isinstance(universe, str))
+    is_custom_symbols = (universe == "custom")
 
     # 1. Check disk cache if symbols is not custom and not force_refresh
     if not is_custom_symbols and use_cache and not force_refresh:

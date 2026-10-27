@@ -368,17 +368,17 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
         ("hs300", "沪深300标的池 (300 只)", "A股规模大、流动性好的最具代表性白马蓝筹", "稳健白马"),
         ("zz500", "中证500标的池 (500 只)", "聚焦各细分行业高成长、弹性大的优质中盘主力", "成长弹性"),
         ("zz1000", "中证1000标的池 (1000 只)", "中小盘活跃品种，捕捉游资与弹性主升机会", "中小盘热点"),
-        ("industry", "行业板块专项筛选 (通达信 128 个细分行业)", "指定行业赛道(如半导体、酿酒、电池、通信设备等)", "行业赛道"),
+        ("industry_index", "行业板块指数 (128个行业指数直接择时)", "对 128 个细分行业指数进行选股扫描，锁定主线共振板块", "板块择时"),
         ("custom", "自定义股票代码列表", "手动输入股票代码（如 002439, 600519, 000001 等）", "自由定制"),
     ]
 
     for seq, (u_code, u_name, u_desc, badge) in enumerate(options, 1):
         if seq == 1:
-            print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(u_code, Colors.BOLD):10s} {u_name} {_colored(badge, Colors.GREEN)}")
-        elif u_code == "industry":
-            print(f"  [{seq}] {_colored(u_code, Colors.BOLD):10s} {u_name} {_colored(badge, Colors.CYAN)}")
+            print(f"  {_colored(f'[{seq}]', Colors.GREEN + Colors.BOLD)} {_colored(u_code, Colors.BOLD):15s} {u_name} {_colored(badge, Colors.GREEN)}")
+        elif u_code == "industry_index":
+            print(f"  [{seq}] {_colored(u_code, Colors.BOLD):15s} {u_name} {_colored(badge, Colors.CYAN)}")
         else:
-            print(f"  [{seq}] {u_code:10s} {u_name} {_colored(badge, Colors.YELLOW)}")
+            print(f"  [{seq}] {u_code:15s} {u_name} {_colored(badge, Colors.YELLOW)}")
         print(f"      {_colored('└─ ' + u_desc, Colors.CYAN)}")
 
     prompt_txt = _colored("\n请输入选股范围序号 [1-7] (直接回车默认: 1. all 全市场全A股): ", Colors.BOLD + Colors.GREEN)
@@ -390,7 +390,7 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
         seq_num = int(choice)
         if 1 <= seq_num <= len(options):
             u_code = options[seq_num - 1][0]
-            if u_code == "industry":
+            if u_code == "industry_index":
                 return _prompt_industry_selection()
             if u_code == "custom":
                 raw_codes = input(_colored("请输入自选股票代码（逗号或空格隔开，如 002439,600519）: ", Colors.YELLOW)).strip()
@@ -399,8 +399,8 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
             return u_code, None
 
     for u_code, _, _, _ in options:
-        if choice.lower() == u_code:
-            if u_code == "industry":
+        if choice.lower() in (u_code, "industry", "sectors", "indices"):
+            if u_code == "industry_index":
                 return _prompt_industry_selection()
             return u_code, None
 
@@ -408,50 +408,51 @@ def display_universe_menu() -> tuple[str, list[str] | None]:
     from easy_tdx.screener.industry import find_industry
     ind = find_industry(choice)
     if ind:
-        return f"industry:{ind.name}", None
+        return f"industry_index:{ind['code']}", [ind["code"]]
 
     return "all", None
 
 
 def _prompt_industry_selection() -> tuple[str, list[str] | None]:
-    """子交互菜单：选择细分行业板块"""
-    from easy_tdx.screener.industry import list_all_industries, find_industry
-    hot_industries = [
-        ("半导体", "881319", "集成电路/芯片设计制造封测"),
-        ("通信设备", "881268", "算力硬件/光模块/CPO/5.5G"),
-        ("软件服务", "881270", "AI应用/基础软件/信创国产化"),
-        ("计算机设备", "881271", "AI服务器/算力租赁/边缘计算"),
-        ("互联网", "881272", "数字经济/电商/游戏互动传媒"),
-        ("电池", "881262", "固态电池/锂电/储能系统"),
-        ("汽车类", "881170", "智能驾驶/新能源汽车整车与零部件"),
-        ("酿酒", "881130", "高端白酒/消费复苏核心白马"),
-        ("医药", "881135", "创新药/生物医药/医疗器械出海"),
-        ("有色", "881165", "工业金属/贵金属/稀土新材料"),
+    """子交互菜单：选择行业板块指数择时范围（非成分股，直接对行业指数自身扫描）"""
+    categories = [
+        ("all", "全部行业板块指数 (全量 128 个行业指数全景择时)", "128个"),
+        ("tmt", "科技TMT产业板块指数 (半导体/软件/通信/电子/算力等)", "15个"),
+        ("manufacturing", "新能源与高端制造指数 (电池/光伏/智能汽车/电网/机械)", "18个"),
+        ("consumption", "大消费与商贸服务指数 (酿酒/食品/家电/商贸零售/旅游)", "16个"),
+        ("healthcare", "医药生物大健康板块指数 (创新药/中药/医疗器械/生物)", "8个"),
+        ("materials", "周期资源与大宗商品指数 (有色金属/化工/煤炭/钢铁)", "20个"),
+        ("finance", "大金融与地产发展指数 (证券/银行/保险/多元金融/地产)", "8个"),
     ]
 
-    print("\n" + "-" * 70)
-    print(_colored("【热门行业赛道推荐】", Colors.BOLD + Colors.CYAN))
-    for i, (name, code, desc) in enumerate(hot_industries, 1):
-        print(f"  [{i:2d}] {name:8s} ({code}) - {desc}")
-    print("-" * 70)
+    print("\n" + "-" * 75)
+    print(_colored("【行业板块指数择时池 (直接对行业指数整体走势筛选)】", Colors.BOLD + Colors.CYAN))
+    for i, (code, name, count_str) in enumerate(categories, 1):
+        if i == 1:
+            print(f"  {_colored(f'[{i}]', Colors.GREEN + Colors.BOLD)} {name} {_colored(f'({count_str}) [默认推荐]', Colors.GREEN)}")
+        else:
+            print(f"  [{i}] {name} ({count_str})")
+    print("-" * 75)
 
-    prompt = _colored("请输入热门序号 [1-10] 或直接输入任意行业名称/代码 (如 光伏设备、881266): ", Colors.BOLD + Colors.GREEN)
+    prompt = _colored("请输入赛道序号 [1-7] (直接回车默认 1 全部128个指数) 或输入特定行业(如 半导体、881319): ", Colors.BOLD + Colors.GREEN)
     user_in = input(prompt).strip()
 
-    if user_in.isdigit() and 1 <= int(user_in) <= len(hot_industries):
-        sel_name = hot_industries[int(user_in) - 1][0]
-        return f"industry:{sel_name}", None
+    if not user_in or user_in == "1":
+        return "industry_index", None
 
-    if user_in:
-        ind = find_industry(user_in)
-        if ind:
-            print(_colored(f"✔ 匹配到行业板块: [{ind.code}] {ind.name} (含 {len(ind.symbols)} 只成分股)", Colors.GREEN))
-            return f"industry:{ind.name}", None
-        else:
-            print(_colored(f"[!] 未找到匹配行业 '{user_in}'，默认回退至全市场选股。", Colors.YELLOW))
-            return "all", None
+    if user_in.isdigit() and 1 <= int(user_in) <= len(categories):
+        sel_cat = categories[int(user_in) - 1][0]
+        if sel_cat == "all":
+            return "industry_index", None
+        return f"industry_index:{sel_cat}", None
 
-    return "industry:半导体", None
+    from easy_tdx.screener.industry import find_industry
+    ind = find_industry(user_in)
+    if ind:
+        print(_colored(f"✔ 匹配到行业指数: [{ind['code']}] {ind['name']}", Colors.GREEN))
+        return f"industry_index:{ind['code']}", [ind["code"]]
+
+    return "industry_index", None
 
 
 def display_concurrency_menu() -> tuple[int, bool]:
@@ -484,26 +485,32 @@ def print_results_table(results: list[dict[str, Any]], strategy_name: str, perio
     """以精美表格形式格式化输出最终选股命中结果"""
     print("\n" + "=" * 128)
     time_tag = f" | 回溯: {time_desc}" if time_desc else " | 回溯: 1个月前"
-    header_title = f"【选股完成】策略: {strategy_name} | 周期: {period}{time_tag} | 范围: {universe} | 命中: {len(results)} 只 | 耗时: {elapsed_sec:.2f}s"
+    header_title = f"【选股完成】策略: {strategy_name} | 周期: {period}{time_tag} | 范围: {universe} | 命中: {len(results)} 只/个 | 耗时: {elapsed_sec:.2f}s"
     print(_colored(header_title, Colors.BOLD + Colors.GREEN))
     print("=" * 128)
 
     if not results:
-        print(_colored(" [!] 当前筛选条件下无满足条件的股票（全满足强约束一票否决有效滤除假信号）。", Colors.YELLOW))
+        print(_colored(" [!] 当前筛选条件下无满足条件的标的（全满足强约束一票否决有效滤除假信号）。", Colors.YELLOW))
         print("=" * 128 + "\n")
         return
 
     # 按涨跌幅倒序排列
     sorted_res = sorted(results, key=lambda x: float(x.get("change_pct") or 0.0), reverse=True)
+    is_sector_scan = any(str(r.get("code", "")).startswith("88") or r.get("is_index") for r in sorted_res) or "industry" in universe.lower()
 
-    header = f"{'序号':^4} | {'代码':^8} | {'股票名称':^10} | {'所属行业':^10} | {'触发价':^8} | {'触发日涨跌':^10} | {'自触发涨幅':^10} | {'触发信号/买卖点':^24} | {'触发日期':^12} | {'距今'}"
+    col_code = "指数代码" if is_sector_scan else "标的代码"
+    col_name = "板块名称" if is_sector_scan else "标的名称"
+    col_cat = "产业大类" if is_sector_scan else "所属行业"
+    col_price = "触发点位" if is_sector_scan else "触发价格"
+
+    header = f"{'序号':^4} | {col_code:^8} | {col_name:^12} | {col_cat:^14} | {col_price:^8} | {'触发日涨跌':^10} | {'自触发涨幅':^10} | {'触发信号/买卖点':^24} | {'触发日期':^12} | {'距今'}"
     print(_colored(header, Colors.BOLD))
     print("-" * 128)
 
     for i, r in enumerate(sorted_res, 1):
         sym = r.get("code") or r.get("symbol") or "--"
         name = r.get("name") or "--"
-        industry = r.get("industry_name") or "--"
+        industry = r.get("industry_name") or r.get("industry") or "--"
         price = float(r.get("price") or 0.0)
         chg = float(r.get("change_pct") or r.get("latest_change_pct") or 0.0)
         since_chg = float(r.get("since_signal_pct") or 0.0)
@@ -727,7 +734,9 @@ def main() -> None:
         universe_desc = f"自定义 {len(symbols_to_scan)} 只"
     else:
         symbols_to_scan = get_universe_symbols(universe_choice, force_refresh=force_refresh)
-        universe_desc = f"{universe_choice} ({len(symbols_to_scan)} 只)"
+        is_sec = any(s.startswith("88") for s in symbols_to_scan[:5]) if symbols_to_scan else False
+        unit_str = "个行业板块指数" if is_sec else "只"
+        universe_desc = f"{universe_choice} ({len(symbols_to_scan)} {unit_str})"
 
     print("\n" + "=" * 80)
     print(_colored(f"【准备就绪，开始多线程选股扫描】", Colors.BOLD + Colors.CYAN))

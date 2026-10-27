@@ -3204,21 +3204,14 @@
                                     <option value="zz1000">🔥 中证1000活跃小盘 (1000只 · ~25秒)</option>
                                     <option value="all">🌐 全市场全A股 (5,200+只 · 后台异步任务)</option>
                                 </optgroup>
-                                <optgroup id="screener-industry-optgroup" label="🏭 核心行业板块 (128个细分赛道)">
-                                    <option value="industry:半导体">💻 半导体芯片 (158只)</option>
-                                    <option value="industry:通信设备">📡 通信设备/CPO (128只)</option>
-                                    <option value="industry:软件服务">💾 软件服务/信创 (266只)</option>
-                                    <option value="industry:计算机设备">🖥️ 计算机设备/AI算力 (93只)</option>
-                                    <option value="industry:互联网">🌐 互联网/游戏传媒 (98只)</option>
-                                    <option value="industry:电池">🔋 电池/储能 (101只)</option>
-                                    <option value="industry:汽车类">🚗 汽车类/智能驾驶 (258只)</option>
-                                    <option value="industry:酿酒">🍷 酿酒/白酒 (39只)</option>
-                                    <option value="industry:医药">💊 医药/创新药 (320只)</option>
-                                    <option value="industry:有色">⛏️ 有色金属/资源 (137只)</option>
-                                    <option value="industry:电气设备">⚡ 电气设备/光伏 (265只)</option>
-                                    <option value="industry:通用机械">⚙️ 通用机械/机器人 (218只)</option>
-                                    <option value="industry:证券">📊 证券/金融 (50只)</option>
-                                    <option value="industry:化工">🧪 化工/新材料 (429只)</option>
+                                <optgroup id="screener-industry-optgroup" label="🏭 行业板块指数 (对行业指数整体择时)">
+                                    <option value="industry_index">🌐 全部行业板块指数 (128个行业指数 · 秒级)</option>
+                                    <option value="industry_index:tmt">💻 科技TMT产业板块指数 (15个)</option>
+                                    <option value="industry_index:manufacturing">⚡ 新能源与先进制造指数 (18个)</option>
+                                    <option value="industry_index:consumption">🍷 大消费与商贸服务指数 (16个)</option>
+                                    <option value="industry_index:healthcare">💊 医药生物与健康指数 (8个)</option>
+                                    <option value="industry_index:materials">⛏️ 周期资源与大宗商品指数 (20个)</option>
+                                    <option value="industry_index:finance">📊 大金融与地产发展指数 (8个)</option>
                                 </optgroup>
                             </select>
                         </div>
@@ -18704,12 +18697,19 @@
                 'hs300': '当前范围：📈 沪深300指数池 (300只) · 快速选股 (~6s)',
                 'zz500': '当前范围：🚀 中证500成长主力 (500只) · 深度选股 (~12s)',
                 'zz1000': '当前范围：🔥 中证1000活跃小盘 (1000只) · 活跃精选 (~25s)',
-                'all': '当前范围：🌐 全市场全A股 (5,200+只) · 后台异步全量任务'
+                'all': '当前范围：🌐 全市场全A股 (5,200+只) · 后台异步全量任务',
+                'industry_index': '当前范围：🏭 全部行业板块指数 (128个行业指数直接择时) · 极速扫描 (~2-3s)',
+                'industry_index:tmt': '当前范围：💻 科技TMT行业板块指数 (15个) · 板块择时 (<1s)',
+                'industry_index:manufacturing': '当前范围：⚡ 新能源与先进制造指数 (18个) · 板块择时 (<1s)',
+                'industry_index:consumption': '当前范围：🍷 大消费与商贸服务指数 (16个) · 板块择时 (<1s)',
+                'industry_index:healthcare': '当前范围：💊 医药生物与健康指数 (8个) · 板块择时 (<1s)',
+                'industry_index:materials': '当前范围：⛏️ 周期资源与大宗商品指数 (20个) · 板块择时 (<1s)',
+                'industry_index:finance': '当前范围：📊 大金融与地产发展指数 (8个) · 板块择时 (<1s)'
             };
             let uniHint = hintMap[uni];
-            if (!uniHint && uni.startsWith('industry:')) {
-                const indName = uni.replace('industry:', '');
-                uniHint = `当前范围：🏭 行业板块【${indName}】专项筛选 (~2-5s)`;
+            if (!uniHint && (uni.startsWith('industry:') || uni.startsWith('industry_index:'))) {
+                const indName = uni.split(':').pop();
+                uniHint = `当前范围：🏭 行业板块指数【${indName}】直接择时 (~1-2s)`;
             }
             if (!uniHint) uniHint = `当前范围：${uni}`;
             const textEl = document.getElementById('screener-status-text');

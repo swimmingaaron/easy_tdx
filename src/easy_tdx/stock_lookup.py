@@ -217,6 +217,25 @@ def _ensure_stock_names_map():
                 "pinyin": s.get("pinyin", ""),
                 "display": f"{c} {s['name']}"
             }
+
+        # Ensure industry sector indices have correct Chinese names
+        try:
+            from easy_tdx.screener.industry import load_industry_universe
+            ind_uni = load_industry_universe()
+            for ind in ind_uni.get("industries", []):
+                ic = ind["code"]
+                inm = ind["name"]
+                _SYMBOL_NAME_MAP[ic] = inm
+                _ALL_STOCKS_MAP[ic] = {
+                    "symbol": ic,
+                    "code": ic,
+                    "name": inm,
+                    "market": "HY",
+                    "pinyin": name_to_pinyin_fallback(inm),
+                    "display": f"{ic} {inm} [行业指数]"
+                }
+        except Exception as e:
+            logger.debug(f"Failed to inject industry universe names: {e}")
             
         _STOCK_NAMES_LOADED = True
         logger.info(f"Loaded {len(_SYMBOL_NAME_MAP)} stock name mappings into memory")
@@ -277,8 +296,17 @@ def get_stock_name(symbol: str) -> str:
     if clean_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[clean_sym].startswith("标的_"):
         return _SYMBOL_NAME_MAP[clean_sym]
     
-    # 2. Check board map
+    # 2. Check board map & industry universe
     if clean_sym.startswith("88") or clean_sym.startswith("BK") or clean_sym.startswith("HY"):
+        try:
+            from easy_tdx.screener.industry import find_industry
+            ind_info = find_industry(clean_sym)
+            if ind_info and ind_info.get("name"):
+                name = ind_info["name"]
+                _SYMBOL_NAME_MAP[clean_sym] = name
+                return name
+        except Exception:
+            pass
         _ensure_board_map()
         if clean_sym in _SYMBOL_NAME_MAP and not _SYMBOL_NAME_MAP[clean_sym].startswith("标的_"):
             return _SYMBOL_NAME_MAP[clean_sym]

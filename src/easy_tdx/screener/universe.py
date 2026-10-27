@@ -371,15 +371,17 @@ def get_universe_symbols(scope: str = "core", force_refresh: bool = False, sync_
         except Exception as e:
             logger.debug(f"sync_new_stocks skipped: {e}")
 
-    # 1. 行业板块支持 (以 industry: 开头，或包含 hy_，或匹配 128 个行业名称/代码)
+    # 1. 行业板块指数支持 (对行业指数自身进行择时选股，非成分股)
     try:
-        from .industry import find_industry, is_industry_scope
+        from .industry import is_industry_scope, get_industry_index_symbols, get_all_industry_index_codes
+        if s_lower in ("industry_index", "industry_indices", "industry", "industries", "sectors", "boards", "sector_index"):
+            return get_all_industry_index_codes()
         if is_industry_scope(s):
-            ind_info = find_industry(s)
-            if ind_info and ind_info.get("symbols"):
-                return list(ind_info["symbols"])
+            idx_syms = get_industry_index_symbols(s)
+            if idx_syms:
+                return idx_syms
     except Exception as e:
-        logger.debug(f"find_industry check failed for {s}: {e}")
+        logger.debug(f"industry sector index check failed for {s}: {e}")
 
     all_stocks = _load_all_ashares()
     
@@ -398,18 +400,18 @@ def get_universe_symbols(scope: str = "core", force_refresh: bool = False, sync_
     elif s_lower in ("all", "full", "all_a", "market"):
         return ordered_all
     else:
-        # 再次兜底尝试匹配行业名称
+        # 再次兜底尝试匹配行业名称 -> 返回板块指数代码
         try:
             from .industry import find_industry
             ind_info = find_industry(s)
-            if ind_info and ind_info.get("symbols"):
-                return list(ind_info["symbols"])
+            if ind_info and ind_info.get("code"):
+                return [ind_info["code"]]
         except Exception:
             pass
         return CORE_UNIVERSE
 
 def get_universe_options() -> list[dict[str, Any]]:
-    """Return universe descriptions for UI rendering (通用指数池 + 核心赛道推荐)."""
+    """Return universe descriptions for UI rendering (通用指数池 + 行业板块指数择时池)."""
     all_count = len(_load_all_ashares())
     options = [
         {
@@ -461,39 +463,77 @@ def get_universe_options() -> list[dict[str, Any]]:
             "badge": "全量大满贯",
             "group": "index",
             "desc": f"无死角扫描 A 股全市场 ({all_count} 只标的，支持新股发行自动扩容)，多线程后台异步并发计算"
+        },
+        # 行业板块指数择时池
+        {
+            "id": "industry_index",
+            "code": "industry_index",
+            "name": "🏭 全部行业板块指数 (128个)",
+            "count": 128,
+            "est_time": "~2-3 秒",
+            "badge": "板块择时",
+            "group": "industry",
+            "desc": "通达信全市场 128 个细分行业指数全量扫描，直接筛选出现买点共振的主线行业板块"
+        },
+        {
+            "id": "industry_index:tmt",
+            "code": "industry_index:tmt",
+            "name": "💻 科技TMT行业指数 (15个)",
+            "count": 15,
+            "est_time": "<1 秒",
+            "badge": "数字科技",
+            "group": "industry",
+            "desc": "半导体、通信设备、软件服务、计算机设备、互联网等科技板块指数"
+        },
+        {
+            "id": "industry_index:manufacturing",
+            "code": "industry_index:manufacturing",
+            "name": "⚡ 新能源与先进制造 (18个)",
+            "count": 18,
+            "est_time": "<1 秒",
+            "badge": "先进制造",
+            "group": "industry",
+            "desc": "电池、光伏设备、汽车整车/零部件、电气设备、通用机械等高端制造指数"
+        },
+        {
+            "id": "industry_index:consumption",
+            "code": "industry_index:consumption",
+            "name": "🍷 消费与商贸服务 (16个)",
+            "count": 16,
+            "est_time": "<1 秒",
+            "badge": "大消费",
+            "group": "industry",
+            "desc": "酿酒、食品饮料、家用电器、纺织服装、旅游酒店等消费指数"
+        },
+        {
+            "id": "industry_index:healthcare",
+            "code": "industry_index:healthcare",
+            "name": "💊 医药生物与健康 (8个)",
+            "count": 8,
+            "est_time": "<1 秒",
+            "badge": "生物医药",
+            "group": "industry",
+            "desc": "化学制药、中药、生物制品、医疗器械、医药商业等板块指数"
+        },
+        {
+            "id": "industry_index:materials",
+            "code": "industry_index:materials",
+            "name": "⛏️ 周期资源与大宗 (20个)",
+            "count": 20,
+            "est_time": "<1 秒",
+            "badge": "周期大宗",
+            "group": "industry",
+            "desc": "有色金属、基础化工、煤炭开采、钢铁、石油石化等周期板块指数"
+        },
+        {
+            "id": "industry_index:finance",
+            "code": "industry_index:finance",
+            "name": "📊 金融与地产指数 (8个)",
+            "count": 8,
+            "est_time": "<1 秒",
+            "badge": "金融大势",
+            "group": "industry",
+            "desc": "证券、银行、保险、多元金融、房地产开发等大金融板块指数"
         }
     ]
-
-    # 加入主流高关注度核心行业板块选项
-    hot_industries = [
-        ("industry:半导体", "半导体芯片", "881319", "芯片先锋"),
-        ("industry:软件服务", "软件与AI服务", "881355", "数字经济"),
-        ("industry:消费电子", "消费电子", "881326", "果链端侧"),
-        ("industry:电池", "锂电池与储能", "881262", "绿色能源"),
-        ("industry:光伏设备", "光伏设备", "881275", "清洁能源"),
-        ("industry:汽车零部件", "汽车零部件", "881218", "汽配智造"),
-        ("industry:化学制药", "化学创新药", "881231", "生物医药"),
-        ("industry:医疗器械", "医疗器械", "881241", "医疗大健康"),
-        ("industry:酿酒", "白酒与酿酒", "881130", "消费白马"),
-        ("industry:证券", "证券金融", "881394", "牛市风向标"),
-        ("industry:航空装备", "军工航空装备", "881288", "大国重器"),
-    ]
-    try:
-        from .industry import find_industry
-        for ind_id, disp_name, ind_code, badge in hot_industries:
-            ind_data = find_industry(ind_code)
-            cnt = ind_data.get("count", 0) if ind_data else 0
-            options.append({
-                "id": ind_id,
-                "name": f"🏭 {disp_name}",
-                "code": ind_code,
-                "count": cnt,
-                "est_time": f"~{max(1, cnt // 25)} 秒",
-                "badge": badge,
-                "group": "industry",
-                "desc": f"通达信官方行业板块【{disp_name}】全部成分股 ({cnt} 只标的深度筛选)"
-            })
-    except Exception as e:
-        logger.debug(f"加载热门行业选项失败: {e}")
-
     return options
