@@ -5340,19 +5340,19 @@
                             <thead
                                 class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-mono bg-slate-50/95 dark:bg-slate-900/80 sticky top-0">
                                 <tr>
-                                    <th class="py-2 px-2 text-center w-8">#</th>
-                                    <th class="py-2 px-2 text-left">代码</th>
-                                    <th class="py-2 px-2 text-left">名称</th>
-                                    <th class="py-2 px-2 text-right">最新价</th>
-                                    <th class="py-2 px-2 text-right">涨跌幅%</th>
-                                    <th class="py-2 px-2 text-right">主力净流入</th>
-                                    <th class="py-2 px-2 text-right">成交额</th>
-                                    <th class="py-2 px-2 text-right">量比</th>
-                                    <th class="py-2 px-2 text-right">换手%</th>
-                                    <th class="py-2 px-2 text-center">连板</th>
-                                    <th class="py-2 px-2 text-center">龙头得分</th>
-                                    <th class="py-2 px-3 text-left">龙头角色</th>
-                                    <th class="py-2 px-2 text-right pr-2">操作</th>
+                                    <th class="py-2.5 px-2 text-center w-8 font-semibold">#</th>
+                                    <th class="py-2.5 px-2 text-left font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('code')" title="点击按代码排序">代码<span id="sl-sort-code" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-left font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('name')" title="点击按名称排序">名称<span id="sl-sort-name" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('price')" title="点击按最新价排序">最新价<span id="sl-sort-price" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('change_pct')" title="点击按涨跌幅排序">涨跌幅%<span id="sl-sort-change_pct" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('main_net_amount')" title="点击按主力净流入排序">主力净流入<span id="sl-sort-main_net_amount" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('amount')" title="点击按成交额排序">成交额<span id="sl-sort-amount" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('vol_ratio')" title="点击按量比排序">量比<span id="sl-sort-vol_ratio" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('turnover')" title="点击按换手%排序">换手%<span id="sl-sort-turnover" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('lbc')" title="点击按连板高度排序">连板<span id="sl-sort-lbc" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-center font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('leader_score')" title="点击按龙头得分排序">龙头得分<span id="sl-sort-leader_score" class="ml-1 text-[10px] text-amber-500 font-bold">▼</span></th>
+                                    <th class="py-2.5 px-3 text-left font-semibold">龙头角色</th>
+                                    <th class="py-2.5 px-2 text-right pr-2 font-semibold">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="sl-modal-table-body"
@@ -17781,12 +17781,14 @@
 
                 const totalMvStr = formatTotalMvYi(s.total_mv_yi);
 
+                const priceColor = isUp ? 'text-rose-500 font-bold' : (chg < 0 ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold');
+
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="py-2 font-mono"><a href="${getXueqiuUrl(s.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link cursor-pointer hover:underline" title="在雪球查看 ${s.code} ${s.name || ''} 行情与讨论">${s.code}</a></td>
                     <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-slate-300 font-medium whitespace-nowrap">${totalMvStr}</td>
-                    <td class="py-2 text-right font-mono text-white font-semibold">¥${Number(s.price).toFixed(2)}</td>
+                    <td class="py-2 text-right font-mono ${priceColor}">¥${Number(s.price).toFixed(2)}</td>
                     <td class="py-2 text-right font-mono ${chgClass}">${chgStr}</td>
                     <td class="py-2 text-right font-mono text-[11px] ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
                     <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
@@ -23298,6 +23300,130 @@
             if (window.lucide) lucide.createIcons();
         }
 
+        // 全局板块成分股排序状态
+        window._slModalCandidates = [];
+        window._slSortField = 'leader_score';
+        window._slSortAsc = false;
+
+        function updateSectorLeaderSortIcons(currentField, isAsc) {
+            const fields = ['code', 'name', 'price', 'change_pct', 'main_net_amount', 'amount', 'vol_ratio', 'turnover', 'lbc', 'leader_score'];
+            fields.forEach(f => {
+                const el = document.getElementById(`sl-sort-${f}`);
+                if (!el) return;
+                if (f === currentField) {
+                    el.innerText = isAsc ? '▲' : '▼';
+                    el.className = isAsc ? 'ml-1 text-[10px] text-cyan-400 font-bold' : 'ml-1 text-[10px] text-amber-500 font-bold';
+                } else {
+                    el.innerText = '↕';
+                    el.className = 'ml-1 text-[10px] text-slate-400 font-normal';
+                }
+            });
+        }
+
+        function sortSectorLeaderTable(field) {
+            if (!window._slModalCandidates || window._slModalCandidates.length === 0) return;
+
+            if (window._slSortField === field) {
+                window._slSortAsc = !window._slSortAsc;
+            } else {
+                window._slSortField = field;
+                // 代码和名称默认升序，数值类默认降序
+                window._slSortAsc = (field === 'code' || field === 'name');
+            }
+
+            updateSectorLeaderSortIcons(window._slSortField, window._slSortAsc);
+
+            const sorted = [...window._slModalCandidates].sort((a, b) => {
+                let vA = a[field];
+                let vB = b[field];
+
+                if (field === 'code' || field === 'name') {
+                    vA = String(vA || '');
+                    vB = String(vB || '');
+                    return window._slSortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+                }
+
+                vA = Number(vA || 0);
+                vB = Number(vB || 0);
+                return window._slSortAsc ? vA - vB : vB - vA;
+            });
+
+            renderSectorLeaderTableRows(sorted);
+        }
+
+        function renderSectorLeaderTableRows(candidates) {
+            const tbody = document.getElementById('sl-modal-table-body');
+            if (!tbody) return;
+
+            if (!candidates || candidates.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans">暂无成分股数据</td></tr>`;
+                return;
+            }
+
+            const rows = candidates.map((s, idx) => {
+                const code = s.code;
+                const name = s.name;
+                const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : 'SZ';
+                const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
+                const pct = Number(s.change_pct || 0);
+                const isUp = pct > 0;
+                const isDown = pct < 0;
+
+                // 1. 涨跌幅红绿颜色
+                const pctStr = (isUp ? '+' : '') + pct.toFixed(2) + '%';
+                const pctColor = isUp ? 'text-rose-600 dark:text-rose-400 font-bold' : (isDown ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 dark:text-slate-400');
+
+                // 2. 最新价跟随涨跌幅红绿颜色 (用户需求 1)
+                const priceColor = isUp ? 'text-rose-600 dark:text-rose-400 font-bold' : (isDown ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-semibold');
+
+                // 3. 主力净流入红绿颜色
+                const netVal = Number(s.main_net_amount || 0);
+                const netColor = netVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (netVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400');
+
+                // 4. 成交额容量高亮
+                const amtVal = Number(s.amount || 0);
+                const amtColor = amtVal >= 5e8 ? 'text-amber-600 dark:text-amber-300 font-bold' : 'text-slate-600 dark:text-slate-400';
+
+                // 5. 量比
+                const vr = Number(s.vol_ratio || 0);
+                const vrColor = vr >= 2.0 ? 'text-amber-500 dark:text-amber-400 font-bold' : (vr >= 1.2 ? 'text-rose-500/80 font-medium' : 'text-slate-600 dark:text-slate-300');
+
+                // 6. 换手率
+                const to = Number(s.turnover || 0);
+                const toColor = to >= 10.0 ? 'text-amber-500 dark:text-amber-400 font-bold' : (to >= 5.0 ? 'text-rose-500/80 font-medium' : 'text-slate-600 dark:text-slate-400');
+
+                // 7. 连板标签
+                let lbcHtml = '<span class="text-slate-400 dark:text-slate-500">-</span>';
+                if (s.lbc >= 2) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white shadow-sm">🔥 ${s.lbc}板</span>`;
+                else if (s.is_zt) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 border border-rose-300 dark:border-rose-500/40">首板</span>`;
+
+                return `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 px-2 text-center text-slate-400 dark:text-slate-500 font-mono">${idx + 1}</td>
+                        <td class="py-2.5 px-2 text-left"><a href="${xqUrl}" target="_blank" class="stock-code-link text-slate-800 dark:text-slate-100 hover:text-indigo-500 font-bold font-mono">${code}</a></td>
+                        <td class="py-2.5 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500" onclick="openKlineModal('${code}', '${name}')">${name}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${priceColor}">¥${Number(s.price).toFixed(2)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${pctColor}">${pctStr}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${netColor}">${fmtMoneyTs(s.main_net_amount)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${amtColor}">${fmtMoneyTs(s.amount)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${vrColor}">${vr.toFixed(2)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${toColor}">${to.toFixed(2)}%</td>
+                        <td class="py-2.5 px-2 text-center font-mono">${lbcHtml}</td>
+                        <td class="py-2.5 px-2 text-center font-mono font-bold text-amber-500 dark:text-amber-400">${Number(s.leader_score).toFixed(1)}</td>
+                        <td class="py-2.5 px-3 text-left font-sans text-[11px] text-slate-600 dark:text-slate-300">${s.role_tag || '-'}</td>
+                        <td class="py-2.5 px-2 pr-2 text-right">
+                            <div class="flex items-center justify-end space-x-1">
+                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">诊断</button>
+                                <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${name}】(${code}) 缠论K线">缠论</a>
+                                <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer" title="针对【${name}】进入参数寻优">回测</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            tbody.innerHTML = rows;
+        }
+
         async function openSectorLeaderBoardModal(boardCode, boardName) {
             const modal = document.getElementById('sl-board-modal');
             const titleEl = document.getElementById('sl-modal-title');
@@ -23322,51 +23448,18 @@
                     const data = await resp.json();
                     if (data.success && data.data && data.data.candidates) {
                         const candidates = data.data.candidates;
-                        if (subtitleEl) subtitleEl.innerText = `全量成分股共 ${candidates.length} 只 · 实时报价与主力多因子排位 (可点击股票查看个股详情)`;
+                        window._slModalCandidates = candidates;
+                        window._slSortField = 'leader_score';
+                        window._slSortAsc = false;
+                        updateSectorLeaderSortIcons('leader_score', false);
+
+                        if (subtitleEl) subtitleEl.innerText = `全量成分股共 ${candidates.length} 只 · 支持点击表头任意列排序 · 实时红绿报价 (点击股票可查看个股详情)`;
                         if (candidates.length === 0) {
                             tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans">【${boardName}】暂未获取到成分股行情，请稍后刷新重试。</td></tr>`;
                             return;
                         }
-                        const rows = candidates.map((s, idx) => {
-                            const code = s.code;
-                            const name = s.name;
-                            const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : 'SZ';
-                            const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
-                            const pct = Number(s.change_pct || 0);
-                            const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-                            const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 dark:text-slate-400');
-                            const netVal = Number(s.main_net_amount || 0);
-                            const netColor = netVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (netVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400');
 
-                            let lbcHtml = '<span class="text-slate-400 dark:text-slate-500">-</span>';
-                            if (s.lbc >= 2) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white">${s.lbc}板</span>`;
-                            else if (s.is_zt) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 border border-rose-300 dark:border-transparent">首板</span>`;
-
-                            return `
-                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                    <td class="py-2 px-2 text-center text-slate-400 dark:text-slate-500 font-mono">${idx + 1}</td>
-                                    <td class="py-2 px-2 text-left"><a href="${xqUrl}" target="_blank" class="stock-code-link text-slate-800 dark:text-slate-100 hover:text-indigo-500 font-bold font-mono">${code}</a></td>
-                                    <td class="py-2 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500" onclick="openKlineModal('${code}', '${name}')">${name}</td>
-                                    <td class="py-2 px-2 text-right font-bold font-mono text-slate-900 dark:text-white">¥${Number(s.price).toFixed(2)}</td>
-                                    <td class="py-2 px-2 text-right font-mono ${pctColor}">${pctStr}</td>
-                                    <td class="py-2 px-2 text-right font-mono ${netColor}">${fmtMoneyTs(s.main_net_amount)}</td>
-                                    <td class="py-2 px-2 text-right font-mono text-slate-600 dark:text-slate-400">${fmtMoneyTs(s.amount)}</td>
-                                    <td class="py-2 px-2 text-right font-mono ${Number(s.vol_ratio) >= 2 ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-600 dark:text-slate-300'}">${Number(s.vol_ratio).toFixed(2)}</td>
-                                    <td class="py-2 px-2 text-right font-mono text-slate-600 dark:text-slate-400">${Number(s.turnover).toFixed(2)}%</td>
-                                    <td class="py-2 px-2 text-center font-mono">${lbcHtml}</td>
-                                    <td class="py-2 px-2 text-center font-mono font-bold text-amber-500 dark:text-amber-400">${Number(s.leader_score).toFixed(1)}</td>
-                                    <td class="py-2 px-3 text-left font-sans text-[11px] text-slate-600 dark:text-slate-300">${s.role_tag || '-'}</td>
-                                    <td class="py-2 px-2 pr-2 text-right">
-                                        <div class="flex items-center justify-end space-x-1">
-                                            <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">诊断</button>
-                                            <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${name}】(${code}) 缠论K线">缠论</a>
-                                            <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer" title="针对【${name}】进入参数寻优">回测</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('');
-                        tbody.innerHTML = rows;
+                        renderSectorLeaderTableRows(candidates);
                     }
                 }
             } catch (e) {
