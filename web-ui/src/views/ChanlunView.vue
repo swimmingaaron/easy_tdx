@@ -171,7 +171,7 @@ const showLowZs = ref(true)
 // 缠论K线买卖点：电脑PC端默认开启，移动设备如手机/Pad上默认关闭
 const showMmdMarks = ref(!checkIsMobileOrTablet())
 const showResonanceMarks = ref(false)
-const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
+const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('macd')
 const isKlineMerged = ref(false) // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 const activeLayersCount = computed(() => {
   let c = 0
@@ -1588,7 +1588,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         itemStyle: { color: '#C084FC' },
       }
     )
-  } else if (isSubMacd) {
+    const difColor = isDark ? '#00e5ff' : '#0284c7'
     subSeries.push(
       {
         name: 'MACD',
@@ -1608,7 +1608,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         xAxisIndex: 1,
         yAxisIndex: 1,
         data: macdData.dif,
-        lineStyle: { color: '#ffffff', width: 1.2 },
+        lineStyle: { color: difColor, width: 1.3 },
         symbol: 'none',
         markPoint: {
           symbolSize: 22,
@@ -1620,7 +1620,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             symbolRotate: m.type === 'bottom' ? 0 : 180,
             itemStyle: {
               color: m.type === 'bottom' ? '#ef4444' : '#10b981',
-              borderColor: '#ffffff',
+              borderColor: difColor,
               borderWidth: 1.2,
             },
             label: {
@@ -1898,8 +1898,9 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           const difV = macdData.dif[idx]
           const deaV = macdData.dea ? macdData.dea[idx] : undefined
           const histV = macdData.hist ? macdData.hist[idx] : undefined
+          const difColor = isDark ? '#00e5ff' : '#0284c7'
           html += `<div style="color:#cbd5e1; margin-top:3px; font-size:11px;">
-            <span style="color:#ffffff;">DIF: <b>${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
+            <span style="color:${difColor};">DIF: <b>${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
             <span style="color:#ffd600; margin-left:8px;">DEA: <b>${deaV != null ? Number(deaV).toFixed(2) : '--'}</b></span>
             <span style="color:${(histV || 0) >= 0 ? '#ef4146' : '#089981'}; margin-left:8px;">MACD: <b>${histV != null ? Number(histV).toFixed(2) : '--'}</b></span>
           </div>`

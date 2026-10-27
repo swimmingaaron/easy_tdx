@@ -4808,9 +4808,9 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
                             <select id="cl-select-sub-indicator" onchange="setChanlunSubIndicator(this.value)"
                                 class="h-6 bg-transparent text-cyan-600 dark:text-cyan-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="amount" selected>成交额</option>
+                                <option value="amount">成交额</option>
                                 <option value="inflow">主力净流入</option>
-                                <option value="macd">MACD</option>
+                                <option value="macd" selected>MACD</option>
                                 <option value="rsi">RSI</option>
                                 <option value="kdj">KDJ</option>
                                 <option value="expma">EXPMA</option>
@@ -12412,8 +12412,8 @@
                         yAxisIndex: 1,
                         data: dif,
                         showSymbol: false,
-                        lineStyle: { width: 1.2, color: '#cbd5e1' },
-                        itemStyle: { color: '#cbd5e1' },
+                        lineStyle: { width: 1.3, color: isDark ? '#00e5ff' : '#0284c7' },
+                        itemStyle: { color: isDark ? '#00e5ff' : '#0284c7' },
                         markPoint: {
                             silent: true,
                             data: macdMarks
@@ -24269,7 +24269,7 @@
             mmd: !checkChanlunMobileOrTablet(), // 电脑PC端默认开启，移动设备(手机/Pad)默认关闭
             res: false
         };
-        let _clSubIndicator = 'amount'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
+        let _clSubIndicator = 'macd'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
         let _clMergeKlines = false; // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 
         function updateChanlunLayerButtons() {
@@ -25737,7 +25737,7 @@
                         xAxisIndex: 1,
                         yAxisIndex: 1,
                         data: macdData.dif || [],
-                        lineStyle: { color: '#cbd5e1', width: 1.2 },
+                        lineStyle: { color: isDark ? '#00e5ff' : '#0284c7', width: 1.3 },
                         symbol: 'none',
                         markPoint: {
                             silent: true,
@@ -26131,7 +26131,7 @@
                             const histV = macdData.hist ? macdData.hist[idx] : undefined;
                             subHtml = `
                                 <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <span style="color: #cbd5e1;">DIF: <b style="color: #ffffff;">${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
+                                    <span style="color: ${isDark ? '#00e5ff' : '#0284c7'};">DIF: <b style="color: ${isDark ? '#00e5ff' : '#0284c7'};">${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
                                     <span style="color: #cbd5e1;">DEA: <b style="color: #ffd600;">${deaV != null ? Number(deaV).toFixed(2) : '--'}</b></span>
                                     <span style="color: #cbd5e1;">MACD: <b style="color: ${(histV || 0) >= 0 ? '#ef4444' : '#10b981'};">${histV != null ? Number(histV).toFixed(2) : '--'}</b></span>
                                 </div>
