@@ -162,7 +162,7 @@ def find_bis(
 
             # B. 遇到反向底分型
             elif fx.fx_type == FXType.DI:
-                # B1: 满足成向下笔条件（处理后 >= 5 根且无倒挂） -> 确认向下新笔
+                # 满足成向下笔条件（处理后 >= 5 根且无倒挂） -> 确认向下新笔
                 if _can_form_bi(last_bi.end, fx, config, cklines):
                     if cklines:
                         high, low = _calc_bi_range(last_bi.end, fx, cklines)
@@ -178,20 +178,6 @@ def find_bis(
                         low=low,
                     )
                     bis.append(new_bi)
-                # B2: 若跌破了向上笔起点（未成向下笔），根据缠论走势延伸定理，前一向下笔延伸
-                elif fx.val < last_bi.start.val:
-                    if len(bis) >= 2:
-                        bis.pop()
-                        prev_bi = bis[-1]
-                        if _can_form_bi(prev_bi.start, fx, config, cklines):
-                            prev_bi.end = fx
-                            if cklines:
-                                prev_bi.high, prev_bi.low = _calc_bi_range(prev_bi.start, fx, cklines)
-                            else:
-                                prev_bi.high = max(prev_bi.start.val, fx.val)
-                                prev_bi.low = min(prev_bi.start.val, fx.val)
-                    # 若只有一笔且跌破起点，不倒置起点，等待后续合法分型
-                    pass
 
         else:
             # 当前最后一笔是向下笔：
@@ -207,7 +193,7 @@ def find_bis(
 
             # B. 遇到反向顶分型
             elif fx.fx_type == FXType.DING:
-                # B1: 满足成向上笔条件（处理后 >= 5 根） -> 确认向上新笔
+                # 满足成向上笔条件（处理后 >= 5 根） -> 确认向上新笔
                 if _can_form_bi(last_bi.end, fx, config, cklines):
                     if cklines:
                         high, low = _calc_bi_range(last_bi.end, fx, cklines)
@@ -223,20 +209,6 @@ def find_bis(
                         low=low,
                     )
                     bis.append(new_bi)
-                # B2: 若突破了向下笔起点（未成向上笔），根据缠论走势延伸定理，前一向上笔延伸
-                elif fx.val > last_bi.start.val:
-                    if len(bis) >= 2:
-                        bis.pop()
-                        prev_bi = bis[-1]
-                        if _can_form_bi(prev_bi.start, fx, config, cklines):
-                            prev_bi.end = fx
-                            if cklines:
-                                prev_bi.high, prev_bi.low = _calc_bi_range(prev_bi.start, fx, cklines)
-                            else:
-                                prev_bi.high = max(prev_bi.start.val, fx.val)
-                                prev_bi.low = min(prev_bi.start.val, fx.val)
-                    # 若只有一笔且突破起点，不倒置起点，等待后续合法分型
-                    pass
 
     # 3. 终极一致性校验：过滤任何异常笔，并确保标准缠论 5 根 K 线下限和首尾无缝相接
     min_bars = 7 if (config and config.bi_type == "old") else 5
