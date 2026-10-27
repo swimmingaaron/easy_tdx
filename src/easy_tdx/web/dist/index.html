@@ -42,6 +42,8 @@
             --card-bg: rgba(22, 27, 34, 0.88);
             --card-border: rgba(48, 54, 61, 0.8);
             --border-subtle: #21262d;
+            --stock-red: #f87171;
+            --stock-green: #34d399;
         }
 
         html.light {
@@ -52,6 +54,32 @@
             --card-bg: #ffffff;
             --card-border: #d0d7de;
             --border-subtle: #e2e8f0;
+            --stock-red: #dc2626;
+            --stock-green: #16a34a;
+        }
+
+        .stock-red, .stock-up {
+            color: var(--stock-red, #dc2626) !important;
+            font-weight: 700 !important;
+        }
+
+        .stock-green, .stock-down {
+            color: var(--stock-green, #16a34a) !important;
+            font-weight: 700 !important;
+        }
+
+        .money-inflow {
+            color: var(--stock-red, #dc2626) !important;
+            font-weight: 600 !important;
+        }
+
+        .money-outflow {
+            color: var(--stock-green, #16a34a) !important;
+            font-weight: 600 !important;
+        }
+
+        .money-flat, .stock-flat {
+            color: #64748b !important;
         }
 
         body {
@@ -17698,9 +17726,16 @@
 
         function getStockInflowColor(val) {
             const v = Number(val || 0);
-            if (v > 0) return 'text-cyan-500 dark:text-cyan-400 font-semibold';
-            if (v < 0) return 'text-emerald-500/90 font-medium';
-            return 'text-slate-400';
+            if (v > 0) return 'money-inflow';
+            if (v < 0) return 'money-outflow';
+            return 'money-flat';
+        }
+
+        function getStockInflowStyle(val) {
+            const v = Number(val || 0);
+            if (v > 0) return 'color: var(--stock-red, #dc2626) !important; font-weight: 600;';
+            if (v < 0) return 'color: var(--stock-green, #16a34a) !important; font-weight: 600;';
+            return 'color: #64748b !important;';
         }
 
         function applySectorStocksSortAndRender() {
@@ -17763,9 +17798,14 @@
 
             tableEl.innerHTML = stocks.map(s => {
                 const chg = Number(s.change_pct || 0);
-                const isUp = chg >= 0;
-                const chgClass = isUp ? 'text-rose-500 font-bold' : 'text-emerald-400 font-bold';
+                const isUp = chg > 0;
+                const isDown = chg < 0;
+                const chgClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : 'stock-flat');
+                const chgStyle = isUp ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #64748b !important;');
                 const chgStr = `${isUp ? '+' : ''}${chg.toFixed(2)}%`;
+
+                const priceClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : '');
+                const priceStyle = isUp ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #334155 !important; font-weight: 600;');
 
                 const m1 = Number(s.main_net_amount || 0);
                 const m3 = Number(s.main_net_3d || 0);
@@ -17779,20 +17819,22 @@
                 const inflow3dColor = getStockInflowColor(m3);
                 const inflow5dColor = getStockInflowColor(m5);
 
-                const totalMvStr = formatTotalMvYi(s.total_mv_yi);
+                const inflow1dStyle = getStockInflowStyle(m1);
+                const inflow3dStyle = getStockInflowStyle(m3);
+                const inflow5dStyle = getStockInflowStyle(m5);
 
-                const priceColor = isUp ? 'text-rose-500 font-bold' : (chg < 0 ? 'text-emerald-400 font-bold' : 'text-slate-200 font-semibold');
+                const totalMvStr = formatTotalMvYi(s.total_mv_yi);
 
                 return `
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="py-2 font-mono"><a href="${getXueqiuUrl(s.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link cursor-pointer hover:underline" title="在雪球查看 ${s.code} ${s.name || ''} 行情与讨论">${s.code}</a></td>
                     <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-slate-300 font-medium whitespace-nowrap">${totalMvStr}</td>
-                    <td class="py-2 text-right font-mono ${priceColor}">¥${Number(s.price).toFixed(2)}</td>
-                    <td class="py-2 text-right font-mono ${chgClass}">${chgStr}</td>
-                    <td class="py-2 text-right font-mono text-[11px] ${inflow1dColor}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
-                    <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
-                    <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
+                    <td class="py-2 text-right font-mono ${priceClass}" style="${priceStyle}">¥${Number(s.price).toFixed(2)}</td>
+                    <td class="py-2 text-right font-mono ${chgClass}" style="${chgStyle}">${chgStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow1dColor}" style="${inflow1dStyle}" title="当日主力净流入: ${inflow1dStr}">${inflow1dStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" style="${inflow3dStyle}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
+                    <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" style="${inflow5dStyle}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-2 text-center">
                         <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${s.code}', '${s.name}', event)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论K线">缠论</a>
                     </td>
@@ -23158,11 +23200,28 @@
                     const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
                     const price = Number(s.price || 0).toFixed(2);
                     const pct = Number(s.change_pct || 0);
-                    const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-                    const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400');
+                    const isUp = pct > 0;
+                    const isDown = pct < 0;
+
+                    const pctStr = (isUp ? '+' : '') + pct.toFixed(2) + '%';
+                    const pctStyle = isUp 
+                        ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                        : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #64748b !important; font-weight: 500;');
+                    const pctClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : 'stock-flat');
+
+                    const priceStyle = isUp 
+                        ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                        : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #334155 !important; font-weight: 600;');
+                    const priceClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : '');
+
                     const netVal = Number(s.main_net_amount || 0);
-                    const netStr = fmtMoneyTs(netVal);
-                    const netColor = netVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (netVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400');
+                    const rawNetStr = fmtMoneyTs(netVal);
+                    const netStr = (netVal > 0 && !rawNetStr.startsWith('+')) ? `+${rawNetStr}` : rawNetStr;
+                    const netStyle = netVal > 0 
+                        ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                        : (netVal < 0 ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #64748b !important;');
+                    const netClass = netVal > 0 ? 'money-inflow' : (netVal < 0 ? 'money-outflow' : 'money-flat');
+
                     const amtStr = fmtMoneyTs(s.amount);
                     const vr = Number(s.vol_ratio || 1).toFixed(2);
                     const vrColor = Number(s.vol_ratio) >= 2.0 ? 'text-amber-500 font-bold' : 'text-slate-600 dark:text-slate-300';
@@ -23206,9 +23265,9 @@
                             <td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap text-left">
                                 <span onclick="openKlineModal('${code}', '${name}')" class="stock-click-link text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500 font-bold" title="点击查看K线">${name}</span>
                             </td>
-                            <td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap text-slate-900 dark:text-slate-100">¥${price}</td>
-                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${pctColor}">${pctStr}</td>
-                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${netColor}">${netStr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${priceClass}" style="${priceStyle}">¥${price}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${pctClass}" style="${pctStyle}">${pctStr}</td>
+                            <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${netClass}" style="${netStyle}">${netStr}</td>
                             <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">${amtStr}</td>
                             <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${vrColor}">${vr}</td>
                             <td class="py-2.5 px-2 text-right font-mono whitespace-nowrap text-slate-600 dark:text-slate-400">${tr}</td>
@@ -23369,30 +23428,40 @@
                 const isUp = pct > 0;
                 const isDown = pct < 0;
 
-                // 1. 涨跌幅红绿颜色
+                // 1. 涨红色 跌绿色 (涨跌幅 & 最新价)
                 const pctStr = (isUp ? '+' : '') + pct.toFixed(2) + '%';
-                const pctColor = isUp ? 'text-rose-600 dark:text-rose-400 font-bold' : (isDown ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 dark:text-slate-400');
+                const pctStyle = isUp 
+                    ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                    : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #64748b !important; font-weight: 500;');
+                const pctClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : 'stock-flat');
 
-                // 2. 最新价跟随涨跌幅红绿颜色 (用户需求 1)
-                const priceColor = isUp ? 'text-rose-600 dark:text-rose-400 font-bold' : (isDown ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-semibold');
+                const priceStyle = isUp 
+                    ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                    : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #334155 !important; font-weight: 600;');
+                const priceClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : '');
 
-                // 3. 主力净流入红绿颜色
+                // 2. 流入红色 流出绿色 (主力净流入)
                 const netVal = Number(s.main_net_amount || 0);
-                const netColor = netVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (netVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500 dark:text-slate-400');
+                const rawNetStr = fmtMoneyTs(netVal);
+                const netStr = (netVal > 0 && !rawNetStr.startsWith('+')) ? `+${rawNetStr}` : rawNetStr;
+                const netStyle = netVal > 0 
+                    ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
+                    : (netVal < 0 ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #64748b !important;');
+                const netClass = netVal > 0 ? 'money-inflow' : (netVal < 0 ? 'money-outflow' : 'money-flat');
 
-                // 4. 成交额容量高亮
+                // 3. 成交额容量高亮
                 const amtVal = Number(s.amount || 0);
                 const amtColor = amtVal >= 5e8 ? 'text-amber-600 dark:text-amber-300 font-bold' : 'text-slate-600 dark:text-slate-400';
 
-                // 5. 量比
+                // 4. 量比
                 const vr = Number(s.vol_ratio || 0);
                 const vrColor = vr >= 2.0 ? 'text-amber-500 dark:text-amber-400 font-bold' : (vr >= 1.2 ? 'text-rose-500/80 font-medium' : 'text-slate-600 dark:text-slate-300');
 
-                // 6. 换手率
+                // 5. 换手率
                 const to = Number(s.turnover || 0);
                 const toColor = to >= 10.0 ? 'text-amber-500 dark:text-amber-400 font-bold' : (to >= 5.0 ? 'text-rose-500/80 font-medium' : 'text-slate-600 dark:text-slate-400');
 
-                // 7. 连板标签
+                // 6. 连板标签
                 let lbcHtml = '<span class="text-slate-400 dark:text-slate-500">-</span>';
                 if (s.lbc >= 2) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-600 text-white shadow-sm">🔥 ${s.lbc}板</span>`;
                 else if (s.is_zt) lbcHtml = `<span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 border border-rose-300 dark:border-rose-500/40">首板</span>`;
@@ -23402,9 +23471,9 @@
                         <td class="py-2.5 px-2 text-center text-slate-400 dark:text-slate-500 font-mono">${idx + 1}</td>
                         <td class="py-2.5 px-2 text-left"><a href="${xqUrl}" target="_blank" class="stock-code-link text-slate-800 dark:text-slate-100 hover:text-indigo-500 font-bold font-mono">${code}</a></td>
                         <td class="py-2.5 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500" onclick="openKlineModal('${code}', '${name}')">${name}</td>
-                        <td class="py-2.5 px-2 text-right font-mono ${priceColor}">¥${Number(s.price).toFixed(2)}</td>
-                        <td class="py-2.5 px-2 text-right font-mono ${pctColor}">${pctStr}</td>
-                        <td class="py-2.5 px-2 text-right font-mono ${netColor}">${fmtMoneyTs(s.main_net_amount)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${priceClass}" style="${priceStyle}">¥${Number(s.price).toFixed(2)}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${pctClass}" style="${pctStyle}">${pctStr}</td>
+                        <td class="py-2.5 px-2 text-right font-mono ${netClass}" style="${netStyle}">${netStr}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${amtColor}">${fmtMoneyTs(s.amount)}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${vrColor}">${vr.toFixed(2)}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${toColor}">${to.toFixed(2)}%</td>
