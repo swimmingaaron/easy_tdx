@@ -176,9 +176,10 @@ def analyze_single_board_leaders(
             return cached_data
 
     def _fetch(c: MacClient):
+        fetch_cnt = max(1000, top_candidates)
         return c.get_board_members(
             clean_board_code,
-            count=40,
+            count=fetch_cnt,
             sort_type=SortType.CHANGE_PCT,
             sort_order=SortOrder.DESC,
         )
@@ -188,6 +189,24 @@ def analyze_single_board_leaders(
     else:
         with MacClient.from_best_host() as c:
             df_members = _fetch(c)
+
+    if df_members is None or df_members.empty:
+        # 降级容灾：从 industry_universe.json 知识库加载全量成分股
+        try:
+            from .screener.industry import find_industry
+            ind_info = find_industry(clean_board_code)
+            if ind_info and ind_info.get("symbols"):
+                symbols = ind_info["symbols"]
+                from .market_data import _get_market
+                from .market_overview import _get_or_create_mac_client
+                from .codec.bitmap import PresetField
+                mac = _get_or_create_mac_client()
+                pairs = [(int(_get_market(s).value), s) for s in symbols]
+                df_q = mac.get_stock_quotes(pairs, fields=PresetField.BASIC)
+                if df_q is not None and not df_q.empty:
+                    df_members = df_q
+        except Exception:
+            pass
 
     if df_members is None or df_members.empty:
         empty_res = {
@@ -307,7 +326,7 @@ def analyze_single_board_leaders(
         "leader_pioneer": pioneer,
         "leader_capacity": capacity,
         "leader_ladder": ladder,
-        "candidates": candidates[:top_candidates],
+        "candidates": candidates[:top_candidates] if top_candidates > 0 else candidates,
     }
     _BOARD_DETAIL_CACHE[cache_key] = (now, result)
     _write_disk_cache(cache_key, result, now)

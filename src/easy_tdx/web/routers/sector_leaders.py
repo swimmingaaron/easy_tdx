@@ -127,7 +127,7 @@ def search_board_leader(
 def get_board_detail(
     board_code: str = Query(..., description="板块代码"),
     board_name: str = Query("", description="板块名称"),
-    count: int = Query(30, ge=1, le=100, description="成分股数量"),
+    count: int = Query(0, ge=0, le=10000, description="成分股数量 (0表示全部成分股)"),
     use_cache: bool = Query(True, description="是否使用Cache缓存（默认开启）"),
     force_refresh: bool = Query(False, description="是否强制刷新缓存"),
 ) -> Dict[str, Any]:

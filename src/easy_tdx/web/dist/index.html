@@ -10831,7 +10831,8 @@
 
             // Update Headers
             const q = json.quote || {};
-            const bTag = json.board_tag || { label: 'A股', color: '#f97316' };
+            const isSecIdx = String(currentKpSymbol || '').startsWith('88') || Boolean(json.is_index) || (json.board_tag && json.board_tag.label === '板');
+            const bTag = isSecIdx ? { label: '板块', color: '#ec4899' } : (json.board_tag || { label: 'A股', color: '#f97316' });
             const badgeEl = document.getElementById('kp-board-badge');
             if (badgeEl) {
                 badgeEl.innerText = bTag.label;
@@ -10840,11 +10841,19 @@
                 badgeEl.style.backgroundColor = `${bTag.color}18`;
             }
 
-            const fullSym = json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`;
+            const fullSym = isSecIdx ? `${currentKpSymbol}.HY` : (json.full_symbol || `${json.symbol}.${json.market || 'SZ'}`);
             const sName = (json.name && !json.name.startsWith('股票_')) ? json.name : (currentKpStockName || json.name || currentKpSymbol);
             currentKpStockName = sName;
             if (document.getElementById('kp-full-symbol')) document.getElementById('kp-full-symbol').innerText = fullSym;
-            if (document.getElementById('kp-stock-name')) document.getElementById('kp-stock-name').innerText = sName;
+            if (document.getElementById('kp-stock-name')) {
+                const snEl = document.getElementById('kp-stock-name');
+                if (isSecIdx) {
+                    const cCode = String(currentKpSymbol || '').replace(/[^0-9]/g, '');
+                    snEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${cCode}', '${sName}')" class="text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></a>`;
+                } else {
+                    snEl.innerText = sName;
+                }
+            }
             if (document.getElementById('kp-full-symbol-inline')) document.getElementById('kp-full-symbol-inline').innerText = fullSym;
             if (document.getElementById('kp-stock-name-inline')) document.getElementById('kp-stock-name-inline').innerText = sName;
             updateKpWatchlistButton();
@@ -19027,8 +19036,11 @@
                 // 3. 代码
                 const codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-100 hover:text-cyan-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
 
-                // 4. 名称
-                const nameLink = `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
+                // 4. 名称 (如果是行业指数，名字增加超链接打开全量成分股)
+                const isSecIdx = code.startsWith('88') || Boolean(m.is_index);
+                const nameLink = isSecIdx
+                    ? `<span onclick="openSectorLeaderBoardModal('${cleanCode}', '${name}')" class="stock-click-link font-bold text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1" title="行业指数：点击打开【${name}】板块内所有成分股信息与龙头排位">${name} <span class="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="text-slate-400 hover:text-cyan-400 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
+                    : `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 5. 行业
                 const indName = m.industry || m.board_name || '--';
@@ -21420,8 +21432,11 @@
                 // 1. 代码: 专业金融高对比度黑白加粗字体，直达雪球 (用户需求 1)
                 let codeLink = `<a href="${xqLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a>`;
 
-                // 2. 名称: 高对比度平滑微链接，点击弹出 K 线 (用户需求 2)
-                let nameLink = `<span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
+                // 2. 名称 (如果是行业指数，名字增加超链接打开全量成分股)
+                let isSecIdx = code.startsWith('88') || Boolean(r.is_index);
+                let nameLink = isSecIdx
+                    ? `<span onclick="openSectorLeaderBoardModal('${code}', '${name}')" class="stock-click-link font-bold text-amber-500 dark:text-amber-300 hover:underline cursor-pointer inline-flex items-center gap-1" title="行业指数：点击查看【${name}】全量成分股明细">${name} <span class="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 dark:text-amber-300 border border-amber-500/40">成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="text-slate-400 hover:text-indigo-500 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
+                    : `<span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 3. 行业: 点击弹出对应板块/行业 K 线 (用户需求 3)
                 let indName = r.industry || '--';
@@ -23287,11 +23302,14 @@
             const modal = document.getElementById('sl-board-modal');
             const titleEl = document.getElementById('sl-modal-title');
             const codeEl = document.getElementById('sl-modal-code');
+            const subtitleEl = document.getElementById('sl-modal-subtitle');
             const tbody = document.getElementById('sl-modal-table-body');
             if (!modal) return;
 
-            if (titleEl) titleEl.innerText = `${boardName} · 全景成分股`;
-            if (codeEl) codeEl.innerText = boardCode;
+            const cleanCode = String(boardCode || '').replace(/[^0-9]/g, '');
+            if (titleEl) titleEl.innerText = `${boardName} · 板块全量成分股`;
+            if (codeEl) codeEl.innerText = cleanCode || boardCode;
+            if (subtitleEl) subtitleEl.innerText = '正在加载板块内全部成分股实时行情与多因子排名...';
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>正在抓取【${boardName}】全部成分股行情与多因子排名...</td></tr>`;
                 if (window.lucide) lucide.createIcons();
@@ -23299,11 +23317,16 @@
             modal.classList.remove('hidden');
 
             try {
-                const resp = await fetch(`/api/sector_leaders/detail?board_code=${encodeURIComponent(boardCode)}&board_name=${encodeURIComponent(boardName)}&count=40`);
+                const resp = await fetch(`/api/sector_leaders/detail?board_code=${encodeURIComponent(cleanCode)}&board_name=${encodeURIComponent(boardName)}&count=0`);
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.success && data.data && data.data.candidates) {
                         const candidates = data.data.candidates;
+                        if (subtitleEl) subtitleEl.innerText = `全量成分股共 ${candidates.length} 只 · 实时报价与主力多因子排位 (可点击股票查看个股详情)`;
+                        if (candidates.length === 0) {
+                            tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans">【${boardName}】暂未获取到成分股行情，请稍后刷新重试。</td></tr>`;
+                            return;
+                        }
                         const rows = candidates.map((s, idx) => {
                             const code = s.code;
                             const name = s.name;
@@ -23348,6 +23371,7 @@
                 }
             } catch (e) {
                 console.error("Failed to load board detail modal:", e);
+                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-rose-400 font-sans">加载成分股异常: ${e.message || e}</td></tr>`;
             }
         }
 
@@ -24331,11 +24355,15 @@
             if (!d || !d.summary) return;
             const sum = d.summary;
 
-            // 1. 板块徽标 (主/创/科/北)
+            // 1. 板块徽标 (主/创/科/北/板块指数)
             const badgeEl = document.getElementById('cl-board-badge');
+            const c = String(d.code || '');
+            const isSectorIndex = c.startsWith('88') || Boolean(d.is_index);
             if (badgeEl) {
-                const c = d.code;
-                if (c.startsWith('300') || c.startsWith('301')) {
+                if (isSectorIndex) {
+                    badgeEl.innerText = '板块';
+                    badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-pink-400 bg-pink-400/10 border border-pink-400/30';
+                } else if (c.startsWith('300') || c.startsWith('301')) {
                     badgeEl.innerText = '创';
                     badgeEl.className = 'px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30';
                 } else if (c.startsWith('688')) {
@@ -24350,13 +24378,19 @@
                 }
             }
 
-            // 2. 标的代码与名称
-            const fullSym = `${d.code}.${d.code.startsWith('6') ? 'SH' : 'SZ'}`;
-            const sName = d.name || d.code;
+            // 2. 标的代码与名称 (若为行业指数，增加链接点击打开板块全量成分股)
+            const fullSym = isSectorIndex ? `${c}.HY` : `${c}.${c.startsWith('6') ? 'SH' : 'SZ'}`;
+            const sName = d.name || c;
             const fullSymEl = document.getElementById('cl-full-symbol');
             const nameEl = document.getElementById('cl-stock-name');
             if (fullSymEl) fullSymEl.innerText = fullSym;
-            if (nameEl) nameEl.innerText = sName;
+            if (nameEl) {
+                if (isSectorIndex) {
+                    nameEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${c}', '${sName}')" class="text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></a>`;
+                } else {
+                    nameEl.innerText = sName;
+                }
+            }
             window._clCurrentName = sName;
             if (typeof updateChanlunWatchlistButton === 'function') {
                 updateChanlunWatchlistButton();
