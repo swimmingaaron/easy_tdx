@@ -26379,7 +26379,7 @@
             chgEl.className = `stock-title-chg font-bold font-mono text-[11px] ml-1.5 ${colorClass}`;
         }
 
-        function renderSingleChanlunChart(side, d) {
+        function renderSingleChanlunChart(side, d, customPrevZoom = null) {
             let domId = 'chanlun-echart-main';
             let titleElId = 'cl-chart-title-text';
             let patternElId = 'cl-pattern-overlay';
@@ -26535,15 +26535,17 @@
                 }
             }
 
-            let prevDataZoom = null;
-            try {
-                if (instance._clLastRenderedCode === _clCurrentCode) {
-                    const curOpt = instance.getOption();
-                    if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
-                        prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+            let prevDataZoom = customPrevZoom;
+            if (!prevDataZoom) {
+                try {
+                    if (instance._clLastRenderedCode === _clCurrentCode) {
+                        const curOpt = instance.getOption();
+                        if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
+                            prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
+                        }
                     }
-                }
-            } catch (e) { }
+                } catch (e) { }
+            }
             instance._clLastRenderedCode = _clCurrentCode;
 
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
@@ -27423,19 +27425,6 @@
         // ==================== 缠论 K 线动态缩放扩充与快捷键 ==================== //
         async function expandChanlunWindowHistory(side) {
             if (_clExpandingWindows.has(side)) return;
-            const curCount = _clWindowCustomCounts[side] || 800;
-            if (curCount >= 12000) return; // 已经达到历史拉取最大上限
-
-            // 根数按阶梯动态扩充：800 -> 2000 -> 4000 -> 8000 -> 12000
-            let nextCount = 2000;
-            if (curCount < 1000) nextCount = 2000;
-            else if (curCount < 2500) nextCount = 4000;
-            else if (curCount < 5000) nextCount = 8000;
-            else nextCount = 12000;
-            nextCount = Math.min(12000, Math.round(nextCount));
-
-            _clWindowCustomCounts[side] = nextCount;
-            _clExpandingWindows.add(side);
 
             // 获取该窗口当前对应的周期配置
             let periods = _clLeftPeriods;
@@ -27443,7 +27432,38 @@
             else if (side === 'right') periods = _clRightPeriods;
             else if (side === 'w4') periods = _clW4Periods;
 
+            const pList = (periods || '').split(',').map(s => s.trim().toUpperCase());
+            const lowestPeriod = pList[2] || pList[pList.length - 1] || '5F';
+
+            const curCount = _clWindowCustomCounts[side] || 800;
+            let nextCount = curCount;
+
+            if (lowestPeriod === '30F' || lowestPeriod === '30M') {
+                // 周日30F 模式：初始 800 根，向右拖拉到最早时间时，直接调到 3200 根
+                if (curCount >= 3200) return;
+                nextCount = 3200;
+            } else if (lowestPeriod === '5F' || lowestPeriod === '5M') {
+                // 日30F5F 模式：四档 800 -> 4800 -> 9600 -> 12000
+                if (curCount >= 12000) return;
+                if (curCount < 4800) nextCount = 4800;
+                else if (curCount < 9600) nextCount = 9600;
+                else nextCount = 12000;
+            } else {
+                if (curCount >= 12000) return;
+                if (curCount < 2000) nextCount = 2000;
+                else if (curCount < 4000) nextCount = 4000;
+                else if (curCount < 8000) nextCount = 8000;
+                else nextCount = 12000;
+            }
+
+            _clWindowCustomCounts[side] = nextCount;
+            _clExpandingWindows.add(side);
+
             try {
+                // 平滑视口保持：记录扩充前最早的一根 K 线时间，让扩充后的 dataZoom 平滑锚定
+                const prevOldDates = (side === 'left' ? _clCachedData : (side === 'w2' ? _clW2CachedData : (side === 'right' ? _clRightCachedData : _clW4CachedData)))?.unified_chart?.dates || [];
+                const anchorDate = prevOldDates.length > 0 ? prevOldDates[0] : null;
+
                 const query = new URLSearchParams();
                 query.set('code', _clCurrentCode);
                 query.set('periods', periods);
@@ -27456,7 +27476,7 @@
                 if (!resp.ok) return;
                 const data = await resp.json();
 
-                // 缓存并静默平滑重绘图表，保持用户的视觉范围
+                // 缓存并静默平滑重绘图表
                 if (side === 'left') {
                     _clLeftCachedData = data;
                     _clCachedData = data;
@@ -27468,7 +27488,17 @@
                     _clW4CachedData = data;
                 }
 
-                renderSingleChanlunChart(side, data);
+                const newDates = data?.unified_chart?.dates || [];
+                let customPrevZoom = null;
+                if (anchorDate && newDates.length > 0) {
+                    const anchorIdx = newDates.indexOf(anchorDate);
+                    if (anchorIdx > 0) {
+                        const anchorPct = (anchorIdx / newDates.length) * 100;
+                        customPrevZoom = { start: Math.max(0, anchorPct - 6), end: Math.min(100, anchorPct + 20) };
+                    }
+                }
+
+                renderSingleChanlunChart(side, data, customPrevZoom);
             } catch (e) {
                 console.warn('Dynamic expand history failed:', e);
             } finally {

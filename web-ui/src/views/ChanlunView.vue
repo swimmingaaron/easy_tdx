@@ -100,6 +100,11 @@ const periodLow = computed({
   set: (v) => { leftPeriodLow.value = v }
 })
 
+// 窗口动态加载与历史扩充控制 (周日30F: 800->3200; 日30F5F: 800->4800->9600->12000)
+const windowCustomCounts = ref<Record<string, number>>({ left: 800, w2: 800, right: 800, w4: 800 })
+const expandingWindows = ref<Set<string>>(new Set())
+let zoomDebounceTimers: Record<string, any> = {}
+
 // 当前选中的回溯主控基准窗口：'left' (窗1) | 'w2' (窗2) | 'right' (窗3) | 'w4' (窗4)
 const activeWindow = ref<'left' | 'w2' | 'right' | 'w4'>('left')
 const activeWindowNum = computed(() => {
@@ -535,14 +540,17 @@ async function loadData(forceRefresh = false) {
 
   try {
     // 借鉴 chanlun-pro：实时模式下使用 800 根 (单网络包最优上限，~17个交易日，微秒级加载)；回溯时光机模式使用 2500 根全量母数据
-    const reqCount = isBacktrackingMode.value ? 2500 : ((leftPeriods.value.includes('5F') || leftPeriods.value.includes('1F')) ? 800 : 300)
+    const getWinCount = (winKey: string) => {
+      if (isBacktrackingMode.value) return 2500
+      return windowCustomCounts.value[winKey] || 800
+    }
     const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
     const force = isBacktrackingMode.value ? false : forceRefresh
 
     const pLeft = fetchChanlunResonance({
       code: code.value,
       periods: leftPeriods.value,
-      count: reqCount,
+      count: getWinCount('left'),
       cutoff_date: cutoff,
       force_refresh: force,
       signal,
@@ -553,7 +561,7 @@ async function loadData(forceRefresh = false) {
       const pW2 = fetchChanlunResonance({
         code: code.value,
         periods: w2Periods.value,
-        count: reqCount,
+        count: getWinCount('w2'),
         cutoff_date: cutoff,
         force_refresh: force,
         signal,
@@ -561,7 +569,7 @@ async function loadData(forceRefresh = false) {
       const pRight = fetchChanlunResonance({
         code: code.value,
         periods: rightPeriods.value,
-        count: reqCount,
+        count: getWinCount('right'),
         cutoff_date: cutoff,
         force_refresh: force,
         signal,
@@ -569,7 +577,7 @@ async function loadData(forceRefresh = false) {
       const pW4 = fetchChanlunResonance({
         code: code.value,
         periods: w4Periods.value,
-        count: reqCount,
+        count: getWinCount('w4'),
         cutoff_date: cutoff,
         force_refresh: force,
         signal,
@@ -579,7 +587,7 @@ async function loadData(forceRefresh = false) {
       const pRight = fetchChanlunResonance({
         code: code.value,
         periods: rightPeriods.value,
-        count: reqCount,
+        count: getWinCount('right'),
         cutoff_date: cutoff,
         force_refresh: force,
         signal,
@@ -663,6 +671,7 @@ async function selectStock(c: string) {
   code.value = targetCode
   searchKeyword.value = ''
   suggestList.value = []
+  windowCustomCounts.value = { left: 800, w2: 800, right: 800, w4: 800 }
   clearClientBacktrackCache()
   exitBacktracking()
   loadData(false)
@@ -2317,6 +2326,9 @@ function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
+      chartInstanceLeft.on('dataZoom', () => {
+        checkAndTriggerDynamicZoom('left', chartInstanceLeft)
+      })
       chartInstanceLeft.on('click', () => { setActiveWindow('left') })
       chartInstanceLeft.on('globalout', () => { hoverCandleLeft.value = null })
       chartInstanceLeft.on('hideTip', () => { hoverCandleLeft.value = null })
@@ -2343,6 +2355,9 @@ function renderChart() {
     if (chartContainerW2.value && chanDataW2.value) {
       if (!chartInstanceW2) {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
+        chartInstanceW2.on('dataZoom', () => {
+          checkAndTriggerDynamicZoom('w2', chartInstanceW2)
+        })
         chartInstanceW2.on('click', () => { setActiveWindow('w2') })
         chartInstanceW2.on('globalout', () => { hoverCandleW2.value = null })
         chartInstanceW2.on('hideTip', () => { hoverCandleW2.value = null })
@@ -2366,6 +2381,9 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('dataZoom', () => {
+          checkAndTriggerDynamicZoom('right', chartInstanceRight)
+        })
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
@@ -2389,6 +2407,9 @@ function renderChart() {
     if (chartContainerW4.value && chanDataW4.value) {
       if (!chartInstanceW4) {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
+        chartInstanceW4.on('dataZoom', () => {
+          checkAndTriggerDynamicZoom('w4', chartInstanceW4)
+        })
         chartInstanceW4.on('click', () => { setActiveWindow('w4') })
         chartInstanceW4.on('globalout', () => { hoverCandleW4.value = null })
         chartInstanceW4.on('hideTip', () => { hoverCandleW4.value = null })
@@ -2413,6 +2434,9 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
+        chartInstanceRight.on('dataZoom', () => {
+          checkAndTriggerDynamicZoom('right', chartInstanceRight)
+        })
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
         chartInstanceRight.on('globalout', () => { hoverCandleRight.value = null })
         chartInstanceRight.on('hideTip', () => { hoverCandleRight.value = null })
@@ -2432,6 +2456,78 @@ function renderChart() {
 
   attachSelectionToAllCharts()
   adjustLayoutHeight()
+}
+
+function checkAndTriggerDynamicZoom(side: 'left' | 'w2' | 'right' | 'w4', instance: any) {
+  if (!instance) return
+  const opt: any = instance.getOption()
+  if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return
+  const start = opt.dataZoom[0].start
+  // 向右拖拉，到最早时间时（start <= 2%），防抖触发动态扩充根数
+  if (start !== undefined && start !== null && start <= 2) {
+    if (zoomDebounceTimers[side]) clearTimeout(zoomDebounceTimers[side])
+    zoomDebounceTimers[side] = setTimeout(() => {
+      expandChanlunWindowHistory(side)
+    }, 200)
+  }
+}
+
+async function expandChanlunWindowHistory(side: 'left' | 'w2' | 'right' | 'w4') {
+  if (expandingWindows.value.has(side)) return
+
+  let periods = leftPeriods.value
+  if (side === 'w2') periods = w2Periods.value
+  else if (side === 'right') periods = rightPeriods.value
+  else if (side === 'w4') periods = w4Periods.value
+
+  const pList = (periods || '').split(',').map(s => s.trim().toUpperCase())
+  const lowestPeriod = pList[2] || pList[pList.length - 1] || '5F'
+
+  const curCount = windowCustomCounts.value[side] || 800
+  let nextCount = curCount
+
+  if (lowestPeriod === '30F' || lowestPeriod === '30M') {
+    // 周日30F 模式：初始 800 根，向右拖拉到最早时间时，直接调到 3200 根
+    if (curCount >= 3200) return
+    nextCount = 3200
+  } else if (lowestPeriod === '5F' || lowestPeriod === '5M') {
+    // 日30F5F 模式：四档 800 -> 4800 -> 9600 -> 12000
+    if (curCount >= 12000) return
+    if (curCount < 4800) nextCount = 4800
+    else if (curCount < 9600) nextCount = 9600
+    else nextCount = 12000
+  } else {
+    if (curCount >= 12000) return
+    if (curCount < 2000) nextCount = 2000
+    else if (curCount < 4000) nextCount = 4000
+    else if (curCount < 8000) nextCount = 8000
+    else nextCount = 12000
+  }
+
+  windowCustomCounts.value[side] = nextCount
+  expandingWindows.value.add(side)
+
+  try {
+    const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
+    const res = await fetchChanlunResonance({
+      code: code.value,
+      periods,
+      count: nextCount,
+      cutoff_date: cutoff,
+      force_refresh: false,
+    })
+
+    if (side === 'left') chanDataLeft.value = res
+    else if (side === 'w2') chanDataW2.value = res
+    else if (side === 'right') chanDataRight.value = res
+    else if (side === 'w4') chanDataW4.value = res
+
+    renderChart()
+  } catch (e) {
+    console.warn('Dynamic expand history failed:', e)
+  } finally {
+    expandingWindows.value.delete(side)
+  }
 }
 
 function zoomChart(factor: number) {

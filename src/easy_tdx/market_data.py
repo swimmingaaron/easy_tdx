@@ -366,20 +366,20 @@ def fetch_security_kline(
                 _CACHE[cache_key] = (now, res)
                 return res
 
-        # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
-        try:
-            delta_cnt = min(80, effective_req_count)
-            delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
-            if delta_df is not None and not delta_df.empty:
-                merged_df = disk_cache.merge_and_update(cache_sym, cache_suffix, cached_df, delta_df, adj_val.name)
-                res = merged_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
+            # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
+            try:
+                delta_cnt = min(80, effective_req_count)
+                delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
+                if delta_df is not None and not delta_df.empty:
+                    merged_df = disk_cache.merge_and_update(cache_sym, cache_suffix, cached_df, delta_df, adj_val.name)
+                    res = merged_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
+                    _CACHE[cache_key] = (now, res)
+                    return res
+            except Exception as e:
+                logger.debug(f"增量同步异常，使用磁盘缓存: {e}")
+                res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
                 _CACHE[cache_key] = (now, res)
                 return res
-        except Exception as e:
-            logger.debug(f"增量同步异常，使用磁盘缓存: {e}")
-            res = cached_df.iloc[-effective_req_count:].copy().reset_index(drop=True)
-            _CACHE[cache_key] = (now, res)
-            return res
 
     # 2. 磁盘无缓存或数量不足或 force_refresh：根据周期自适应配置拉取深度填补磁盘
     raw_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, pull_count, force_refresh=force_refresh)
