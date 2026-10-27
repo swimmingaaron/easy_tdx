@@ -10877,7 +10877,7 @@
                 const snEl = document.getElementById('kp-stock-name');
                 if (isSecIdx) {
                     const cCode = String(currentKpSymbol || '').replace(/[^0-9]/g, '');
-                    snEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${cCode}', '${sName}')" class="text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></a>`;
+                    snEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${cCode}', '${sName}')" class="text-slate-800 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-300 hover:underline cursor-pointer inline-flex items-center gap-1.5 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-xs px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-medium">成分股</span></a>`;
                 } else {
                     snEl.innerText = sName;
                 }
@@ -19083,7 +19083,7 @@
                 // 4. 名称 (如果是行业指数，名字增加超链接打开全量成分股)
                 const isSecIdx = code.startsWith('88') || Boolean(m.is_index);
                 const nameLink = isSecIdx
-                    ? `<span onclick="openSectorLeaderBoardModal('${cleanCode}', '${name}')" class="stock-click-link font-bold text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1" title="行业指数：点击打开【${name}】板块内所有成分股信息与龙头排位">${name} <span class="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="text-slate-400 hover:text-cyan-400 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
+                    ? `<span onclick="openSectorLeaderBoardModal('${cleanCode}', '${name}')" class="stock-click-link font-bold text-white hover:text-cyan-400 hover:underline cursor-pointer inline-flex items-center gap-1.5" title="行业指数：点击打开【${name}】板块内所有成分股信息与龙头排位">${name} <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/80 font-normal">成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="text-slate-400 hover:text-cyan-400 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
                     : `<span onclick="openKlineModal('${code}', '${name}', '${m.period || 'DAY'}', window._lastScreenerMatches || matches)" class="stock-click-link font-semibold text-slate-200 hover:text-cyan-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 5. 行业
@@ -21479,7 +21479,7 @@
                 // 2. 名称 (如果是行业指数，名字增加超链接打开全量成分股)
                 let isSecIdx = code.startsWith('88') || Boolean(r.is_index);
                 let nameLink = isSecIdx
-                    ? `<span onclick="openSectorLeaderBoardModal('${code}', '${name}')" class="stock-click-link font-bold text-amber-500 dark:text-amber-300 hover:underline cursor-pointer inline-flex items-center gap-1" title="行业指数：点击查看【${name}】全量成分股明细">${name} <span class="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-500 dark:text-amber-300 border border-amber-500/40">成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="text-slate-400 hover:text-indigo-500 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
+                    ? `<span onclick="openSectorLeaderBoardModal('${code}', '${name}')" class="stock-click-link font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer inline-flex items-center gap-1.5" title="行业指数：点击查看【${name}】全量成分股明细">${name} <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-normal">成分股</span></span> <span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="text-slate-400 hover:text-indigo-500 cursor-pointer text-[10px] ml-1" title="点击查看板块K线">📊K线</span>`
                     : `<span onclick="openKlineModal('${code}', '${name}', null, window._lastTradingSystemRows || rows)" class="stock-click-link font-semibold text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer" title="点击弹出【${name}】K线行情">${name}</span>`;
 
                 // 3. 行业: 点击弹出对应板块/行业 K 线 (用户需求 3)
@@ -24548,7 +24548,7 @@
             if (fullSymEl) fullSymEl.innerText = fullSym;
             if (nameEl) {
                 if (isSectorIndex) {
-                    nameEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${c}', '${sName}')" class="text-amber-300 hover:text-amber-100 hover:underline cursor-pointer inline-flex items-center gap-1 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-normal">📋 成分股</span></a>`;
+                    nameEl.innerHTML = `<a href="javascript:void(0)" onclick="openSectorLeaderBoardModal('${c}', '${sName}')" class="text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-300 hover:underline cursor-pointer inline-flex items-center gap-1.5 font-bold" title="行业指数：点击打开【${sName}】板块内所有成分股信息与龙头排位">${sName} <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-normal">成分股</span></a>`;
                 } else {
                     nameEl.innerText = sName;
                 }
