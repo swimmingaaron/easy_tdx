@@ -31,7 +31,7 @@ _TASKS_LOCK = threading.Lock()
 class ScreenerScanRequest(BaseModel):
     strategy: str = "chanlun_resonance"
     universe: str = "core"
-    period: str = "MONTH_WEEK_DAY"
+    period: str = "MONTH_WEEK_DAY_2BUY"
     symbols: list[str] | None = None
     lookback_bars: int = 22
     force_refresh: bool = False
@@ -39,7 +39,7 @@ class ScreenerScanRequest(BaseModel):
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str = "chanlun_resonance"
     universe: str = "core"
-    period: str = "MONTH_WEEK_DAY"
+    period: str = "MONTH_WEEK_DAY_2BUY"
     lookback_bars: int = 22
     force_refresh: bool = False
 

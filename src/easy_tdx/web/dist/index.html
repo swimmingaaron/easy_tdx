@@ -3181,9 +3181,12 @@
                             <span class="text-[11px] text-slate-400 font-medium">周期:</span>
                             <select id="screener-period-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="MONTH_WEEK_DAY" selected>📈 月周日 共振 (日线 2买/3买 · 默认推荐)</option>
-                                <option value="SEASON_MONTH_WEEK">🏛️ 季月周 共振 (周线 2买/3买)</option>
-                                <option value="WEEK_DAY_30F">⏱️ 周日30F 共振 (30F 2买/3买)</option>
+                                <option value="MONTH_WEEK_DAY_2BUY" selected>📈 月周日 共振 (日线 2买 · 默认推荐)</option>
+                                <option value="MONTH_WEEK_DAY_3BUY">📈 月周日 共振 (日线 3买)</option>
+                                <option value="SEASON_MONTH_WEEK_2BUY">🏛️ 季月周 共振 (周线 2买)</option>
+                                <option value="SEASON_MONTH_WEEK_3BUY">🏛️ 季月周 共振 (周线 3买)</option>
+                                <option value="WEEK_DAY_30F_2BUY">⏱️ 周日30F 共振 (30F 2买)</option>
+                                <option value="WEEK_DAY_30F_3BUY">⏱️ 周日30F 共振 (30F 3买)</option>
                                 <option value="ALL_CASCADE">💎 全级别三级联共振 (月周日+周日30M+日30M5F)</option>
                             </select>
                         </div>
@@ -18584,9 +18587,12 @@
         let screenerPollTimer = null;
 
         const CHANLUN_RESONANCE_PERIOD_OPTIONS = [
-            { value: 'MONTH_WEEK_DAY', text: '📈 月周日 共振 (日线 2买/3买 · 默认推荐)', selected: true },
-            { value: 'SEASON_MONTH_WEEK', text: '🏛️ 季月周 共振 (周线 2买/3买)' },
-            { value: 'WEEK_DAY_30F', text: '⏱️ 周日30F 共振 (30F 2买/3买)' },
+            { value: 'MONTH_WEEK_DAY_2BUY', text: '📈 月周日 共振 (日线 2买 · 默认推荐)', selected: true },
+            { value: 'MONTH_WEEK_DAY_3BUY', text: '📈 月周日 共振 (日线 3买)' },
+            { value: 'SEASON_MONTH_WEEK_2BUY', text: '🏛️ 季月周 共振 (周线 2买)' },
+            { value: 'SEASON_MONTH_WEEK_3BUY', text: '🏛️ 季月周 共振 (周线 3买)' },
+            { value: 'WEEK_DAY_30F_2BUY', text: '⏱️ 周日30F 共振 (30F 2买)' },
+            { value: 'WEEK_DAY_30F_3BUY', text: '⏱️ 周日30F 共振 (30F 3买)' },
             { value: 'ALL_CASCADE', text: '💎 全级别三级联共振 (月周日+周日30M+日30M5F)' }
         ];
 
@@ -18651,8 +18657,14 @@
             const forceInput = document.getElementById('screener-force-refresh');
             const periodSel = document.getElementById('screener-period-select');
             const uni = uniSel ? uniSel.value : 'core';
-            const period = periodSel ? periodSel.value : 'MONTH_WEEK_DAY';
+            const period = periodSel ? periodSel.value : 'MONTH_WEEK_DAY_2BUY';
             const periodMap = {
+                'MONTH_WEEK_DAY_2BUY': '月周日 共振 (2买)',
+                'MONTH_WEEK_DAY_3BUY': '月周日 共振 (3买)',
+                'SEASON_MONTH_WEEK_2BUY': '季月周 共振 (2买)',
+                'SEASON_MONTH_WEEK_3BUY': '季月周 共振 (3买)',
+                'WEEK_DAY_30F_2BUY': '周日30F 共振 (2买)',
+                'WEEK_DAY_30F_3BUY': '周日30F 共振 (3买)',
                 'MONTH_WEEK_DAY': '月周日 共振',
                 'SEASON_MONTH_WEEK': '季月周 共振',
                 'WEEK_DAY_30F': '周日30F 共振',
@@ -19332,8 +19344,14 @@
                     periodsQuery = `&periods=${encodeURIComponent(periodsArg)}`;
                 } else if (curStrat === 'chanlun_resonance') {
                     const resPeriodMap = {
+                        'SEASON_MONTH_WEEK_2BUY': 'SEASON,MONTH,WEEK',
+                        'SEASON_MONTH_WEEK_3BUY': 'SEASON,MONTH,WEEK',
                         'SEASON_MONTH_WEEK': 'SEASON,MONTH,WEEK',
+                        'MONTH_WEEK_DAY_2BUY': 'MONTH,WEEK,DAY',
+                        'MONTH_WEEK_DAY_3BUY': 'MONTH,WEEK,DAY',
                         'MONTH_WEEK_DAY': 'MONTH,WEEK,DAY',
+                        'WEEK_DAY_30F_2BUY': 'WEEK,DAY,30F',
+                        'WEEK_DAY_30F_3BUY': 'WEEK,DAY,30F',
                         'WEEK_DAY_30F': 'WEEK,DAY,30F',
                         'ALL_CASCADE': 'MONTH,WEEK,DAY'
                     };
@@ -19401,6 +19419,12 @@
             }
 
             const periodMap = {
+                'MONTH_WEEK_DAY_2BUY': '月周日 共振 (日线2买)',
+                'MONTH_WEEK_DAY_3BUY': '月周日 共振 (日线3买)',
+                'SEASON_MONTH_WEEK_2BUY': '季月周 共振 (周线2买)',
+                'SEASON_MONTH_WEEK_3BUY': '季月周 共振 (周线3买)',
+                'WEEK_DAY_30F_2BUY': '周日30F 共振 (30F 2买)',
+                'WEEK_DAY_30F_3BUY': '周日30F 共振 (30F 3买)',
                 '30F_5F_1F': '30F 5F 1F (大买)',
                 'DAY_30F_5F': '日 30F 5F (大买)',
                 'WEEK_DAY_30F': '周 日 30F (大买)',

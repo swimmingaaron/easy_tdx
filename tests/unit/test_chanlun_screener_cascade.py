@@ -245,14 +245,14 @@ def test_evaluate_chanlun_strategy_filters_top_sell_downtrend():
 
 
 def test_screener_request_models_defaults():
-    """Verify router request models and discovery default to chanlun_resonance and MONTH_WEEK_DAY."""
+    """Verify router request models and discovery default to chanlun_resonance and MONTH_WEEK_DAY_2BUY."""
     req_scan = ScreenerScanRequest()
     assert req_scan.strategy == "chanlun_resonance"
-    assert req_scan.period == "MONTH_WEEK_DAY"
+    assert req_scan.period == "MONTH_WEEK_DAY_2BUY"
 
     req_task = ScreenerTaskStartRequest(universe="core")
     assert req_task.strategy == "chanlun_resonance"
-    assert req_task.period == "MONTH_WEEK_DAY"
+    assert req_task.period == "MONTH_WEEK_DAY_2BUY"
 
 
 def test_strategy_registry_includes_chanlun_resonance():
@@ -1014,6 +1014,107 @@ def test_evaluate_chanlun_resonance_rejects_when_bearish_or_sell_broken():
             period="MONTH_WEEK_DAY"
         )
         assert res is None, "Must reject stock when monthly level is bearish!"
+
+
+def test_parse_chanlun_screener_preset_split_options():
+    """Verify parse_chanlun_screener_preset properly resolves split 2BUY and 3BUY presets."""
+    p_mwd_2 = parse_chanlun_screener_preset("MONTH_WEEK_DAY_2BUY")
+    assert p_mwd_2["key"] == "MONTH_WEEK_DAY_2BUY"
+    assert "2买" in p_mwd_2["label"]
+
+    p_mwd_3 = parse_chanlun_screener_preset("MONTH_WEEK_DAY_3BUY")
+    assert p_mwd_3["key"] == "MONTH_WEEK_DAY_3BUY"
+    assert "3买" in p_mwd_3["label"]
+
+    p_smw_2 = parse_chanlun_screener_preset("SEASON_MONTH_WEEK_2BUY")
+    assert p_smw_2["key"] == "SEASON_MONTH_WEEK_2BUY"
+    assert "2买" in p_smw_2["label"]
+
+    p_smw_3 = parse_chanlun_screener_preset("SEASON_MONTH_WEEK_3BUY")
+    assert p_smw_3["key"] == "SEASON_MONTH_WEEK_3BUY"
+    assert "3买" in p_smw_3["label"]
+
+    p_wd30_2 = parse_chanlun_screener_preset("WEEK_DAY_30F_2BUY")
+    assert p_wd30_2["key"] == "WEEK_DAY_30F_2BUY"
+    assert "2买" in p_wd30_2["label"]
+
+    p_wd30_3 = parse_chanlun_screener_preset("WEEK_DAY_30F_3BUY")
+    assert p_wd30_3["key"] == "WEEK_DAY_30F_3BUY"
+    assert "3买" in p_wd30_3["label"]
+
+
+def test_chanlun_resonance_2buy_vs_3buy_strict_filtering():
+    """Verify selecting 2BUY rejects stocks with 3BUY, and selecting 3BUY rejects stocks with 2BUY."""
+    st = get_strategy("chanlun_resonance")
+    dts = [f"2026-10-{i+1:02d}" for i in range(25)]
+    dummy_df = pd.DataFrame({
+        "datetime": dts,
+        "open": [10.0] * 25, "high": [10.5] * 25, "low": [9.5] * 25, "close": [10.2] * 25,
+        "volume": [10000] * 25, "amount": [100000] * 25,
+    })
+
+    # Case 1: 股票日线出现 3买
+    def mock_resonance_3buy(code, periods, count, force_refresh, *args, **kwargs):
+        return {
+            "summary": {"high_state": {"is_bearish": False}, "mid_state": {"is_bearish": False}, "low_state": {"is_bearish": False}},
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-08", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-09-20", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "mid", "price": 9.5},
+                    {"date": "2026-10-20", "type": "3BUY", "label": "日线3买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_resonance_3buy):
+        # 筛选 2买 -> 应被排除 (None)
+        res_2buy = _evaluate_stock_for_strategy(
+            sym="600519", strategy_name="chanlun_resonance", st=st, lookback_bars=20, force_refresh=False,
+            period="MONTH_WEEK_DAY_2BUY"
+        )
+        assert res_2buy is None, "3BUY stock must be rejected when MONTH_WEEK_DAY_2BUY is requested!"
+
+        # 筛选 3买 -> 应成功匹配
+        res_3buy = _evaluate_stock_for_strategy(
+            sym="600519", strategy_name="chanlun_resonance", st=st, lookback_bars=20, force_refresh=False,
+            period="MONTH_WEEK_DAY_3BUY"
+        )
+        assert res_3buy is not None
+        assert "日线3买" in res_3buy["status_label"]
+        assert res_3buy["period_preset"] == "MONTH_WEEK_DAY_3BUY"
+
+    # Case 2: 股票日线出现 2买
+    def mock_resonance_2buy(code, periods, count, force_refresh, *args, **kwargs):
+        return {
+            "summary": {"high_state": {"is_bearish": False}, "mid_state": {"is_bearish": False}, "low_state": {"is_bearish": False}},
+            "unified_chart": {
+                "mmd_marks": [
+                    {"date": "2026-08", "type": "1BUY", "label": "月线1买", "is_buy": True, "level": "high", "price": 9.0},
+                    {"date": "2026-09-20", "type": "2BUY", "label": "周线2买", "is_buy": True, "level": "mid", "price": 9.5},
+                    {"date": "2026-10-20", "type": "2BUY", "label": "日线2买", "is_buy": True, "level": "low", "price": 10.0},
+                ]
+            }
+        }
+
+    with patch("easy_tdx.screener.scanner._get_or_fetch_kline", return_value=dummy_df), \
+         patch("easy_tdx.chanlun.resonance.analyze_multi_period_resonance", side_effect=mock_resonance_2buy):
+        # 筛选 3买 -> 应被排除 (None)
+        res_3buy = _evaluate_stock_for_strategy(
+            sym="600519", strategy_name="chanlun_resonance", st=st, lookback_bars=20, force_refresh=False,
+            period="MONTH_WEEK_DAY_3BUY"
+        )
+        assert res_3buy is None, "2BUY stock must be rejected when MONTH_WEEK_DAY_3BUY is requested!"
+
+        # 筛选 2买 -> 应成功匹配
+        res_2buy = _evaluate_stock_for_strategy(
+            sym="600519", strategy_name="chanlun_resonance", st=st, lookback_bars=20, force_refresh=False,
+            period="MONTH_WEEK_DAY_2BUY"
+        )
+        assert res_2buy is not None
+        assert "日线2买" in res_2buy["status_label"]
+        assert res_2buy["period_preset"] == "MONTH_WEEK_DAY_2BUY"
+
 
 
 

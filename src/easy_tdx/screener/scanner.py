@@ -452,6 +452,66 @@ def _get_or_fetch_kline(sym: str, period: str = "DAY", force_refresh: bool = Fal
 # 3. 周 日 30F: 筛选条件 大周期周线出现大买且保持上升趋势，同时30M出现1买
 # 4. 月 周 日: 筛选条件 大周期月线出现大买且保持上升趋势，同时日线出现1买
 CHANLUN_PERIOD_PRESETS: dict[str, dict[str, Any]] = {
+    "MONTH_WEEK_DAY_2BUY": {
+        "key": "MONTH_WEEK_DAY_2BUY",
+        "periods": ["MONTH", "WEEK", "DAY"],
+        "high_p": "MONTH",
+        "high_period": "MONTH",
+        "high_name": "月线",
+        "kline_period": "MONTH",
+        "label": "月 周 日 (2买)",
+        "desc": "月周日共振 (月周大买多头趋势共振 + 日线 2买 · 默认推荐)",
+    },
+    "MONTH_WEEK_DAY_3BUY": {
+        "key": "MONTH_WEEK_DAY_3BUY",
+        "periods": ["MONTH", "WEEK", "DAY"],
+        "high_p": "MONTH",
+        "high_period": "MONTH",
+        "high_name": "月线",
+        "kline_period": "MONTH",
+        "label": "月 周 日 (3买)",
+        "desc": "月周日共振 (月周大买多头趋势共振 + 日线 3买)",
+    },
+    "SEASON_MONTH_WEEK_2BUY": {
+        "key": "SEASON_MONTH_WEEK_2BUY",
+        "periods": ["SEASON", "MONTH", "WEEK"],
+        "high_p": "SEASON",
+        "high_period": "SEASON",
+        "high_name": "季线",
+        "kline_period": "SEASON",
+        "label": "季 月 周 (2买)",
+        "desc": "季月周共振 (季月大买多头趋势共振 + 周线 2买)",
+    },
+    "SEASON_MONTH_WEEK_3BUY": {
+        "key": "SEASON_MONTH_WEEK_3BUY",
+        "periods": ["SEASON", "MONTH", "WEEK"],
+        "high_p": "SEASON",
+        "high_period": "SEASON",
+        "high_name": "季线",
+        "kline_period": "SEASON",
+        "label": "季 月 周 (3买)",
+        "desc": "季月周共振 (季月大买多头趋势共振 + 周线 3买)",
+    },
+    "WEEK_DAY_30F_2BUY": {
+        "key": "WEEK_DAY_30F_2BUY",
+        "periods": ["WEEK", "DAY", "30F"],
+        "high_p": "WEEK",
+        "high_period": "WEEK",
+        "high_name": "周线",
+        "kline_period": "WEEK",
+        "label": "周 日 30F (2买)",
+        "desc": "周日30F共振 (周日大买多头趋势共振 + 30F 2买)",
+    },
+    "WEEK_DAY_30F_3BUY": {
+        "key": "WEEK_DAY_30F_3BUY",
+        "periods": ["WEEK", "DAY", "30F"],
+        "high_p": "WEEK",
+        "high_period": "WEEK",
+        "high_name": "周线",
+        "kline_period": "WEEK",
+        "label": "周 日 30F (3买)",
+        "desc": "周日30F共振 (周日大买多头趋势共振 + 30F 3买)",
+    },
     "SEASON_MONTH_WEEK": {
         "key": "SEASON_MONTH_WEEK",
         "periods": ["SEASON", "MONTH", "WEEK"],
@@ -556,30 +616,45 @@ def _safe_state_val(state: Any, key: str, default: Any = None) -> Any:
 
 
 def parse_chanlun_screener_preset(raw_period: str | None) -> dict[str, Any]:
-    """解析缠论选股的 4 级联周期，默认为 日 30F 5F (DAY_30F_5F)。"""
+    """解析缠论选股的级联周期预设。"""
     if not raw_period:
         return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
 
-    clean = str(raw_period).strip().upper().replace(" ", "_").replace("-", "_").replace(",", "_")
+    raw_str = str(raw_period).strip()
+    clean = raw_str.upper().replace(" ", "_").replace("-", "_").replace(",", "_")
 
-    # 0. 季 月 周
-    if "SEASON_MONTH_WEEK" in clean or ("SEASON" in clean and "MONTH" in clean and "WEEK" in clean) or ("季" in str(raw_period) and "月" in str(raw_period) and "周" in str(raw_period)) or clean in ("SEASON", "SEASONAL", "S"):
+    # 1. 精确匹配 2BUY / 3BUY 拆分预设
+    if "MONTH_WEEK_DAY_2BUY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean and ("2BUY" in clean or "2买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["MONTH_WEEK_DAY_2BUY"]
+    if "MONTH_WEEK_DAY_3BUY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean and ("3BUY" in clean or "3买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["MONTH_WEEK_DAY_3BUY"]
+    if "SEASON_MONTH_WEEK_2BUY" in clean or ("SEASON" in clean and "MONTH" in clean and "WEEK" in clean and ("2BUY" in clean or "2买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["SEASON_MONTH_WEEK_2BUY"]
+    if "SEASON_MONTH_WEEK_3BUY" in clean or ("SEASON" in clean and "MONTH" in clean and "WEEK" in clean and ("3BUY" in clean or "3买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["SEASON_MONTH_WEEK_3BUY"]
+    if "WEEK_DAY_30F_2BUY" in clean or (("WEEK" in clean and "DAY" in clean and "30F" in clean) and ("2BUY" in clean or "2买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["WEEK_DAY_30F_2BUY"]
+    if "WEEK_DAY_30F_3BUY" in clean or (("WEEK" in clean and "DAY" in clean and "30F" in clean) and ("3BUY" in clean or "3买" in raw_str)):
+        return CHANLUN_PERIOD_PRESETS["WEEK_DAY_30F_3BUY"]
+
+    # 2. 季 月 周 (未指定具体 2/3 买)
+    if "SEASON_MONTH_WEEK" in clean or ("SEASON" in clean and "MONTH" in clean and "WEEK" in clean) or ("季" in raw_str and "月" in raw_str and "周" in raw_str) or clean in ("SEASON", "SEASONAL", "S"):
         return CHANLUN_PERIOD_PRESETS["SEASON_MONTH_WEEK"]
 
-    # 1. 30F 5F 1F
+    # 3. 30F 5F 1F
     if "30F_5F_1F" in clean or ("30F" in clean and "5F" in clean and "1F" in clean) or clean in ("30M", "30F", "1M", "5M"):
         return CHANLUN_PERIOD_PRESETS["30F_5F_1F"]
 
-    # 2. 日 30F 5F (默认)
-    if "DAY_30F_5F" in clean or ("DAY" in clean and "30F" in clean and "5F" in clean) or ("日" in str(raw_period) and "30" in str(raw_period) and "5" in str(raw_period)) or clean in ("DAY", "DAILY", "D"):
+    # 4. 日 30F 5F (默认)
+    if "DAY_30F_5F" in clean or ("DAY" in clean and "30F" in clean and "5F" in clean) or ("日" in raw_str and "30" in raw_str and "5" in raw_str) or clean in ("DAY", "DAILY", "D"):
         return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
 
-    # 3. 周 日 30F
-    if "WEEK_DAY_30F" in clean or ("WEEK" in clean and "DAY" in clean and "30F" in clean) or ("周" in str(raw_period) and "日" in str(raw_period) and "30" in str(raw_period)) or clean in ("WEEK", "WEEKLY", "W"):
+    # 5. 周 日 30F (未指定具体 2/3 买)
+    if "WEEK_DAY_30F" in clean or ("WEEK" in clean and "DAY" in clean and "30F" in clean) or ("周" in raw_str and "日" in raw_str and "30" in raw_str) or clean in ("WEEK", "WEEKLY", "W"):
         return CHANLUN_PERIOD_PRESETS["WEEK_DAY_30F"]
 
-    # 4. 月 周 日
-    if "MONTH_WEEK_DAY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean) or ("月" in str(raw_period) and "周" in str(raw_period) and "日" in str(raw_period)) or clean in ("MONTH", "MONTHLY", "M"):
+    # 6. 月 周 日 (未指定具体 2/3 买)
+    if "MONTH_WEEK_DAY" in clean or ("MONTH" in clean and "WEEK" in clean and "DAY" in clean) or ("月" in raw_str and "周" in raw_str and "日" in raw_str) or clean in ("MONTH", "MONTHLY", "M"):
         return CHANLUN_PERIOD_PRESETS["MONTH_WEEK_DAY"]
 
     return CHANLUN_PERIOD_PRESETS["DAY_30F_5F"]
@@ -600,6 +675,13 @@ def _evaluate_stock_for_strategy(
     elif strategy_name == "chanlun_resonance":
         cl_preset = None
         raw_p = str(period or "").strip().upper()
+        raw_str_p = str(period or "").strip()
+        target_buy = None
+        if "2BUY" in raw_p or "2买" in raw_str_p:
+            target_buy = "2BUY"
+        elif "3BUY" in raw_p or "3买" in raw_str_p:
+            target_buy = "3BUY"
+
         if raw_p in ("ALL_CASCADE", "ALL", "CASCADE", "级联"):
             res_mode = "ALL_CASCADE"
             eval_period = "DAY"
@@ -631,9 +713,16 @@ def _evaluate_stock_for_strategy(
         if strategy_name == "chanlun_resonance":
             from easy_tdx.chanlun.resonance import analyze_multi_period_resonance
 
+            if target_buy == "2BUY":
+                buy_match_keys = ("2BUY", "2买")
+            elif target_buy == "3BUY":
+                buy_match_keys = ("3BUY", "3买")
+            else:
+                buy_match_keys = ("2BUY", "3BUY", "2买", "3买")
+
             if res_mode == "SEASON_MONTH_WEEK":
                 # -------------------------------------------------------------
-                # 1. 季月周 共振：季月大买多头趋势共振，筛选出周线上出现2买3买的标的
+                # 1. 季月周 共振：季月大买多头趋势共振，筛选出周线上出现2买/3买的标的
                 # 快速前置过滤：排除月线见顶大卖杀跌 (0.005s淘汰无价值标的)
                 # -------------------------------------------------------------
                 if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
@@ -669,10 +758,10 @@ def _evaluate_stock_for_strategy(
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
 
-                # 周线上出现 2买或3买
+                # 周线上出现目标买点 (2买或3买)
                 week_buys = [
                     m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
                 ]
                 if not week_buys:
                     return None
@@ -687,7 +776,7 @@ def _evaluate_stock_for_strategy(
 
             elif res_mode == "MONTH_WEEK_DAY":
                 # -------------------------------------------------------------
-                # 2. 月周日 共振：月周大买多头趋势共振，筛选出日线上出现2买3买的标的
+                # 2. 月周日 共振：月周大买多头趋势共振，筛选出日线上出现2买/3买的标的
                 # 快速前置过滤：排除月线和周线见顶大卖杀跌 (0.005s淘汰60%+股票)
                 # -------------------------------------------------------------
                 if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
@@ -725,10 +814,10 @@ def _evaluate_stock_for_strategy(
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
 
-                # 日线上出现 2买或3买
+                # 日线上出现目标买点 (2买或3买)
                 day_buys = [
                     m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
                 ]
                 if not day_buys:
                     return None
@@ -743,7 +832,7 @@ def _evaluate_stock_for_strategy(
 
             elif res_mode == "WEEK_DAY_30F":
                 # -------------------------------------------------------------
-                # 3. 周日30F 共振：周日大买多头趋势共振，筛选出30F上出现2买3买的标的
+                # 3. 周日30F 共振：周日大买多头趋势共振，筛选出30F上出现2买/3买的标的
                 # 快速前置过滤：排除周线见顶大卖杀跌
                 # -------------------------------------------------------------
                 if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
@@ -779,10 +868,10 @@ def _evaluate_stock_for_strategy(
                 if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                     return None
 
-                # 30F 上出现 2买或3买
+                # 30F 上出现目标买点 (2买或3买)
                 f30_buys = [
                     m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in ("2BUY", "3BUY", "2买", "3买"))
+                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
                 ]
                 if not f30_buys:
                     return None
@@ -1717,20 +1806,41 @@ def _evaluate_stock_for_strategy(
                 res_dict["chan_periods"] = ["SEASON", "MONTH", "WEEK"]
                 res_dict["high_period"] = "SEASON"
                 res_dict["high_period_name"] = "季线"
-                res_dict["period_preset"] = "SEASON_MONTH_WEEK"
-                res_dict["period_preset_label"] = "季月周共振 (周线2买/3买)"
+                if target_buy == "2BUY":
+                    res_dict["period_preset"] = "SEASON_MONTH_WEEK_2BUY"
+                    res_dict["period_preset_label"] = "季月周共振 (周线 2买)"
+                elif target_buy == "3BUY":
+                    res_dict["period_preset"] = "SEASON_MONTH_WEEK_3BUY"
+                    res_dict["period_preset_label"] = "季月周共振 (周线 3买)"
+                else:
+                    res_dict["period_preset"] = "SEASON_MONTH_WEEK"
+                    res_dict["period_preset_label"] = "季月周共振 (周线 2买/3买)"
             elif res_mode == "WEEK_DAY_30F":
                 res_dict["chan_periods"] = ["WEEK", "DAY", "30F"]
                 res_dict["high_period"] = "WEEK"
                 res_dict["high_period_name"] = "周线"
-                res_dict["period_preset"] = "WEEK_DAY_30F"
-                res_dict["period_preset_label"] = "周日30F共振 (30F 2买/3买)"
+                if target_buy == "2BUY":
+                    res_dict["period_preset"] = "WEEK_DAY_30F_2BUY"
+                    res_dict["period_preset_label"] = "周日30F共振 (30F 2买)"
+                elif target_buy == "3BUY":
+                    res_dict["period_preset"] = "WEEK_DAY_30F_3BUY"
+                    res_dict["period_preset_label"] = "周日30F共振 (30F 3买)"
+                else:
+                    res_dict["period_preset"] = "WEEK_DAY_30F"
+                    res_dict["period_preset_label"] = "周日30F共振 (30F 2买/3买)"
             elif res_mode == "MONTH_WEEK_DAY":
                 res_dict["chan_periods"] = ["MONTH", "WEEK", "DAY"]
                 res_dict["high_period"] = "MONTH"
                 res_dict["high_period_name"] = "月线"
-                res_dict["period_preset"] = "MONTH_WEEK_DAY"
-                res_dict["period_preset_label"] = "月周日共振 (日线2买/3买)"
+                if target_buy == "2BUY":
+                    res_dict["period_preset"] = "MONTH_WEEK_DAY_2BUY"
+                    res_dict["period_preset_label"] = "月周日共振 (日线 2买)"
+                elif target_buy == "3BUY":
+                    res_dict["period_preset"] = "MONTH_WEEK_DAY_3BUY"
+                    res_dict["period_preset_label"] = "月周日共振 (日线 3买)"
+                else:
+                    res_dict["period_preset"] = "MONTH_WEEK_DAY"
+                    res_dict["period_preset_label"] = "月周日共振 (日线 2买/3买)"
             else:
                 res_dict["chan_periods"] = ["MONTH", "WEEK", "DAY", "30F", "5F"]
                 res_dict["high_period"] = "MONTH"
