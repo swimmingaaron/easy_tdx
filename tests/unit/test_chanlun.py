@@ -1064,3 +1064,89 @@ class TestChanlunMergedChart:
                 assert b.end.val < b.start.val
 
 
+class TestThirdMMDSubLevelVerification:
+    """验证第三类买卖点定理：次级别走势类型离开与回试在同一级别递归校验。"""
+
+    def test_sub_level_hierarchy_mapping(self):
+        """测试用户铁律要求的次级别探测阶梯严格映射。"""
+        from easy_tdx.chanlun.mmd import SUB_LEVEL_HIERARCHY
+
+        # 1. 周线 -> 日线、30F、5F、1F
+        assert SUB_LEVEL_HIERARCHY["WEEK"] == ["DAY", "30F", "5F", "1F"]
+        # 2. 日线 -> 30F、5F、1F
+        assert SUB_LEVEL_HIERARCHY["DAY"] == ["30F", "5F", "1F"]
+        # 3. 30F线 -> 5F、1F
+        assert SUB_LEVEL_HIERARCHY["30F"] == ["5F", "1F"]
+        # 4. 5F线 -> 1F
+        assert SUB_LEVEL_HIERARCHY["5F"] == ["1F"]
+
+    def test_verify_third_mmd_rejects_sub_level_break_zg(self):
+        """若次级别回踩走势类型跌破本级别中枢 ZG，必须严格一票否决。"""
+        from easy_tdx.chanlun.mmd import verify_third_mmd_by_sub_levels
+        from easy_tdx.chanlun.types import BI, FX, CLKline, Direction, FXType, Kline, MMD, MMDType, ZS
+
+        def make_fx(date_str, val, is_ding, idx):
+            k = CLKline(index=idx, k_index=idx, date=date_str, open=val, close=val, high=val, low=val, amount=100.0)
+            return FX(fx_type=FXType.DING if is_ding else FXType.DI, k=k, val=val, index=idx, klines=[k])
+
+        # 构造本级别中枢 ZG = 10.0
+        zs = ZS(start=make_fx("2025-01-01", 8.0, False, 0), end=make_fx("2025-01-15", 10.0, True, 3), zg=10.0, zd=8.0)
+        # 离开笔：从 10.0 到 15.0
+        leave_bi = BI(start=make_fx("2025-01-15", 10.0, False, 3), end=make_fx("2025-02-01", 15.0, True, 4), direction=Direction.UP, index=0, high=15.0, low=10.0)
+        # 本级别回踩笔：看起来低点是 10.5 (高于 ZG 10.0)
+        pullback_bi = BI(start=make_fx("2025-02-01", 15.0, True, 4), end=make_fx("2025-02-15", 10.5, False, 5), direction=Direction.DOWN, index=1, high=15.0, low=10.5)
+
+        mmd = MMD(mmd_type=MMDType.BUY_3, zs=zs, bi=pullback_bi)
+
+        # 模拟次级别：在回踩期间有一根 K 线插针跌破了 10.0 (low=9.8)
+        class MockSubRes:
+            klines = [
+                Kline(index=0, date="2025-01-15 10:00", open=10.0, close=12.0, high=12.0, low=10.0, amount=100.0),
+                Kline(index=1, date="2025-02-05 10:00", open=12.0, close=9.8, high=12.0, low=9.8, amount=100.0),  # 跌破 ZG!
+                Kline(index=2, date="2025-02-15 10:00", open=9.8, close=10.5, high=10.5, low=9.8, amount=100.0),
+            ]
+            bis = []
+
+        is_valid, sub_lvl, msg = verify_third_mmd_by_sub_levels(
+            "MOCK", "DAY", mmd, [leave_bi, pullback_bi],
+            sub_results={"30F": MockSubRes()}
+        )
+        assert is_valid is False
+        assert "跌破本级别中枢ZG" in msg
+
+    def test_verify_third_mmd_confirms_valid_sub_level(self):
+        """次级别回踩走势类型低点未破 ZG，必须成功确认并返回次级别名称与详情。"""
+        from easy_tdx.chanlun.mmd import verify_third_mmd_by_sub_levels
+        from easy_tdx.chanlun.types import BI, FX, CLKline, Direction, FXType, Kline, MMD, MMDType, ZS
+
+        def make_fx(date_str, val, is_ding, idx):
+            k = CLKline(index=idx, k_index=idx, date=date_str, open=val, close=val, high=val, low=val, amount=100.0)
+            return FX(fx_type=FXType.DING if is_ding else FXType.DI, k=k, val=val, index=idx, klines=[k])
+
+        zs = ZS(start=make_fx("2025-01-01", 8.0, False, 0), end=make_fx("2025-01-15", 10.0, True, 3), zg=10.0, zd=8.0)
+        leave_bi = BI(start=make_fx("2025-01-15", 10.0, False, 3), end=make_fx("2025-02-01", 15.0, True, 4), direction=Direction.UP, index=0, high=15.0, low=10.0)
+        pullback_bi = BI(start=make_fx("2025-02-01", 15.0, True, 4), end=make_fx("2025-02-15", 11.2, False, 5), direction=Direction.DOWN, index=1, high=15.0, low=11.2)
+        mmd = MMD(mmd_type=MMDType.BUY_3, zs=zs, bi=pullback_bi)
+
+        # 模拟次级别：回踩全程最低点 11.0 >= ZG 10.0
+        class MockSubRes:
+            klines = [
+                Kline(index=0, date="2025-01-15 10:00", open=10.0, close=15.0, high=15.0, low=10.0, amount=100.0),
+                Kline(index=1, date="2025-02-05 10:00", open=15.0, close=12.0, high=15.0, low=11.0, amount=100.0),
+                Kline(index=2, date="2025-02-15 10:00", open=12.0, close=11.2, high=12.5, low=11.0, amount=100.0),
+            ]
+            bis = [
+                BI(start=make_fx("2025-01-15 10:00", 10.0, False, 0), end=make_fx("2025-02-01 10:00", 15.0, True, 1), direction=Direction.UP, index=0, high=15.0, low=10.0),
+                BI(start=make_fx("2025-02-01 10:00", 15.0, True, 1), end=make_fx("2025-02-15 10:00", 11.2, False, 2), direction=Direction.DOWN, index=1, high=15.0, low=11.0),
+            ]
+
+        is_valid, sub_lvl, msg = verify_third_mmd_by_sub_levels(
+            "MOCK", "DAY", mmd, [leave_bi, pullback_bi],
+            sub_results={"30F": MockSubRes()}
+        )
+        assert is_valid is True
+        assert sub_lvl == "30F"
+        assert "30F次级别走势类型确认" in msg
+
+
+

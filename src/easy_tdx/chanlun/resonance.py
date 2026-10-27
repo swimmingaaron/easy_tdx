@@ -1498,6 +1498,41 @@ def analyze_multi_period_resonance(
             for p, f in ana_futs.items():
                 results[p] = f.result()
 
+    # 4.4B 依据缠论第三类买卖点定理执行次级别同一级别走势类型递归校验与重新标识：
+    # 铁律：
+    # 1. 周线：去周线以下次级别 (DAY, 30F, 5F, 1F) 中寻找，离开与回踩走势类型必须是同一级别；
+    # 2. 日线：去日线以下次级别 (30F, 5F, 1F) 中寻找，必须是同一级别；
+    # 3. 30F线：去 30F 以下次级别 (5F, 1F) 中寻找，必须是同一级别；
+    # 4. 5F线：去 5F 以下次级别 (1F) 中寻找，必须是同一级别。
+    from easy_tdx.chanlun.mmd import verify_third_mmd_by_sub_levels
+    for p_key in p_list:
+        p_res = results.get(p_key)
+        if not p_res:
+            continue
+        verified_mmds = []
+        for m in p_res.mmds:
+            if m.mmd_type in (MMDType.BUY_3, MMDType.SELL_3):
+                is_valid, conf_sub, detail_msg = verify_third_mmd_by_sub_levels(
+                    clean_code,
+                    p_key,
+                    m,
+                    p_res.bis,
+                    sub_results=results,
+                    sub_dfs=dfs,
+                )
+                if is_valid:
+                    m.confirmed_sub_level = conf_sub
+                    m.sub_confirm_detail = detail_msg
+                    verified_mmds.append(m)
+                else:
+                    logger.debug(
+                        "3买卖点未通过次级别检验被过滤: code=%s period=%s date=%s reason=%s",
+                        clean_code, p_key, m.bi.end.k.date if m.bi else "", detail_msg
+                    )
+            else:
+                verified_mmds.append(m)
+        p_res.mmds = verified_mmds
+
     # 运行共振引擎（单周期无需共振识别）
     engine = ThreePeriodResonanceEngine(high_p, mid_p, low_p, results)
     resonances = [] if is_single_period else engine.scan_resonances()
@@ -1802,10 +1837,12 @@ def analyze_multi_period_resonance(
                 category = "steady_2buy"
                 trade_msg = f"【{low_short_name}稳健买点】回踩不破前低起涨确认，避开大级别确认滞后，高胜率相对低吸点。"
             elif "3buy" in m_type:
-                label_txt = f"[{low_short_name}]3买(主升起爆)"
-                short_label = f"[{low_short_name}]3买"
+                sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                label_txt = f"[{low_short_name}]3买{sub_tag}"
+                short_label = f"[{low_short_name}]3买{sub_tag}"
                 category = "breakout_3buy"
-                trade_msg = f"【{low_short_name}中枢突破3买】突破中枢回抽不破中枢上沿，主升浪起爆点，动能强劲。"
+                sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                trade_msg = f"【{low_short_name}中枢突破3买】次级别离开走势与回抽走势完成，低点不破中枢上沿ZG({mmd.zs.zg if mmd.zs else ''})，主升浪起跑点。{sub_detail}"
             elif "1sell" in m_type:
                 label_txt = f"[{low_short_name}]1卖(极高)"
                 short_label = f"[{low_short_name}]1卖"
@@ -1817,10 +1854,12 @@ def analyze_multi_period_resonance(
                 category = "defense_2sell"
                 trade_msg = f"【{low_short_name}清仓卖点】冲高回落反弹不创新高，多头动能枯竭，清仓或破位防守。"
             elif "3sell" in m_type:
-                label_txt = f"[{low_short_name}]3卖(破位下杀)"
-                short_label = f"[{low_short_name}]3卖"
+                sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                label_txt = f"[{low_short_name}]3卖{sub_tag}"
+                short_label = f"[{low_short_name}]3卖{sub_tag}"
                 category = "breakdown_3sell"
-                trade_msg = f"【{low_short_name}中枢破位3卖】跌破中枢反抽不入中枢，加速下杀风险，坚决空仓规避。"
+                sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                trade_msg = f"【{low_short_name}中枢破位3卖】次级别离开走势与反抽走势完成，高点不破中枢下沿ZD({mmd.zs.zd if mmd.zs else ''})，加速下杀风险。{sub_detail}"
             else:
                 label_txt = f"[{low_short_name}]{mmd.mmd_type.value.upper()}"
                 short_label = label_txt
@@ -1861,10 +1900,12 @@ def analyze_multi_period_resonance(
                         category = "mid_2buy"
                         trade_msg = f"【{mid_short_name}稳健2买】次级别回踩不破前低，中周期起涨确认点。"
                     elif "3buy" in m_type:
-                        label_txt = f"[{mid_short_name}]主升3买"
-                        short_label = f"[{mid_short_name}]主升3买"
+                        sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                        label_txt = f"[{mid_short_name}]主升3买{sub_tag}"
+                        short_label = f"[{mid_short_name}]3买{sub_tag}"
                         category = "mid_3buy"
-                        trade_msg = f"【{mid_short_name}主升3买】次级别突破中枢回抽确认，主升起跑。"
+                        sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                        trade_msg = f"【{mid_short_name}主升3买】次级别突破中枢回抽确认不破中枢上沿，主升起跑。{sub_detail}"
                     elif "1sell" in m_type:
                         label_txt = f"[{mid_short_name}]极高1卖"
                         short_label = f"[{mid_short_name}]极高1卖"
@@ -1876,10 +1917,12 @@ def analyze_multi_period_resonance(
                         category = "mid_2sell"
                         trade_msg = f"【{mid_short_name}清仓2卖】次级别反弹不破前高，波段清仓防守。"
                     elif "3sell" in m_type:
-                        label_txt = f"[{mid_short_name}]破位3卖"
-                        short_label = f"[{mid_short_name}]破位3卖"
+                        sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                        label_txt = f"[{mid_short_name}]破位3卖{sub_tag}"
+                        short_label = f"[{mid_short_name}]3卖{sub_tag}"
                         category = "mid_3sell"
-                        trade_msg = f"【{mid_short_name}破位3卖】跌破次级别中枢反抽不入，离场避险。"
+                        sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                        trade_msg = f"【{mid_short_name}破位3卖】跌破次级别中枢反抽不入，离场避险。{sub_detail}"
                     else:
                         label_txt = f"[{mid_short_name}]{mmd.mmd_type.value.upper()}"
                         short_label = label_txt
@@ -1920,10 +1963,12 @@ def analyze_multi_period_resonance(
                         category = "high_2buy"
                         trade_msg = f"【{high_short_name}大级别2买】大级别右侧回踩不破底，中长线安全边际最高。"
                     elif "3buy" in m_type:
-                        label_txt = f"[{high_short_name}]大级别3买"
-                        short_label = f"[{high_short_name}]大3买"
+                        sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                        label_txt = f"[{high_short_name}]大级别3买{sub_tag}"
+                        short_label = f"[{high_short_name}]大3买{sub_tag}"
                         category = "high_3buy"
-                        trade_msg = f"【{high_short_name}大级别3买】突破大级别中枢，超大级别主升浪起爆点。"
+                        sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                        trade_msg = f"【{high_short_name}大级别3买】突破大级别中枢次级别回抽确认不破中枢上沿，超大级别主升浪起爆点。{sub_detail}"
                     elif "1sell" in m_type:
                         label_txt = f"[{high_short_name}]大级别1卖(趋势确认)"
                         short_label = f"[{high_short_name}]大1卖"
@@ -1935,10 +1980,12 @@ def analyze_multi_period_resonance(
                         category = "high_2sell"
                         trade_msg = f"【{high_short_name}大级别2卖】反弹不过大级别前高，大周期趋势转熊防御。"
                     elif "3sell" in m_type:
-                        label_txt = f"[{high_short_name}]大级别3卖"
-                        short_label = f"[{high_short_name}]大3卖"
+                        sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                        label_txt = f"[{high_short_name}]大级别3卖{sub_tag}"
+                        short_label = f"[{high_short_name}]大3卖{sub_tag}"
                         category = "high_3sell"
-                        trade_msg = f"【{high_short_name}大级别3卖】跌破大级别中枢，进入大周期下行熊途。"
+                        sub_detail = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                        trade_msg = f"【{high_short_name}大级别3卖】跌破大级别中枢反抽不入，进入大周期下行熊途。{sub_detail}"
                     else:
                         label_txt = f"[{high_short_name}]大级别{mmd.mmd_type.value.upper()}"
                         short_label = label_txt
@@ -2259,6 +2306,53 @@ def analyze_multi_period_resonance(
                 "exp50": [safe_float(v) for v in p_e50],
             }
 
+        # 针对当前独立分屏周期，提取其专属的买卖点标记（包含次级别走势类型确认信息）
+        p_mmd_marks = []
+        p_short = PERIOD_SPECS[p]["short_name"]
+        for mmd in p_res.mmds:
+            if mmd.bi and 0 <= mmd.bi.end.k.k_index < len(p_dates):
+                k_idx = mmd.bi.end.k.k_index
+                m_type = mmd.mmd_type.value.lower()
+                is_buy = "buy" in m_type
+                if "3buy" in m_type:
+                    sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                    lbl = f"[{p_short}]3买{sub_tag}"
+                    sub_det = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                    msg = f"【{PERIOD_SPECS[p]['label']}3买】次级别离开走势与回抽走势完成，低点不跌破中枢上沿ZG({mmd.zs.zg if mmd.zs else ''})。{sub_det}"
+                elif "3sell" in m_type:
+                    sub_tag = f"({mmd.confirmed_sub_level}确认)" if mmd.confirmed_sub_level else ""
+                    lbl = f"[{p_short}]3卖{sub_tag}"
+                    sub_det = f" 【次级别验证】{mmd.sub_confirm_detail}" if mmd.sub_confirm_detail else ""
+                    msg = f"【{PERIOD_SPECS[p]['label']}3卖】次级别离开走势与反抽走势完成，高点不升破中枢下沿ZD({mmd.zs.zd if mmd.zs else ''})。{sub_det}"
+                elif "1buy" in m_type:
+                    lbl = f"[{p_short}]1买"
+                    msg = f"【{p_short}1买】底背驰极值拐点。"
+                elif "2buy" in m_type:
+                    lbl = f"[{p_short}]2买"
+                    msg = f"【{p_short}2买】回踩不破前低确认。"
+                elif "1sell" in m_type:
+                    lbl = f"[{p_short}]1卖"
+                    msg = f"【{p_short}1卖】顶背驰极高点逃顶。"
+                elif "2sell" in m_type:
+                    lbl = f"[{p_short}]2卖"
+                    msg = f"【{p_short}2卖】反弹不过前高防守。"
+                else:
+                    lbl = f"[{p_short}]{mmd.mmd_type.value.upper()}"
+                    msg = mmd.msg
+
+                p_mmd_marks.append({
+                    "coord": [p_dates[k_idx], mmd.bi.end.val],
+                    "date": p_dates[k_idx],
+                    "price": round(mmd.bi.end.val, 2),
+                    "type": mmd.mmd_type.value.upper(),
+                    "level": "low",
+                    "label": lbl,
+                    "short_label": f"[{p_short}]{mmd.mmd_type.value.upper()}",
+                    "category": m_type,
+                    "is_buy": is_buy,
+                    "msg": msg,
+                })
+
         levels_data[p] = {
             "period": p,
             "label": PERIOD_SPECS[p]["label"],
@@ -2267,6 +2361,7 @@ def analyze_multi_period_resonance(
             "candles": p_candles,
             "bis": p_bis,
             "zss": p_zss,
+            "mmds": p_mmd_marks,
             "macd": {
                 "hist": [round(h * 2, 3) for h in (p_macd.get("hist") or [])],
                 "dif": [round(d, 3) for d in (p_macd.get("dif") or [])],
@@ -2289,7 +2384,7 @@ def analyze_multi_period_resonance(
                 high_zss=[],
                 mid_bis=[],
                 mid_zss=[],
-                mmd_marks=[],
+                mmd_marks=p_mmd_marks,
                 res_marks=[],
                 clean_code=clean_code,
                 is_backtracking=is_backtracking,

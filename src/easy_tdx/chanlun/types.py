@@ -189,9 +189,12 @@ class MMD:
     zs: ZS | None = None
     bi: BI | None = None  # 触发该买卖点的笔（用于可视化锚定日期）
     msg: str = ""
+    confirmed_sub_level: str | None = None  # 严格确认该3买卖点的次级别（如 "DAY", "30F", "5F", "1F"）
+    sub_confirm_detail: str | None = None  # 次级别走势类型确认详情说明
 
     def __str__(self) -> str:
-        return f"MMD({self.mmd_type.value} {self.msg})"
+        sub_info = f" [{self.confirmed_sub_level}确认]" if self.confirmed_sub_level else ""
+        return f"MMD({self.mmd_type.value}{sub_info} {self.msg})"
 
 
 class BCType(str, Enum):

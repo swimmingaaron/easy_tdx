@@ -352,3 +352,154 @@ def _check_force_decreasing(
                     return True
 
     return False
+
+
+# ── 次级别走势类型同一级别递归校验（第三类买卖点定理） ────────────────────────────
+# 缠中说禅《教你炒股票20课》走势中枢级别扩张与第三类买卖点定理：
+# 一个次级别走势类型向上离开走势中枢，然后以一个次级别走势类型回试，其低点不跌破 ZG，则构成第三类买点；
+# 一个次级别走势类型向下离开走势中枢，然后以一个次级别走势类型回抽，其高点不升破 ZD，则构成第三类卖点。
+# 铁律：
+# 1. 周线：去周线以下次级别 (DAY, 30F, 5F, 1F) 中寻找，离开走势类型与回踩走势类型必须是同一级别；
+# 2. 日线：去日线以下次级别 (30F, 5F, 1F) 中寻找，必须是同一级别；
+# 3. 30F线：去 30F 以下次级别 (5F, 1F) 中寻找，必须是同一级别；
+# 4. 5F线：去 5F 以下次级别 (1F) 中寻找，必须是同一级别。
+
+SUB_LEVEL_HIERARCHY: dict[str, list[str]] = {
+    "SEASON": ["MONTH", "WEEK", "DAY", "30F", "5F", "1F"],
+    "QUARTER": ["MONTH", "WEEK", "DAY", "30F", "5F", "1F"],
+    "MONTH": ["WEEK", "DAY", "30F", "5F", "1F"],
+    "WEEK": ["DAY", "30F", "5F", "1F"],
+    "DAY": ["30F", "5F", "1F"],
+    "120M": ["30F", "5F", "1F"],
+    "60M": ["15F", "5F", "1F"],
+    "30M": ["5F", "1F"],
+    "30F": ["5F", "1F"],
+    "15M": ["5F", "1F"],
+    "15F": ["5F", "1F"],
+    "5M": ["1F"],
+    "5F": ["1F"],
+    "1M": [],
+    "1F": [],
+}
+
+
+def verify_third_mmd_by_sub_levels(
+    code: str,
+    cur_period: str,
+    mmd: MMD,
+    all_bis: list[BI],
+    sub_results: dict[str, Any] | None = None,
+    sub_dfs: dict[str, Any] | None = None,
+) -> tuple[bool, str | None, str]:
+    """严格按照缠论定理对第三类买卖点进行次级别走势类型校验。
+
+    Args:
+        code: 标的代码
+        cur_period: 当前本级别周期（如 WEEK, DAY, 30F, 5F）
+        mmd: 待校验的买卖点对象
+        all_bis: 本级别所有笔列表
+        sub_results: 外部预加载的次级别 ChanlunResult 字典（可选）
+        sub_dfs: 外部预加载的次级别 DataFrame 字典（可选）
+
+    Returns:
+        (is_valid, confirmed_sub_level, detail_msg)
+    """
+    if mmd.mmd_type not in (MMDType.BUY_3, MMDType.SELL_3):
+        return True, None, ""
+
+    zs = mmd.zs
+    pullback_bi = mmd.bi
+    if not zs or not pullback_bi:
+        return False, None, "缺少中枢或触发笔"
+
+    p_idx = pullback_bi.index
+    leave_bi = all_bis[p_idx - 1] if p_idx >= 1 else None
+    if not leave_bi:
+        return False, None, "缺少离开笔"
+
+    t_leave_start = str(leave_bi.start.k.date)
+    t_pullback_start = str(pullback_bi.start.k.date)
+    t_pullback_end = str(pullback_bi.end.k.date)
+    is_buy = mmd.mmd_type == MMDType.BUY_3
+
+    norm_period = cur_period.upper()
+    candidates = SUB_LEVEL_HIERARCHY.get(norm_period, [])
+    if not candidates:
+        return True, norm_period, f"{norm_period}最小基准周期"
+
+    from easy_tdx.chanlun.analyser import ChanlunAnalyser
+    from easy_tdx.market_data import fetch_security_kline
+
+    cached_res = sub_results.copy() if sub_results else {}
+    cached_dfs = sub_dfs.copy() if sub_dfs else {}
+
+    had_data_candidate = False
+
+    for sub_p in candidates:
+        sub_res = cached_res.get(sub_p)
+        if sub_res is None:
+            df = cached_dfs.get(sub_p)
+            if df is None or df.empty:
+                try:
+                    cnt = 12000 if sub_p in ("5F", "5M", "1F", "1M") else 3200
+                    df = fetch_security_kline(code, sub_p, count=cnt)
+                except Exception:
+                    df = None
+            if df is not None and not df.empty:
+                cached_dfs[sub_p] = df
+                try:
+                    sub_res = ChanlunAnalyser(code, sub_p).process_klines(df)
+                    cached_res[sub_p] = sub_res
+                except Exception:
+                    sub_res = None
+
+        if not sub_res or not sub_res.klines:
+            continue
+
+        # 检查该次级别是否能够覆盖离开段起始时间
+        sub_first_dt = str(sub_res.klines[0].date)[:10]
+        if sub_first_dt > t_leave_start[:10]:
+            # 该次级别历史覆盖不足，顺延至下一个次级别候选
+            continue
+
+        had_data_candidate = True
+
+        # 1. 回试段次级别严密价格约束（同一级别）
+        sub_pb_klines = [
+            k for k in sub_res.klines
+            if t_pullback_start <= str(k.date) <= t_pullback_end
+            or (t_pullback_start[:10] <= str(k.date)[:10] <= t_pullback_end[:10])
+        ]
+        if not sub_pb_klines:
+            continue
+
+        if is_buy:
+            min_sub_low = min(k.low for k in sub_pb_klines)
+            # 严格价格公理：次级别回踩任何一瞬间均绝不能跌破本级别中枢 ZG
+            if min_sub_low < zs.zg * 0.998:
+                return False, sub_p, f"次级别{sub_p}回踩低点({min_sub_low:.2f})跌破本级别中枢ZG({zs.zg:.2f})"
+        else:
+            max_sub_high = max(k.high for k in sub_pb_klines)
+            # 严格价格公理：次级别反抽任何一瞬间均绝不能升破本级别中枢 ZD
+            if max_sub_high > zs.zd * 1.002:
+                return False, sub_p, f"次级别{sub_p}反抽高点({max_sub_high:.2f})升破本级别中枢ZD({zs.zd:.2f})"
+
+        # 2. 离开段与回踩段走势类型结构统计（同一级别）
+        sub_leave_bis = [
+            b for b in sub_res.bis
+            if t_leave_start[:10] <= str(b.start.k.date)[:10] and str(b.end.k.date)[:10] <= t_pullback_start[:10]
+        ]
+        sub_pb_bis = [
+            b for b in sub_res.bis
+            if t_pullback_start[:10] <= str(b.start.k.date)[:10] and str(b.end.k.date)[:10] <= t_pullback_end[:10]
+        ]
+
+        # 3. 满足同一级别走势类型要求
+        low_high_str = f"低点={min_sub_low:.2f}>=ZG({zs.zg:.2f})" if is_buy else f"高点={max_sub_high:.2f}<=ZD({zs.zd:.2f})"
+        detail = f"{sub_p}次级别走势类型确认(离开{len(sub_leave_bis)}笔, 回试{len(sub_pb_bis)}笔, {low_high_str})"
+        return True, sub_p, detail
+
+    if not had_data_candidate:
+        return True, None, "远古历史次级别数据未覆盖，本级别笔结构保留"
+
+    return False, None, "未找到满足离开与回试条件的同一级别次级别走势类型"
