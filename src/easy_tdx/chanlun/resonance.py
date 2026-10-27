@@ -1276,9 +1276,9 @@ def analyze_multi_period_resonance(
         }
     else:
         req_counts = {
-            high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (250 if high_p == "WEEK" else 800)),
-            mid_p: 120 if mid_p == "MONTH" else (250 if mid_p == "WEEK" else 800),
-            low_p: 250 if low_p == "WEEK" else 800,
+            high_p: 60 if high_p in ("SEASON", "QUARTER") else (120 if high_p == "MONTH" else (350 if high_p == "WEEK" else 800)),
+            mid_p: 120 if mid_p == "MONTH" else (350 if mid_p == "WEEK" else 800),
+            low_p: 350 if low_p == "WEEK" else 800,
         }
     # 5F / 30F / 15F / 1F 分钟线动态适配：由调用者传入的 count 驱动（支持缩放动态按需扩充，默认 800 根秒出）
     for p in p_list:
@@ -1315,7 +1315,7 @@ def analyze_multi_period_resonance(
         elif p_name == "MONTH":
             target_cnt = 120  # 最大安全拉取 120 根
         elif p_name == "WEEK":
-            target_cnt = 250  # 最大安全拉取 250 根
+            target_cnt = 350  # 安全拉取 350 根周线（覆盖约 7 年历史波段）
         elif p_name in ("DAY", "120M", "60M"):
             target_cnt = 500 if screener_mode else max(needed_cnt, 800)
         elif p_name in ("5F", "5M"):

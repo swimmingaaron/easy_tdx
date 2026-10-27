@@ -62,6 +62,29 @@ def _can_form_bi(
     if bars_count < min_bars:
         return False
 
+    # 4. 笔内无倒挂公理（扫描两端之间的所有合并处理后 K 线）：
+    # - 向上笔：起点必须是笔内最低价，终点必须是笔内最高价；
+    # - 向下笔：起点必须是笔内最高价，终点必须是笔内最低价。
+    if cklines:
+        lo = min(s_idx, e_idx)
+        hi = max(s_idx, e_idx)
+        if start.fx_type == FXType.DI:
+            # 向上笔：起点必须是笔内最低价，终点必须是笔内最高价
+            min_low = min(ck.low for ck in cklines[lo : hi + 1])
+            if min_low < start.val * 0.999:
+                return False
+            max_high = max(ck.high for ck in cklines[lo : hi + 1])
+            if max_high > end.val * 1.001:
+                return False
+        else:
+            # 向下笔：起点必须是笔内最高价，终点必须是笔内最低价
+            max_high = max(ck.high for ck in cklines[lo : hi + 1])
+            if max_high > start.val * 1.001:
+                return False
+            min_low = min(ck.low for ck in cklines[lo : hi + 1])
+            if min_low < end.val * 0.999:
+                return False
+
     return True
 
 
@@ -125,8 +148,22 @@ def find_bis(
     first_end_idx = -1
     for i in range(len(sorted_fxs)):
         s_fx = sorted_fxs[i]
+        found_first = False
         for j in range(i + 1, len(sorted_fxs)):
             e_fx = sorted_fxs[j]
+            # 核心防倒挂/防穿越：在到达 e_fx 之前，若已被反向击穿，则起点 s_fx 作废
+            if cklines:
+                lo_idx = min(s_fx.k.index, e_fx.k.index)
+                hi_idx = max(s_fx.k.index, e_fx.k.index)
+                if s_fx.fx_type == FXType.DI:
+                    # 寻找向上笔期间若跌穿起点底分型，说明处于下跌中，s_fx 不是有效笔起点
+                    if any(ck.low < s_fx.val * 0.999 for ck in cklines[lo_idx : hi_idx + 1]):
+                        break
+                else:
+                    # 寻找向下笔期间若涨破起点顶分型，说明处于上涨中，s_fx 不是有效笔起点
+                    if any(ck.high > s_fx.val * 1.001 for ck in cklines[lo_idx : hi_idx + 1]):
+                        break
+
             if _can_form_bi(s_fx, e_fx, config, cklines):
                 direction = Direction.UP if s_fx.fx_type == FXType.DI else Direction.DOWN
                 if cklines:
@@ -136,8 +173,9 @@ def find_bis(
                     low = min(s_fx.val, e_fx.val)
                 bis.append(BI(start=s_fx, end=e_fx, direction=direction, index=0, high=high, low=low))
                 first_end_idx = j
+                found_first = True
                 break
-        if bis:
+        if found_first:
             break
 
     if not bis:

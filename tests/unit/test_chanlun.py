@@ -1048,4 +1048,19 @@ class TestChanlunMergedChart:
         zs0_3buys = [m for m in mmds if m.zs == zs0 and m.mmd_type == MMDType.BUY_3]
         assert len(zs0_3buys) == 0
 
+    def test_bi_no_cross_year_inversion_bug(self):
+        """测试笔划分绝不允许跨越多波段反向穿透倒挂（例如北京君正周线历史遗留的 250 根周线吞噬 Bug）。"""
+        from easy_tdx.market_data import fetch_security_kline
+        from easy_tdx.chanlun.analyser import ChanlunAnalyser
+        from easy_tdx.chanlun.types import Direction
+        df = fetch_security_kline("300223", period="WEEK", count=250, force_refresh=True)
+        res = ChanlunAnalyser("300223", "WEEK").process_klines(df)
+        assert len(res.bis) >= 15, f"250 根周线识别的笔数应至少大于 15 笔，实际得到 {len(res.bis)}"
+        for b in res.bis:
+            # 严格验证无倒挂
+            if b.direction == Direction.UP:
+                assert b.end.val > b.start.val
+            else:
+                assert b.end.val < b.start.val
+
 
