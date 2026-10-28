@@ -47,16 +47,16 @@ def _resolve_web_dist_dir() -> Path | None:
         if p.is_dir():
             return p
 
-    # 开发态优先：仓库根目录的 web-ui/dist（只要存在且包含 index.html 就优先使用最新构建产物）
-    repo_root = Path(__file__).resolve().parents[3]
-    dev_dist = repo_root / "web-ui" / "dist"
-    if dev_dist.is_dir() and (dev_dist / "index.html").is_file():
-        return dev_dist
-
-    # 回退使用包内的 web/dist（全景量化投研工作台 index.html / wheel 安装态）
+    # 优先使用包内的 web/dist（全景量化投研工作台 index.html）
     pkg_dist = Path(__file__).resolve().parent / "dist"
     if pkg_dist.is_dir() and (pkg_dist / "index.html").is_file():
         return pkg_dist
+
+    # 开发态回退：从 src/easy_tdx/web/app.py 回溯到仓库根的 web-ui/dist
+    repo_root = Path(__file__).resolve().parents[3]
+    p = repo_root / "web-ui" / "dist"
+    if p.is_dir():
+        return p
 
     return None
 
