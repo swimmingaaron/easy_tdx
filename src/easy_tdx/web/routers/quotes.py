@@ -424,7 +424,7 @@ def get_kline(
                     return res_slice
     
     fetch_n = max(800, n_bars)
-    if clean_end_date and str(period).upper() in ("1M", "5M", "15M", "30M", "60M"):
+    if clean_end_date and str(period).upper() in ("1M", "5M", "15M", "30M", "60M", "120M", "1F", "5F", "15F", "30F", "60F", "120F"):
         fetch_n = max(2400, n_bars)
     df = fetch_security_kline(raw_sym, count=fetch_n, period=period, adjust=adj_str)
     if clean_end_date and df is not None and not df.empty and "datetime" in df.columns:
@@ -857,7 +857,7 @@ def get_kline(
 
     # Calibrate net_inflow on daily bars with TDX Level-2 official capital flows
     is_daily_period = str(period).upper() in ("DAY", "DAILY")
-    is_minute_period = any(p in str(period).upper() for p in ("1M", "5M", "15M", "30M", "60M", "120M", "MIN")) or str(period) in ("1", "5", "15", "30", "60", "120")
+    is_minute_period = any(p in str(period).upper() for p in ("1M", "5M", "15M", "30M", "60M", "120M", "MIN", "1F", "5F", "15F", "30F", "60F", "120F")) or str(period) in ("1", "5", "15", "30", "60", "120")
 
     if not clean_end_date and is_daily_period and bars_data and (m1_real != 0.0 or m3_real != 0.0 or m5_real != 0.0):
         bars_data[-1]["net_inflow"] = round(m1_real, 2)

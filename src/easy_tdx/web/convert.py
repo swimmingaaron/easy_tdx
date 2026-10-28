@@ -33,14 +33,60 @@ def category_from_str(s: str) -> Any:
     """将字符串转为 KlineCategory 枚举，支持大小写和数字字符串。"""
     from easy_tdx.models.enums import KlineCategory
 
-    key = s.upper()
+    key = str(s).strip().upper()
     # 支持纯数字（如 "4" 表示日线）
     try:
         return KlineCategory(int(key))
     except (ValueError, TypeError):
         pass
+
+    alias_map = {
+        "1F": "MIN_1",
+        "1M": "MIN_1",
+        "1MIN": "MIN_1",
+        "1": "MIN_1",
+        "5F": "MIN_5",
+        "5M": "MIN_5",
+        "5MIN": "MIN_5",
+        "5": "MIN_5",
+        "15F": "MIN_15",
+        "15M": "MIN_15",
+        "15MIN": "MIN_15",
+        "15": "MIN_15",
+        "30F": "MIN_30",
+        "30M": "MIN_30",
+        "30MIN": "MIN_30",
+        "30": "MIN_30",
+        "60F": "MIN_60",
+        "60M": "MIN_60",
+        "60MIN": "MIN_60",
+        "60": "MIN_60",
+        "1H": "MIN_60",
+        "120F": "MIN_60",
+        "120M": "MIN_60",
+        "120MIN": "MIN_60",
+        "120": "MIN_60",
+        "2H": "MIN_60",
+        "DAY": "DAY",
+        "DAILY": "DAY",
+        "D": "DAY",
+        "WEEK": "WEEK",
+        "WEEKLY": "WEEK",
+        "W": "WEEK",
+        "MONTH": "MONTH",
+        "MONTHLY": "MONTH",
+        "M": "MONTH",
+        "SEASON": "SEASON",
+        "QUARTER": "SEASON",
+        "QUARTERLY": "SEASON",
+        "Q": "SEASON",
+        "YEAR": "YEAR",
+        "YEARLY": "YEAR",
+        "Y": "YEAR",
+    }
+    mapped_key = alias_map.get(key, key)
     try:
-        return KlineCategory[KlineCategoryEnum[key].name]
+        return KlineCategory[KlineCategoryEnum[mapped_key].name]
     except KeyError:
         valid = ", ".join(c.name for c in KlineCategoryEnum)
         raise ValueError(f"无效K线周期 '{s}'，可选值: {valid}") from None

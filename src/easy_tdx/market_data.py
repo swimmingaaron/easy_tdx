@@ -267,27 +267,48 @@ def fetch_security_kline(
     is_120m = False
     if isinstance(category, str):
         c_upper = category.upper()
-        if c_upper in ("120M", "MIN_120", "120MIN", "120"):
+        if c_upper in ("120M", "MIN_120", "120MIN", "120", "120F", "2H"):
             is_120m = True
             category = KlineCategory.MIN_60
         else:
             cat_map = {
                 "DAY": KlineCategory.DAY,
+                "D": KlineCategory.DAY,
+                "DAILY": KlineCategory.DAY,
                 "WEEK": KlineCategory.WEEK,
+                "W": KlineCategory.WEEK,
+                "WEEKLY": KlineCategory.WEEK,
                 "MONTH": KlineCategory.MONTH,
+                "M": KlineCategory.MONTH,
+                "MONTHLY": KlineCategory.MONTH,
                 "SEASON": KlineCategory.SEASON,
                 "QUARTER": KlineCategory.SEASON,
+                "QUARTERLY": KlineCategory.SEASON,
+                "Q": KlineCategory.SEASON,
                 "YEAR": KlineCategory.YEAR,
+                "Y": KlineCategory.YEAR,
+                "YEARLY": KlineCategory.YEAR,
                 "60M": KlineCategory.MIN_60,
                 "MIN_60": KlineCategory.MIN_60,
+                "60F": KlineCategory.MIN_60,
+                "60": KlineCategory.MIN_60,
+                "1H": KlineCategory.MIN_60,
                 "30M": KlineCategory.MIN_30,
                 "MIN_30": KlineCategory.MIN_30,
+                "30F": KlineCategory.MIN_30,
+                "30": KlineCategory.MIN_30,
                 "15M": KlineCategory.MIN_15,
                 "MIN_15": KlineCategory.MIN_15,
+                "15F": KlineCategory.MIN_15,
+                "15": KlineCategory.MIN_15,
                 "5M": KlineCategory.MIN_5,
                 "MIN_5": KlineCategory.MIN_5,
+                "5F": KlineCategory.MIN_5,
+                "5": KlineCategory.MIN_5,
                 "1M": KlineCategory.MIN_1,
                 "MIN_1": KlineCategory.MIN_1,
+                "1F": KlineCategory.MIN_1,
+                "1": KlineCategory.MIN_1,
             }
             category = cat_map.get(c_upper, KlineCategory.DAY)
 
