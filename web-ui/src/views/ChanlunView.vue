@@ -105,6 +105,83 @@ const windowCustomCounts = ref<Record<string, number>>({ left: 800, w2: 800, rig
 const expandingWindows = ref<Set<string>>(new Set())
 let zoomDebounceTimers: Record<string, any> = {}
 
+function getWinCount(winKey: string): number {
+  if (isBacktrackingMode.value) return 2500
+  return windowCustomCounts.value[winKey] || 800
+}
+
+function getWindowLowestPeriod(side: 'left' | 'w2' | 'right' | 'w4'): string {
+  let periods = leftPeriods.value
+  if (side === 'w2') periods = w2Periods.value
+  else if (side === 'right') periods = rightPeriods.value
+  else if (side === 'w4') periods = w4Periods.value
+
+  const pList = (periods || '').split(',').map(s => s.trim().toUpperCase())
+  return pList[2] || pList[pList.length - 1] || '5F'
+}
+
+function getWindowKlineTiers(side: 'left' | 'w2' | 'right' | 'w4'): number[] {
+  const lowest = getWindowLowestPeriod(side)
+  if (lowest === '30F' || lowest === '30M') {
+    // 周日30F 模式：初始 800 根，可扩大至 3200 根
+    return [800, 3200]
+  } else if (lowest === '5F' || lowest === '5M' || lowest === '1F' || lowest === '1M') {
+    // 日30F5F 或 1F 模式：四档 800 -> 4800 -> 9600 -> 12000
+    return [800, 4800, 9600, 12000]
+  } else {
+    // 季月周、月周日等大级别模式：800 -> 1600 -> 3200
+    return [800, 1600, 3200]
+  }
+}
+
+async function changeWindowKlineCount(side: 'left' | 'w2' | 'right' | 'w4', targetCount: number) {
+  if (expandingWindows.value.has(side)) return
+  if (windowCustomCounts.value[side] === targetCount) return
+
+  windowCustomCounts.value[side] = targetCount
+  expandingWindows.value.add(side)
+
+  let periods = leftPeriods.value
+  if (side === 'w2') periods = w2Periods.value
+  else if (side === 'right') periods = rightPeriods.value
+  else if (side === 'w4') periods = w4Periods.value
+
+  try {
+    const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
+    const res = await fetchChanlunResonance({
+      code: code.value,
+      periods,
+      count: targetCount,
+      cutoff_date: cutoff,
+      force_refresh: false,
+    })
+
+    if (side === 'left') chanDataLeft.value = res
+    else if (side === 'w2') chanDataW2.value = res
+    else if (side === 'right') chanDataRight.value = res
+    else if (side === 'w4') chanDataW4.value = res
+
+    renderChart()
+  } catch (e) {
+    console.warn(`Change kline count for ${side} failed:`, e)
+  } finally {
+    expandingWindows.value.delete(side)
+  }
+}
+
+function cycleNextKlineCount(side: 'left' | 'w2' | 'right' | 'w4') {
+  const tiers = getWindowKlineTiers(side)
+  const cur = getWinCount(side)
+  const idx = tiers.indexOf(cur)
+  let next = tiers[0]
+  if (idx >= 0 && idx < tiers.length - 1) {
+    next = tiers[idx + 1]
+  } else {
+    next = tiers[0]
+  }
+  changeWindowKlineCount(side, next)
+}
+
 // 当前选中的回溯主控基准窗口：'left' (窗1) | 'w2' (窗2) | 'right' (窗3) | 'w4' (窗4)
 const activeWindow = ref<'left' | 'w2' | 'right' | 'w4'>('left')
 const activeWindowNum = computed(() => {
@@ -468,6 +545,10 @@ function applyWindowPreset(target: 'left' | 'w2' | 'right' | 'w4', pStr: string)
     w4PeriodMid.value = pMid
     w4PeriodLow.value = pLow
   }
+  const tiers = getWindowKlineTiers(target)
+  if (!tiers.includes(windowCustomCounts.value[target])) {
+    windowCustomCounts.value[target] = 800
+  }
   clearClientBacktrackCache()
   if (autoRefresh.value) {
     startAutoRefresh()
@@ -539,11 +620,7 @@ async function loadData(forceRefresh = false) {
   errorMsg.value = ''
 
   try {
-    // 借鉴 chanlun-pro：实时模式下使用 800 根 (单网络包最优上限，~17个交易日，微秒级加载)；回溯时光机模式使用 2500 根全量母数据
-    const getWinCount = (winKey: string) => {
-      if (isBacktrackingMode.value) return 2500
-      return windowCustomCounts.value[winKey] || 800
-    }
+    // 借鉴 chanlun-pro：实时模式下根据各窗口自定义档位加载；回溯时光机模式使用 2500 根全量母数据
     const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
     const force = isBacktrackingMode.value ? false : forceRefresh
 
@@ -2475,58 +2552,12 @@ function checkAndTriggerDynamicZoom(side: 'left' | 'w2' | 'right' | 'w4', instan
 async function expandChanlunWindowHistory(side: 'left' | 'w2' | 'right' | 'w4') {
   if (expandingWindows.value.has(side)) return
 
-  let periods = leftPeriods.value
-  if (side === 'w2') periods = w2Periods.value
-  else if (side === 'right') periods = rightPeriods.value
-  else if (side === 'w4') periods = w4Periods.value
-
-  const pList = (periods || '').split(',').map(s => s.trim().toUpperCase())
-  const lowestPeriod = pList[2] || pList[pList.length - 1] || '5F'
-
-  const curCount = windowCustomCounts.value[side] || 800
-  let nextCount = curCount
-
-  if (lowestPeriod === '30F' || lowestPeriod === '30M') {
-    // 周日30F 模式：初始 800 根，向右拖拉到最早时间时，直接调到 3200 根
-    if (curCount >= 3200) return
-    nextCount = 3200
-  } else if (lowestPeriod === '5F' || lowestPeriod === '5M') {
-    // 日30F5F 模式：四档 800 -> 4800 -> 9600 -> 12000
-    if (curCount >= 12000) return
-    if (curCount < 4800) nextCount = 4800
-    else if (curCount < 9600) nextCount = 9600
-    else nextCount = 12000
-  } else {
-    if (curCount >= 12000) return
-    if (curCount < 2000) nextCount = 2000
-    else if (curCount < 4000) nextCount = 4000
-    else if (curCount < 8000) nextCount = 8000
-    else nextCount = 12000
-  }
-
-  windowCustomCounts.value[side] = nextCount
-  expandingWindows.value.add(side)
-
-  try {
-    const cutoff = isBacktrackingMode.value ? (backtrackDate.value || undefined) : undefined
-    const res = await fetchChanlunResonance({
-      code: code.value,
-      periods,
-      count: nextCount,
-      cutoff_date: cutoff,
-      force_refresh: false,
-    })
-
-    if (side === 'left') chanDataLeft.value = res
-    else if (side === 'w2') chanDataW2.value = res
-    else if (side === 'right') chanDataRight.value = res
-    else if (side === 'w4') chanDataW4.value = res
-
-    renderChart()
-  } catch (e) {
-    console.warn('Dynamic expand history failed:', e)
-  } finally {
-    expandingWindows.value.delete(side)
+  const tiers = getWindowKlineTiers(side)
+  const curCount = getWinCount(side)
+  const idx = tiers.indexOf(curCount)
+  if (idx >= 0 && idx < tiers.length - 1) {
+    const nextCount = tiers[idx + 1]
+    await changeWindowKlineCount(side, nextCount)
   }
 }
 
@@ -3502,6 +3533,36 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
+            <!-- 扩大K线根数多等级按钮 -->
+            <div class="win-kline-tier-box">
+              <button
+                class="win-tier-btn"
+                :class="{
+                  'is-expanded': getWinCount('left') > 800,
+                  'is-max': getWinCount('left') >= (getWindowKlineTiers('left')[getWindowKlineTiers('left').length - 1] || 3200),
+                  'is-loading': expandingWindows.has('left')
+                }"
+                :disabled="expandingWindows.has('left')"
+                @click.stop="cycleNextKlineCount('left')"
+                :title="`点击循环升档K线根数 (当前: ${getWinCount('left')}根)`"
+              >
+                <span v-if="expandingWindows.has('left')" class="tier-spinner"></span>
+                <span v-else class="tier-icon">⚡</span>
+                <span class="tier-val">{{ getWinCount('left') }}根</span>
+              </button>
+              <select
+                :value="getWinCount('left')"
+                class="win-tier-select"
+                :disabled="expandingWindows.has('left')"
+                @click.stop
+                @change="changeWindowKlineCount('left', Number(($event.target as HTMLSelectElement).value))"
+                title="快速选择K线根数等级"
+              >
+                <option v-for="cnt in getWindowKlineTiers('left')" :key="cnt" :value="cnt">
+                  {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
+                </option>
+              </select>
+            </div>
             <select
               :value="leftPeriods"
               class="win-preset-select"
@@ -3554,6 +3615,36 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
+            <!-- 扩大K线根数多等级按钮 -->
+            <div class="win-kline-tier-box">
+              <button
+                class="win-tier-btn"
+                :class="{
+                  'is-expanded': getWinCount('w2') > 800,
+                  'is-max': getWinCount('w2') >= (getWindowKlineTiers('w2')[getWindowKlineTiers('w2').length - 1] || 3200),
+                  'is-loading': expandingWindows.has('w2')
+                }"
+                :disabled="expandingWindows.has('w2')"
+                @click.stop="cycleNextKlineCount('w2')"
+                :title="`点击循环升档K线根数 (当前: ${getWinCount('w2')}根)`"
+              >
+                <span v-if="expandingWindows.has('w2')" class="tier-spinner"></span>
+                <span v-else class="tier-icon">⚡</span>
+                <span class="tier-val">{{ getWinCount('w2') }}根</span>
+              </button>
+              <select
+                :value="getWinCount('w2')"
+                class="win-tier-select"
+                :disabled="expandingWindows.has('w2')"
+                @click.stop
+                @change="changeWindowKlineCount('w2', Number(($event.target as HTMLSelectElement).value))"
+                title="快速选择K线根数等级"
+              >
+                <option v-for="cnt in getWindowKlineTiers('w2')" :key="cnt" :value="cnt">
+                  {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
+                </option>
+              </select>
+            </div>
             <select
               :value="w2Periods"
               class="win-preset-select"
@@ -3603,6 +3694,36 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
+            <!-- 扩大K线根数多等级按钮 -->
+            <div class="win-kline-tier-box">
+              <button
+                class="win-tier-btn"
+                :class="{
+                  'is-expanded': getWinCount('right') > 800,
+                  'is-max': getWinCount('right') >= (getWindowKlineTiers('right')[getWindowKlineTiers('right').length - 1] || 3200),
+                  'is-loading': expandingWindows.has('right')
+                }"
+                :disabled="expandingWindows.has('right')"
+                @click.stop="cycleNextKlineCount('right')"
+                :title="`点击循环升档K线根数 (当前: ${getWinCount('right')}根)`"
+              >
+                <span v-if="expandingWindows.has('right')" class="tier-spinner"></span>
+                <span v-else class="tier-icon">⚡</span>
+                <span class="tier-val">{{ getWinCount('right') }}根</span>
+              </button>
+              <select
+                :value="getWinCount('right')"
+                class="win-tier-select"
+                :disabled="expandingWindows.has('right')"
+                @click.stop
+                @change="changeWindowKlineCount('right', Number(($event.target as HTMLSelectElement).value))"
+                title="快速选择K线根数等级"
+              >
+                <option v-for="cnt in getWindowKlineTiers('right')" :key="cnt" :value="cnt">
+                  {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
+                </option>
+              </select>
+            </div>
             <select
               :value="rightPeriods"
               class="win-preset-select"
@@ -3652,6 +3773,36 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
+            <!-- 扩大K线根数多等级按钮 -->
+            <div class="win-kline-tier-box">
+              <button
+                class="win-tier-btn"
+                :class="{
+                  'is-expanded': getWinCount('w4') > 800,
+                  'is-max': getWinCount('w4') >= (getWindowKlineTiers('w4')[getWindowKlineTiers('w4').length - 1] || 3200),
+                  'is-loading': expandingWindows.has('w4')
+                }"
+                :disabled="expandingWindows.has('w4')"
+                @click.stop="cycleNextKlineCount('w4')"
+                :title="`点击循环升档K线根数 (当前: ${getWinCount('w4')}根)`"
+              >
+                <span v-if="expandingWindows.has('w4')" class="tier-spinner"></span>
+                <span v-else class="tier-icon">⚡</span>
+                <span class="tier-val">{{ getWinCount('w4') }}根</span>
+              </button>
+              <select
+                :value="getWinCount('w4')"
+                class="win-tier-select"
+                :disabled="expandingWindows.has('w4')"
+                @click.stop
+                @change="changeWindowKlineCount('w4', Number(($event.target as HTMLSelectElement).value))"
+                title="快速选择K线根数等级"
+              >
+                <option v-for="cnt in getWindowKlineTiers('w4')" :key="cnt" :value="cnt">
+                  {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
+                </option>
+              </select>
+            </div>
             <select
               :value="w4Periods"
               class="win-preset-select"
@@ -4634,6 +4785,97 @@ onBeforeUnmount(() => {
 }
 .color-flat {
   color: #94a3b8;
+}
+.win-tools-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.win-kline-tier-box {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid #334155;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+.win-kline-tier-box:hover {
+  border-color: #475569;
+}
+.win-tier-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-right: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.win-tier-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+.win-tier-btn.is-expanded {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+}
+.win-tier-btn.is-max {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+.win-tier-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.win-tier-btn .tier-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+.win-tier-btn .tier-val {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+}
+.win-tier-select {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 10px;
+  height: 100%;
+  padding: 0 4px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.win-tier-select:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+.win-tier-select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+.tier-spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(56, 189, 248, 0.3);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 .win-preset-select {
   background: #131722;
