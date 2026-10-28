@@ -1344,9 +1344,10 @@ def analyze_multi_period_resonance(
         if cached_df is not None and not cached_df.empty and is_satisfied and not effective_force_refresh:
             # 严格检查磁盘缓存是否已到达最新理论收盘状态
             if disk_cache.is_up_to_date(cached_df, p_name):
+                ret_df = cached_df.iloc[-target_cnt:].copy().reset_index(drop=True) if len(cached_df) > target_cnt else cached_df
                 with _RESONANCE_CACHE_LOCK:
-                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, cached_df)
-                return p_name, cached_df
+                    _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, ret_df)
+                return p_name, ret_df
 
             try:
                 # 缓存存在但非最新（如盘中需要实时更新，或盘后首次访问时缓存仍停留在旧交易日）
@@ -1387,13 +1388,16 @@ def analyze_multi_period_resonance(
                 )
                 if delta_df is not None and not delta_df.empty:
                     merged = disk_cache.merge_and_update(clean_code, p_name, cached_df, delta_df)
+                    ret_df = merged.iloc[-target_cnt:].copy().reset_index(drop=True) if len(merged) > target_cnt else merged
                     with _RESONANCE_CACHE_LOCK:
-                        _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, merged)
-                    return p_name, merged
-                return p_name, cached_df
+                        _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (now_ts, ret_df)
+                    return p_name, ret_df
+                ret_df = cached_df.iloc[-target_cnt:].copy().reset_index(drop=True) if len(cached_df) > target_cnt else cached_df
+                return p_name, ret_df
             except Exception as e:
                 logger.debug("增量同步更新异常 %s %s: %s", clean_code, p_name, e)
-                return p_name, cached_df
+                ret_df = cached_df.iloc[-target_cnt:].copy().reset_index(drop=True) if len(cached_df) > target_cnt else cached_df
+                return p_name, ret_df
 
         # 3. 磁盘无缓存或数量不足，或 force_refresh：向 TDX 全量拉取
         df_fetched = fetch_security_kline(
@@ -1505,6 +1509,8 @@ def analyze_multi_period_resonance(
     # 3. 30F线：去 30F 以下次级别 (5F, 1F) 中寻找，必须是同一级别；
     # 4. 5F线：去 5F 以下次级别 (1F) 中寻找，必须是同一级别。
     from easy_tdx.chanlun.mmd import verify_third_mmd_by_sub_levels
+    shared_sub_results = dict(results)
+    shared_sub_dfs = dict(dfs)
     for p_key in p_list:
         p_res = results.get(p_key)
         if not p_res:
@@ -1517,8 +1523,8 @@ def analyze_multi_period_resonance(
                     p_key,
                     m,
                     p_res.bis,
-                    sub_results=results,
-                    sub_dfs=dfs,
+                    sub_results=shared_sub_results,
+                    sub_dfs=shared_sub_dfs,
                 )
                 if is_valid:
                     m.confirmed_sub_level = conf_sub
@@ -2511,3 +2517,71 @@ def analyze_multi_period_resonance(
             _RESONANCE_REALTIME_ANALYSIS_CACHE[rt_cache_key] = (now_ts, result_data)
 
     return result_data
+
+
+def analyze_quad_resonance(
+    code: str = "000001",
+    periods_w1: str = "QUARTER,MONTH,WEEK",
+    periods_w2: str = "MONTH,WEEK,DAY",
+    periods_w3: str = "WEEK,DAY,30F",
+    periods_w4: str = "DAY,30F,5F",
+    count: int = 800,
+    cutoff_date: str | None = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """极速四窗口立体共振分析：统一调度底层所有独立周期K线与次级别缓存，并发秒出4窗图表。
+
+    将原先4个独立HTTP请求、重复拉取与排队争用优化为单次全并行流水线，大幅提升四分屏看盘出图速度。
+    """
+    clean_code = str(code).strip().upper().replace("SZ", "").replace("SH", "").replace("BJ", "") or "000001"
+
+    windows_config = {
+        "left": periods_w1,
+        "w2": periods_w2,
+        "right": periods_w3,
+        "w4": periods_w4,
+    }
+
+    # 1. 搜集4个窗口全部唯一周期集合（通常仅有 6 个周期）
+    unique_periods: list[str] = []
+    for p_str in windows_config.values():
+        for p in parse_three_periods(p_str):
+            if p not in unique_periods:
+                unique_periods.append(p)
+
+    # 2. 并发并行预热拉取全部唯一周期的 K 线（彻底消除4个请求在通达信Socket连接上的重叠竞争与排队）
+    def _fetch_p(p_name: str) -> str:
+        spec = PERIOD_SPECS[p_name]
+        cnt = 60 if p_name in ("SEASON", "QUARTER") else (120 if p_name == "MONTH" else (350 if p_name == "WEEK" else max(count, 800)))
+        df = fetch_security_kline(clean_code, category=spec["market_cat"], count=cnt, force_refresh=force_refresh)
+        if df is not None and not df.empty:
+            with _RESONANCE_CACHE_LOCK:
+                _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)] = (time.time(), df)
+        return p_name
+
+    with ThreadPoolExecutor(max_workers=min(len(unique_periods), 6)) as pool:
+        list(pool.map(_fetch_p, unique_periods))
+
+    # 3. 4 个窗口并发执行共振分析与图表组装（底层数据已在内存就绪，各个窗口内部仅需数毫秒）
+    def _assemble_window(item: tuple[str, str]) -> tuple[str, dict[str, Any]]:
+        win_key, win_periods = item
+        data = analyze_multi_period_resonance(
+            code=clean_code,
+            periods=win_periods,
+            count=count,
+            cutoff_date=cutoff_date,
+            force_refresh=False,
+        )
+        return win_key, data
+
+    windows_data: dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for win_key, data in pool.map(_assemble_window, windows_config.items()):
+            windows_data[win_key] = data
+
+    return {
+        "status": "success",
+        "code": clean_code,
+        "windows": windows_data,
+    }
+

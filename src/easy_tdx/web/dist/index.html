@@ -24238,6 +24238,60 @@
                     return data;
                 }
 
+                // 极速四窗口全并行秒级聚合流水线：单次请求拉回 4 窗口全部数据，彻底消除多请求网络排队争用！
+                if (_clWindowMode === 'quad' && !_clIsBacktracking) {
+                    const qQuery = new URLSearchParams();
+                    qQuery.set('code', _clCurrentCode);
+                    qQuery.set('periods_w1', _clLeftPeriods);
+                    qQuery.set('periods_w2', _clW2Periods);
+                    qQuery.set('periods_w3', _clRightPeriods);
+                    qQuery.set('periods_w4', _clW4Periods);
+                    qQuery.set('count', '800');
+                    if (forceRefresh) qQuery.set('force_refresh', 'true');
+
+                    const qResp = await fetch(`/api/v1/chanlun/quad_resonance?${qQuery.toString()}`, { signal });
+                    if (!qResp.ok) throw new Error(`HTTP ${qResp.status} ${qResp.statusText}`);
+                    const qJson = await qResp.json();
+                    if (reqCode !== _clCurrentCode) return;
+
+                    const wins = qJson.windows || {};
+                    // 4 个窗口数据同时到位，立即一键写入缓存并秒出图表！
+                    if (wins.left) {
+                        _clLeftCachedData = wins.left;
+                        _clCachedData = wins.left;
+                        _clBacktrackCache.set(cacheKeyLeft, wins.left);
+                        const ov1 = document.getElementById('cl-loading-overlay');
+                        if (ov1) ov1.style.display = 'none';
+                        renderSingleChanlunChart('left', wins.left);
+                        updateChanlunOverview(wins.left);
+                        updateChanlunTimeline(wins.left);
+                        renderChanlunSignalsTable(wins.left);
+                    }
+                    if (wins.w2) {
+                        _clW2CachedData = wins.w2;
+                        _clBacktrackCache.set(cacheKeyW2, wins.w2);
+                        const ov2 = document.getElementById('cl-loading-overlay-w2');
+                        if (ov2) ov2.style.display = 'none';
+                        renderSingleChanlunChart('w2', wins.w2);
+                    }
+                    if (wins.right) {
+                        _clRightCachedData = wins.right;
+                        _clBacktrackCache.set(cacheKeyRight, wins.right);
+                        const ovr = document.getElementById('cl-loading-overlay-right');
+                        if (ovr) ovr.style.display = 'none';
+                        renderSingleChanlunChart('right', wins.right);
+                    }
+                    if (wins.w4) {
+                        _clW4CachedData = wins.w4;
+                        _clBacktrackCache.set(cacheKeyW4, wins.w4);
+                        const ov4 = document.getElementById('cl-loading-overlay-w4');
+                        if (ov4) ov4.style.display = 'none';
+                        renderSingleChanlunChart('w4', wins.w4);
+                    }
+                    setTimeout(adjustChanlunLayoutHeight, 50);
+                    return;
+                }
+
                 // 核心加速：主窗口（当前视口主图）拥有最高优先级，立即发起并优先出图！
                 const primaryKey = (_clActiveWindow && ['left', 'w2', 'right', 'w4'].includes(_clActiveWindow)) ? _clActiveWindow : 'left';
                 const primaryPeriod = (primaryKey === 'left') ? _clLeftPeriods :

@@ -429,19 +429,40 @@ def verify_third_mmd_by_sub_levels(
 
     from easy_tdx.chanlun.analyser import ChanlunAnalyser
     from easy_tdx.market_data import fetch_security_kline
+    import time
+    import threading
 
-    cached_res = sub_results.copy() if sub_results else {}
-    cached_dfs = sub_dfs.copy() if sub_dfs else {}
+    global _SUB_LEVEL_CACHE, _SUB_LEVEL_LOCK
+    if "_SUB_LEVEL_CACHE" not in globals():
+        _SUB_LEVEL_CACHE = {}
+        _SUB_LEVEL_LOCK = threading.Lock()
+
+    cached_res = sub_results if sub_results is not None else {}
+    cached_dfs = sub_dfs if sub_dfs is not None else {}
 
     had_data_candidate = False
+    now_ts = time.time()
 
     for sub_p in candidates:
         sub_res = cached_res.get(sub_p)
         if sub_res is None:
+            # 优先从全局次级别缓存中检索（60s 内存复用，避免多买卖点重复向 TDX 发起网络请求）
+            cache_key = (str(code).strip().upper(), sub_p.upper())
+            with _SUB_LEVEL_LOCK:
+                if cache_key in _SUB_LEVEL_CACHE:
+                    ts_c, c_res, c_df = _SUB_LEVEL_CACHE[cache_key]
+                    if now_ts - ts_c < 60.0:
+                        sub_res = c_res
+                        cached_res[sub_p] = c_res
+                        if sub_p not in cached_dfs:
+                            cached_dfs[sub_p] = c_df
+
+        if sub_res is None:
             df = cached_dfs.get(sub_p)
             if df is None or df.empty:
                 try:
-                    cnt = 12000 if sub_p in ("5F", "5M", "1F", "1M") else 3200
+                    # 离开段与回抽段属于近期走势，按需默认 800 根极速秒出（彻底杜绝无脑拉取 12000 根网络卡顿）
+                    cnt = 800
                     df = fetch_security_kline(code, sub_p, count=cnt)
                 except Exception:
                     df = None
@@ -450,6 +471,8 @@ def verify_third_mmd_by_sub_levels(
                 try:
                     sub_res = ChanlunAnalyser(code, sub_p).process_klines(df)
                     cached_res[sub_p] = sub_res
+                    with _SUB_LEVEL_LOCK:
+                        _SUB_LEVEL_CACHE[cache_key] = (now_ts, sub_res, df)
                 except Exception:
                     sub_res = None
 

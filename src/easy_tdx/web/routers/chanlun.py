@@ -124,6 +124,37 @@ async def chanlun_resonance_post(
     )
 
 
+@router.get("/chanlun/quad_resonance")
+async def chanlun_quad_resonance_get(
+    code: str = "000001",
+    periods_w1: str = "QUARTER,MONTH,WEEK",
+    periods_w2: str = "MONTH,WEEK,DAY",
+    periods_w3: str = "WEEK,DAY,30F",
+    periods_w4: str = "DAY,30F,5F",
+    count: int = 800,
+    cutoff_date: str | None = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """执行极速四窗口立体共振分析（GET 接口）。
+
+    后端底层对全部唯一周期进行全并行流水线拉取与分析，彻底避免四窗口多次请求引发的网络排队拥堵。
+    """
+    import asyncio
+    from easy_tdx.chanlun.resonance import analyze_quad_resonance
+
+    return await asyncio.to_thread(
+        analyze_quad_resonance,
+        code=code,
+        periods_w1=periods_w1,
+        periods_w2=periods_w2,
+        periods_w3=periods_w3,
+        periods_w4=periods_w4,
+        count=count,
+        cutoff_date=cutoff_date,
+        force_refresh=force_refresh,
+    )
+
+
 DEFAULT_HOT_STOCKS: list[dict[str, Any]] = [
     {"code": "000001", "name": "平安银行", "price": 12.5, "chg": "+0.00%", "tag": "金融核心"},
     {"code": "600519", "name": "贵州茅台", "price": 1700.0, "chg": "+0.00%", "tag": "白酒中军"},
