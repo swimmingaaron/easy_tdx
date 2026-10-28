@@ -3547,8 +3547,11 @@ onBeforeUnmount(() => {
                 :title="`点击循环升档K线根数 (当前: ${getWinCount('left')}根)`"
               >
                 <span v-if="expandingWindows.has('left')" class="tier-spinner"></span>
-                <span v-else class="tier-icon">⚡</span>
-                <span class="tier-val">{{ getWinCount('left') }}根</span>
+                <template v-else>
+                  <span class="tier-label">扩大K线:</span>
+                  <span class="tier-val">{{ getWinCount('left') }}根</span>
+                  <span class="tier-cycle-icon">⟳</span>
+                </template>
               </button>
               <select
                 :value="getWinCount('left')"
@@ -3629,8 +3632,11 @@ onBeforeUnmount(() => {
                 :title="`点击循环升档K线根数 (当前: ${getWinCount('w2')}根)`"
               >
                 <span v-if="expandingWindows.has('w2')" class="tier-spinner"></span>
-                <span v-else class="tier-icon">⚡</span>
-                <span class="tier-val">{{ getWinCount('w2') }}根</span>
+                <template v-else>
+                  <span class="tier-label">扩大K线:</span>
+                  <span class="tier-val">{{ getWinCount('w2') }}根</span>
+                  <span class="tier-cycle-icon">⟳</span>
+                </template>
               </button>
               <select
                 :value="getWinCount('w2')"
@@ -3708,8 +3714,11 @@ onBeforeUnmount(() => {
                 :title="`点击循环升档K线根数 (当前: ${getWinCount('right')}根)`"
               >
                 <span v-if="expandingWindows.has('right')" class="tier-spinner"></span>
-                <span v-else class="tier-icon">⚡</span>
-                <span class="tier-val">{{ getWinCount('right') }}根</span>
+                <template v-else>
+                  <span class="tier-label">扩大K线:</span>
+                  <span class="tier-val">{{ getWinCount('right') }}根</span>
+                  <span class="tier-cycle-icon">⟳</span>
+                </template>
               </button>
               <select
                 :value="getWinCount('right')"
@@ -3787,8 +3796,11 @@ onBeforeUnmount(() => {
                 :title="`点击循环升档K线根数 (当前: ${getWinCount('w4')}根)`"
               >
                 <span v-if="expandingWindows.has('w4')" class="tier-spinner"></span>
-                <span v-else class="tier-icon">⚡</span>
-                <span class="tier-val">{{ getWinCount('w4') }}根</span>
+                <template v-else>
+                  <span class="tier-label">扩大K线:</span>
+                  <span class="tier-val">{{ getWinCount('w4') }}根</span>
+                  <span class="tier-cycle-icon">⟳</span>
+                </template>
               </button>
               <select
                 :value="getWinCount('w4')"
@@ -4794,22 +4806,22 @@ onBeforeUnmount(() => {
 .win-kline-tier-box {
   display: inline-flex;
   align-items: center;
-  background: rgba(30, 41, 59, 0.85);
-  border: 1px solid #334155;
+  background: #1e293b;
+  border: 1px solid #475569;
   border-radius: 4px;
   overflow: hidden;
   height: 22px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   transition: all 0.2s ease;
 }
 .win-kline-tier-box:hover {
-  border-color: #475569;
+  border-color: #38bdf8;
 }
 .win-tier-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 6px;
+  gap: 4px;
+  padding: 0 7px;
   height: 100%;
   background: transparent;
   border: none;
@@ -4824,26 +4836,51 @@ onBeforeUnmount(() => {
 }
 .win-tier-btn:hover:not(:disabled) {
   background: rgba(56, 189, 248, 0.15);
+}
+.win-tier-btn .tier-label {
+  font-size: 11px;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+.win-tier-btn .tier-val {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  font-weight: 700;
+  color: #ffffff;
+}
+.win-tier-btn .tier-cycle-icon {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: 1px;
+  display: inline-block;
+  transition: transform 0.3s ease, color 0.2s ease;
+}
+.win-tier-btn:hover .tier-cycle-icon {
+  transform: rotate(180deg);
   color: #38bdf8;
 }
 .win-tier-btn.is-expanded {
-  color: #38bdf8;
   background: rgba(56, 189, 248, 0.12);
+  border-right-color: rgba(56, 189, 248, 0.3);
+}
+.win-tier-btn.is-expanded .tier-label {
+  color: #7dd3fc;
+}
+.win-tier-btn.is-expanded .tier-val {
+  color: #38bdf8;
 }
 .win-tier-btn.is-max {
-  color: #f59e0b;
   background: rgba(245, 158, 11, 0.15);
+  border-right-color: rgba(245, 158, 11, 0.3);
+}
+.win-tier-btn.is-max .tier-label {
+  color: #fcd34d;
+}
+.win-tier-btn.is-max .tier-val {
+  color: #fbbf24;
 }
 .win-tier-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.win-tier-btn .tier-icon {
-  font-size: 10px;
-  line-height: 1;
-}
-.win-tier-btn .tier-val {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
 }
 .win-tier-select {
   background: transparent;
