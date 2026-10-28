@@ -1280,11 +1280,38 @@ def _evaluate_stock_for_strategy(
                     return None
 
             # 2. 根据各级联区间套策略，严格检验大周期趋势维持与小级别买点
-            if preset_key == "MONTH_WEEK_DAY":
-                # 月周日区间套上最近一次转折是大买，月线保持上升趋势，月线最近一笔是向下笔，同时日线出现1买
+            if "SEASON" in preset_key:
+                # 季月周区间套 (SEASON_MONTH_WEEK)
                 if high_state.get("is_bearish", False):
                     return None
-                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                if not is_cl_3buy and _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                    return None
+                if mid_state.get("is_bearish", False):
+                    return None
+
+                all_week_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_week_buys:
+                    return None
+                latest_week_buy = all_week_buys[-1]
+                if target_buy == "3BUY":
+                    if not ("3BUY" in str(latest_week_buy.get("type", "")).upper() or "3买" in str(latest_week_buy.get("label", ""))):
+                        return None
+                elif target_buy == "2BUY":
+                    if not ("2BUY" in str(latest_week_buy.get("type", "")).upper() or "2买" in str(latest_week_buy.get("label", ""))):
+                        return None
+                # 周线最新买卖点不能被卖点破坏
+                if low_mmds and not low_mmds[-1].get("is_buy", False):
+                    return None
+
+                target_m = latest_week_buy
+                b_name = "3买" if ("3BUY" in str(target_m.get("type", "")).upper() or "3买" in str(target_m.get("label", ""))) else ("2买" if "2BUY" in str(target_m.get("type", "")).upper() else "买点")
+                chan_tag = f"[季月周]大买共振·周线{b_name}"
+
+            elif "MONTH_WEEK_DAY" in preset_key:
+                # 月周日区间套上最近一次转折是大买，月线保持上升趋势，月线最近一笔是向下笔，同时日线出现目标买点
+                if high_state.get("is_bearish", False):
+                    return None
+                if not is_cl_3buy and _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
                     return None
                 if mid_state.get("is_bearish", False):
                     return None
@@ -1292,65 +1319,101 @@ def _evaluate_stock_for_strategy(
                 if m_bi_dir not in ("down", "向下", "向下笔"):
                     return None
 
-                day_1buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
-                ]
-                if not day_1buys:
+                all_day_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_day_buys:
                     return None
+                latest_day_buy = all_day_buys[-1]
+                if target_buy == "3BUY":
+                    if not ("3BUY" in str(latest_day_buy.get("type", "")).upper() or "3买" in str(latest_day_buy.get("label", ""))):
+                        return None
+                elif target_buy == "2BUY":
+                    if not ("2BUY" in str(latest_day_buy.get("type", "")).upper() or "2买" in str(latest_day_buy.get("label", ""))):
+                        return None
+                else:
+                    if not ("1BUY" in str(latest_day_buy.get("type", "")).upper() or "1买" in str(latest_day_buy.get("label", "")) or "BUY" in str(latest_day_buy.get("type", "")).upper()):
+                        return None
+
                 # 日线最近买卖点不能被卖点破坏
                 if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
-                target_m = day_1buys[-1]
-                chan_tag = "[月周日]大买共振·日线1买"
+                target_m = latest_day_buy
+                b_name = "3买" if ("3BUY" in str(target_m.get("type", "")).upper() or "3买" in str(target_m.get("label", ""))) else ("2买" if "2BUY" in str(target_m.get("type", "")).upper() else "1买")
+                chan_tag = f"[月周日]大买共振·日线{b_name}"
 
-            elif preset_key == "WEEK_DAY_30F":
-                # 周日30M 区间套上最近一次转折是大买，周线保持上升趋势，周线最近一笔是向下笔，同时30M出现1买
+            elif "WEEK_DAY_30F" in preset_key:
+                # 周日30M 区间套上最近一次转折是大买，周线保持上升趋势，周线最近一笔是向下笔，同时30M出现目标买点
                 if high_state.get("is_bearish", False):
                     return None
-                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                if not is_cl_3buy and _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
                     return None
                 w_bi_dir = str(high_state.get("bi_direction", "")).lower()
                 if w_bi_dir not in ("down", "向下", "向下笔"):
                     return None
 
-                f30_1buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and ("1BUY" in str(m.get("type", "")).upper() or "1买" in str(m.get("label", "")))
-                ]
-                if not f30_1buys:
+                all_f30_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_f30_buys:
                     return None
+                latest_f30_buy = all_f30_buys[-1]
+                if target_buy == "3BUY":
+                    if not ("3BUY" in str(latest_f30_buy.get("type", "")).upper() or "3买" in str(latest_f30_buy.get("label", ""))):
+                        return None
+                elif target_buy == "2BUY":
+                    if not ("2BUY" in str(latest_f30_buy.get("type", "")).upper() or "2买" in str(latest_f30_buy.get("label", ""))):
+                        return None
+                else:
+                    if not ("1BUY" in str(latest_f30_buy.get("type", "")).upper() or "1买" in str(latest_f30_buy.get("label", "")) or "BUY" in str(latest_f30_buy.get("type", "")).upper()):
+                        return None
+
                 if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
-                target_m = f30_1buys[-1]
-                chan_tag = "[周日30M]大买共振·30M1买"
+                target_m = latest_f30_buy
+                b_name = "3买" if ("3BUY" in str(target_m.get("type", "")).upper() or "3买" in str(target_m.get("label", ""))) else ("2买" if "2BUY" in str(target_m.get("type", "")).upper() else "1买")
+                chan_tag = f"[周日30M]大买共振·30M{b_name}"
 
-            elif preset_key == "DAY_30F_5F":
+            elif "DAY_30F_5F" in preset_key:
                 # 日30M5F 区间套上最近一次转折是大买，日线最近一笔是向下笔，同时5M出现2买
                 d_bi_dir = str(high_state.get("bi_direction", "")).lower()
                 if d_bi_dir not in ("down", "向下", "向下笔"):
                     return None
 
-                f5_2buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and ("2BUY" in str(m.get("type", "")).upper() or "2买" in str(m.get("label", "")))
-                ]
-                if not f5_2buys:
+                all_f5_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_f5_buys:
                     return None
-                if low_mmds and not low_mmds[-1].get("is_buy", False):
-                    return None
-                target_m = f5_2buys[-1]
-                chan_tag = "[日30M5F]大买共振·5M2买"
+                latest_f5_buy = all_f5_buys[-1]
+                if target_buy == "3BUY":
+                    if not ("3BUY" in str(latest_f5_buy.get("type", "")).upper() or "3买" in str(latest_f5_buy.get("label", ""))):
+                        return None
+                elif target_buy == "2BUY":
+                    if not ("2BUY" in str(latest_f5_buy.get("type", "")).upper() or "2买" in str(latest_f5_buy.get("label", ""))):
+                        return None
+                else:
+                    if not ("2BUY" in str(latest_f5_buy.get("type", "")).upper() or "2买" in str(latest_f5_buy.get("label", "")) or "BUY" in str(latest_f5_buy.get("type", "")).upper()):
+                        return None
 
-            else:
-                # 30F_5F_1F 超短日内区间套
-                f1_buys = [m for m in low_mmds if m.get("is_buy", False)]
-                if not f1_buys:
-                    return None
                 if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
-                target_m = f1_buys[-1]
+                target_m = latest_f5_buy
+                b_name = "3买" if ("3BUY" in str(target_m.get("type", "")).upper() or "3买" in str(target_m.get("label", ""))) else "2买"
+                chan_tag = f"[日30M5F]大买共振·5M{b_name}"
+
+            elif "30F_5F_1F" in preset_key:
+                # 30F_5F_1F 超短日内区间套
+                all_f1_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_f1_buys:
+                    return None
+                latest_f1_buy = all_f1_buys[-1]
+                if target_buy == "3BUY":
+                    if not ("3BUY" in str(latest_f1_buy.get("type", "")).upper() or "3买" in str(latest_f1_buy.get("label", ""))):
+                        return None
+                elif target_buy == "2BUY":
+                    if not ("2BUY" in str(latest_f1_buy.get("type", "")).upper() or "2买" in str(latest_f1_buy.get("label", ""))):
+                        return None
+                if low_mmds and not low_mmds[-1].get("is_buy", False):
+                    return None
+                target_m = latest_f1_buy
                 chan_tag = f"[{high_name}]大买共振·1F进场"
+            else:
+                return None
 
             last_m = target_m
             label = str(last_m.get("label", ""))
