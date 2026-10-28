@@ -1065,15 +1065,15 @@ def _evaluate_stock_for_strategy(
             if days_ago > effective_lookback:
                 return None
 
-            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
+            # 2. 价格与风控防线：3类买点免除大级别止损与涨幅限制风控，由黄金分割0.382标签提供提示
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
             if trigger_p > 0:
-                if last_c < trigger_p * 0.95:
+                if not is_3buy_target and last_c < trigger_p * 0.95:
                     return None
                 since_pct = (last_c - trigger_p) / trigger_p * 100.0
                 max_rise = 35.0 if res_mode == "SEASON_MONTH_WEEK" else (30.0 if res_mode == "MONTH_WEEK_DAY" else 25.0)
-                if since_pct > max_rise:
+                if not is_3buy_target and since_pct > max_rise:
                     return None
         elif strategy_name == "chanlun_dual_resonance":
             # -------------------------------------------------------------
@@ -1217,14 +1217,15 @@ def _evaluate_stock_for_strategy(
             if days_ago > effective_lookback:
                 return None
 
-            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
+            # 2. 价格与风控防线：3类买点免除大级别止损与涨幅限制风控
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
+            is_dual_3buy = ("3BUY" in str(target_buy or "").upper() or "3买" in str(target_buy or "") or "3BUY" in m_type or "3买" in label)
             if trigger_p > 0:
-                if last_c < trigger_p * 0.95:
+                if not is_dual_3buy and last_c < trigger_p * 0.95:
                     return None
                 since_pct = (last_c - trigger_p) / trigger_p * 100.0
-                if since_pct > 25.0:
+                if not is_dual_3buy and since_pct > 25.0:
                     return None
         elif strategy_name == "chanlun_strategy":
             assert cl_preset is not None
@@ -1403,16 +1404,16 @@ def _evaluate_stock_for_strategy(
             if days_ago > effective_lookback:
                 return None
 
-            # 2. 价格与风控防线：最新收盘价不得跌破买点止损位
+            # 2. 价格与风控防线：3类买点免除止损与涨幅透支大级别风控限制
             last_c = float(sig_df.iloc[-1]["close"])
             trigger_p = float(last_m.get("price", 0.0))
             if trigger_p > 0:
-                # 止损过滤：跌破买点价 5% 视为买点破坏失效
-                if last_c < trigger_p * 0.95:
+                # 止损过滤：跌破买点价 5% 视为买点破坏失效 (3类买点免除)
+                if not is_cl_3buy and last_c < trigger_p * 0.95:
                     return None
-                # 透支过滤：自买点以来涨幅超 25% 视为已大幅兑现/追高风险，不推荐
+                # 透支过滤：自买点以来涨幅超 25% 视为已大幅兑现/追高风险，不推荐 (3类买点免除)
                 since_pct = (last_c - trigger_p) / trigger_p * 100.0
-                if since_pct > 25.0:
+                if not is_cl_3buy and since_pct > 25.0:
                     return None
 
             # 3. 区间套次级别共振过滤：
