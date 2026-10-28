@@ -4925,13 +4925,8 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <!-- 窗口 1 动态扩大K线根数组件 -->
-                            <div id="cl-tier-box-left" class="flex items-center bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
-                                <button id="cl-tier-btn-left" onclick="cycleNextKlineCount('left')" class="px-1.5 h-full flex items-center space-x-1 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 border-r border-slate-700 outline-none cursor-pointer" title="点击循环升档K线根数">
-                                    <span class="text-[10px] text-slate-400 font-medium">扩大:</span>
-                                    <span id="cl-tier-val-left" class="font-mono font-bold text-slate-200">800根</span>
-                                    <span id="cl-tier-icon-left" class="text-[10px] text-slate-500">⟳</span>
-                                </button>
-                                <select id="cl-tier-select-left" onchange="changeWindowKlineCount('left', Number(this.value))" class="h-full bg-transparent text-slate-300 text-[10.5px] px-0.5 outline-none cursor-pointer" title="快速选择K线根数等级">
+                            <div id="cl-tier-box-left" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
+                                <select id="cl-tier-select-left" onchange="changeWindowKlineCount('left', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
                                     <option value="800" selected>800根 (初)</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根 (满)</option>
@@ -4986,13 +4981,8 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <!-- 窗口 2 动态扩大K线根数组件 -->
-                            <div id="cl-tier-box-w2" class="flex items-center bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
-                                <button id="cl-tier-btn-w2" onclick="cycleNextKlineCount('w2')" class="px-1.5 h-full flex items-center space-x-1 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 border-r border-slate-700 outline-none cursor-pointer" title="点击循环升档K线根数">
-                                    <span class="text-[10px] text-slate-400 font-medium">扩大:</span>
-                                    <span id="cl-tier-val-w2" class="font-mono font-bold text-slate-200">800根</span>
-                                    <span id="cl-tier-icon-w2" class="text-[10px] text-slate-500">⟳</span>
-                                </button>
-                                <select id="cl-tier-select-w2" onchange="changeWindowKlineCount('w2', Number(this.value))" class="h-full bg-transparent text-slate-300 text-[10.5px] px-0.5 outline-none cursor-pointer" title="快速选择K线根数等级">
+                            <div id="cl-tier-box-w2" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
+                                <select id="cl-tier-select-w2" onchange="changeWindowKlineCount('w2', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
                                     <option value="800" selected>800根 (初)</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根 (满)</option>
@@ -5047,13 +5037,8 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <!-- 窗口 3 动态扩大K线根数组件 -->
-                            <div id="cl-tier-box-right" class="flex items-center bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
-                                <button id="cl-tier-btn-right" onclick="cycleNextKlineCount('right')" class="px-1.5 h-full flex items-center space-x-1 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 border-r border-slate-700 outline-none cursor-pointer" title="点击循环升档K线根数">
-                                    <span class="text-[10px] text-slate-400 font-medium">扩大:</span>
-                                    <span id="cl-tier-val-right" class="font-mono font-bold text-slate-200">800根</span>
-                                    <span id="cl-tier-icon-right" class="text-[10px] text-slate-500">⟳</span>
-                                </button>
-                                <select id="cl-tier-select-right" onchange="changeWindowKlineCount('right', Number(this.value))" class="h-full bg-transparent text-slate-300 text-[10.5px] px-0.5 outline-none cursor-pointer" title="快速选择K线根数等级">
+                            <div id="cl-tier-box-right" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
+                                <select id="cl-tier-select-right" onchange="changeWindowKlineCount('right', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
                                     <option value="800" selected>800根 (初)</option>
                                     <option value="3200">3200根 (满)</option>
                                 </select>
@@ -5107,13 +5092,8 @@
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <!-- 窗口 4 动态扩大K线根数组件 -->
-                            <div id="cl-tier-box-w4" class="flex items-center bg-slate-900 border border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
-                                <button id="cl-tier-btn-w4" onclick="cycleNextKlineCount('w4')" class="px-1.5 h-full flex items-center space-x-1 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 border-r border-slate-700 outline-none cursor-pointer" title="点击循环升档K线根数">
-                                    <span class="text-[10px] text-slate-400 font-medium">扩大:</span>
-                                    <span id="cl-tier-val-w4" class="font-mono font-bold text-slate-200">800根</span>
-                                    <span id="cl-tier-icon-w4" class="text-[10px] text-slate-500">⟳</span>
-                                </button>
-                                <select id="cl-tier-select-w4" onchange="changeWindowKlineCount('w4', Number(this.value))" class="h-full bg-transparent text-slate-300 text-[10.5px] px-0.5 outline-none cursor-pointer" title="快速选择K线根数等级">
+                            <div id="cl-tier-box-w4" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
+                                <select id="cl-tier-select-w4" onchange="changeWindowKlineCount('w4', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
                                     <option value="800" selected>800根 (初)</option>
                                     <option value="4800">4800根</option>
                                     <option value="9600">9600根</option>
@@ -27505,47 +27485,36 @@
 
         function updateWindowKlineTierUI(side) {
             const box = document.getElementById(`cl-tier-box-${side}`);
-            const btn = document.getElementById(`cl-tier-btn-${side}`);
-            const valEl = document.getElementById(`cl-tier-val-${side}`);
-            const iconEl = document.getElementById(`cl-tier-icon-${side}`);
             const sel = document.getElementById(`cl-tier-select-${side}`);
-            if (!btn || !valEl || !sel) return;
+            if (!box || !sel) return;
 
             const tiers = getWindowKlineTiers(side);
             const curCount = _clWindowCustomCounts[side] || 800;
-            valEl.innerText = `${curCount}根`;
-
             const isExpanded = curCount > 800;
             const maxTier = tiers[tiers.length - 1] || 3200;
             const isMax = curCount >= maxTier;
             const isLoading = _clExpandingWindows.has(side);
 
-            if (isLoading) {
-                btn.disabled = true;
-                sel.disabled = true;
-                if (iconEl) iconEl.innerHTML = '<span class="inline-block w-2.5 h-2.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>';
-            } else {
-                btn.disabled = false;
-                sel.disabled = false;
-                if (iconEl) iconEl.innerText = '⟳';
-            }
+            sel.disabled = isLoading;
 
-            if (isMax) {
-                btn.className = "px-1.5 h-full flex items-center space-x-1 text-amber-400 bg-amber-500/15 border-r border-amber-600/40 outline-none cursor-pointer";
-                valEl.className = "font-mono font-bold text-amber-300";
+            if (isLoading) {
+                box.className = "flex items-center bg-cyan-950/60 border border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs shrink-0";
+            } else if (isMax) {
+                box.className = "flex items-center bg-amber-950/40 border border-amber-500/70 hover:border-amber-400 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0";
+                sel.className = "h-full bg-transparent text-amber-500 dark:text-amber-300 font-bold text-[10.5px] px-1 outline-none cursor-pointer";
             } else if (isExpanded) {
-                btn.className = "px-1.5 h-full flex items-center space-x-1 text-cyan-400 bg-cyan-500/15 border-r border-cyan-600/40 outline-none cursor-pointer";
-                valEl.className = "font-mono font-bold text-cyan-300";
+                box.className = "flex items-center bg-cyan-950/40 border border-cyan-500/70 hover:border-cyan-400 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0";
+                sel.className = "h-full bg-transparent text-cyan-600 dark:text-cyan-300 font-bold text-[10.5px] px-1 outline-none cursor-pointer";
             } else {
-                btn.className = "px-1.5 h-full flex items-center space-x-1 text-slate-300 hover:text-cyan-400 hover:bg-cyan-500/10 border-r border-slate-700 outline-none cursor-pointer";
-                valEl.className = "font-mono font-bold text-slate-200";
+                box.className = "flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0";
+                sel.className = "h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer";
             }
 
             sel.innerHTML = tiers.map(t => {
                 let tag = '';
                 if (t === 800) tag = ' (初)';
                 else if (t >= 12000) tag = ' (满)';
-                return `<option value="${t}" ${t === curCount ? 'selected' : ''} class="bg-slate-900 text-slate-200">${t}根${tag}</option>`;
+                return `<option value="${t}" ${t === curCount ? 'selected' : ''} class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">${t}根${tag}</option>`;
             }).join('');
             sel.value = String(curCount);
         }

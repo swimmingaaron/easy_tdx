@@ -169,19 +169,6 @@ async function changeWindowKlineCount(side: 'left' | 'w2' | 'right' | 'w4', targ
   }
 }
 
-function cycleNextKlineCount(side: 'left' | 'w2' | 'right' | 'w4') {
-  const tiers = getWindowKlineTiers(side)
-  const cur = getWinCount(side)
-  const idx = tiers.indexOf(cur)
-  let next = tiers[0]
-  if (idx >= 0 && idx < tiers.length - 1) {
-    next = tiers[idx + 1]
-  } else {
-    next = tiers[0]
-  }
-  changeWindowKlineCount(side, next)
-}
-
 // 当前选中的回溯主控基准窗口：'left' (窗1) | 'w2' (窗2) | 'right' (窗3) | 'w4' (窗4)
 const activeWindow = ref<'left' | 'w2' | 'right' | 'w4'>('left')
 const activeWindowNum = computed(() => {
@@ -3533,33 +3520,25 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
-            <!-- 扩大K线根数多等级按钮 -->
-            <div class="win-kline-tier-box">
-              <button
-                class="win-tier-btn"
-                :class="{
-                  'is-expanded': getWinCount('left') > 800,
-                  'is-max': getWinCount('left') >= (getWindowKlineTiers('left')[getWindowKlineTiers('left').length - 1] || 3200),
-                  'is-loading': expandingWindows.has('left')
-                }"
-                :disabled="expandingWindows.has('left')"
-                @click.stop="cycleNextKlineCount('left')"
-                :title="`点击循环升档K线根数 (当前: ${getWinCount('left')}根)`"
-              >
-                <span v-if="expandingWindows.has('left')" class="tier-spinner"></span>
-                <template v-else>
-                  <span class="tier-label">扩大K线:</span>
-                  <span class="tier-val">{{ getWinCount('left') }}根</span>
-                  <span class="tier-cycle-icon">⟳</span>
-                </template>
-              </button>
+            <!-- 扩大K线根数级联/下拉菜单 -->
+            <div
+              class="win-kline-tier-box"
+              :class="{
+                'is-expanded': getWinCount('left') > 800,
+                'is-max': getWinCount('left') >= (getWindowKlineTiers('left')[getWindowKlineTiers('left').length - 1] || 3200),
+                'is-loading': expandingWindows.has('left')
+              }"
+            >
+              <span v-if="expandingWindows.has('left')" class="tier-spinner-wrap">
+                <span class="tier-spinner"></span>
+              </span>
               <select
                 :value="getWinCount('left')"
                 class="win-tier-select"
                 :disabled="expandingWindows.has('left')"
                 @click.stop
                 @change="changeWindowKlineCount('left', Number(($event.target as HTMLSelectElement).value))"
-                title="快速选择K线根数等级"
+                title="选择K线根数扩大等级"
               >
                 <option v-for="cnt in getWindowKlineTiers('left')" :key="cnt" :value="cnt">
                   {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
@@ -3618,33 +3597,25 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
-            <!-- 扩大K线根数多等级按钮 -->
-            <div class="win-kline-tier-box">
-              <button
-                class="win-tier-btn"
-                :class="{
-                  'is-expanded': getWinCount('w2') > 800,
-                  'is-max': getWinCount('w2') >= (getWindowKlineTiers('w2')[getWindowKlineTiers('w2').length - 1] || 3200),
-                  'is-loading': expandingWindows.has('w2')
-                }"
-                :disabled="expandingWindows.has('w2')"
-                @click.stop="cycleNextKlineCount('w2')"
-                :title="`点击循环升档K线根数 (当前: ${getWinCount('w2')}根)`"
-              >
-                <span v-if="expandingWindows.has('w2')" class="tier-spinner"></span>
-                <template v-else>
-                  <span class="tier-label">扩大K线:</span>
-                  <span class="tier-val">{{ getWinCount('w2') }}根</span>
-                  <span class="tier-cycle-icon">⟳</span>
-                </template>
-              </button>
+            <!-- 扩大K线根数级联/下拉菜单 -->
+            <div
+              class="win-kline-tier-box"
+              :class="{
+                'is-expanded': getWinCount('w2') > 800,
+                'is-max': getWinCount('w2') >= (getWindowKlineTiers('w2')[getWindowKlineTiers('w2').length - 1] || 3200),
+                'is-loading': expandingWindows.has('w2')
+              }"
+            >
+              <span v-if="expandingWindows.has('w2')" class="tier-spinner-wrap">
+                <span class="tier-spinner"></span>
+              </span>
               <select
                 :value="getWinCount('w2')"
                 class="win-tier-select"
                 :disabled="expandingWindows.has('w2')"
                 @click.stop
                 @change="changeWindowKlineCount('w2', Number(($event.target as HTMLSelectElement).value))"
-                title="快速选择K线根数等级"
+                title="选择K线根数扩大等级"
               >
                 <option v-for="cnt in getWindowKlineTiers('w2')" :key="cnt" :value="cnt">
                   {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
@@ -3700,33 +3671,25 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
-            <!-- 扩大K线根数多等级按钮 -->
-            <div class="win-kline-tier-box">
-              <button
-                class="win-tier-btn"
-                :class="{
-                  'is-expanded': getWinCount('right') > 800,
-                  'is-max': getWinCount('right') >= (getWindowKlineTiers('right')[getWindowKlineTiers('right').length - 1] || 3200),
-                  'is-loading': expandingWindows.has('right')
-                }"
-                :disabled="expandingWindows.has('right')"
-                @click.stop="cycleNextKlineCount('right')"
-                :title="`点击循环升档K线根数 (当前: ${getWinCount('right')}根)`"
-              >
-                <span v-if="expandingWindows.has('right')" class="tier-spinner"></span>
-                <template v-else>
-                  <span class="tier-label">扩大K线:</span>
-                  <span class="tier-val">{{ getWinCount('right') }}根</span>
-                  <span class="tier-cycle-icon">⟳</span>
-                </template>
-              </button>
+            <!-- 扩大K线根数级联/下拉菜单 -->
+            <div
+              class="win-kline-tier-box"
+              :class="{
+                'is-expanded': getWinCount('right') > 800,
+                'is-max': getWinCount('right') >= (getWindowKlineTiers('right')[getWindowKlineTiers('right').length - 1] || 3200),
+                'is-loading': expandingWindows.has('right')
+              }"
+            >
+              <span v-if="expandingWindows.has('right')" class="tier-spinner-wrap">
+                <span class="tier-spinner"></span>
+              </span>
               <select
                 :value="getWinCount('right')"
                 class="win-tier-select"
                 :disabled="expandingWindows.has('right')"
                 @click.stop
                 @change="changeWindowKlineCount('right', Number(($event.target as HTMLSelectElement).value))"
-                title="快速选择K线根数等级"
+                title="选择K线根数扩大等级"
               >
                 <option v-for="cnt in getWindowKlineTiers('right')" :key="cnt" :value="cnt">
                   {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
@@ -3782,33 +3745,25 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="win-tools-box">
-            <!-- 扩大K线根数多等级按钮 -->
-            <div class="win-kline-tier-box">
-              <button
-                class="win-tier-btn"
-                :class="{
-                  'is-expanded': getWinCount('w4') > 800,
-                  'is-max': getWinCount('w4') >= (getWindowKlineTiers('w4')[getWindowKlineTiers('w4').length - 1] || 3200),
-                  'is-loading': expandingWindows.has('w4')
-                }"
-                :disabled="expandingWindows.has('w4')"
-                @click.stop="cycleNextKlineCount('w4')"
-                :title="`点击循环升档K线根数 (当前: ${getWinCount('w4')}根)`"
-              >
-                <span v-if="expandingWindows.has('w4')" class="tier-spinner"></span>
-                <template v-else>
-                  <span class="tier-label">扩大K线:</span>
-                  <span class="tier-val">{{ getWinCount('w4') }}根</span>
-                  <span class="tier-cycle-icon">⟳</span>
-                </template>
-              </button>
+            <!-- 扩大K线根数级联/下拉菜单 -->
+            <div
+              class="win-kline-tier-box"
+              :class="{
+                'is-expanded': getWinCount('w4') > 800,
+                'is-max': getWinCount('w4') >= (getWindowKlineTiers('w4')[getWindowKlineTiers('w4').length - 1] || 3200),
+                'is-loading': expandingWindows.has('w4')
+              }"
+            >
+              <span v-if="expandingWindows.has('w4')" class="tier-spinner-wrap">
+                <span class="tier-spinner"></span>
+              </span>
               <select
                 :value="getWinCount('w4')"
                 class="win-tier-select"
                 :disabled="expandingWindows.has('w4')"
                 @click.stop
                 @change="changeWindowKlineCount('w4', Number(($event.target as HTMLSelectElement).value))"
-                title="快速选择K线根数等级"
+                title="选择K线根数扩大等级"
               >
                 <option v-for="cnt in getWindowKlineTiers('w4')" :key="cnt" :value="cnt">
                   {{ cnt }}根{{ cnt === 800 ? ' (初)' : (cnt >= 12000 ? ' (满)' : '') }}
@@ -4817,85 +4772,47 @@ onBeforeUnmount(() => {
 .win-kline-tier-box:hover {
   border-color: #38bdf8;
 }
-.win-tier-btn {
+.win-kline-tier-box.is-expanded {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+}
+.win-kline-tier-box.is-max {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+.tier-spinner-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 7px;
-  height: 100%;
-  background: transparent;
-  border: none;
-  border-right: 1px solid #334155;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-.win-tier-btn:hover:not(:disabled) {
-  background: rgba(56, 189, 248, 0.15);
-}
-.win-tier-btn .tier-label {
-  font-size: 11px;
-  color: #cbd5e1;
-  font-weight: 500;
-}
-.win-tier-btn .tier-val {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-  font-weight: 700;
-  color: #ffffff;
-}
-.win-tier-btn .tier-cycle-icon {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-left: 1px;
-  display: inline-block;
-  transition: transform 0.3s ease, color 0.2s ease;
-}
-.win-tier-btn:hover .tier-cycle-icon {
-  transform: rotate(180deg);
-  color: #38bdf8;
-}
-.win-tier-btn.is-expanded {
-  background: rgba(56, 189, 248, 0.12);
-  border-right-color: rgba(56, 189, 248, 0.3);
-}
-.win-tier-btn.is-expanded .tier-label {
-  color: #7dd3fc;
-}
-.win-tier-btn.is-expanded .tier-val {
-  color: #38bdf8;
-}
-.win-tier-btn.is-max {
-  background: rgba(245, 158, 11, 0.15);
-  border-right-color: rgba(245, 158, 11, 0.3);
-}
-.win-tier-btn.is-max .tier-label {
-  color: #fcd34d;
-}
-.win-tier-btn.is-max .tier-val {
-  color: #fbbf24;
-}
-.win-tier-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  justify-content: center;
+  padding-left: 6px;
 }
 .win-tier-select {
   background: transparent;
   border: none;
   color: #cbd5e1;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   height: 100%;
-  padding: 0 4px;
+  padding: 0 6px;
   outline: none;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+}
+.win-kline-tier-box.is-expanded .win-tier-select {
+  color: #38bdf8;
+  font-weight: 700;
+}
+.win-kline-tier-box.is-max .win-tier-select {
+  color: #fbbf24;
+  font-weight: 700;
 }
 .win-tier-select:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
+}
+.win-tier-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .win-tier-select option {
   background: #1e293b;
