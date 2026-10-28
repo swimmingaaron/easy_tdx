@@ -669,14 +669,18 @@ def _evaluate_stock_for_strategy(
     force_refresh: bool = False
 ) -> dict[str, Any] | None:
     res_mode = None
+    target_buy = None
     if strategy_name == "chanlun_strategy":
         cl_preset = parse_chanlun_screener_preset(period)
         eval_period = cl_preset["kline_period"]
+        if "3BUY" in str(period or "").upper() or "3买" in str(period or ""):
+            target_buy = "3BUY"
+        elif "2BUY" in str(period or "").upper() or "2买" in str(period or ""):
+            target_buy = "2BUY"
     elif strategy_name == "chanlun_resonance":
         cl_preset = None
         raw_p = str(period or "").strip().upper()
         raw_str_p = str(period or "").strip()
-        target_buy = None
         if "2BUY" in raw_p or "2买" in raw_str_p:
             target_buy = "2BUY"
         elif "3BUY" in raw_p or "3买" in raw_str_p:
@@ -720,12 +724,14 @@ def _evaluate_stock_for_strategy(
             else:
                 buy_match_keys = ("2BUY", "3BUY", "2买", "3买")
 
+            is_3buy_target = (target_buy == "3BUY" or "3BUY" in str(period).upper() or "3买" in str(period))
+
             if res_mode == "SEASON_MONTH_WEEK":
                 # -------------------------------------------------------------
                 # 1. 季月周 共振：季月大买多头趋势共振，筛选出周线上出现2买/3买的标的
-                # 快速前置过滤：排除月线见顶大卖杀跌 (0.005s淘汰无价值标的)
+                # 快速前置过滤：排除月线见顶大卖杀跌 (3类买点免除大级别风控限制)
                 # -------------------------------------------------------------
-                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                if not is_3buy_target and _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
                     return None
 
                 res_smw = analyze_multi_period_resonance(
@@ -746,17 +752,16 @@ def _evaluate_stock_for_strategy(
                 high_state = sum_smw.get("high_state", {})
                 mid_state = sum_smw.get("mid_state", {})
 
-                # 季线趋势良好，不能处于明确空头破位
-                if _safe_state_val(high_state, "is_bearish", False):
-                    return None
-                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
-                    return None
-
-                # 月线趋势良好，排除月线见顶大卖杀跌
-                if _safe_state_val(mid_state, "is_bearish", False):
-                    return None
-                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
-                    return None
+                # 季线与月线趋势：3买模式下免去大级别空头笔拦截
+                if not is_3buy_target:
+                    if _safe_state_val(high_state, "is_bearish", False):
+                        return None
+                    if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                        return None
+                    if _safe_state_val(mid_state, "is_bearish", False):
+                        return None
+                    if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                        return None
 
                 # 周线上出现目标买点 (2买或3买)
                 week_buys = [
@@ -777,12 +782,13 @@ def _evaluate_stock_for_strategy(
             elif res_mode == "MONTH_WEEK_DAY":
                 # -------------------------------------------------------------
                 # 2. 月周日 共振：月周大买多头趋势共振，筛选出日线上出现2买/3买的标的
-                # 快速前置过滤：排除月线和周线见顶大卖杀跌 (0.005s淘汰60%+股票)
+                # 快速前置过滤：3类买点作为中枢突破启动点，免除月线周线见顶深跌过滤
                 # -------------------------------------------------------------
-                if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
-                    return None
-                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
-                    return None
+                if not is_3buy_target:
+                    if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+                        return None
+                    if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                        return None
 
                 res_mwd = analyze_multi_period_resonance(
                     code=sym,
@@ -802,17 +808,16 @@ def _evaluate_stock_for_strategy(
                 high_state = sum_mwd.get("high_state", {})
                 mid_state = sum_mwd.get("mid_state", {})
 
-                # 月线排除见顶大卖杀跌与空头
-                if _safe_state_val(high_state, "is_bearish", False):
-                    return None
-                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
-                    return None
-
-                # 周线排除见顶杀跌与空头
-                if _safe_state_val(mid_state, "is_bearish", False):
-                    return None
-                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
-                    return None
+                # 月线与周线趋势：3买模式下免去大级别空头笔与趋势杀跌拦截
+                if not is_3buy_target:
+                    if _safe_state_val(high_state, "is_bearish", False):
+                        return None
+                    if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                        return None
+                    if _safe_state_val(mid_state, "is_bearish", False):
+                        return None
+                    if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                        return None
 
                 # 日线上出现目标买点 (2买或3买)
                 day_buys = [
@@ -833,9 +838,9 @@ def _evaluate_stock_for_strategy(
             elif res_mode == "WEEK_DAY_30F":
                 # -------------------------------------------------------------
                 # 3. 周日30F 共振：周日大买多头趋势共振，筛选出30F上出现2买/3买的标的
-                # 快速前置过滤：排除周线见顶大卖杀跌
+                # 快速前置过滤：排除周线见顶大卖杀跌 (3买模式免除)
                 # -------------------------------------------------------------
-                if _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
+                if not is_3buy_target and _is_top_sell_downtrend(sym, "WEEK", force_refresh=force_refresh):
                     return None
 
                 res_wd30 = analyze_multi_period_resonance(
@@ -856,17 +861,16 @@ def _evaluate_stock_for_strategy(
                 high_state = sum_wd30.get("high_state", {})
                 mid_state = sum_wd30.get("mid_state", {})
 
-                # 周线排除见顶杀跌与空头
-                if _safe_state_val(high_state, "is_bearish", False):
-                    return None
-                if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
-                    return None
-
-                # 日线排除空头
-                if _safe_state_val(mid_state, "is_bearish", False):
-                    return None
-                if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
-                    return None
+                # 3买模式下免去大级别空头笔拦截
+                if not is_3buy_target:
+                    if _safe_state_val(high_state, "is_bearish", False):
+                        return None
+                    if high_mmds and not high_mmds[-1].get("is_buy", False) and "3SELL" in str(high_mmds[-1].get("type", "")).upper():
+                        return None
+                    if _safe_state_val(mid_state, "is_bearish", False):
+                        return None
+                    if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
+                        return None
 
                 # 30F 上出现目标买点 (2买或3买)
                 f30_buys = [
@@ -1229,8 +1233,9 @@ def _evaluate_stock_for_strategy(
             high_p = cl_preset["high_p"]
             preset_key = cl_preset.get("key", "DAY_30F_5F")
 
-            # 全局大级别前置防线：若月线处于见顶大卖杀跌趋势中，快速排除 (免去昂贵缠论计算)
-            if _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
+            # 全局大级别前置防线：三买模式免去月线见顶杀跌限制
+            is_cl_3buy = ("3BUY" in str(preset_key).upper() or "3买" in str(cl_preset.get("label", "")) or preset_key == "DAY_30F_5F")
+            if not is_cl_3buy and _is_top_sell_downtrend(sym, "MONTH", force_refresh=force_refresh):
                 return None
 
             # 执行三周期缠论立体共振分析，大周期为 high_p (30F / 日 / 周 / 月)
@@ -1657,6 +1662,47 @@ def _evaluate_stock_for_strategy(
             else:
                 status_label = f"{days_ago}日前四边形·{q_type}" if p_clean == "DAY" else f"{days_ago}{p_unit}前四边形·{q_type}"
         elif strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
+            # ── 黄金分割0.382回调判定与醒目提醒 ────────────────────────────────
+            # 缠论三类买点核心为突破中枢离开后回抽不跌破ZG。
+            # 计算自突破最高点 H 回抽至低点 L 的回调幅度：
+            # 回撤幅度 = (H - L) / H
+            # 若回调不超过 0.382 (38.2%)，属于极强黄金分割支撑；若超过则提示回调比例与ZG支撑。
+            fib_tag = ""
+            is_fib_strong = False
+            last_high_is_3buy = ("last_high" in locals() and isinstance(last_high, dict) and "3BUY" in str(last_high.get("type", "")).upper())
+            is_3buy_point = (
+                "3BUY" in str(m_type).upper() or
+                "3买" in str(label) or
+                "3买" in str(chan_tag) or
+                ("3BUY" in str(target_buy or "").upper()) or
+                (isinstance(cl_preset, dict) and "3BUY" in str(cl_preset.get("key", "")).upper()) or
+                last_high_is_3buy
+            )
+            retrace_pct = None
+            if is_3buy_point and trigger_day_close > 0:
+                try:
+                    if last_high_is_3buy and "3BUY" not in str(m_type).upper():
+                        pullback_low = float(last_high.get("price", trigger_day_close))
+                    else:
+                        pullback_low = float(last_m.get("price", trigger_day_close))
+                    if trigger_day_pos > 0 and len(day_df) > 0:
+                        w_start = max(0, trigger_day_pos - 25)
+                        h_slice = day_df.iloc[w_start:trigger_day_pos + 1]
+                        high_peak = float(h_slice["high"].max())
+                        if high_peak > pullback_low > 0:
+                            retrace_ratio = (high_peak - pullback_low) / high_peak
+                            retrace_pct = round(retrace_ratio * 100.0, 1)
+                            if retrace_ratio <= 0.382:
+                                is_fib_strong = True
+                                fib_tag = f"★回调未超黄金分割0.382({retrace_pct}%<=38.2%)"
+                            else:
+                                fib_tag = f"回调{retrace_pct}%(中枢ZG支撑)"
+                except Exception:
+                    pass
+
+            if fib_tag and chan_tag and fib_tag not in chan_tag:
+                chan_tag = f"{chan_tag} · {fib_tag}"
+
             if days_ago == 0:
                 status_label = f"最新{chan_tag}"
             else:
@@ -1797,6 +1843,9 @@ def _evaluate_stock_for_strategy(
             "signal_date": signal_date or "最新交易日",
             "trigger_date": signal_date or "最新交易日",
             "latest_date": latest_date or "最新收盘",
+            "fib_tag": fib_tag if "fib_tag" in locals() else "",
+            "is_fib_strong": is_fib_strong if "is_fib_strong" in locals() else False,
+            "fib_retrace_pct": retrace_pct if "retrace_pct" in locals() else None,
             "total_mv_yi": 0.0,
             "market_cap_yi": 0.0,
             "market_cap_str": "--",
