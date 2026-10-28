@@ -763,19 +763,19 @@ def _evaluate_stock_for_strategy(
                     if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                         return None
 
-                # 周线上出现目标买点 (2买或3买)
-                week_buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
-                ]
-                if not week_buys:
+                # 周线上出现目标买点 (2买或3买)：
+                # 时效性铁律：周线最新买点必须是目标类型，且最新买卖点不能是卖点(不能已被卖点终结)
+                all_week_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_week_buys:
+                    return None
+                latest_week_buy = all_week_buys[-1]
+                if not any(k in str(latest_week_buy.get("type", "")).upper() or k in str(latest_week_buy.get("label", "")) for k in buy_match_keys):
+                    return None
+                # 周线最新买卖点不能是卖点 (若最新是卖点说明走势已被终结/进入调整)
+                if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
 
-                # 周线最新买卖点不能被破坏性大卖点破坏 (如 3卖)
-                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
-                    return None
-
-                target_m = week_buys[-1]
+                target_m = latest_week_buy
                 buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
                 chan_tag = f"[季月周共振]季月大买·周线{buy_name}"
 
@@ -819,19 +819,19 @@ def _evaluate_stock_for_strategy(
                     if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                         return None
 
-                # 日线上出现目标买点 (2买或3买)
-                day_buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
-                ]
-                if not day_buys:
+                # 日线上出现目标买点 (2买或3买)：
+                # 时效性铁律：日线最新买点必须是目标类型，且最新买卖点不能是卖点
+                all_day_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_day_buys:
+                    return None
+                latest_day_buy = all_day_buys[-1]
+                if not any(k in str(latest_day_buy.get("type", "")).upper() or k in str(latest_day_buy.get("label", "")) for k in buy_match_keys):
+                    return None
+                # 日线最新买卖点不能是卖点
+                if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
 
-                # 日线最新买卖点不能被破坏性大卖点破坏
-                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
-                    return None
-
-                target_m = day_buys[-1]
+                target_m = latest_day_buy
                 buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
                 chan_tag = f"[月周日共振]月周大买·日线{buy_name}"
 
@@ -872,19 +872,19 @@ def _evaluate_stock_for_strategy(
                     if mid_mmds and not mid_mmds[-1].get("is_buy", False) and "3SELL" in str(mid_mmds[-1].get("type", "")).upper():
                         return None
 
-                # 30F 上出现目标买点 (2买或3买)
-                f30_buys = [
-                    m for m in low_mmds
-                    if m.get("is_buy") and any(k in str(m.get("type", "")).upper() or k in str(m.get("label", "")) for k in buy_match_keys)
-                ]
-                if not f30_buys:
+                # 30F 上出现目标买点 (2买或3买)：
+                # 时效性铁律：30F最新买点必须是目标类型，且最新买卖点不能是卖点
+                all_f30_buys = [m for m in low_mmds if m.get("is_buy", False)]
+                if not all_f30_buys:
+                    return None
+                latest_f30_buy = all_f30_buys[-1]
+                if not any(k in str(latest_f30_buy.get("type", "")).upper() or k in str(latest_f30_buy.get("label", "")) for k in buy_match_keys):
+                    return None
+                # 30F 最新买卖点不能是卖点
+                if low_mmds and not low_mmds[-1].get("is_buy", False):
                     return None
 
-                # 30F 最新买卖点不能被破坏性大卖点破坏
-                if low_mmds and not low_mmds[-1].get("is_buy", False) and "3SELL" in str(low_mmds[-1].get("type", "")).upper():
-                    return None
-
-                target_m = f30_buys[-1]
+                target_m = latest_f30_buy
                 buy_name = "2买" if ("2BUY" in str(target_m.get("type", "")).upper() or "2买" in str(target_m.get("label", ""))) else "3买"
                 chan_tag = f"[周日30F共振]周日大买·30F{buy_name}"
 
@@ -1043,16 +1043,17 @@ def _evaluate_stock_for_strategy(
             if len(match_indices) == 0:
                 match_indices = sig_df.index[dt_series <= sig_date_str]
 
-            if len(match_indices) > 0:
-                trigger_loc = sig_df.index.get_loc(match_indices[-1])
-                trigger_bar = sig_df.iloc[trigger_loc]
-                trigger_idx = match_indices[-1]
-                days_ago = len(sig_df) - 1 - trigger_loc
-            else:
-                trigger_bar = sig_df.iloc[-1]
-                trigger_idx = sig_df.index[-1]
-                trigger_loc = len(sig_df) - 1
-                days_ago = 0
+            # 严格时效性防线：若买点日期早于K线最早日期或无法定位，说明信号陈旧已失效，直接剔除
+            earliest_dt = str(dt_series.iloc[0])[:10]
+            if len(match_indices) == 0:
+                return None
+            if sig_date_str and len(sig_date_str) >= 10 and sig_date_str[:10] < earliest_dt:
+                return None
+
+            trigger_loc = sig_df.index.get_loc(match_indices[-1])
+            trigger_bar = sig_df.iloc[trigger_loc]
+            trigger_idx = match_indices[-1]
+            days_ago = len(sig_df) - 1 - trigger_loc
 
             # 1. 严格时效性控制：根据各周期特征自适应调整回溯窗口
             if res_mode == "SEASON_MONTH_WEEK":
@@ -1379,12 +1380,11 @@ def _evaluate_stock_for_strategy(
             if len(match_indices) == 0:
                 match_indices = sig_df.index[dt_series <= sig_date_str]
 
-            if len(match_indices) > 0:
-                trigger_loc = sig_df.index.get_loc(match_indices[-1])
-                trigger_bar = sig_df.iloc[trigger_loc]
-                trigger_idx = match_indices[-1]
-                days_ago = len(sig_df) - 1 - trigger_loc
-            else:
+            # 严格时效性防线：若买点日期早于K线最早日期或无法定位，说明信号陈旧已失效，直接剔除
+            earliest_dt = str(dt_series.iloc[0])[:10]
+            if len(match_indices) == 0:
+                if sig_date_str and len(sig_date_str) >= 10 and sig_date_str[:10] < earliest_dt:
+                    return None
                 bars_ago_val = high_state.get("recent_mmd_bars_ago")
                 if bars_ago_val is not None and 0 <= int(bars_ago_val) < len(sig_df):
                     days_ago = int(bars_ago_val)
@@ -1392,10 +1392,12 @@ def _evaluate_stock_for_strategy(
                     trigger_bar = sig_df.iloc[trigger_loc]
                     trigger_idx = sig_df.index[trigger_loc]
                 else:
-                    trigger_bar = sig_df.iloc[-1]
-                    trigger_idx = sig_df.index[-1]
-                    trigger_loc = len(sig_df) - 1
-                    days_ago = 0
+                    return None
+            else:
+                trigger_loc = sig_df.index.get_loc(match_indices[-1])
+                trigger_bar = sig_df.iloc[trigger_loc]
+                trigger_idx = match_indices[-1]
+                days_ago = len(sig_df) - 1 - trigger_loc
 
             # 1. 严格时效性控制：买点必须发生在近期（回溯22个实际交易日，即保证一个月的自然交易日，排除节假日干扰）
             is_min_period = cl_preset["kline_period"] in ("30M", "60M", "120M", "15M", "5M")
