@@ -2232,6 +2232,7 @@ def analyze_multi_period_resonance(
     rsi_data: dict[str, list[float | None]] = {"rsi6": [], "rsi12": [], "rsi24": []}
     kdj_data: dict[str, list[float | None]] = {"k": [], "d": [], "j": []}
     expma_data: dict[str, list[float | None]] = {"exp12": [], "exp50": []}
+    ma250_data: list[float | None] = []
 
     if len(c_arr) > 0:
         r6 = RSI(c_arr, 6)
@@ -2255,6 +2256,9 @@ def analyze_multi_period_resonance(
             "exp12": [safe_float(v) for v in e12],
             "exp50": [safe_float(v) for v in e50],
         }
+
+        ma250_calc = MA(c_arr, 250) if len(c_arr) >= 250 else np.full(len(c_arr), np.nan)
+        ma250_data = [safe_float(v) for v in ma250_calc]
 
     # 7. 各周期独立分屏数据（用于切换分屏联动视图或单独看某个周期）
     levels_data = {}
@@ -2305,6 +2309,10 @@ def analyze_multi_period_resonance(
                 "exp12": [safe_float(v) for v in p_e12],
                 "exp50": [safe_float(v) for v in p_e50],
             }
+            p_ma250_calc = MA(p_c, 250) if len(p_c) >= 250 else np.full(len(p_c), np.nan)
+            p_ma250 = [safe_float(v) for v in p_ma250_calc]
+        else:
+            p_ma250 = []
 
         # 针对当前独立分屏周期，提取其专属的买卖点标记（包含次级别走势类型确认信息）
         p_mmd_marks = []
@@ -2370,6 +2378,7 @@ def analyze_multi_period_resonance(
             "rsi": p_rsi,
             "kdj": p_kdj,
             "expma": p_expma,
+            "ma250": p_ma250,
             "inflow": calculate_inflow_data(
                 p_df,
                 clean_code=clean_code,
@@ -2453,6 +2462,7 @@ def analyze_multi_period_resonance(
             "rsi": rsi_data,
             "kdj": kdj_data,
             "expma": expma_data,
+            "ma250": ma250_data,
             "inflow": calculate_inflow_data(
                 base_df,
                 clean_code=clean_code,

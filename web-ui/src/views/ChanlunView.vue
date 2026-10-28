@@ -1223,6 +1223,29 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   const midTheme = getPeriodTheme(d?.periods?.mid?.key || d?.periods?.mid?.name, isDark)
   const lowTheme = getPeriodTheme(d?.periods?.low?.key || d?.periods?.low?.name, isDark)
 
+  // 计算或读取 250 天移动平均线 (MA250)
+  const ma250Data: (number | '-')[] = (() => {
+    if (uc.ma250 && Array.isArray(uc.ma250) && uc.ma250.length === (uc.candles ? uc.candles.length : 0)) {
+      return uc.ma250.map((v: any) => (v != null && !isNaN(v)) ? Number(Number(v).toFixed(2)) : '-')
+    }
+    if (!uc.candles || uc.candles.length === 0) return []
+    const res: (number | '-')[] = []
+    let sum = 0
+    for (let i = 0; i < uc.candles.length; i++) {
+      const closeVal = Number(uc.candles[i][1] || 0)
+      sum += closeVal
+      if (i < 249) {
+        res.push('-')
+      } else {
+        if (i >= 250) {
+          sum -= Number(uc.candles[i - 250][1] || 0)
+        }
+        res.push(Number((sum / 250).toFixed(2)))
+      }
+    }
+    return res
+  })()
+
   // 大级别笔 MarkLines
   const highBiLines = showHighBi.value
     ? uc.high_bis.map((b) => [
@@ -1890,6 +1913,10 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             else if (winKey === 'w4') hoverCandleW4.value = info
           }
 
+          const curM250 = ma250Data[idx]
+          const m250Str = (curM250 != null && curM250 !== '-') ? Number(curM250).toFixed(2) : '--'
+          const m250Html = `<span style="margin-left:10px; color:#ff1f1f; font-weight:bold;">●MA250: <b>${m250Str}</b></span>`
+
           if (isKlineMerged.value) {
             html += `<div style="color:${color}; margin-bottom:4px;">
               <span style="background:rgba(192,132,252,0.2); color:#d8b4fe; border:1px solid rgba(192,132,252,0.4); border-radius:3px; padding:1px 4px; font-size:10px; margin-right:6px;">缠论K线(无影线)</span>
@@ -1897,6 +1924,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
               <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
               <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
               <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
+              ${m250Html}
             </div>`
           } else {
             html += `<div style="color:${color}; margin-bottom:4px;">
@@ -1904,6 +1932,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
               <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
               <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
               <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
+              ${m250Html}
             </div>`
           }
         }
@@ -2037,6 +2066,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
     legend: {
       data: [
         '基准K线',
+        'MA250',
         highBiLegendName,
         midBiLegendName,
         lowBiLegendName,
@@ -2049,6 +2079,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       ],
       selected: {
         基准K线: true,
+        MA250: true,
         [highBiLegendName]: showHighBi.value,
         [midBiLegendName]: showMidBi.value,
         [lowBiLegendName]: showLowBi.value,
@@ -2243,6 +2274,23 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             ...highZsAreas,    // 大中枢顶层
           ] as any,
         },
+      },
+      {
+        name: 'MA250',
+        type: 'line',
+        data: ma250Data,
+        smooth: true,
+        showSymbol: false,
+        symbol: 'none',
+        lineStyle: {
+          color: '#ff1f1f',
+          width: 2.6,
+          type: 'solid',
+        },
+        itemStyle: {
+          color: '#ff1f1f',
+        },
+        z: 3,
       },
       {
         name: highBiLegendName,

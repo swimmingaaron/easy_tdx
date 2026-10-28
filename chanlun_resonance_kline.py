@@ -502,6 +502,22 @@ class ChanlunUnifiedResonancePlotter:
             ax_main.add_patch(rect)
 
         # ----------------------------------------------------------------------
+        # 1.1 绘制 250 天移动平均线 (MA250 鲜红色，与线段粗细度相同)
+        # ----------------------------------------------------------------------
+        if n_bars >= 250:
+            c_vals = base_df["close"].values
+            ma250_line = pd.Series(c_vals).rolling(250).mean().values
+            ax_main.plot(
+                range(n_bars),
+                ma250_line,
+                color="#ff1f1f",
+                linewidth=2.8,
+                label="MA250",
+                alpha=0.95,
+                zorder=5,
+            )
+
+        # ----------------------------------------------------------------------
         # 2. 绘制大级别 (Level 1, 如日线) 笔、线段与中枢 (紫色走势)
         # ----------------------------------------------------------------------
         high_name = PERIOD_SPECS[self.p_high]["short_name"]
@@ -1473,10 +1489,13 @@ def export_interactive_html(
         e12, e50 = EXPMA(c_arr, 12, 50)
         exp12_list = [_safe_f(v) for v in e12]
         exp50_list = [_safe_f(v) for v in e50]
+        ma250_raw = MA(c_arr, 250) if len(c_arr) >= 250 else np.full(len(c_arr), np.nan)
+        ma250_list = [_safe_f(v) for v in ma250_raw]
     else:
         r6, r12, r24 = [], [], []
         k_list, d_list, j_list = [], [], []
         exp12_list, exp50_list = [], []
+        ma250_list = []
 
     payload_json = json.dumps({
         "code": code,
@@ -1486,6 +1505,7 @@ def export_interactive_html(
         "dates": dates,
         "candles": candles,
         "amounts": amounts,
+        "ma250": ma250_list,
         "high_bis": high_bis,
         "mid_bis": mid_bis,
         "low_bis": low_bis,
@@ -1571,9 +1591,10 @@ def export_interactive_html(
             backgroundColor: '#181b27',
             animation: false,
             legend: {{
-                data: ['基准K线', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '买卖点', '★共振信号', '成交额', 'MACD', 'RSI6', 'RSI12', 'RSI24', 'KDJ_K', 'KDJ_D', 'KDJ_J', 'EXP12', 'EXP50'],
+                data: ['基准K线', 'MA250', '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})', '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})', '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})', '买卖点', '★共振信号', '成交额', 'MACD', 'RSI6', 'RSI12', 'RSI24', 'KDJ_K', 'KDJ_D', 'KDJ_J', 'EXP12', 'EXP50'],
                 selected: {{
                     '基准K线': true,
+                    'MA250': true,
                     '大级别紫线笔({PERIOD_SPECS[high_p]['short_name']})': true,
                     '次级别黄线笔({PERIOD_SPECS[mid_p]['short_name']})': true,
                     '小级别蓝线笔({PERIOD_SPECS[base_p]['short_name']})': true,
@@ -1680,6 +1701,16 @@ def export_interactive_html(
                     barMaxWidth: 14,
                     data: D.candles,
                     itemStyle: {{ color: '#f23645', color0: '#089981', borderColor: '#f23645', borderColor0: '#089981' }}
+                }},
+                {{
+                    name: 'MA250',
+                    type: 'line',
+                    data: D.ma250,
+                    smooth: true,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: {{ color: '#ff1f1f', width: 2.6, type: 'solid' }},
+                    itemStyle: {{ color: '#ff1f1f' }}
                 }},
                 {{
                     name: '买卖点',

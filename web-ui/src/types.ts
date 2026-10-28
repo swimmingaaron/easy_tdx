@@ -549,6 +549,7 @@ export interface UnifiedChartData {
   rsi?: RsiData
   kdj?: KdjData
   expma?: ExpmaData
+  ma250?: (number | null)[]
   inflow?: InflowData
 }
 
@@ -564,6 +565,7 @@ export interface LevelChartData {
   rsi?: RsiData
   kdj?: KdjData
   expma?: ExpmaData
+  ma250?: (number | null)[]
   inflow?: InflowData
   merged_chart?: UnifiedChartData
 }
