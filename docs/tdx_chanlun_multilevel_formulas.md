@@ -23,105 +23,180 @@
 ### 公式代码（复制下方全部内容到通达信公式编辑器）：
 
 ```pascal
-{ ==================== 缠论大中小立体主图指标 (CL_MAIN) ==================== }
-{ 适用周期：日线 / 30分钟 / 5分钟 / 任意K线图均可完美运行 }
-{ 架构：原生ZIG稳定红绿笔 + 通透中枢高低轨 + 全套买卖点 + 大中小看板 }
+{======================================================================
+ 公式名称: CL_MAIN (缠论标准线段中枢立体主图)
+ 适用环境: 通达信 (PC端与手机端)
+ 画线方式: 主图叠加
+ 核心标准:
+   1. K线合并处理: 严格先消除K线包含关系 (向上取高高, 向下取低低)
+   2. 两类标准中枢结构识别:
+      - 上涨中枢 (下 - 上 - 下): 3根连续完成次级别线段重叠成型
+      - 下跌中枢 (上 - 下 - 上): 3根连续完成次级别线段重叠成型
+   3. 中枢区间: ZG=MIN(前三段高), ZD=MAX(前三段低), 条件 ZG > ZD
+   4. 中枢可视化: 封闭矩形框 + 内部通透竖直栅格 + 右侧水平延伸线 (绝不遮挡K线)
+   5. 缠论全套买卖点: 1买/2买/3买 与 1卖/2卖/3卖 (3买严格要求回抽不破ZG)
+======================================================================}
 
-{ ---------------- 1. 缠论向上一笔（红粗线）与向下一笔（绿粗线） ---------------- }
-Z:=ZIG(1, 5);
-向上一笔: IF(Z>=REF(Z, 1), Z, DRAWNULL), COLORRED, LINETHICK2;
-向下一笔: IF(Z<=REF(Z, 1), Z, DRAWNULL), COLORGREEN, LINETHICK2;
+{---------------- 1. 经典均线系统 ----------------}
+MA5:MA(C,5),COLORWHITE,LINETHICK1;
+MA10:MA(C,10),COLORYELLOW,LINETHICK1;
+MA20:MA(C,20),COLORMAGENTA,LINETHICK1;
+MA60:MA(C,60),COLORGREEN,LINETHICK1;
 
-{ ---------------- 2. 缠论中枢高低轨 (通透虚线，绝不遮挡K线) ---------------- }
-ZG1:=PEAK(1, 5, 1);
-ZG2:=PEAK(1, 5, 2);
-ZD1:=TROUGH(1, 5, 1);
-ZD2:=TROUGH(1, 5, 2);
+{---------------- 2. 缠论 K 线合并 (包含处理) ----------------}
+K_DIR_RAW:=IF(H>=REF(H,1) AND L>=REF(L,1), 1, IF(H<=REF(H,1) AND L<=REF(L,1), -1, 0));
+K_DIR:=REF(K_DIR_RAW, BARSLAST(K_DIR_RAW!=0));
+IS_BH:=(H<=REF(H,1) AND L>=REF(L,1)) OR (H>=REF(H,1) AND L<=REF(L,1));
 
-MID_ZG:=MIN(ZG1, ZG2);
-MID_ZD:=MAX(ZD1, ZD2);
-HAS_ZS:=MID_ZG > MID_ZD;
+CH_UP:=IF(IS_BH AND K_DIR=1, MAX(H, REF(H,1)), H);
+CL_UP:=IF(IS_BH AND K_DIR=1, MAX(L, REF(L,1)), L);
+CH:=IF(IS_BH AND K_DIR=-1, MIN(H, REF(H,1)), CH_UP);
+CL:=IF(IS_BH AND K_DIR=-1, MIN(L, REF(L,1)), CL_UP);
+{对合并K线做轻量半透明提示}
+STICKLINE(IS_BH, CH, CL, 0.1, 0), COLOR444444;
 
-{ 中枢高低轨水平虚线 }
-中枢高: IF(HAS_ZS, MID_ZG, DRAWNULL), COLORMAGENTA, DOTLINE;
-中枢低: IF(HAS_ZS, MID_ZD, DRAWNULL), COLORCYAN, DOTLINE;
+{---------------- 3. 笔与线段 (次级别走势类型) ----------------}
+{基础笔 (细线): 5% 波动}
+Z_BI:=ZIG(1, 5);
+BI_UP:=Z_BI>=REF(Z_BI,1);
+BI_DN:=Z_BI<=REF(Z_BI,1);
+DRAWLINE(BI_DN AND REF(BI_UP,1), Z_BI, BI_UP AND REF(BI_DN,1), Z_BI, 0), COLOR00E5FF, LINETHICK1;
+DRAWLINE(BI_UP AND REF(BI_DN,1), Z_BI, BI_DN AND REF(BI_UP,1), Z_BI, 0), COLOR00E5FF, LINETHICK1;
 
-{ 最新中枢右侧文字标注 }
-DRAWTEXT(ISLASTBAR AND HAS_ZS, MID_ZG, ' ── 缠论中枢ZG'), COLORMAGENTA;
-DRAWTEXT(ISLASTBAR AND HAS_ZS, MID_ZD, ' ── 缠论中枢ZD'), COLORCYAN;
+{核心线段 (粗线): 8% 波动，构成中枢的次级别走势类型}
+Z_XD:=ZIG(1, 8);
+XD_UP:=Z_XD>=REF(Z_XD,1);
+XD_DN:=Z_XD<=REF(Z_XD,1);
+DRAWLINE(XD_DN AND REF(XD_UP,1), Z_XD, XD_UP AND REF(XD_DN,1), Z_XD, 0), COLORFF00FF, LINETHICK2;
+DRAWLINE(XD_UP AND REF(XD_DN,1), Z_XD, XD_DN AND REF(XD_UP,1), Z_XD, 0), COLORFF00FF, LINETHICK2;
 
-{ ---------------- 3. 缠论三大买点信号精准判定 ---------------- }
-日_DIF:=(EMA(CLOSE, 12) - EMA(CLOSE, 26));
-日_DEA:=EMA(日_DIF, 9);
-MACD_VAL:=(日_DIF - 日_DEA) * 2;
+{---------------- 4. 线段高低点提取 (1~4号转折点) ----------------}
+H1:=PEAK(1, 8, 1);
+H2:=PEAK(1, 8, 2);
+H3:=PEAK(1, 8, 3);
+H4:=PEAK(1, 8, 4);
 
-TB1:=TROUGHBARS(1, 5, 1);
-TB2:=TROUGHBARS(1, 5, 2);
-PB1:=PEAKBARS(1, 5, 1);
-PB2:=PEAKBARS(1, 5, 2);
+L1:=TROUGH(1, 8, 1);
+L2:=TROUGH(1, 8, 2);
+L3:=TROUGH(1, 8, 3);
+L4:=TROUGH(1, 8, 4);
 
-{ 第一类买点 (1Buy)：下跌趋势底背驰极值转折点 }
-底背驰:=(TB1=0 AND ZD1 < ZD2 AND 日_DIF > REF(日_DIF, TB2));
-一买:=底背驰;
-DRAWICON(一买, LOW * 0.985, 1); { 红色向上箭头 }
-DRAWTEXT(一买, LOW * 0.975, ' 1买'), COLORRED;
+TH1:=PEAKBARS(1, 8, 1);
+TH2:=PEAKBARS(1, 8, 2);
+TH3:=PEAKBARS(1, 8, 3);
+TH4:=PEAKBARS(1, 8, 4);
 
-{ 第二类买点 (2Buy)：波谷不破前低 (ZD1 >= ZD2) 企稳确认 }
-二买:=(TB1=0 AND ZD1 >= ZD2);
-DRAWICON(二买, LOW * 0.985, 23); { 金十字星/钻石 }
-DRAWTEXT(二买, LOW * 0.975, ' 2买'), COLORYELLOW;
+TL1:=TROUGHBARS(1, 8, 1);
+TL2:=TROUGHBARS(1, 8, 2);
+TL3:=TROUGHBARS(1, 8, 3);
+TL4:=TROUGHBARS(1, 8, 4);
 
-{ 第三类买点 (3Buy)：强力突破中枢上轨 ZG，次级别回踩不跌回中枢内 (LOW > MID_ZG) }
-三买:=(TB1=0 AND HAS_ZS AND LOW > MID_ZG);
-DRAWICON(三买, LOW * 0.985, 9); { 向上红箭头 }
-DRAWTEXT(三买, LOW * 0.975, ' 3买'), COLORMAGENTA;
+{================ 5. 最新中枢 (中枢1) 划分与绘制 ================}
+{两类标准结构识别: 上涨中枢(下-上-下) 与 下跌中枢(上-下-上)}
+UP_ZS1:=TH2 > TL2 AND TL2 > TH1 AND TH1 > TL1;
+DN_ZS1:=TL2 > TH2 AND TH2 > TL1 AND TL1 > TH1;
 
-{ 二三买合力 (Combo 2+3 Buy)：既不破前低，又稳稳立于中枢 ZG 之上，最强主升 }
-二三合力:=二买 AND 三买;
-DRAWICON(二三合力, LOW * 0.965, 25); { 钱袋子 }
-DRAWTEXT(二三合力, LOW * 0.955, '★2+3合力★'), COLOR00FFFF;
+ZG1:=MIN(H1, H2);
+ZD1:=MAX(L1, L2);
+GG1:=MAX(H1, H2);
+DD1:=MIN(L1, L2);
+ZS1_OK:=(UP_ZS1 OR DN_ZS1) AND (ZG1 > ZD1);
 
-{ ---------------- 4. 缠论三大卖点信号精准判定 ---------------- }
-{ 第一类卖点 (1Sell)：主升上涨顶背驰极值出逃点 }
-顶背驰:=(PB1=0 AND ZG1 > ZG2 AND 日_DIF < REF(日_DIF, PB2));
-一卖:=顶背驰;
-DRAWICON(一卖, HIGH * 1.015, 2); { 绿色向下箭头 }
-DRAWTEXT(一卖, HIGH * 1.025, ' 1卖'), COLORGREEN;
+{中枢1起止周期计算}
+ZS1_START:=IF(UP_ZS1, TH2, TL2);
+ZS1_END:=IF(UP_ZS1, TL1, TH1);
 
-{ 第二类卖点 (2Sell)：反抽不创新高 (ZG1 <= ZG2) 滞涨拐头 }
-二卖:=(PB1=0 AND ZG1 <= ZG2 AND NOT(一卖));
-DRAWTEXT(二卖, HIGH * 1.025, ' 2卖'), COLORLICYAN;
+{K线处于当前中枢区间范围判定}
+IN_ZS1:=ZS1_OK AND (CURRBARSCOUNT <= CONST(ZS1_START + 1)) AND (CURRBARSCOUNT >= CONST(ZS1_END + 1));
 
-{ 第三类卖点 (3Sell)：跌破中枢下轨 ZD 后的次级别反抽不过 ZD (HIGH < MID_ZD) }
-三卖:=(PB1=0 AND HAS_ZS AND HIGH < MID_ZD);
-DRAWTEXT(三卖, HIGH * 1.025, ' 3卖'), COLORWHITE;
+{画中枢1矩形边框 (上涨洋红 / 下跌青蓝)}
+STICKLINE(IN_ZS1 AND UP_ZS1, CONST(ZG1), CONST(ZG1), 3, 0), COLORFF007F;
+STICKLINE(IN_ZS1 AND UP_ZS1, CONST(ZD1), CONST(ZD1), 3, 0), COLORFF007F;
+STICKLINE(IN_ZS1 AND DN_ZS1, CONST(ZG1), CONST(ZG1), 3, 0), COLOR00A8E8;
+STICKLINE(IN_ZS1 AND DN_ZS1, CONST(ZD1), CONST(ZD1), 3, 0), COLOR00A8E8;
 
-{ ---------------- 5. 大中小三周期立体共振看板 (默认：日线 - 30F - 5F体系) ---------------- }
-{ 本地多尺度动能映射：完全避免跨周期逆向引用导致白屏 }
-日多头:=日_DIF > 日_DEA;
+{中枢1左右垂直封闭边框}
+STICKLINE(ZS1_OK AND CURRBARSCOUNT = CONST(ZS1_START + 1), CONST(ZD1), CONST(ZG1), 0.8, 0), COLORFF007F;
+STICKLINE(ZS1_OK AND CURRBARSCOUNT = CONST(ZS1_END + 1), CONST(ZD1), CONST(ZG1), 0.8, 0), COLORFF007F;
 
-F30_DIF:=EMA(CLOSE, 6) - EMA(CLOSE, 13);
-F30_DEA:=EMA(F30_DIF, 5);
-F30多头:=F30_DIF > F30_DEA;
+{中枢1内部通透竖直栅格 (每隔3根K线一条细线)}
+STICKLINE(IN_ZS1 AND UP_ZS1 AND MOD(CURRBARSCOUNT, 3)=0, CONST(ZD1), CONST(ZG1), 0, 0), COLOR800040;
+STICKLINE(IN_ZS1 AND DN_ZS1 AND MOD(CURRBARSCOUNT, 3)=0, CONST(ZD1), CONST(ZG1), 0, 0), COLOR004060;
 
-F5_DIF:=EMA(CLOSE, 3) - EMA(CLOSE, 7);
-F5多头:=F5_DIF > REF(F5_DIF, 1);
+{中枢1右侧水平延伸虚线 (便于观察三买三卖离开与回抽)}
+EXT_ZS1:=ZS1_OK AND (CURRBARSCOUNT < CONST(ZS1_END + 1));
+STICKLINE(EXT_ZS1 AND UP_ZS1, CONST(ZG1), CONST(ZG1), 1.5, 0), COLORFF007F;
+STICKLINE(EXT_ZS1 AND UP_ZS1, CONST(ZD1), CONST(ZD1), 1.5, 0), COLORFF007F;
+STICKLINE(EXT_ZS1 AND DN_ZS1, CONST(ZG1), CONST(ZG1), 1.5, 0), COLOR00A8E8;
+STICKLINE(EXT_ZS1 AND DN_ZS1, CONST(ZD1), CONST(ZD1), 1.5, 0), COLOR00A8E8;
 
-三级共振:=日多头 AND F30多头 AND F5多头;
+{最新中枢右侧文字标记}
+DRAWTEXT(ISLASTBAR AND ZS1_OK, CONST(ZG1), ' ── ZG(中枢高)'), COLORFF007F;
+DRAWTEXT(ISLASTBAR AND ZS1_OK, CONST(ZD1), ' ── ZD(中枢低)'), COLOR00A8E8;
 
-{ 左上角状态信息输出 }
-DRAWTEXT_FIX(ISLASTBAR, 0.01, 0.01, 0, '【缠论大中小三级别共振看板 (日线-30F-5F)】'), COLORWHITE;
+{================ 6. 历史中枢 (中枢2) 划分与绘制 ================}
+UP_ZS2:=TH4 > TL4 AND TL4 > TH3 AND TH3 > TL3;
+DN_ZS2:=TL4 > TH4 AND TH4 > TL3 AND TL3 > TH3;
 
-DRAWTEXT_FIX(ISLASTBAR AND 日多头, 0.01, 0.05, 0, '★ 大级别 (日线): 多头掌控中 [安全边际充足]'), COLORRED;
-DRAWTEXT_FIX(ISLASTBAR AND NOT(日多头), 0.01, 0.05, 0, '☆ 大级别 (日线): 空头退守中 [谨慎控制仓位]'), COLORGRAY;
+ZG2:=MIN(H3, H4);
+ZD2:=MAX(L3, L4);
+ZS2_OK:=(UP_ZS2 OR DN_ZS2) AND (ZG2 > ZD2);
 
-DRAWTEXT_FIX(ISLASTBAR AND F30多头, 0.01, 0.09, 0, '★ 中级别 (30F ): 多头共振段 [顺势波段持股]'), COLORYELLOW;
-DRAWTEXT_FIX(ISLASTBAR AND NOT(F30多头), 0.01, 0.09, 0, '☆ 中级别 (30F ): 处于震荡洗盘 [耐心等待企稳]'), COLORGRAY;
+ZS2_START:=IF(UP_ZS2, TH4, TL4);
+ZS2_END:=IF(UP_ZS2, TL3, TH3);
 
-DRAWTEXT_FIX(ISLASTBAR AND F5多头, 0.01, 0.13, 0, '★ 小级别 (5F  ): 具备买点 [短线精准买入]'), COLORMAGENTA;
-DRAWTEXT_FIX(ISLASTBAR AND NOT(F5多头), 0.01, 0.13, 0, '☆ 小级别 (5F  ): 处于反抽调整 [等待次级拐点]'), COLORGRAY;
+IN_ZS2:=ZS2_OK AND (CURRBARSCOUNT <= CONST(ZS2_START + 1)) AND (CURRBARSCOUNT >= CONST(ZS2_END + 1));
 
-DRAWTEXT_FIX(ISLASTBAR AND 三级共振, 0.01, 0.17, 0, '★【三级共振】: 日+30F+5F 三级别全红多头！主升狂暴出击！'), COLOR00FFFF;
+{画中枢2矩形边框与内部栅格}
+STICKLINE(IN_ZS2 AND UP_ZS2, CONST(ZG2), CONST(ZG2), 3, 0), COLORFF007F;
+STICKLINE(IN_ZS2 AND UP_ZS2, CONST(ZD2), CONST(ZD2), 3, 0), COLORFF007F;
+STICKLINE(IN_ZS2 AND DN_ZS2, CONST(ZG2), CONST(ZG2), 3, 0), COLOR00A8E8;
+STICKLINE(IN_ZS2 AND DN_ZS2, CONST(ZD2), CONST(ZD2), 3, 0), COLOR00A8E8;
+
+STICKLINE(ZS2_OK AND CURRBARSCOUNT = CONST(ZS2_START + 1), CONST(ZD2), CONST(ZG2), 0.8, 0), COLORFF007F;
+STICKLINE(ZS2_OK AND CURRBARSCOUNT = CONST(ZS2_END + 1), CONST(ZD2), CONST(ZG2), 0.8, 0), COLORFF007F;
+
+STICKLINE(IN_ZS2 AND UP_ZS2 AND MOD(CURRBARSCOUNT, 3)=0, CONST(ZD2), CONST(ZG2), 0, 0), COLOR800040;
+STICKLINE(IN_ZS2 AND DN_ZS2 AND MOD(CURRBARSCOUNT, 3)=0, CONST(ZD2), CONST(ZG2), 0, 0), COLOR004060;
+
+{================ 7. 缠论 1/2/3 类买卖点精准标记 ================}
+DIF:=(EMA(CLOSE,12) - EMA(CLOSE,26));
+ACTIVE_ZG:=IF(ZS1_OK, CONST(ZG1), IF(ZS2_OK, CONST(ZG2), DRAWNULL));
+ACTIVE_ZD:=IF(ZS1_OK, CONST(ZD1), IF(ZS2_OK, CONST(ZD2), DRAWNULL));
+
+{第一类买点 (1买): 底背驰极值转折}
+IS_1BUY:=TL1=0 AND L1 < L2 AND DIF > REF(DIF, TL2);
+DRAWICON(IS_1BUY, L*0.985, 1);
+DRAWTEXT(IS_1BUY, L*0.970, ' 1买'), COLORRED;
+
+{第二类买点 (2买): 回踩不破前低确认}
+IS_2BUY:=TL1=0 AND NOT(IS_1BUY) AND L1 >= L2;
+DRAWICON(IS_2BUY, L*0.985, 23);
+DRAWTEXT(IS_2BUY, L*0.970, ' 2买'), COLORYELLOW;
+
+{第三类买点 (3买): 次级别强力离开中枢，回抽不跌破中枢上沿 (LOW >= ZG)}
+IS_3BUY:=TL1=0 AND (L1 >= ACTIVE_ZG) AND (H1 > ACTIVE_ZG) AND (ACTIVE_ZG > 0);
+DRAWICON(IS_3BUY, L*0.985, 9);
+DRAWTEXT(IS_3BUY, L*0.970, ' ★3买'), COLORFF00FF;
+
+{第一类卖点 (1卖): 顶背驰极值转折}
+IS_1SELL:=TH1=0 AND H1 > H2 AND DIF < REF(DIF, TH2);
+DRAWICON(IS_1SELL, H*1.015, 2);
+DRAWTEXT(IS_1SELL, H*1.030, ' 1卖'), COLORGREEN;
+
+{第二类卖点 (2卖): 反弹不过前高滞涨}
+IS_2SELL:=TH1=0 AND NOT(IS_1SELL) AND H1 <= H2;
+DRAWICON(IS_2SELL, H*1.015, 8);
+DRAWTEXT(IS_2SELL, H*1.030, ' 2卖'), COLORLICYAN;
+
+{第三类卖点 (3卖): 次级别跌破中枢，反抽不进入中枢下沿 (HIGH <= ZD)}
+IS_3SELL:=TH1=0 AND (H1 <= ACTIVE_ZD) AND (L1 < ACTIVE_ZD) AND (ACTIVE_ZD > 0);
+DRAWICON(IS_3SELL, H*1.015, 15);
+DRAWTEXT(IS_3SELL, H*1.030, ' ★3卖'), COLORWHITE;
+
+{---------------- 8. 转折极值点价格标注 ----------------}
+DRAWNUMBER(TH1=0, H*1.010, H), COLORGRAY;
+DRAWNUMBER(TL1=0, L*0.990, L), COLORGRAY;
 ```
 
 ---

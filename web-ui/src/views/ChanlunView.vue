@@ -381,6 +381,19 @@ function openKlinePopup() {
   }
 }
 
+function openDiagnosisPopup() {
+  const c = code.value.replace(/[^0-9a-zA-Z]/g, '')
+  if (!c) return
+  const sName = chanDataLeft.value?.name || code.value
+  if (typeof (window as any).openTsFinaModal === 'function') {
+    (window as any).openTsFinaModal(c, sName)
+  } else if (typeof (window as any).openDiagnosisModal === 'function') {
+    (window as any).openDiagnosisModal(c, sName)
+  } else {
+    window.open(`/?code=${c}&diag=1`, '_blank')
+  }
+}
+
 const periodLowLabel = computed(() => {
   const map: Record<string, string> = {
     MONTH: '月线',
@@ -1901,6 +1914,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
       backgroundColor: 'rgba(24, 27, 39, 0.95)',
       borderColor: '#363c4e',
       borderWidth: 1,
+      padding: [8, 12],
+      extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); border-radius: 8px; z-index: 99999; backdrop-blur: 8px; width: 330px; max-width: 330px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
       textStyle: { color: '#d1d4dc', fontSize: 12 },
       formatter: (params: any) => {
         if (!Array.isArray(params) || params.length === 0) return ''
@@ -2007,12 +2022,12 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
               icon = '🌐'
             }
 
-            html += `<div style="padding:4px 7px; background:${mmdBg}; border:1px solid ${mmdBorder}; border-radius:4px; margin-top:4px; font-size:11px;">
-              <div style="font-weight:bold; color:${mmdColor}; display:flex; justify-content:space-between; align-items:center;">
-                <span>${icon} ${m.label}</span>
-                <span style="font-family:monospace; margin-left:8px;">¥${m.price.toFixed(2)}</span>
+            html += `<div style="padding:4px 7px; background:${mmdBg}; border:1px solid ${mmdBorder}; border-radius:4px; margin-top:4px; font-size:11px; box-sizing: border-box; width: 100%;">
+              <div style="font-weight:bold; color:${mmdColor}; display:flex; justify-content:space-between; align-items:center; gap: 6px;">
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${icon} ${m.label}</span>
+                <span style="font-family:monospace; margin-left:8px; white-space: nowrap; flex-shrink: 0;">¥${m.price.toFixed(2)}</span>
               </div>
-              <div style="color:${isDark ? '#cbd5e1' : '#475569'}; margin-top:2px; font-size:10.5px; line-height:1.35;">
+              <div style="color:${isDark ? '#cbd5e1' : '#475569'}; margin-top:2px; font-size:10.5px; line-height:1.4; word-break: break-word; overflow-wrap: anywhere; white-space: normal;">
                 ${m.msg}
               </div>
             </div>`
@@ -2026,7 +2041,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           const resBg = isDark ? (isBuy ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : (isBuy ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
           const resBorder = isBuy ? '#f59e0b' : '#06b6d4'
           const resColor = isDark ? (isBuy ? '#fde047' : '#67e8f9') : (isBuy ? '#92400e' : '#0e7490')
-          html += `<div style="padding:4px 7px; background:${resBg}; border:1px solid ${resBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${resColor}; font-size:11px;">
+          html += `<div style="padding:4px 7px; background:${resBg}; border:1px solid ${resBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${resColor}; font-size:11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
             ★ ${matchedRes.pattern_name} [${matchedRes.grade}级共振] ¥${matchedRes.price.toFixed(2)}
           </div>`
         }
@@ -2037,7 +2052,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           const macdBg = isDark ? (isBottom ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : (isBottom ? 'rgba(254, 226, 226, 0.95)' : 'rgba(209, 250, 229, 0.95)')
           const macdBorder = isBottom ? '#ef4444' : '#10b981'
           const macdColor = isDark ? (isBottom ? '#fca5a5' : '#86efac') : (isBottom ? '#991b1b' : '#064e3b')
-          html += `<div style="padding:4px 6px; background:${macdBg}; border: 1px solid ${macdBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${macdColor}; font-size:11px;">
+          html += `<div style="padding:4px 6px; background:${macdBg}; border: 1px solid ${macdBorder}; border-radius:4px; margin-top:4px; font-weight:bold; color:${macdColor}; font-size:11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
             ${matchedMacd.label}: ${matchedMacd.msg}
           </div>`
         }
@@ -2107,7 +2122,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           </div>`
         }
 
-        return html
+        return `<div style="width: 100%; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;">${html}</div>`
       },
     },
     legend: {
@@ -3377,6 +3392,13 @@ onBeforeUnmount(() => {
           >
             <span>📊 K线</span>
           </button>
+          <button
+            class="tool-btn diag-btn"
+            @click="openDiagnosisPopup"
+            title="查看当前标的【4D多智能体业绩体检与深度诊断】"
+          >
+            <span>🩺 诊断</span>
+          </button>
           <button class="icon-btn" @click="loadData(true)" :title="`立即刷新最新${periodLowLabel}K线数据`">
             🔄
           </button>
@@ -4272,6 +4294,16 @@ onBeforeUnmount(() => {
 .kline-btn:hover {
   background: rgba(99, 102, 241, 0.22);
   border-color: #818cf8;
+  color: #ffffff;
+}
+.diag-btn {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.35);
+  color: #7dd3fc;
+}
+.diag-btn:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: #38bdf8;
   color: #ffffff;
 }
 .icon-btn {

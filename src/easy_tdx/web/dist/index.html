@@ -4735,6 +4735,14 @@
                             <span>K线</span>
                         </button>
 
+                        <!-- 打开4D业绩体检与深度诊断弹窗按钮 -->
+                        <button id="cl-btn-open-diag" onclick="openChanlunDiagnosisModal()"
+                            class="flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-semibold transition cursor-pointer bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 border border-indigo-200 dark:border-indigo-700/60 shrink-0 shadow-xs"
+                            title="查看当前标的【4D多智能体业绩体检与深度诊断】">
+                            <i data-lucide="activity" class="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400"></i>
+                            <span>诊断</span>
+                        </button>
+
                         <button id="cl-btn-refresh-all" onclick="refreshChanlunAll(true)" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer" title="立即刷新K线与热门股票">
                             <i id="cl-btn-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         </button>
@@ -5534,6 +5542,13 @@
                         title="展开/收起 股东人数、公司档案、所属板块及营收利润同比环比">
                         <i data-lucide="building-2" class="w-3.5 h-3.5 text-indigo-400"></i>
                         <span>资料·财务</span>
+                    </button>
+
+                    <button id="kp-diag-btn" onclick="openKpDiagnosisModal()"
+                        class="flex items-center space-x-1 px-2 py-1 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 hover:bg-indigo-900 transition text-xs font-semibold cursor-pointer"
+                        title="查看当前标的【4D多智能体业绩体检与深度诊断】">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-indigo-400"></i>
+                        <span>诊断</span>
                     </button>
 
                     <span class="text-slate-700 mx-0.5 select-none">|</span>
@@ -20462,7 +20477,7 @@
 
     <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
     <div id="ts-fina-modal"
-        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5">
+        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5">
         <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-5xl w-full h-[85vh] min-h-[580px] max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
             onclick="event.stopPropagation()">
             <!-- Modal Header -->
@@ -26186,7 +26201,7 @@
                     borderColor: tooltipBorder,
                     borderWidth: 1,
                     padding: [8, 12],
-                    extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); border-radius: 8px; z-index: 99999; backdrop-blur: 8px;',
+                    extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); border-radius: 8px; z-index: 99999; backdrop-blur: 8px; width: 330px; max-width: 330px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
                     formatter: function (params) {
                         if (!Array.isArray(params) || params.length === 0) return '';
                         const dateStr = params[0].name;
@@ -26237,12 +26252,12 @@
                                 const mmdColor = theme.primary;
                                 const icon = isBuy ? '▲' : '▼';
                                 return `
-                                    <div style="margin-top: 5px; padding: 4px 8px; background: ${mmdBg}; border: 1px solid ${mmdBorder}; border-radius: 4px; font-size: 11px;">
-                                        <div style="font-weight: bold; color: ${mmdColor}; display: flex; justify-content: space-between; align-items: center;">
-                                            <span>${icon} ${m.label}</span>
-                                            <span style="font-family: monospace; margin-left: 8px;">¥${Number(m.price).toFixed(2)}</span>
+                                    <div style="margin-top: 5px; padding: 4px 8px; background: ${mmdBg}; border: 1px solid ${mmdBorder}; border-radius: 4px; font-size: 11px; box-sizing: border-box; width: 100%;">
+                                        <div style="font-weight: bold; color: ${mmdColor}; display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+                                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${icon} ${m.label}</span>
+                                            <span style="font-family: monospace; white-space: nowrap; flex-shrink: 0;">¥${Number(m.price).toFixed(2)}</span>
                                         </div>
-                                        <div style="color: ${isDark ? '#cbd5e1' : '#475569'}; margin-top: 2px; font-size: 10.5px; line-height: 1.35;">
+                                        <div style="color: ${isDark ? '#cbd5e1' : '#475569'}; margin-top: 2px; font-size: 10.5px; line-height: 1.4; word-break: break-word; overflow-wrap: anywhere; white-space: normal;">
                                             ${m.msg || ''}
                                         </div>
                                     </div>
@@ -26263,7 +26278,7 @@
                                 ? (isBuy ? '#fde047' : '#67e8f9') 
                                 : (isBuy ? '#92400e' : '#0e7490');
                             resHtml = `
-                                <div style="margin-top: 5px; padding: 4px 8px; background: ${resBg}; border: 1px solid ${resBorder}; border-radius: 4px; color: ${resColor}; font-weight: bold; font-size: 11px;">
+                                <div style="margin-top: 5px; padding: 4px 8px; background: ${resBg}; border: 1px solid ${resBorder}; border-radius: 4px; color: ${resColor}; font-weight: bold; font-size: 11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
                                     ★ ${matchedRes.pattern_name} [${matchedRes.grade}级共振] (¥${Number(matchedRes.price).toFixed(2)})
                                 </div>
                             `;
@@ -26282,7 +26297,7 @@
                                 ? (isBottom ? '#fca5a5' : '#86efac') 
                                 : (isBottom ? '#991b1b' : '#064e3b');
                             macdHtml = `
-                                <div style="margin-top: 4px; padding: 3px 8px; background: ${macdBg}; border: 1px solid ${macdBorder}; border-radius: 4px; color: ${macdColor}; font-weight: bold; font-size: 11px;">
+                                <div style="margin-top: 4px; padding: 3px 8px; background: ${macdBg}; border: 1px solid ${macdBorder}; border-radius: 4px; color: ${macdColor}; font-weight: bold; font-size: 11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
                                     ${matchedMacd.label}: ${matchedMacd.msg}
                                 </div>
                             `;
@@ -26380,7 +26395,7 @@
                         }
 
                         return `
-                            <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-width: 175px;">
+                            <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 4px; margin-bottom: 6px;">
                                     <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${dateStr}</span>
                                     <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
@@ -27120,6 +27135,30 @@
             }
         }
         window.openChanlunKlineModal = openChanlunKlineModal;
+
+        function openChanlunDiagnosisModal() {
+            const code = String(_clCurrentCode || window._clCurrentCode || '').replace(/[^0-9a-zA-Z]/g, '');
+            if (!code) return;
+            const sName = window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || code;
+            if (typeof openTsFinaModal === 'function') {
+                openTsFinaModal(code, sName);
+            } else if (typeof openDiagnosisModal === 'function') {
+                openDiagnosisModal(code, sName);
+            }
+        }
+        window.openChanlunDiagnosisModal = openChanlunDiagnosisModal;
+
+        function openKpDiagnosisModal() {
+            const code = String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+            if (!code) return;
+            const name = currentKpStockName || document.getElementById('kp-stock-name')?.innerText || code;
+            if (typeof openTsFinaModal === 'function') {
+                openTsFinaModal(code, name);
+            } else if (typeof openDiagnosisModal === 'function') {
+                openDiagnosisModal(code, name);
+            }
+        }
+        window.openKpDiagnosisModal = openKpDiagnosisModal;
 
         function onChanlunCustomPeriodChange(changed = 'low') {
             let hEl = document.getElementById('cl-select-high');
