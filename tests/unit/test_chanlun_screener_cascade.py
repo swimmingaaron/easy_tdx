@@ -248,11 +248,13 @@ def test_screener_request_models_defaults():
     """Verify router request models and discovery default to chanlun_resonance and MONTH_WEEK_DAY_2BUY."""
     req_scan = ScreenerScanRequest()
     assert req_scan.strategy == "chanlun_resonance"
-    assert req_scan.period == "MONTH_WEEK_DAY_2BUY"
+    assert req_scan.universe == "all"
+    assert req_scan.period == "MONTH_WEEK_DAY_3BUY"
 
-    req_task = ScreenerTaskStartRequest(universe="core")
+    req_task = ScreenerTaskStartRequest()
     assert req_task.strategy == "chanlun_resonance"
-    assert req_task.period == "MONTH_WEEK_DAY_2BUY"
+    assert req_task.universe == "all"
+    assert req_task.period == "MONTH_WEEK_DAY_3BUY"
 
 
 def test_strategy_registry_includes_chanlun_resonance():

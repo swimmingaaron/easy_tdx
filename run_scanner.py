@@ -710,7 +710,7 @@ def main() -> None:
         elif strategy_name == "chanlun_dual_resonance":
             period = "DUAL_CASCADE"
         elif strategy_name == "chanlun_resonance":
-            period = "MONTH_WEEK_DAY_2BUY"
+            period = "MONTH_WEEK_DAY_3BUY"
         elif strategy_name == "chanlun_strategy":
             period = "DAY_30F_5F"
         else:

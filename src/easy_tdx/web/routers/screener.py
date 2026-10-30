@@ -30,16 +30,16 @@ _TASKS_LOCK = threading.Lock()
 
 class ScreenerScanRequest(BaseModel):
     strategy: str = "chanlun_resonance"
-    universe: str = "core"
-    period: str = "MONTH_WEEK_DAY_2BUY"
+    universe: str = "all"
+    period: str = "MONTH_WEEK_DAY_3BUY"
     symbols: list[str] | None = None
     lookback_bars: int = 22
     force_refresh: bool = False
 
 class ScreenerTaskStartRequest(BaseModel):
     strategy: str = "chanlun_resonance"
-    universe: str = "core"
-    period: str = "MONTH_WEEK_DAY_2BUY"
+    universe: str = "all"
+    period: str = "MONTH_WEEK_DAY_3BUY"
     lookback_bars: int = 22
     force_refresh: bool = False
 
@@ -110,8 +110,8 @@ def api_get_industries():
 @router.get("/scan")
 def api_scan_get(
     strategy: str = Query("chanlun_resonance", description="Strategy identifier name"),
-    universe: str = Query("core", description="Universe tier: core, hs300, zz500, zz1000, all, 或行业如 industry:半导体"),
-    period: str = Query("MONTH_WEEK_DAY_2BUY", description="Period: MONTH_WEEK_DAY_2BUY, MONTH_WEEK_DAY_3BUY, SEASON_MONTH_WEEK_2BUY, etc."),
+    universe: str = Query("all", description="Universe tier: core, hs300, zz500, zz1000, all, 或行业如 industry:半导体"),
+    period: str = Query("MONTH_WEEK_DAY_3BUY", description="Period: MONTH_WEEK_DAY_2BUY, MONTH_WEEK_DAY_3BUY, SEASON_MONTH_WEEK_2BUY, etc."),
     force_refresh: bool = Query(False, description="Whether to bypass caches and force fresh intraday data"),
 ):
     """Scan market against selected strategy synchronously (GET request)."""
@@ -147,7 +147,7 @@ def api_scan_post(req: ScreenerScanRequest):
         "data": matches
     }
 
-def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "MONTH_WEEK_DAY_2BUY", lookback_bars: int = 22, force_refresh: bool = False):
+def _run_async_screener_worker(task_id: str, strategy: str, universe: str, period: str = "MONTH_WEEK_DAY_3BUY", lookback_bars: int = 22, force_refresh: bool = False):
     """Background worker for long-running screening tasks (e.g. all 5,200+ A-shares)."""
     with _TASKS_LOCK:
         task = _ASYNC_TASKS.get(task_id)

@@ -2027,7 +2027,7 @@ def scan_market_strategy(
         strategy_name = "chanlun_resonance"
 
     if strategy_name == "chanlun_resonance" and (not period or period in ("DAY", "")):
-        period = "MONTH_WEEK_DAY_2BUY"
+        period = "MONTH_WEEK_DAY_3BUY"
     elif strategy_name == "chanlun_dual_resonance" and (not period or period in ("DAY", "")):
         period = "DUAL_CASCADE"
     elif strategy_name == "chanlun_strategy" and (not period or period in ("DAY", "", "ALL_CASCADE")):

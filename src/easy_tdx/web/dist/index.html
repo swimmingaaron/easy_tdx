@@ -3209,8 +3209,8 @@
                             <span class="text-[11px] text-slate-400 font-medium">周期:</span>
                             <select id="screener-period-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
-                                <option value="MONTH_WEEK_DAY_2BUY" selected>📈 月周日 共振 (日线 2买 · 默认推荐)</option>
-                                <option value="MONTH_WEEK_DAY_3BUY">📈 月周日 共振 (日线 3买)</option>
+                                <option value="MONTH_WEEK_DAY_3BUY" selected>📈 月周日 共振 (日线 3买 · 默认推荐)</option>
+                                <option value="MONTH_WEEK_DAY_2BUY">📈 月周日 共振 (日线 2买)</option>
                                 <option value="SEASON_MONTH_WEEK_2BUY">🏛️ 季月周 共振 (周线 2买)</option>
                                 <option value="SEASON_MONTH_WEEK_3BUY">🏛️ 季月周 共振 (周线 3买)</option>
                                 <option value="WEEK_DAY_30F_2BUY">⏱️ 周日30F 共振 (30F 2买)</option>
@@ -3226,11 +3226,11 @@
                             <select id="screener-universe-select" onchange="onScreenerParamsChange()"
                                 class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
                                 <optgroup label="指数与核心池">
-                                    <option value="core" selected>⭐ 核心龙头池 (159只 · ~2-3秒)</option>
+                                    <option value="core">⭐ 核心龙头池 (159只 · ~2-3秒)</option>
                                     <option value="hs300">📈 沪深300指数池 (300只 · ~6秒)</option>
                                     <option value="zz500">🚀 中证500成长主力 (500只 · ~12秒)</option>
                                     <option value="zz1000">🔥 中证1000活跃小盘 (1000只 · ~25秒)</option>
-                                    <option value="all">🌐 全市场全A股 (5,200+只 · 后台异步任务)</option>
+                                    <option value="all" selected>🌐 全市场全A股 (5,200+只 · 后台异步任务)</option>
                                 </optgroup>
                                 <optgroup id="screener-industry-optgroup" label="🏭 行业板块指数 (对行业指数整体择时)">
                                     <option value="industry_index">🌐 全部行业板块指数 (128个行业指数 · 秒级)</option>
@@ -3278,8 +3278,7 @@
                     class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
                     <div class="flex items-center space-x-3">
                         <span id="screener-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                        <span id="screener-status-text" class="text-slate-300 font-medium">当前范围：核心龙头池 (35只) ·
-                            点击「开始选股」即刻扫描</span>
+                        <span id="screener-status-text" class="text-slate-300 font-medium">当前范围：🌐 全市场全A股 (5,200+只) · 后台异步全量任务 · 周期：月周日 共振 (3买) · 模式：优先使用Cache数据</span>
                     </div>
                     <div class="flex items-center space-x-3 text-slate-400 font-mono text-[11px]"
                         id="screener-meta-stats">
@@ -18688,8 +18687,8 @@
         let screenerPollTimer = null;
 
         const CHANLUN_RESONANCE_PERIOD_OPTIONS = [
-            { value: 'MONTH_WEEK_DAY_2BUY', text: '📈 月周日 共振 (日线 2买 · 默认推荐)', selected: true },
-            { value: 'MONTH_WEEK_DAY_3BUY', text: '📈 月周日 共振 (日线 3买)' },
+            { value: 'MONTH_WEEK_DAY_3BUY', text: '📈 月周日 共振 (日线 3买 · 默认推荐)', selected: true },
+            { value: 'MONTH_WEEK_DAY_2BUY', text: '📈 月周日 共振 (日线 2买)' },
             { value: 'SEASON_MONTH_WEEK_2BUY', text: '🏛️ 季月周 共振 (周线 2买)' },
             { value: 'SEASON_MONTH_WEEK_3BUY', text: '🏛️ 季月周 共振 (周线 3买)' },
             { value: 'WEEK_DAY_30F_2BUY', text: '⏱️ 周日30F 共振 (30F 2买)' },
@@ -18757,8 +18756,8 @@
             const uniSel = document.getElementById('screener-universe-select');
             const forceInput = document.getElementById('screener-force-refresh');
             const periodSel = document.getElementById('screener-period-select');
-            const uni = uniSel ? uniSel.value : 'core';
-            const period = periodSel ? periodSel.value : 'MONTH_WEEK_DAY_2BUY';
+            const uni = uniSel ? uniSel.value : 'all';
+            const period = periodSel ? periodSel.value : 'MONTH_WEEK_DAY_3BUY';
             const periodMap = {
                 'MONTH_WEEK_DAY_2BUY': '月周日 共振 (2买)',
                 'MONTH_WEEK_DAY_3BUY': '月周日 共振 (3买)',
@@ -19721,9 +19720,9 @@
             const forceInput = document.getElementById('screener-force-refresh');
             const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
-            const universe = uniSelect ? uniSelect.value : 'core';
+            const universe = uniSelect ? uniSelect.value : 'all';
             const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
-            const defaultPeriod = isChanlun ? 'DAY_30F_5F' : 'DAY';
+            const defaultPeriod = strategy === 'chanlun_resonance' ? 'MONTH_WEEK_DAY_3BUY' : (isChanlun ? 'DAY_30F_5F' : 'DAY');
             const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 
@@ -19749,7 +19748,7 @@
             const strategy = stSelect ? stSelect.value : 'chanlun_strategy';
             const strategyName = stSelect && stSelect.selectedIndex >= 0 ? stSelect.options[stSelect.selectedIndex].text : strategy;
             const isChanlun = (strategy === 'chanlun_strategy' || strategy === 'chan_theory_daily');
-            const defaultPeriod = isChanlun ? 'DAY_30F_5F' : 'DAY';
+            const defaultPeriod = strategy === 'chanlun_resonance' ? 'MONTH_WEEK_DAY_3BUY' : (isChanlun ? 'DAY_30F_5F' : 'DAY');
             const period = periodSelect ? (periodSelect.value || defaultPeriod) : defaultPeriod;
             const forceRefresh = forceInput ? forceInput.checked : false;
 
