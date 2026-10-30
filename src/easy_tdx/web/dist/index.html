@@ -25217,69 +25217,121 @@
             const ARROW_UP_PATH = 'path://M 0,0 L 2.8,6 L 0.6,6 L 0.6,20 L -0.6,20 L -0.6,6 L -2.8,6 Z';
             const ARROW_DOWN_PATH = 'path://M 0,20 L 2.8,14 L 0.6,14 L 0.6,0 L -0.6,0 L -0.6,14 L -2.8,14 Z';
 
-            // 4. 买卖点 MarkPoints (护眼胶囊标签：温润底色 + 同色调高对比字体 + 优雅小边距)
-            const mmdMarkPoints = _clLayers.mmd ? (uc.mmd_marks || []).map(m => {
-                const isBig = m.level === 'high';
-                const isMid = m.level === 'mid';
-                const theme = isBig ? highTheme : (isMid ? midTheme : lowTheme);
+            // 建立日期对应K线字典，用于将买卖点精准锚定在蜡烛图极值外部，彻底杜绝遮挡K线实体与影线
+            const dateToCandleMap = {};
+            for (let i = 0; i < dates.length; i++) {
+                if (candles[i]) {
+                    dateToCandleMap[dates[i]] = candles[i]; // [open, close, low, high]
+                }
+            }
 
-                let levelName = '小';
-                if (isBig) {
-                    levelName = (d && d.periods && d.periods.high && d.periods.high.name) ? d.periods.high.name.replace(/线/g, '') : '大';
-                } else if (isMid) {
-                    levelName = (d && d.periods && d.periods.mid && d.periods.mid.name) ? d.periods.mid.name.replace(/线/g, '') : '中';
-                } else {
-                    levelName = (d && d.periods && d.periods.low && d.periods.low.name) ? d.periods.low.name.replace(/线/g, '') : '小';
+            // 4. 买卖点 MarkPoints (多级别重叠时上下分行显示，避让蜡烛图)
+            const mmdMarkPoints = (() => {
+                if (!_clLayers.mmd || !uc.mmd_marks || uc.mmd_marks.length === 0) return [];
+
+                // 4.1 按 (日期, 买卖方向) 分组
+                const groups = {};
+                for (const m of uc.mmd_marks) {
+                    const dKey = m.coord ? m.coord[0] : m.date;
+                    const gKey = `${dKey}_${m.is_buy ? 'buy' : 'sell'}`;
+                    if (!groups[gKey]) {
+                        groups[gKey] = [];
+                    }
+                    groups[gKey].push(m);
                 }
 
-                const mType = (m.type || '').toLowerCase();
-                let typeStr = '';
-                if (mType.includes('1buy')) typeStr = '1买(底背)';
-                else if (mType.includes('2buy')) typeStr = '2买';
-                else if (mType.includes('3buy')) typeStr = '3买';
-                else if (mType.includes('1sell')) typeStr = '1卖(顶背)';
-                else if (mType.includes('2sell')) typeStr = '2卖';
-                else if (mType.includes('3sell')) typeStr = '3卖';
-                else typeStr = m.short_label || m.label || m.type;
+                // 级别排序权重：大级别(周) -> 中级别(日) -> 小级别(30F/5F)
+                const levelPriority = { high: 0, mid: 1, low: 2 };
 
-                const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`;
-                const tagColor = theme.badgeBg;
-                const tagBorder = theme.badgeBorder || theme.primary;
-                const tagTextColor = theme.badgeText;
+                const result = [];
+                for (const gKey in groups) {
+                    const list = groups[gKey];
+                    // 排序：高级别优先显示在最靠近箭头的首行
+                    list.sort((a, b) => (levelPriority[a.level] ?? 9) - (levelPriority[b.level] ?? 9));
 
-                return {
-                    name: m.type,
-                    coord: m.coord,
-                    value: displayText,
-                    symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
-                    symbolSize: [5.5, 20],
-                    symbolOffset: m.is_buy ? [0, '50%'] : [0, '-50%'],
-                    itemStyle: { 
-                        color: theme.primary,
-                        borderColor: isDark ? 'rgba(0, 0, 0, 0.4)' : '#ffffff',
-                        borderWidth: 0.8,
-                        shadowBlur: isDark ? 2 : 0,
-                        shadowColor: 'transparent'
-                    },
-                    label: {
-                        show: true,
-                        position: m.is_buy ? 'bottom' : 'top',
-                        distance: 2,
-                        formatter: displayText,
-                        color: tagTextColor,
-                        backgroundColor: tagColor,
-                        borderColor: tagBorder,
-                        borderWidth: 1.0,
-                        borderRadius: 3,
-                        padding: [1.5, 4.5],
-                        fontWeight: 'bold',
-                        fontSize: 9.5,
-                        fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
-                        shadowBlur: isDark ? 3 : 0,
-                        shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent'
-                    }
-                };
-            }) : [];
+                    list.forEach((m, k) => {
+                        const isBig = m.level === 'high';
+                        const isMid = m.level === 'mid';
+                        const theme = isBig ? highTheme : (isMid ? midTheme : lowTheme);
+
+                        let levelName = '小';
+                        if (isBig) {
+                            levelName = (d && d.periods && d.periods.high && d.periods.high.name) ? d.periods.high.name.replace(/线/g, '') : '大';
+                        } else if (isMid) {
+                            levelName = (d && d.periods && d.periods.mid && d.periods.mid.name) ? d.periods.mid.name.replace(/线/g, '') : '中';
+                        } else {
+                            levelName = (d && d.periods && d.periods.low && d.periods.low.name) ? d.periods.low.name.replace(/线/g, '') : '小';
+                        }
+
+                        const mType = (m.type || '').toLowerCase();
+                        let typeStr = '';
+                        if (mType.includes('1buy')) typeStr = '1买(底背)';
+                        else if (mType.includes('2buy')) typeStr = '2买';
+                        else if (mType.includes('3buy')) typeStr = '3买';
+                        else if (mType.includes('1sell')) typeStr = '1卖(顶背)';
+                        else if (mType.includes('2sell')) typeStr = '2卖';
+                        else if (mType.includes('3sell')) typeStr = '3卖';
+                        else typeStr = m.short_label || m.label || m.type;
+
+                        const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`;
+                        const tagColor = theme.badgeBg;
+                        const tagBorder = theme.badgeBorder || theme.primary;
+                        const tagTextColor = theme.badgeText;
+
+                        // 锚点计算：买点锚定在K线最低价下方，卖点锚定在最高价上方，绝不遮挡蜡烛图
+                        const dKey = m.coord ? m.coord[0] : m.date;
+                        const cData = dateToCandleMap[dKey];
+                        let anchorY = Number(m.coord ? m.coord[1] : (m.price || 0));
+                        if (cData) {
+                            const cLow = Number(cData[2]);
+                            const cHigh = Number(cData[3]);
+                            if (m.is_buy) {
+                                anchorY = Math.min(anchorY, cLow);
+                            } else {
+                                anchorY = Math.max(anchorY, cHigh);
+                            }
+                        }
+
+                        // 首行(k===0)绘制指引箭头，后续同bar买卖点隐藏箭头保持同等基准，只向下/向上分行排列标签
+                        const isFirst = (k === 0);
+                        const rowDistance = 3 + k * 19; // 每行高度约16px + 3px间距
+
+                        result.push({
+                            name: m.type,
+                            coord: [dKey, anchorY],
+                            value: displayText,
+                            symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
+                            symbolSize: [5.5, 20],
+                            symbolOffset: m.is_buy ? [0, 13] : [0, -13],
+                            itemStyle: {
+                                color: isFirst ? theme.primary : 'transparent',
+                                borderColor: (isFirst && isDark) ? 'rgba(0, 0, 0, 0.4)' : (isFirst ? '#ffffff' : 'transparent'),
+                                borderWidth: isFirst ? 0.8 : 0,
+                                shadowBlur: (isFirst && isDark) ? 2 : 0,
+                                shadowColor: 'transparent'
+                            },
+                            label: {
+                                show: true,
+                                position: m.is_buy ? 'bottom' : 'top',
+                                distance: rowDistance,
+                                formatter: displayText,
+                                color: tagTextColor,
+                                backgroundColor: tagColor,
+                                borderColor: tagBorder,
+                                borderWidth: 1.0,
+                                borderRadius: 3,
+                                padding: [1.5, 4.5],
+                                fontWeight: 'bold',
+                                fontSize: 9.5,
+                                fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
+                                shadowBlur: isDark ? 3 : 0,
+                                shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent'
+                            }
+                        });
+                    });
+                }
+                return result;
+            })();
 
             // 5. 共振买卖点 MarkPoints & 贯穿线
             const resMarkPoints = _clLayers.res ? (uc.res_marks || []).map(r => {

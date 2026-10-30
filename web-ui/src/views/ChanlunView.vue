@@ -1340,9 +1340,38 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   const ARROW_UP_PATH = 'path://M 0,0 L 2.8,6 L 0.6,6 L 0.6,20 L -0.6,20 L -0.6,6 L -2.8,6 Z'
   const ARROW_DOWN_PATH = 'path://M 0,20 L 2.8,14 L 0.6,14 L 0.6,0 L -0.6,0 L -0.6,14 L -2.8,14 Z'
 
-  // 多级别买卖点同图呈现 markPoints (护眼胶囊标签：温润底色 + 同色调高对比字体 + 优雅小边距)
-  const mmdMarkPoints = showMmdMarks.value
-    ? uc.mmd_marks.map((m) => {
+  // 建立日期对应K线字典，用于将买卖点精准锚定在蜡烛图极值外部，彻底杜绝遮挡K线实体与影线
+  const dateToCandleMap: Record<string, any> = {}
+  if (uc.dates && uc.candles) {
+    for (let i = 0; i < uc.dates.length; i++) {
+      if (uc.candles[i]) {
+        dateToCandleMap[uc.dates[i]] = uc.candles[i]
+      }
+    }
+  }
+
+  // 多级别买卖点同图呈现 markPoints (多级别重叠时上下分行显示，避让蜡烛图)
+  const mmdMarkPoints = (() => {
+    if (!showMmdMarks.value || !uc.mmd_marks || uc.mmd_marks.length === 0) return []
+
+    const groups: Record<string, any[]> = {}
+    for (const m of uc.mmd_marks) {
+      const dKey = m.coord ? m.coord[0] : m.date
+      const gKey = `${dKey}_${m.is_buy ? 'buy' : 'sell'}`
+      if (!groups[gKey]) {
+        groups[gKey] = []
+      }
+      groups[gKey].push(m)
+    }
+
+    const levelPriority: Record<string, number> = { high: 0, mid: 1, low: 2 }
+    const result: any[] = []
+
+    for (const gKey in groups) {
+      const list = groups[gKey]
+      list.sort((a, b) => (levelPriority[a.level] ?? 9) - (levelPriority[b.level] ?? 9))
+
+      list.forEach((m, k) => {
         const isBig = m.level === 'high'
         const isMid = m.level === 'mid'
         const theme = isBig ? highTheme : (isMid ? midTheme : lowTheme)
@@ -1371,24 +1400,40 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         const tagBorder = theme.badgeBorder || theme.primary
         const tagTextColor = theme.badgeText
 
-        return {
+        const dKey = m.coord ? m.coord[0] : m.date
+        const cData = dateToCandleMap[dKey]
+        let anchorY = Number(m.coord ? m.coord[1] : (m.price || 0))
+        if (cData) {
+          const cLow = Number(cData[2])
+          const cHigh = Number(cData[3])
+          if (m.is_buy) {
+            anchorY = Math.min(anchorY, cLow)
+          } else {
+            anchorY = Math.max(anchorY, cHigh)
+          }
+        }
+
+        const isFirst = (k === 0)
+        const rowDistance = 3 + k * 19
+
+        result.push({
           name: m.type,
-          coord: m.coord,
+          coord: [dKey, anchorY],
           value: displayText,
           symbol: m.is_buy ? ARROW_UP_PATH : ARROW_DOWN_PATH,
           symbolSize: [5.5, 20],
-          symbolOffset: m.is_buy ? [0, '50%'] : [0, '-50%'],
+          symbolOffset: m.is_buy ? [0, 13] : [0, -13],
           itemStyle: {
-            color: theme.primary,
-            borderColor: isDark ? 'rgba(0, 0, 0, 0.4)' : '#ffffff',
-            borderWidth: 0.8,
-            shadowBlur: isDark ? 2 : 0,
+            color: isFirst ? theme.primary : 'transparent',
+            borderColor: (isFirst && isDark) ? 'rgba(0, 0, 0, 0.4)' : (isFirst ? '#ffffff' : 'transparent'),
+            borderWidth: isFirst ? 0.8 : 0,
+            shadowBlur: (isFirst && isDark) ? 2 : 0,
             shadowColor: 'transparent',
           },
           label: {
             show: true,
             position: m.is_buy ? 'bottom' : 'top',
-            distance: 2,
+            distance: rowDistance,
             formatter: displayText,
             color: tagTextColor,
             backgroundColor: tagColor,
@@ -1402,9 +1447,11 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
             shadowBlur: isDark ? 3 : 0,
             shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent',
           },
-        }
+        })
       })
-    : []
+    }
+    return result
+  })()
 
   // 三周期立体共振买卖点 markPoints & 垂直穿透引导线
   const resonanceMarkPoints = showResonanceMarks.value

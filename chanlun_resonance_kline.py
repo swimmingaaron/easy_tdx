@@ -1384,6 +1384,34 @@ def export_interactive_html(
                 },
             })
 
+    # 针对同bar/多级别买卖点重叠：上下分行显示，并锚定在蜡烛图极值外部避让K线
+    date_to_candle = {d: c for d, c in zip(dates, candles)}
+    groups = {}
+    for m in mmd_marks:
+        d_key = m["coord"][0]
+        is_b = "▲" in m["value"]
+        g_key = (d_key, is_b)
+        groups.setdefault(g_key, []).append(m)
+
+    adjusted_mmd_marks = []
+    for (d_key, is_b), m_list in groups.items():
+        c_bar = date_to_candle.get(d_key)
+        for k, m in enumerate(m_list):
+            if c_bar:
+                c_low, c_high = c_bar[2], c_bar[3]
+                if is_b:
+                    m["coord"][1] = min(m["coord"][1], c_low)
+                    m["symbolOffset"] = [0, 13]
+                else:
+                    m["coord"][1] = max(m["coord"][1], c_high)
+                    m["symbolOffset"] = [0, -13]
+            m["label"]["distance"] = 3 + k * 20
+            if k > 0:
+                m["itemStyle"]["color"] = "transparent"
+                m["itemStyle"]["borderColor"] = "transparent"
+            adjusted_mmd_marks.append(m)
+    mmd_marks = adjusted_mmd_marks
+
     # 共振买卖点
     res_marks = []
     for r in resonances:
