@@ -1905,6 +1905,61 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
   const midBiLegendName = `中笔·${d.periods.mid.name}(${midTheme.name})`
   const lowBiLegendName = `小笔·${d.periods.low.name}(${lowTheme.name})`
 
+  // 计算默认可视区间并动态贴合上下界 (呼吸留白6%)，保证Y轴绝不从0开始，自动调整高度
+  const totalBars = uc.dates ? uc.dates.length : 0
+  let defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100)
+  let defaultZoomEnd = 100
+
+  const highBis = uc.high_bis || []
+  if (highBis.length > 0 && totalBars > 0) {
+    const targetBi = highBis[highBis.length - 1]
+    const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null
+    const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+    let leftMargin = 4
+    if (prevBi) {
+      const prevStartIdx = Math.max(0, prevBi.start_idx)
+      const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+      leftMargin = Math.min(leftMargin, allowedMargin)
+    }
+    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+    defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+    defaultZoomEnd = 100
+  } else if ((uc.mid_bis || []).length > 0 && totalBars > 0) {
+    const midBis = uc.mid_bis || []
+    const targetBi = midBis[midBis.length - 1]
+    const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null
+    const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
+    let leftMargin = 4
+    if (prevBi) {
+      const prevStartIdx = Math.max(0, prevBi.start_idx)
+      const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
+      leftMargin = Math.min(leftMargin, allowedMargin)
+    }
+    const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
+    defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
+    defaultZoomEnd = 100
+  }
+
+  let visMinL = Infinity
+  let visMaxH = -Infinity
+  const sIdx = Math.max(0, Math.floor((defaultZoomStart / 100) * totalBars))
+  const eIdx = Math.min(totalBars - 1, Math.ceil((defaultZoomEnd / 100) * totalBars))
+  for (let i = sIdx; i <= eIdx; i++) {
+    const c = uc.candles ? uc.candles[i] : null
+    if (c) {
+      if (c[2] < visMinL) visMinL = c[2]
+      if (c[3] > visMaxH) visMaxH = c[3]
+    }
+  }
+  let finalYMin: number | undefined = undefined
+  let finalYMax: number | undefined = undefined
+  if (visMinL !== Infinity && visMaxH !== -Infinity) {
+    const span = Math.max(0.01, visMaxH - visMinL)
+    const pad = span * 0.06
+    finalYMin = Math.max(0.01, +(visMinL - pad).toFixed(2))
+    finalYMax = +(visMaxH + pad).toFixed(2)
+  }
+
   const option: echarts.EChartsCoreOption = {
     backgroundColor: '#131722',
     animation: false,
@@ -2194,6 +2249,8 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         scale: true,
         gridIndex: 0,
         position: 'right',
+        min: finalYMin,
+        max: finalYMax,
         splitLine: { lineStyle: { color: '#1e222d' } },
         axisLine: { lineStyle: { color: '#2a2e39' } },
         axisLabel: { color: '#888888', fontSize: 11 },
@@ -2235,74 +2292,28 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
         },
       },
     ],
-    ...(() => {
-      // 保证每个窗口默认显示窗口中，有且只有一个完整的大周期线段
-      const totalBars = uc.dates ? uc.dates.length : 0
-      let defaultZoomStart = Math.max(0, 100 - (110 / (totalBars || 1)) * 100)
-      let defaultZoomEnd = 100
-
-      const highBis = uc.high_bis || []
-      if (highBis.length > 0 && totalBars > 0) {
-        const targetBi = highBis[highBis.length - 1]
-        const prevBi = highBis.length >= 2 ? highBis[highBis.length - 2] : null
-
-        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
-
-        // 留出适度左边距（例如 3~5 根K线），确保起始顶点圆形标记和分型清晰展现；
-        // 同时边距严控不超过与前一条线段起点的间距，确保前一条线段在视野内不完整，
-        // 从而保证当前默认显示窗口中有且仅有一个完整的大周期线段。
-        let leftMargin = 4
-        if (prevBi) {
-          const prevStartIdx = Math.max(0, prevBi.start_idx)
-          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
-          leftMargin = Math.min(leftMargin, allowedMargin)
-        }
-        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
-
-        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
-        defaultZoomEnd = 100
-      } else if ((uc.mid_bis || []).length > 0 && totalBars > 0) {
-        // 兜底：若暂无大级别笔，则退化使用中级别最新完整线段
-        const midBis = uc.mid_bis || []
-        const targetBi = midBis[midBis.length - 1]
-        const prevBi = midBis.length >= 2 ? midBis[midBis.length - 2] : null
-        const targetStartIdx = Math.max(0, Math.min(totalBars - 1, targetBi.start_idx))
-        let leftMargin = 4
-        if (prevBi) {
-          const prevStartIdx = Math.max(0, prevBi.start_idx)
-          const allowedMargin = Math.max(0, Math.floor((targetStartIdx - prevStartIdx) / 4))
-          leftMargin = Math.min(leftMargin, allowedMargin)
-        }
-        const viewStartIdx = Math.max(0, targetStartIdx - leftMargin)
-        defaultZoomStart = Math.max(0, Number(((viewStartIdx / totalBars) * 100).toFixed(2)))
-        defaultZoomEnd = 100
-      }
-
-      return {
-        dataZoom: [
-          {
-            type: 'inside',
-            xAxisIndex: [0, 1],
-            minValueSpan: 10,
-            start: defaultZoomStart,
-            end: defaultZoomEnd,
-          },
-          {
-            type: 'slider',
-            xAxisIndex: [0, 1],
-            bottom: 4,
-            height: 14,
-            minValueSpan: 10,
-            borderColor: '#2a2e39',
-            backgroundColor: '#181b27',
-            fillerColor: 'rgba(41, 98, 255, 0.25)',
-            textStyle: { color: '#888888', fontSize: 10 },
-            start: defaultZoomStart,
-            end: defaultZoomEnd,
-          },
-        ],
-      }
-    })(),
+    dataZoom: [
+      {
+        type: 'inside',
+        xAxisIndex: [0, 1],
+        minValueSpan: 10,
+        start: defaultZoomStart,
+        end: defaultZoomEnd,
+      },
+      {
+        type: 'slider',
+        xAxisIndex: [0, 1],
+        bottom: 4,
+        height: 14,
+        minValueSpan: 10,
+        borderColor: '#2a2e39',
+        backgroundColor: '#181b27',
+        fillerColor: 'rgba(41, 98, 255, 0.25)',
+        textStyle: { color: '#888888', fontSize: 10 },
+        start: defaultZoomStart,
+        end: defaultZoomEnd,
+      },
+    ],
     series: [
       {
         name: '基准K线',
@@ -2500,7 +2511,8 @@ function renderChart() {
   if (chartContainerLeft.value && chanDataLeft.value) {
     if (!chartInstanceLeft) {
       chartInstanceLeft = echarts.init(chartContainerLeft.value, 'dark')
-      chartInstanceLeft.on('dataZoom', () => {
+      chartInstanceLeft.on('dataZoom', (params: any) => {
+          updateChanlunVisibleYAxis('left', params)
         checkAndTriggerDynamicZoom('left', chartInstanceLeft)
       })
       chartInstanceLeft.on('click', () => { setActiveWindow('left') })
@@ -2529,7 +2541,8 @@ function renderChart() {
     if (chartContainerW2.value && chanDataW2.value) {
       if (!chartInstanceW2) {
         chartInstanceW2 = echarts.init(chartContainerW2.value, 'dark')
-        chartInstanceW2.on('dataZoom', () => {
+        chartInstanceW2.on('dataZoom', (params: any) => {
+          updateChanlunVisibleYAxis('w2', params)
           checkAndTriggerDynamicZoom('w2', chartInstanceW2)
         })
         chartInstanceW2.on('click', () => { setActiveWindow('w2') })
@@ -2555,7 +2568,8 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
-        chartInstanceRight.on('dataZoom', () => {
+        chartInstanceRight.on('dataZoom', (params: any) => {
+          updateChanlunVisibleYAxis('right', params)
           checkAndTriggerDynamicZoom('right', chartInstanceRight)
         })
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
@@ -2581,7 +2595,8 @@ function renderChart() {
     if (chartContainerW4.value && chanDataW4.value) {
       if (!chartInstanceW4) {
         chartInstanceW4 = echarts.init(chartContainerW4.value, 'dark')
-        chartInstanceW4.on('dataZoom', () => {
+        chartInstanceW4.on('dataZoom', (params: any) => {
+          updateChanlunVisibleYAxis('w4', params)
           checkAndTriggerDynamicZoom('w4', chartInstanceW4)
         })
         chartInstanceW4.on('click', () => { setActiveWindow('w4') })
@@ -2608,7 +2623,8 @@ function renderChart() {
     if (chartContainerRight.value && chanDataRight.value) {
       if (!chartInstanceRight) {
         chartInstanceRight = echarts.init(chartContainerRight.value, 'dark')
-        chartInstanceRight.on('dataZoom', () => {
+        chartInstanceRight.on('dataZoom', (params: any) => {
+          updateChanlunVisibleYAxis('right', params)
           checkAndTriggerDynamicZoom('right', chartInstanceRight)
         })
         chartInstanceRight.on('click', () => { setActiveWindow('right') })
@@ -2630,6 +2646,92 @@ function renderChart() {
 
   attachSelectionToAllCharts()
   adjustLayoutHeight()
+}
+
+function updateChanlunVisibleYAxis(side: 'left' | 'w2' | 'right' | 'w4', zoomParams?: any) {
+  let instance: any = chartInstanceLeft
+  let d: any = chanDataLeft.value
+  if (side === 'w2') {
+    instance = chartInstanceW2
+    d = chanDataW2.value
+  } else if (side === 'right') {
+    instance = chartInstanceRight
+    d = chanDataRight.value
+  } else if (side === 'w4') {
+    instance = chartInstanceW4
+    d = chanDataW4.value
+  }
+  if (!instance || !d) return
+  try {
+    const opt: any = instance.getOption()
+    if (!opt || !opt.dataZoom || !opt.dataZoom[0]) return
+    const candles = d.unified_chart?.candles || []
+    if (candles.length === 0) return
+
+    let startPct = 40
+    let endPct = 100
+    let startVal: any = undefined
+    let endVal: any = undefined
+
+    let dzParam = zoomParams
+    if (dzParam && dzParam.batch && dzParam.batch.length > 0) {
+      dzParam = dzParam.batch[0]
+    }
+    if (dzParam) {
+      if (dzParam.start !== undefined) startPct = dzParam.start
+      if (dzParam.end !== undefined) endPct = dzParam.end
+      if (dzParam.startValue !== undefined) startVal = dzParam.startValue
+      if (dzParam.endValue !== undefined) endVal = dzParam.endValue
+    } else {
+      const dz = opt.dataZoom[0]
+      if (dz.start !== undefined) startPct = dz.start
+      if (dz.end !== undefined) endPct = dz.end
+      if (dz.startValue !== undefined) startVal = dz.startValue
+      if (dz.endValue !== undefined) endVal = dz.endValue
+    }
+
+    let startIdx = 0
+    let endIdx = candles.length - 1
+    if (startVal !== undefined && endVal !== undefined) {
+      if (typeof startVal === 'number' && typeof endVal === 'number') {
+        startIdx = Math.max(0, Math.min(candles.length - 1, Math.round(startVal)))
+        endIdx = Math.max(0, Math.min(candles.length - 1, Math.round(endVal)))
+      }
+    } else {
+      startIdx = Math.max(0, Math.floor((startPct / 100) * candles.length))
+      endIdx = Math.min(candles.length - 1, Math.ceil((endPct / 100) * candles.length))
+    }
+
+    let maxH = -Infinity
+    let minL = Infinity
+    for (let i = startIdx; i <= endIdx; i++) {
+      const c = candles[i]
+      if (c) {
+        const h = c[3]
+        const l = c[2]
+        if (h > maxH) maxH = h
+        if (l < minL) minL = l
+      }
+    }
+
+    if (maxH !== -Infinity && minL !== Infinity) {
+      const span = Math.max(0.01, maxH - minL)
+      const pad = span * 0.06
+      const finalYMin = Math.max(0.01, +(minL - pad).toFixed(2))
+      const finalYMax = +(maxH + pad).toFixed(2)
+
+      instance.setOption({
+        yAxis: [
+          {
+            min: finalYMin,
+            max: finalYMax,
+          },
+        ],
+      })
+    }
+  } catch (e) {
+    console.debug('Visible extrema error:', e)
+  }
 }
 
 function checkAndTriggerDynamicZoom(side: 'left' | 'w2' | 'right' | 'w4', instance: any) {

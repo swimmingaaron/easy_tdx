@@ -24966,19 +24966,59 @@
         }
 
 
-        function updateChanlunVisibleExtrema() {
-            if (!window.chanlunChart || !_clCachedData) return;
+        function updateChanlunVisibleExtrema(side = 'left', zoomParams = null) {
+            let chartInstance = window.chanlunChart;
+            let d = _clLeftCachedData || _clCachedData;
+            if (side === 'w2') {
+                chartInstance = window.chanlunChartW2;
+                d = _clW2CachedData;
+            } else if (side === 'right' || side === 'w3') {
+                chartInstance = window.chanlunChartRight;
+                d = _clRightCachedData;
+            } else if (side === 'w4') {
+                chartInstance = window.chanlunChartW4;
+                d = _clW4CachedData;
+            }
+            if (!chartInstance || !d) return;
             try {
-                const opt = window.chanlunChart.getOption();
+                const opt = chartInstance.getOption();
                 if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
-                const dz = opt.dataZoom[0];
-                const candles = _clCachedData.unified_chart?.candles || [];
+                const candles = d.unified_chart?.candles || [];
                 if (candles.length === 0) return;
 
-                const startPct = dz.start !== undefined ? dz.start : 0;
-                const endPct = dz.end !== undefined ? dz.end : 100;
-                const startIdx = Math.max(0, Math.floor((startPct / 100) * candles.length));
-                const endIdx = Math.min(candles.length - 1, Math.ceil((endPct / 100) * candles.length));
+                let startPct = 40;
+                let endPct = 100;
+                let startVal = undefined;
+                let endVal = undefined;
+
+                let dzParam = zoomParams;
+                if (dzParam && dzParam.batch && dzParam.batch.length > 0) {
+                    dzParam = dzParam.batch[0];
+                }
+                if (dzParam) {
+                    if (dzParam.start !== undefined) startPct = dzParam.start;
+                    if (dzParam.end !== undefined) endPct = dzParam.end;
+                    if (dzParam.startValue !== undefined) startVal = dzParam.startValue;
+                    if (dzParam.endValue !== undefined) endVal = dzParam.endValue;
+                } else {
+                    const dz = opt.dataZoom[0];
+                    if (dz.start !== undefined) startPct = dz.start;
+                    if (dz.end !== undefined) endPct = dz.end;
+                    if (dz.startValue !== undefined) startVal = dz.startValue;
+                    if (dz.endValue !== undefined) endVal = dz.endValue;
+                }
+
+                let startIdx = 0;
+                let endIdx = candles.length - 1;
+                if (startVal !== undefined && endVal !== undefined) {
+                    if (typeof startVal === 'number' && typeof endVal === 'number') {
+                        startIdx = Math.max(0, Math.min(candles.length - 1, Math.round(startVal)));
+                        endIdx = Math.max(0, Math.min(candles.length - 1, Math.round(endVal)));
+                    }
+                } else {
+                    startIdx = Math.max(0, Math.floor((startPct / 100) * candles.length));
+                    endIdx = Math.min(candles.length - 1, Math.ceil((endPct / 100) * candles.length));
+                }
 
                 let maxH = -Infinity;
                 let minL = Infinity;
@@ -24993,13 +25033,30 @@
                 }
 
                 if (maxH !== -Infinity && minL !== Infinity) {
-                    const amp = minL > 0 ? ((maxH - minL) / minL * 100) : 0;
-                    const hEl = document.getElementById('cl-vis-high');
-                    const lEl = document.getElementById('cl-vis-low');
-                    const aEl = document.getElementById('cl-vis-amp');
-                    if (hEl) hEl.innerText = maxH.toFixed(2);
-                    if (lEl) lEl.innerText = minL.toFixed(2);
-                    if (aEl) aEl.innerText = `${amp.toFixed(2)}%`;
+                    // 动态贴合当前可视区间的上下界 (呼吸留白6%)，保证Y轴绝不从0开始，自动调整高度
+                    const span = Math.max(0.01, maxH - minL);
+                    const pad = span * 0.06;
+                    const finalYMin = Math.max(0.01, +(minL - pad).toFixed(2));
+                    const finalYMax = +(maxH + pad).toFixed(2);
+
+                    chartInstance.setOption({
+                        yAxis: [
+                            {
+                                min: finalYMin,
+                                max: finalYMax
+                            }
+                        ]
+                    });
+
+                    if (side === 'left' || side === 'w1') {
+                        const amp = minL > 0 ? ((maxH - minL) / minL * 100) : 0;
+                        const hEl = document.getElementById('cl-vis-high');
+                        const lEl = document.getElementById('cl-vis-low');
+                        const aEl = document.getElementById('cl-vis-amp');
+                        if (hEl) hEl.innerText = maxH.toFixed(2);
+                        if (lEl) lEl.innerText = minL.toFixed(2);
+                        if (aEl) aEl.innerText = `${amp.toFixed(2)}%`;
+                    }
                 }
             } catch (e) {
                 console.debug("Visible extrema error:", e);
@@ -26182,6 +26239,27 @@
             })();
             const finalEnd = prevDataZoom ? prevDataZoom.end : defaultZoomEnd;
 
+            // 动态贴合可视区间的上下界 (呼吸留白6%)，保证Y轴绝不从0开始，自动调整高度
+            let visMinL = Infinity;
+            let visMaxH = -Infinity;
+            const sIdx = Math.max(0, Math.floor((finalStart / 100) * candles.length));
+            const eIdx = Math.min(candles.length - 1, Math.ceil((finalEnd / 100) * candles.length));
+            for (let i = sIdx; i <= eIdx; i++) {
+                const c = candles[i];
+                if (c) {
+                    if (c[2] < visMinL) visMinL = c[2];
+                    if (c[3] > visMaxH) visMaxH = c[3];
+                }
+            }
+            let finalYMin = undefined;
+            let finalYMax = undefined;
+            if (visMinL !== Infinity && visMaxH !== -Infinity) {
+                const span = Math.max(0.01, visMaxH - visMinL);
+                const pad = span * 0.06;
+                finalYMin = Math.max(0.01, +(visMinL - pad).toFixed(2));
+                finalYMax = +(visMaxH + pad).toFixed(2);
+            }
+
             const option = {
                 backgroundColor: 'transparent',
                 animation: false,
@@ -26458,6 +26536,8 @@
                         scale: true,
                         gridIndex: 0,
                         position: 'right',
+                        min: finalYMin,
+                        max: finalYMax,
                         splitLine: { lineStyle: { color: splitColor } },
                         axisLine: { lineStyle: { color: axisColor } },
                         axisLabel: { color: textColor, fontSize: 10, formatter: v => `¥${v.toFixed(2)}` }
@@ -26633,10 +26713,8 @@
             if (!instance) {
                 instance = echarts.init(chartDom, isDark ? 'dark' : null);
                 instance._clThemeMode = isDark ? 'dark' : 'light';
-                instance.on('dataZoom', () => {
-                    if (side === 'left' || side === 'w1') {
-                        updateChanlunVisibleExtrema();
-                    }
+                instance.on('dataZoom', (params) => {
+                    updateChanlunVisibleExtrema(side, params);
                     if (typeof checkAndTriggerDynamicZoom === 'function') {
                         checkAndTriggerDynamicZoom(side, instance);
                     }
