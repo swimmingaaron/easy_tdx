@@ -1077,6 +1077,13 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
             else:
                 raw = raw_bytes.decode("utf-8", errors="replace")
             data_json = json.loads(raw).get("data", [])
+            # 构建报告期字典映射，用于精准核算单季度营收与净利润
+            by_date_raw = {}
+            for item in data_json:
+                rd = str(item.get("REPORT_DATE", ""))[:10]
+                if rd:
+                    by_date_raw[rd[:7]] = item
+
             for item in data_json[:8]:
                 rep_date = str(item.get("REPORT_DATE", ""))[:10]
                 qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
@@ -1088,6 +1095,34 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
                 xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
                 eps = float(item.get("EPSJB") or 0.0)
 
+                # 单季度营收与归母净利润计算 (Q1直接等于累计; Q2=中报-一季报; Q3=三季报-中报; Q4=年报-三季报)
+                ym = rep_date[:7]
+                year_str = ym[:4]
+                month_str = ym[5:7]
+                q_rev = rev
+                q_np = np_val
+                if month_str == "06":
+                    q1_item = by_date_raw.get(f"{year_str}-03")
+                    if q1_item:
+                        q_rev = rev - float(q1_item.get("TOTALOPERATEREVE") or 0.0)
+                        q_np = np_val - float(q1_item.get("PARENTNETPROFIT") or 0.0)
+                elif month_str == "09":
+                    q2_item = by_date_raw.get(f"{year_str}-06")
+                    if q2_item:
+                        q_rev = rev - float(q2_item.get("TOTALOPERATEREVE") or 0.0)
+                        q_np = np_val - float(q2_item.get("PARENTNETPROFIT") or 0.0)
+                elif month_str == "12":
+                    q3_item = by_date_raw.get(f"{year_str}-09")
+                    if q3_item:
+                        q_rev = rev - float(q3_item.get("TOTALOPERATEREVE") or 0.0)
+                        q_np = np_val - float(q3_item.get("PARENTNETPROFIT") or 0.0)
+
+                # 环比数据：优先采用官方权威指标 DJD_TOI_QOQ 与 DJD_DPNP_QOQ
+                djd_toi_qoq = item.get("DJD_TOI_QOQ")
+                djd_dpnp_qoq = item.get("DJD_DPNP_QOQ")
+                single_income_qoq = float(round(djd_toi_qoq, 2)) if djd_toi_qoq is not None else None
+                single_netprofit_qoq = float(round(djd_dpnp_qoq, 2)) if djd_dpnp_qoq is not None else None
+
                 fina_list.append({
                     "record_date": str(rep_date),
                     "qdate": str(qdate),
@@ -1098,6 +1133,10 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
                     "sjltz": float(round(sjltz, 2)),
                     "xsmll": float(round(xsmll, 2)),
                     "basic_eps": float(round(eps, 3)),
+                    "single_operate_income": float(round(q_rev, 2)),
+                    "single_income_qoq": single_income_qoq,
+                    "single_netprofit": float(round(q_np, 2)),
+                    "single_netprofit_qoq": single_netprofit_qoq,
                 })
     except Exception as e:
         logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
@@ -1204,6 +1243,44 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
             "xsmll": 0.0,
             "basic_eps": t_eps,
         })
+
+    # 补全单季度指标与环比 (针对 SinaClient 等回退源或未自带环比的情况)
+    by_ym_fina = {f["record_date"][:7]: f for f in fina_list if f.get("record_date")}
+    for f in fina_list:
+        if "single_operate_income" not in f or f.get("single_operate_income") is None:
+            rep_d = str(f.get("record_date", ""))[:10]
+            ym = rep_d[:7]
+            y_str = ym[:4]
+            m_str = ym[5:7]
+            rev = float(f.get("total_operate_income") or 0.0)
+            np_val = float(f.get("parent_netprofit") or 0.0)
+            q_r = rev
+            q_n = np_val
+            if m_str == "06" and f"{y_str}-03" in by_ym_fina:
+                q_r = rev - float(by_ym_fina[f"{y_str}-03"].get("total_operate_income") or 0.0)
+                q_n = np_val - float(by_ym_fina[f"{y_str}-03"].get("parent_netprofit") or 0.0)
+            elif m_str == "09" and f"{y_str}-06" in by_ym_fina:
+                q_r = rev - float(by_ym_fina[f"{y_str}-06"].get("total_operate_income") or 0.0)
+                q_n = np_val - float(by_ym_fina[f"{y_str}-06"].get("parent_netprofit") or 0.0)
+            elif m_str == "12" and f"{y_str}-09" in by_ym_fina:
+                q_r = rev - float(by_ym_fina[f"{y_str}-09"].get("total_operate_income") or 0.0)
+                q_n = np_val - float(by_ym_fina[f"{y_str}-09"].get("parent_netprofit") or 0.0)
+            f["single_operate_income"] = float(round(q_r, 2))
+            f["single_netprofit"] = float(round(q_n, 2))
+
+    for i in range(len(fina_list) - 1):
+        curr = fina_list[i]
+        prev = fina_list[i + 1]
+        if curr.get("single_income_qoq") is None:
+            p_r = prev.get("single_operate_income")
+            c_r = curr.get("single_operate_income")
+            if p_r is not None and abs(p_r) > 0 and c_r is not None:
+                curr["single_income_qoq"] = round(((c_r - p_r) / abs(p_r)) * 100.0, 2)
+        if curr.get("single_netprofit_qoq") is None:
+            p_n = prev.get("single_netprofit")
+            c_n = curr.get("single_netprofit")
+            if p_n is not None and abs(p_n) > 0 and c_n is not None:
+                curr["single_netprofit_qoq"] = round(((c_n - p_n) / abs(p_n)) * 100.0, 2)
 
     # 持久化记录最新有效财报数据
     if fina_list and (fina_list[0].get("ystz", 0.0) != 0.0 or fina_list[0].get("sjltz", 0.0) != 0.0):
