@@ -185,6 +185,7 @@ def save_persistent_holders_data(code: str, data: Dict[str, Any]):
         "holder_ratio": ratio,
         "holder_focus": data.get("holder_focus", "--"),
         "holders_changes": changes,
+        "holders_history": data.get("holders_history", []),
         "holders_num": data.get("holders_num", 0),
         "holders_str": data.get("holders_str", "--"),
     }
@@ -466,7 +467,7 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                             "num": int(item.get("HOLDER_TOTAL_NUM") or 0)
                         })
 
-                # 完整历史变动明细 (对齐变动日期、股东总人数、较上期变动)
+                # 完整历史变动明细 (对齐变动日期、股东总人数、较上期变动、对应股价)
                 history = []
                 for item in gdrs:
                     edate = str(item.get("END_DATE") or "")[:10]
@@ -477,12 +478,15 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                     ratio_str = f"{ratio_val:+.2f}%" if ratio_val is not None else ""
                     h_ratio = item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL")
                     h_ratio_val = round(float(h_ratio), 2) if h_ratio is not None else 0.0
+                    price_raw = item.get("PRICE")
+                    price_val = float(round(float(price_raw), 2)) if price_raw is not None else None
                     history.append({
                         "date": edate,
                         "num": h_num,
                         "num_str": h_num_str,
                         "ratio": ratio_val,
                         "ratio_str": ratio_str,
+                        "price": price_val,
                         "hold_ratio": h_ratio_val,
                         "focus": str(item.get("HOLD_FOCUS") or ""),
                     })

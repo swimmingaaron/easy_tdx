@@ -20748,20 +20748,22 @@
                     </div>
                 </div>
 
-                <!-- 4. 股东人数历史变动大表视图 (对齐变动日期、股东总人数、较上期变动) -->
-                <div id="ts-modal-pane-holders" class="hidden h-full flex flex-col min-h-0 space-y-2.5">
-                    <div class="flex items-center justify-between px-1 shrink-0">
+                <!-- 4. 股东人数历史变动大表与走势图视图 -->
+                <div id="ts-modal-pane-holders" class="hidden h-full overflow-y-auto space-y-3.5 pr-1">
+                    <div class="flex flex-wrap items-center justify-between gap-2 px-1 shrink-0">
                         <div class="flex items-center space-x-3">
                             <h3 id="ts-holders-stock-title"
-                                class="text-base font-bold text-blue-600 dark:text-blue-400 font-sans tracking-tight">--
+                                class="text-base font-bold text-blue-600 dark:text-cyan-400 font-sans tracking-tight">--
                             </h3>
                             <span id="ts-holders-summary-badge"
                                 class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">--</span>
                         </div>
                         <span class="text-xs text-slate-500 dark:text-slate-400">数据源：定期报告权威披露与东财机构数据</span>
                     </div>
+
+                    <!-- 股东人数历史变动大表 (含对应股价) -->
                     <div
-                        class="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative">
+                        class="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative">
                         <table class="w-full text-left border-separate border-spacing-0 text-xs whitespace-nowrap">
                             <thead
                                 class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold shadow-xs select-none border-b border-slate-200 dark:border-slate-800">
@@ -20775,15 +20777,33 @@
                                     <th
                                         class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 py-2.5 px-4 border-b border-slate-200 dark:border-slate-800 text-right font-bold">
                                         较上期变动</th>
+                                    <th
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 py-2.5 px-4 border-b border-slate-200 dark:border-slate-800 text-right font-bold text-amber-600 dark:text-amber-400">
+                                        对应股价</th>
                                 </tr>
                             </thead>
                             <tbody id="ts-holders-table-body"
                                 class="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono text-slate-800 dark:text-slate-200">
                                 <tr>
-                                    <td colspan="3" class="py-8 text-center text-slate-400">正在载入股东人数历史记录...</td>
+                                    <td colspan="4" class="py-8 text-center text-slate-400">正在载入股东人数历史记录...</td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- 股价走势与股东人数走势图 (ECharts 直观图表) -->
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 shadow-xs">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center space-x-1.5">
+                                    <span>📈</span>
+                                    <span>股价走势与股东人数变动趋势</span>
+                                </span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-normal">柱状为股东总人数 (左轴)，折线为报告期对应股价 (右轴)</span>
+                            </div>
+                            <div id="ts-holders-trend-tip" class="text-[11px] text-indigo-600 dark:text-cyan-400 font-medium font-sans"></div>
+                        </div>
+                        <div id="ts-holders-echart-container" style="width: 100%; height: 260px;"></div>
                     </div>
                 </div>
             </div>
@@ -22356,6 +22376,7 @@
             if (!window._tsFinaResizeBound) {
                 window.addEventListener('resize', () => {
                     if (window._tsFinaChart) window._tsFinaChart.resize();
+                    if (window._tsHoldersChart) window._tsHoldersChart.resize();
                 });
                 window._tsFinaResizeBound = true;
             }
@@ -22530,8 +22551,9 @@
         function renderTsHoldersTable(d, code, name) {
             const hData = d.holders_data || {};
             const hHistory = hData.holders_history || [];
-            const pfx = (code.startsWith('6') || code.startsWith('9')) ? 'SH' : (code.startsWith('8') || code.startsWith('4')) ? 'BJ' : 'SZ';
-            const stockTitle = `${d.stock_name || name}(${pfx}${code})`;
+            const cleanCode = String(code || '').replace(/[^0-9]/g, '');
+            const pfx = (cleanCode.startsWith('6') || cleanCode.startsWith('9')) ? 'SH' : (cleanCode.startsWith('8') || cleanCode.startsWith('4')) ? 'BJ' : 'SZ';
+            const stockTitle = `${d.stock_name || name}(${pfx}${cleanCode})`;
 
             const titleEl = document.getElementById('ts-holders-stock-title');
             if (titleEl) titleEl.innerText = stockTitle;
@@ -22551,9 +22573,12 @@
                 badgeEl.innerText = parts.join(' | ') || '股东筹码监控';
             }
 
-            let hRows = '';
-            if (hHistory.length > 0) {
-                hHistory.forEach(item => {
+            function buildHoldersTableHtml(historyList) {
+                if (!historyList || historyList.length === 0) {
+                    return `<tr><td colspan="4" class="py-10 text-center text-slate-400">暂未获取到历史股东人数记录</td></tr>`;
+                }
+                let rows = '';
+                historyList.forEach(item => {
                     let rText = '--';
                     let rClass = 'text-slate-400 dark:text-slate-500 font-mono';
                     if (item.ratio !== null && item.ratio !== undefined) {
@@ -22569,19 +22594,225 @@
                             rClass = 'text-slate-400 dark:text-slate-500 font-mono';
                         }
                     }
-                    hRows += `
+                    const pText = (item.price !== null && item.price !== undefined) ? `¥${Number(item.price).toFixed(2)}` : '--';
+                    rows += `
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                         <td class="py-2.5 px-4 text-slate-700 dark:text-slate-300 font-sans">${item.date}</td>
                         <td class="py-2.5 px-4 text-center font-bold font-mono text-slate-900 dark:text-slate-100">${item.num_str}</td>
                         <td class="py-2.5 px-4 text-right ${rClass}">${rText}</td>
+                        <td class="py-2.5 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">${pText}</td>
                     </tr>
-                `;
+                    `;
                 });
-            } else {
-                hRows = `<tr><td colspan="3" class="py-10 text-center text-slate-400">暂未获取到历史股东人数记录</td></tr>`;
+                return rows;
             }
+
             const tbody = document.getElementById('ts-holders-table-body');
-            if (tbody) tbody.innerHTML = hRows;
+            if (tbody) tbody.innerHTML = buildHoldersTableHtml(hHistory);
+
+            // 渲染走势图表
+            renderTsHoldersChart(hHistory, d.stock_name || name, cleanCode);
+
+            // 检查历史数据中是否缺失对应股价；若缺失，通过日K线历史收盘价异步补全，实现无缝平滑兼容
+            const needsPriceFallback = hHistory.some(it => it.price === null || it.price === undefined);
+            if (needsPriceFallback && cleanCode && hHistory.length > 0) {
+                fetch(`/api/quotes/kline?symbol=${cleanCode}&period=DAY&count=800`)
+                    .then(r => r.json())
+                    .then(kData => {
+                        const bars = kData.data || [];
+                        if (bars && bars.length > 0) {
+                            let updated = false;
+                            hHistory.forEach(it => {
+                                if (it.price === null || it.price === undefined) {
+                                    const itDate = (it.date || '').substring(0, 10);
+                                    let matchedBar = null;
+                                    for (let i = bars.length - 1; i >= 0; i--) {
+                                        const bDate = (bars[i].datetime || bars[i].date || '').substring(0, 10);
+                                        if (bDate <= itDate) {
+                                            matchedBar = bars[i];
+                                            break;
+                                        }
+                                    }
+                                    if (matchedBar && matchedBar.close) {
+                                        it.price = Number(Number(matchedBar.close).toFixed(2));
+                                        updated = true;
+                                    }
+                                }
+                            });
+                            if (updated) {
+                                if (tbody) tbody.innerHTML = buildHoldersTableHtml(hHistory);
+                                renderTsHoldersChart(hHistory, d.stock_name || name, cleanCode);
+                            }
+                        }
+                    })
+                    .catch(e => console.warn('Holders price fallback error:', e));
+            }
+        }
+
+        function renderTsHoldersChart(hHistory, stockName, code) {
+            const container = document.getElementById('ts-holders-echart-container');
+            if (!container || typeof echarts === 'undefined') return;
+            if (!hHistory || hHistory.length === 0) {
+                container.innerHTML = '<div class="py-16 text-center text-slate-400">暂无股东人数历史记录</div>';
+                return;
+            }
+
+            // 时间正序排列（从早到晚）
+            const sorted = [...hHistory].reverse();
+            const dates = sorted.map(d => d.date);
+            const numWanList = sorted.map(d => d.num ? Number((d.num / 10000).toFixed(2)) : 0);
+            const priceList = sorted.map(d => (d.price !== null && d.price !== undefined) ? Number(d.price) : null);
+            const ratioList = sorted.map(d => d.ratio);
+
+            // 智能分析提示
+            const tipEl = document.getElementById('ts-holders-trend-tip');
+            if (tipEl) {
+                const latest = hHistory[0];
+                if (latest && latest.ratio !== null && latest.ratio !== undefined) {
+                    const r = Number(latest.ratio);
+                    if (r < 0) {
+                        tipEl.innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-semibold">💡 筹码监控：最新期股东人数较上期减少 <strong>${Math.abs(r).toFixed(2)}%</strong> (筹码趋于集中，主力资金呈吸筹态势)</span>`;
+                    } else if (r > 0) {
+                        tipEl.innerHTML = `<span class="text-rose-600 dark:text-rose-400 font-semibold">💡 筹码监控：最新期股东人数较上期增加 <strong>+${r.toFixed(2)}%</strong> (筹码有所分散，注意盘中抛压)</span>`;
+                    } else {
+                        tipEl.innerHTML = '<span class="text-slate-500 font-semibold">💡 筹码监控：最新期股东人数较上期基本持平</span>';
+                    }
+                } else {
+                    tipEl.innerHTML = '';
+                }
+            }
+
+            let chart = echarts.getInstanceByDom(container);
+            if (!chart) {
+                chart = echarts.init(container);
+            }
+            window._tsHoldersChart = chart;
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            const splitLineColor = isDark ? '#1e293b' : '#f1f5f9';
+
+            // 动态刻度范围计算
+            const validNums = numWanList.filter(n => n > 0);
+            const minNum = validNums.length > 0 ? Math.floor(Math.min(...validNums) * 0.85) : 0;
+            const maxNum = validNums.length > 0 ? Math.ceil(Math.max(...validNums) * 1.08) : 100;
+
+            const validPrices = priceList.filter(p => p !== null && p > 0);
+            const minP = validPrices.length > 0 ? Math.floor(Math.min(...validPrices) * 0.85 * 10) / 10 : 0;
+            const maxP = validPrices.length > 0 ? Math.ceil(Math.max(...validPrices) * 1.12 * 10) / 10 : 10;
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                    borderWidth: 1,
+                    textStyle: { color: isDark ? '#f8fafc' : '#0f172a', fontSize: 11 },
+                    formatter: function (params) {
+                        if (!params || params.length === 0) return '';
+                        const dIdx = params[0].dataIndex;
+                        const itemObj = sorted[dIdx];
+                        let res = `<div class="font-bold text-xs mb-1.5">${params[0].axisValue} 股东变动与股价</div>`;
+                        res += `<div class="flex items-center justify-between space-x-3 my-0.5 text-xs">
+                            <span class="flex items-center space-x-1.5">
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background-color:#38bdf8;"></span>
+                                <span>股东总人数:</span>
+                            </span>
+                            <span class="font-mono font-bold">${itemObj.num_str || (numWanList[dIdx] + '万')} (${itemObj.num}户)</span>
+                        </div>`;
+                        if (itemObj.ratio !== null && itemObj.ratio !== undefined) {
+                            const rVal = Number(itemObj.ratio);
+                            const rColor = rVal < 0 ? '#10b981' : '#f43f5e';
+                            res += `<div class="flex items-center justify-between space-x-3 my-0.5 text-xs">
+                                <span>较上期变动:</span>
+                                <span class="font-mono font-bold" style="color:${rColor}">${rVal > 0 ? '+' : ''}${rVal.toFixed(2)}%</span>
+                            </div>`;
+                        }
+                        if (priceList[dIdx] !== null) {
+                            res += `<div class="flex items-center justify-between space-x-3 my-0.5 text-xs">
+                                <span class="flex items-center space-x-1.5">
+                                    <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background-color:#f59e0b;"></span>
+                                    <span>对应股价:</span>
+                                </span>
+                                <span class="font-mono font-bold text-amber-500">¥${priceList[dIdx].toFixed(2)}</span>
+                            </div>`;
+                        }
+                        return res;
+                    }
+                },
+                legend: {
+                    data: ['股东总人数 (万户)', '对应股价 (元)'],
+                    textStyle: { color: textColor, fontSize: 11 },
+                    top: 2,
+                    itemWidth: 12,
+                    itemHeight: 8
+                },
+                grid: {
+                    top: 36,
+                    left: '3%',
+                    right: '3%',
+                    bottom: 22,
+                    containLabel: true
+                },
+                xAxis: [
+                    {
+                        type: 'category',
+                        data: dates,
+                        axisPointer: { type: 'shadow' },
+                        axisLabel: { color: textColor, fontSize: 10 },
+                        axisLine: { lineStyle: { color: splitLineColor } }
+                    }
+                ],
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '股东人数 (万户)',
+                        min: minNum,
+                        max: maxNum,
+                        nameTextStyle: { color: textColor, fontSize: 10 },
+                        axisLabel: { color: textColor, fontSize: 10, formatter: '{value}万' },
+                        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' } }
+                    },
+                    {
+                        type: 'value',
+                        name: '股价 (元)',
+                        min: minP,
+                        max: maxP,
+                        nameTextStyle: { color: textColor, fontSize: 10 },
+                        axisLabel: { color: textColor, fontSize: 10, formatter: '¥{value}' },
+                        splitLine: { show: false }
+                    }
+                ],
+                series: [
+                    {
+                        name: '股东总人数 (万户)',
+                        type: 'bar',
+                        barMaxWidth: 24,
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: isDark ? '#38bdf8' : '#6366f1' },
+                                { offset: 1, color: isDark ? '#0284c7' : '#4338ca' }
+                            ]),
+                            borderRadius: [3, 3, 0, 0]
+                        },
+                        data: numWanList
+                    },
+                    {
+                        name: '对应股价 (元)',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        symbol: 'circle',
+                        symbolSize: 7,
+                        itemStyle: { color: '#f59e0b', borderColor: '#fff', borderWidth: 1.5 },
+                        lineStyle: { width: 2.5, color: '#f59e0b' },
+                        data: priceList
+                    }
+                ]
+            };
+
+            chart.setOption(option, true);
         }
 
         function switchTsModalTab(tabId) {
@@ -22601,6 +22832,11 @@
             if (tabId === 'data' && window._tsFinaChart) {
                 setTimeout(() => {
                     window._tsFinaChart.resize();
+                }, 50);
+            }
+            if (tabId === 'holders' && window._tsHoldersChart) {
+                setTimeout(() => {
+                    window._tsHoldersChart.resize();
                 }, 50);
             }
         }
