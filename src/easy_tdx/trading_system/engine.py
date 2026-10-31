@@ -1170,6 +1170,9 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
                     "sjltz": float(round(sjltz, 2)),
                     "xsmll": float(round(xsmll, 2)),
                     "basic_eps": float(round(eps, 3)),
+                    "deduct_basic_eps": float(round(float(item["DEDUCT_BASIC_EPS"]), 3)) if item.get("DEDUCT_BASIC_EPS") is not None else None,
+                    "mgjyxjje": float(round(float(item["MGJYXJJE"]), 3)) if item.get("MGJYXJJE") is not None else None,
+                    "bps": float(round(float(item["BPS"]), 2)) if item.get("BPS") is not None else None,
                     "single_operate_income": float(round(q_rev, 2)),
                     "single_income_qoq": single_income_qoq,
                     "single_netprofit": float(round(q_np, 2)),
@@ -1702,6 +1705,261 @@ def compute_fina_score(fina_data: List[Dict[str, Any]]) -> int:
     return max(10, min(98, 15 + growth_score + quality_score + consistency_score))
 
 
+def load_api_config(provider: str = "deepseek") -> Optional[Dict[str, Any]]:
+    """读取 DeepSeek / 豆包 API 配置（支持项目根目录 api_config.json 及内网共享路径）。"""
+    paths = [
+        os.path.join(os.getcwd(), "api_config.json"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "api_config.json"),
+        r"\\192.168.1.20\aaron\eastmoney\cgi-bin\api_config.json"
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        for it in data:
+                            if it.get("provider", "").lower() == provider.lower():
+                                return it
+                    elif isinstance(data, dict):
+                        return data
+            except Exception as e:
+                logger.debug(f"Failed to read {p}: {e}")
+    return None
+
+
+def fetch_stock_recent_announcements(clean_code: str, count: int = 25) -> List[Dict[str, Any]]:
+    """获取目标个股近期重要新闻公告（重大合同/中标、并购/资产重组、股权激励/员工持股、风险类公告如减持/问询/审计非标等）。"""
+    notices: List[Dict[str, Any]] = []
+    try:
+        url = (
+            f"https://np-anotice-stock.eastmoney.com/api/security/ann?"
+            f"page_size={count}&page_index=1&ann_type=A&client_source=web&stock_list={clean_code}"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen_safe(req, timeout=4.0) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore")
+            d = json.loads(raw)
+            raw_list = d.get("data", {}).get("list", []) or []
+            for it in raw_list:
+                cols = [c.get("column_name") for c in it.get("columns", []) if c.get("column_name")]
+                notices.append({
+                    "date": str(it.get("notice_date", ""))[:10],
+                    "title": str(it.get("title_ch") or it.get("title") or ""),
+                    "categories": cols,
+                })
+    except Exception as e:
+        logger.debug(f"Failed to fetch announcements for {clean_code}: {e}")
+    return notices
+
+
+def generate_llm_fina_analysis(
+    code: str,
+    provider: str = "deepseek",
+    force_refresh: bool = False,
+) -> Dict[str, Any]:
+    """
+    调用 DeepSeek 或 豆包 API 进行针对个股的优质、完整、深度的机构投研研判分析。
+    统一融合两大版本核心内容：
+    🎯 一、【业绩深度分析与利润“含金量”】（营收净利质量、毛利率及ROE、扣非真实主业、量价动能拆解、现金流匹配）
+    🔮 二、【当年业绩走向预测与预期差剖析】（全年营收与净利区间定量测算、推导逻辑、预期差与市场定价核心）
+    👥 三、【同行横向对比及行业身位】（竞对对比、行业身位梯队、核心优势与落后劣势）
+    📰 四、【公司重要新闻与公告深度研判】（重大合同/中标、并购/资产重组、股权激励/员工持股、风险类公告排雷）
+    📈 五、【业绩与新闻交汇——操作层面三判断与股票价格趋势预测】（锚与移动、持续性优先、排雷优先、中长期股价趋势前瞻与投资评级）
+    """
+    clean_code = str(code).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    provider_clean = provider.strip().lower() if provider else "deepseek"
+    if provider_clean not in ("deepseek", "doubao"):
+        provider_clean = "deepseek"
+
+    cache_file = os.path.join(_CACHE_DIR, f"llm_fina_v3_{clean_code}_{provider_clean}.json")
+    now = time.time()
+
+    # 检查磁盘缓存 (24小时有效期)
+    if not force_refresh and os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                c_data = json.load(f)
+                if now - c_data.get("timestamp", 0) < 86400:
+                    return {
+                        "success": True,
+                        "cached": True,
+                        "provider": provider_clean,
+                        "analysis_text": c_data.get("analysis_text", ""),
+                        "model_name": c_data.get("model_name", provider_clean)
+                    }
+        except Exception:
+            pass
+
+    # 读取 API 配置
+    cfg = load_api_config(provider_clean)
+    if not cfg or not cfg.get("api_key") or str(cfg.get("api_key", "")).startswith("YOUR_"):
+        return {
+            "success": False,
+            "error": f"未找到有效的 {provider_clean} API Key 配置，请检查 api_config.json",
+            "provider": provider_clean
+        }
+
+    # 获取该股财务数据与同行对手
+    fina_dict = fetch_stock_financials(clean_code)
+    stock_name = fina_dict.get("stock_name") or get_stock_name(clean_code) or clean_code
+    industry = fina_dict.get("industry") or "通用行业"
+    fina_data = fina_dict.get("fina_data") or []
+    peers_data = fina_dict.get("peers_data") or []
+
+    # 获取公司近期重要公告与新闻
+    recent_notices = fetch_stock_recent_announcements(clean_code, count=25)
+
+    def _fmt_money_txt(val):
+        if val is None or val == 0:
+            return "0.00元"
+        v = float(val)
+        if abs(v) >= 1e8:
+            return f"{v / 1e8:.2f}亿元"
+        elif abs(v) >= 1e4:
+            return f"{v / 1e4:.2f}万元"
+        else:
+            return f"{v:.2f}元"
+
+    fina_summary = ""
+    for fd in fina_data[:5]:
+        deduct_txt = f", 扣非EPS {fd.get('deduct_basic_eps'):.3f}元" if fd.get('deduct_basic_eps') is not None else ""
+        cf_txt = f", 每股经营现金流 {fd.get('mgjyxjje'):.3f}元" if fd.get('mgjyxjje') is not None else ""
+        eps_txt = f", 基本EPS {fd.get('basic_eps'):.3f}元" if fd.get('basic_eps') is not None else ""
+        fina_summary += (
+            f"- 报告期 {fd.get('qdate') or fd.get('record_date')}: "
+            f"营业总收入 {_fmt_money_txt(fd.get('total_operate_income'))} (同比 {float(fd.get('ystz') or 0):.2f}%), "
+            f"归母净利润 {_fmt_money_txt(fd.get('parent_netprofit'))} (同比 {float(fd.get('sjltz') or 0):.2f}%)"
+            f"{eps_txt}{deduct_txt}{cf_txt}, "
+            f"销售毛利率 {float(fd.get('xsmll') or 0):.2f}%, 加权ROE {float(fd.get('weightavg_roe') or 0):.2f}%\n"
+        )
+
+    notices_summary = ""
+    if recent_notices:
+        for it in recent_notices[:12]:
+            cats = f" [{', '.join(it['categories'])}]" if it.get('categories') else ""
+            notices_summary += f"- {it.get('date')}: {it.get('title')}{cats}\n"
+    else:
+        notices_summary = "暂未检索到近期重大公告事项。\n"
+
+    peers_summary = ""
+    for pd in peers_data[:6]:
+        if pd.get('is_target'):
+            continue
+        peers_summary += (
+            f"- 同行 {pd.get('stock_name')} ({pd.get('stock_code')}): "
+            f"营收 {_fmt_money_txt(pd.get('total_operate_income'))} (同比 {float(pd.get('ystz') or 0):.2f}%), "
+            f"净利 {_fmt_money_txt(pd.get('parent_netprofit'))} (同比 {float(pd.get('sjltz') or 0):.2f}%), "
+            f"ROE {float(pd.get('weightavg_roe') or 0):.2f}%, 毛利率 {float(pd.get('xsmll') or 0):.2f}%\n"
+        )
+
+    prompt = f"""你是一位顶级A股买方基金经理与资深投研总监，专注于基本面深度排雷、盈利含金量拆解与跨期预期差定价。
+请根据以下标的股票的关键财务报表、近期重大公告动态及行业竞对数据，撰写一篇完整、优质、结构严谨的机构投研研判报告。
+
+【目标标的】
+股票名称：{stock_name}
+股票代码：{clean_code}
+所属行业：{industry if industry else '通用行业'}
+
+【近期关键财务数据（含现金流、扣非与毛利率）】
+{fina_summary if fina_summary else '暂无历史数据'}
+
+【近期公司重要新闻与公告】
+{notices_summary}
+
+【同行主要竞争对手表现】
+{peers_summary if peers_summary else '暂无同行竞争数据'}
+
+【必须严格包含的 5 大完整分析板块】
+
+🎯 一、【业绩深度分析与利润“含金量”】
+- 核心财务诊断：诊断营收与净利润变动特征、毛利率水平和ROE获利能力的亮点与隐忧；
+- 扣非与真实主业质量：比对归母净利与扣非净利润/扣非EPS，剖析净利润中主营业务真实贡献占比，甄别是否存在依赖政府补助、资产处置或投资收益等一次性非经常收益虚增利润；
+- 量价动能与毛利拆解：结合营收变动与销售毛利率走势，拆解是源于主营业务量价齐升，还是以价换量、亦或是受上游原材料成本挤压导致毛利率下滑；
+- 现金流匹配度：比对每股经营现金流与每股净收益，评估盈利是否转化为真金白银的经营性现金流。
+
+🔮 二、【当年业绩走向预测与预期差剖析】
+- 当年业绩定量测算：依据最新报告期进度（如三季报数据），定量测算估算当年的营业总收入与归母净利润区间，并详细写明推导逻辑（按等比折算、季度权重分布或最新边际增速外推）；
+- 预期差与市场定价核心：强调业绩数字本身不是定价核心，深入剖析当期业绩表现与市场先前预期之间的“预期差”（超预期利好、符合预期还是不及预期暴雷），当前股价对业绩是已充分消化还是存在认知偏差。
+
+👥 三、【同行横向对比及行业身位】
+- 同行横向对比：对比行业主要竞对（如三峡能源、太阳能等）的营收规模、盈利能力、成长性及ROE、毛利率差距；
+- 行业身位与核心壁垒：明确分析该公司在行业中所处的身位梯队（头部领跑、中游稳健还是后排落后），其核心竞争优势与劣势各在哪里。
+
+📰 四、【公司重要新闻与公告深度研判】
+- 深度梳理分类分析近期披露的重大事项：
+  * 重大合同 / 中标 / 订单：评估其对后续业绩放量的实质支撑力度；
+  * 并购 / 资产重组 / 资产处置：甄别外延式扩张或资产转让的真实意图与潜在商誉风险；
+  * 股权激励 / 员工持股：解读其设定的业绩考核目标（代表管理层对未来增长的底线与信心）；
+  * 风险类公告排雷：排查大股东及董监高减持、交易所监管工作函/问询函、重大诉讼/违规担保、业绩修正、审计非标等重大风险信号。
+
+📈 五、【业绩与新闻交汇——操作层面三判断与股票价格趋势预测】
+- 操作层面的三个判断：
+  * 第一，业绩报告是“锚”，新闻是“锚是否在移动”：一份扎实的财报确立的是基期盈利能力和现金流质量；后续的重大合同、并购、激励方案，改变的是市场对下一期盈利的预期。研判该股基期锚状态及近期新闻是在向上抬锚还是下拖锚，杜绝无锚的情绪交易；
+  * 第二，持续性权重高于单期弹性：甄别涨价驱动的利润爆发、一次性大单、非经常性收益，在单季报表上可能极为醒目，但缺乏跨期延续性。立足现金流匹配、量增驱动、订单向合同负债和收入的渐进转化，评估可跟踪的中长期持续性；
+  * 第三，风险的识别优先于机会的识别：在A股的信息环境中，排除一个高商誉+减持+审计非标+现金流为负（或监管工作函/激进关联交易）的组合，其决策价值通常高于在同样的信息基础上论证“可能反转”。先完成全面排雷，再讨论定价。
+- 股票价格中长期趋势前瞻：结合基本面、行业身位与新闻催化，对其未来股票价格趋势进行合理的前瞻预测（看多/看平/看空），给出明确的投资评级（如：积极介入 / 审慎关注 / 观望避险）及核心风控底线。
+
+排版要求：采用规整的 Markdown 格式，层级分明，条理清晰，总字数控制在 1000-1400 字。直接返回报告正文。"""
+
+    model_name = "DeepSeek AI" if provider_clean == "deepseek" else "豆包 AI"
+    api_url = cfg["api_url"]
+    model_endpoint = cfg["model_endpoint"]
+    api_key = cfg["api_key"]
+
+    req_body = {
+        "model": model_endpoint,
+        "messages": [
+            {"role": "system", "content": "你是一位顶级A股买方基金经理与资深投研总监，专注于基本面深度排雷、盈利含金量拆解与跨期预期差定价。请输出详实、专业、结构严谨的完整研报。"},
+            {"role": "user", "content": prompt}
+        ]
+    }
+    if "reasoner" not in model_endpoint.lower() and "r1" not in model_endpoint.lower():
+        req_body["max_tokens"] = 2400
+        req_body["temperature"] = 0.3
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    try:
+        req = urllib.request.Request(
+            api_url,
+            data=json.dumps(req_body).encode("utf-8"),
+            headers=headers,
+            method="POST"
+        )
+        with urlopen_safe(req, timeout=60.0) as resp:
+            resp_data = json.loads(resp.read().decode("utf-8"))
+            analysis_text = resp_data["choices"][0]["message"]["content"]
+
+            # 写入磁盘缓存
+            try:
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "timestamp": now,
+                        "analysis_text": analysis_text,
+                        "model_name": model_name
+                    }, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
+            return {
+                "success": True,
+                "cached": False,
+                "provider": provider_clean,
+                "analysis_text": analysis_text,
+                "model_name": model_name
+            }
+    except Exception as e:
+        logger.exception(f"Failed to generate LLM analysis via {provider_clean} for {clean_code}: {e}")
+        return {
+            "success": False,
+            "error": f"调用 {model_name} 接口失败: {str(e)}",
+            "provider": provider_clean
+        }
+
 def _generate_fina_diagnosis(
     code: str,
     name: str,
@@ -1951,6 +2209,40 @@ def _generate_fina_diagnosis(
             </div>
             <div class="pt-2 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/50">
                 ⚖️ <strong>量化风控提示</strong>：本模型基于已公开权威财报数据与多因子量化推演，股市有风险，入市需谨慎。
+            </div>
+        </div>
+
+        <!-- 卡片 5: DeepSeek / 豆包 大模型投研深度分析 -->
+        <div id="ts-deepseek-analysis-card" class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-indigo-200 dark:border-indigo-900/60 shadow-xs space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 dark:bg-cyan-400 animate-pulse"></span>
+                    <span id="ts-llm-title">🤖 5. DeepSeek / 豆包 大模型投研深度分析（含金量拆解 · 预期差 · 新闻排雷）</span>
+                </div>
+                <div class="flex items-center space-x-1.5 text-xs">
+                    <button id="ts-btn-llm-deepseek" onclick="triggerTsLlmAnalysis('deepseek')"
+                        class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-600 text-white dark:bg-cyan-500 dark:text-slate-950 transition cursor-pointer shadow-xs">
+                        DeepSeek
+                    </button>
+                    <button id="ts-btn-llm-doubao" onclick="triggerTsLlmAnalysis('doubao')"
+                        class="px-2.5 py-0.5 rounded text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer">
+                        豆包 AI
+                    </button>
+                    <button onclick="triggerTsLlmAnalysis(null, true)"
+                        class="px-2 py-0.5 rounded text-[11px] font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-cyan-400 transition cursor-pointer" title="重新调用大模型生成">
+                        🔄 重新分析
+                    </button>
+                </div>
+            </div>
+            <!-- 内容展示容器 -->
+            <div id="ts-llm-content" class="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                <div class="py-6 text-center space-y-2">
+                    <div class="inline-flex items-center space-x-2 text-indigo-600 dark:text-cyan-400 font-medium">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping"></span>
+                        <span id="ts-llm-loading-text">正在由 DeepSeek 深度投研大模型进行宏观业绩与同行对比多维演算中，请稍候...</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 dark:text-slate-500">基于利润含金量拆解、预期差定价、重大新闻公告及机构操作三原则深度研判</p>
+                </div>
             </div>
         </div>
     </div>

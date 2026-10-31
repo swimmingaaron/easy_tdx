@@ -50,3 +50,4 @@ scratch/
 .evn*
 notification_config.json
 chanlun-pro/
+api_config.json

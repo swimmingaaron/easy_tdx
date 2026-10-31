@@ -22089,6 +22089,9 @@
                         document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
                     }
 
+                    // 1.1 异步启动 DeepSeek / 豆包 大模型投研深度分析
+                    triggerTsLlmAnalysis('deepseek', false, code, d.stock_name || name, d.fina_data, d.peers_data, d.industry);
+
                     // 2. 渲染基础财务数据 (确保拉取近5年历史数据，并按单季度相减核算规则计算单季度营收与净利润与环比)
                     let normalizedFina = normalizeTsFinaData(d.fina_data || []);
                     window._tsCurrentFinaData = normalizedFina;
@@ -22127,6 +22130,129 @@
         }
 
 
+
+
+        // ==================== DeepSeek & 豆包 大模型投研深度分析联动 ==================== //
+        window._tsLlmCache = window._tsLlmCache || {};
+        window._tsLlmCurrentCode = '';
+        window._tsLlmCurrentName = '';
+        window._tsLlmCurrentProvider = 'deepseek';
+        window._tsLlmCurrentFina = [];
+        window._tsLlmCurrentPeers = [];
+        window._tsLlmCurrentIndustry = '';
+
+        function formatLlmMarkdown(mdText, modelName) {
+            if (!mdText) return '<div class="text-slate-400 text-center py-4">暂无分析内容</div>';
+            
+            // 安全转义并结构化高亮
+            let html = mdText
+                .replace(/\r\n/g, '\n')
+                // 报告总主标题
+                .replace(/^#\s+(.*$)/gim, '<div class="text-sm font-bold text-slate-900 dark:text-slate-100 pb-1.5 border-b border-slate-200 dark:border-slate-700/80 mb-2.5 flex items-center justify-between"><span>📑 $1</span></div>')
+                // 核心五大板块二级标题美化卡片
+                .replace(/^##\s+([🎯🔮👥📰📈一二三四五0-9]\.?\s*.*?)$/gim, '<div class="font-bold text-xs text-indigo-700 dark:text-cyan-300 mt-3.5 mb-1.5 flex items-center space-x-1.5 bg-indigo-50/70 dark:bg-indigo-950/40 px-2.5 py-1.5 rounded-md border-l-4 border-indigo-500 dark:border-cyan-400 shadow-2xs"><span>$1</span></div>')
+                .replace(/^##\s+(.*$)/gim, '<div class="font-bold text-xs text-indigo-700 dark:text-cyan-300 mt-3 mb-1 bg-slate-100 dark:bg-slate-800/60 px-2 py-1 rounded border-l-2 border-indigo-500">$1</div>')
+                // 三级小标题
+                .replace(/^###\s+(.*$)/gim, '<div class="text-[11.5px] font-bold text-slate-800 dark:text-slate-200 mt-2 mb-0.5 flex items-center space-x-1"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-cyan-400 inline-block"></span><span>$1</span></div>')
+                // 投资评级与核心结论特殊胶囊
+                .replace(/\*\*(评级[：:]\s*.*?)\*\*/g, '<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-800 mr-1.5">⚡ $1</span>')
+                .replace(/\*\*(核心风控底线[：:]\s*.*?)\*\*/g, '<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mr-1.5">🛡️ $1</span>')
+                .replace(/\*\*(核心结论[：:]\s*.*?)\*\*/g, '<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-800 dark:bg-indigo-950/50 dark:text-cyan-300 border border-indigo-200 dark:border-indigo-800">📌 $1</span>')
+                // 操作层面的三个判断重点高亮卡片
+                .replace(/(\*\*(第一[，,].*?)\*\*)/g, '<div class="my-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200"><strong class="text-indigo-600 dark:text-cyan-400 font-bold">$2</strong>')
+                .replace(/(\*\*(第二[，,].*?)\*\*)/g, '</div><div class="my-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200"><strong class="text-indigo-600 dark:text-cyan-400 font-bold">$2</strong>')
+                .replace(/(\*\*(第三[，,].*?)\*\*)/g, '</div><div class="my-1.5 p-2 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-200"><strong class="text-rose-600 dark:text-rose-400 font-bold">$2</strong>')
+                // 通用加粗
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white font-semibold">$1</strong>')
+                // 无序列表项
+                .replace(/^[-*•]\s+(.*$)/gim, '<div class="flex items-start space-x-1.5 my-1 pl-1"><span class="text-indigo-500 dark:text-cyan-400 mr-1 mt-0.5">•</span><span class="flex-1">$1</span></div>')
+                // 普通换行段落
+                .replace(/\n\n+/g, '<div class="my-2"></div>')
+                .replace(/\n/g, '<br/>');
+
+            html += `
+                <div class="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10.5px] text-slate-400 dark:text-slate-500">
+                    <span>💡 分析引擎：<strong class="text-slate-600 dark:text-slate-300 font-medium">${modelName || 'DeepSeek AI'}</strong></span>
+                    <span>完整投研体系：业绩深度·含金量 · 当年走向预测·预期差 · 同行身位 · 新闻公告 · 价格趋势前瞻</span>
+                </div>
+            `;
+            return html;
+        }
+
+        async function triggerTsLlmAnalysis(provider = null, forceRefresh = false, code = null, name = null, finaData = null, peersData = null, industry = null) {
+            if (code) window._tsLlmCurrentCode = String(code).replace(/[^0-9]/g, '');
+            if (name) window._tsLlmCurrentName = name;
+            if (finaData) window._tsLlmCurrentFina = finaData;
+            if (peersData) window._tsLlmCurrentPeers = peersData;
+            if (industry) window._tsLlmCurrentIndustry = industry;
+            if (provider) window._tsLlmCurrentProvider = provider;
+
+            const curCode = window._tsLlmCurrentCode;
+            const curName = window._tsLlmCurrentName || curCode;
+            const curProvider = window._tsLlmCurrentProvider || 'deepseek';
+            const cacheKey = curCode + '_' + curProvider;
+
+            // 切换按钮样式
+            const btnDeepseek = document.getElementById('ts-btn-llm-deepseek');
+            const btnDoubao = document.getElementById('ts-btn-llm-doubao');
+            const activeCls = 'px-2.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-600 text-white dark:bg-cyan-500 dark:text-slate-950 transition cursor-pointer shadow-xs';
+            const inactCls = 'px-2.5 py-0.5 rounded text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer';
+
+            if (btnDeepseek && btnDoubao) {
+                btnDeepseek.className = (curProvider === 'deepseek') ? activeCls : inactCls;
+                btnDoubao.className = (curProvider === 'doubao') ? activeCls : inactCls;
+            }
+
+            const titleEl = document.getElementById('ts-llm-title');
+            if (titleEl) {
+                titleEl.innerText = (curProvider === 'deepseek') ? '🤖 5. DeepSeek 完整投研研判（业绩诊断 · 走向预测 · 同行身位 · 新闻研判 · 价格前瞻）' : '🤖 5. 豆包 AI 完整投研研判（业绩诊断 · 走向预测 · 同行身位 · 新闻研判 · 价格前瞻）';
+            }
+
+            const contentEl = document.getElementById('ts-llm-content');
+            if (!contentEl) return;
+
+            // 检查内存缓存
+            if (!forceRefresh && window._tsLlmCache[cacheKey]) {
+                const c = window._tsLlmCache[cacheKey];
+                contentEl.innerHTML = formatLlmMarkdown(c.text, c.model_name);
+                return;
+            }
+
+            // 加载骨架屏
+            const pName = (curProvider === 'deepseek') ? 'DeepSeek AI' : '豆包 AI';
+            contentEl.innerHTML = `
+                <div class="py-6 text-center space-y-2">
+                    <div class="inline-flex items-center space-x-2 text-indigo-600 dark:text-cyan-400 font-medium">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping"></span>
+                        <span>正在由 ${pName} 深度投研大模型进行宏观业绩与同行对比多维演算中，请稍候...</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 dark:text-slate-500">基于多期财报变动特征、盈利质量、同行身位及价格趋势综合研判</p>
+                </div>
+            `;
+
+            try {
+                // 通过后端安全 API 拉取分析报告（由后端统一读取 api_config.json 调用对应模型接口）
+                const resp = await fetch(`/api/trading_system/ai_llm_analysis/${curCode}?provider=${curProvider}&force_refresh=${forceRefresh ? 'true' : 'false'}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.analysis_text) {
+                        window._tsLlmCache[cacheKey] = { text: data.analysis_text, model_name: data.model_name || pName };
+                        contentEl.innerHTML = formatLlmMarkdown(data.analysis_text, data.model_name || pName);
+                        return;
+                    } else if (data.error) {
+                        contentEl.innerHTML = `<div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400">调用提示: ${data.error}</div>`;
+                        return;
+                    }
+                } else {
+                    contentEl.innerHTML = `<div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400">获取 ${pName} 投研分析失败: HTTP ${resp.status}。请检查服务运行状态。</div>`;
+                    return;
+                }
+            } catch (err) {
+                console.warn('Failed to call backend LLM analysis:', err);
+                contentEl.innerHTML = `<div class="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400">网络连接异常: ${err.message}。请检查后端服务连接。</div>`;
+            }
+        }
+        window.triggerTsLlmAnalysis = triggerTsLlmAnalysis;
 
         function fetchEastmoney5YearFinaJsonp(cleanCode) {
             const cbName = 'em_fina_5y_' + cleanCode + '_' + Math.floor(Math.random() * 1000000);

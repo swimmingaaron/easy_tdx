@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from easy_tdx.trading_system.engine import (
+    generate_llm_fina_analysis,
     evaluate_universe,
     fetch_stock_financials,
     evaluate_stock_history,
@@ -520,3 +521,14 @@ def batch_fetch_holders(symbols: str = Query(..., description="逗号分隔的�
         except Exception as e:
             logger.debug(f"Failed to batch fetch holders for {code}: {e}")
     return {"success": True, "data": results}
+
+
+@router.get("/ai_llm_analysis/{code}")
+def get_ai_llm_analysis(
+    code: str,
+    provider: str = Query("deepseek", description="AI 提供商: deepseek 或 doubao"),
+    force_refresh: bool = Query(False, description="是否强制重新生成"),
+) -> Dict[str, Any]:
+    """调用 DeepSeek 或 豆包 API 进行针对个股的投研诊断分析与前瞻预测。"""
+    clean_code = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    return generate_llm_fina_analysis(clean_code, provider=provider, force_refresh=force_refresh)

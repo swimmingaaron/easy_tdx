@@ -1,0 +1,14 @@
+[
+  {
+    "provider": "deepseek",
+    "api_key": "YOUR_DEEPSEEK_API_KEY",
+    "model_endpoint": "deepseek-chat",
+    "api_url": "https://api.deepseek.com/chat/completions"
+  },
+  {
+    "provider": "doubao",
+    "api_key": "YOUR_DOUBAO_API_KEY",
+    "model_endpoint": "ep-YOUR_ENDPOINT_ID",
+    "api_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+  }
+]
