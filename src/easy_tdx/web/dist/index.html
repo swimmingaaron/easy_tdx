@@ -4687,23 +4687,6 @@
                             <span class="text-slate-700">|</span>
                             <span>主力净流 <strong class="font-mono font-semibold" id="cl-main-net">--</strong></span>
                         </div>
-
-                        <!-- 选股策略标的导航组件 (上一个 / 1/113 / 下一个) -->
-                        <div id="cl-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm shrink-0" title="选股策略标的快速切换 (快捷键: PageUp/PageDown 或 Alt+←/→)">
-                            <button id="cl-prev-btn" onclick="switchChanlunPrevStock()"
-                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
-                                title="上一个标的 (快捷键: PageUp 或 Alt+←)">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                                <span>上一个</span>
-                            </button>
-                            <span id="cl-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在选股策略结果中的序号">--/--</span>
-                            <button id="cl-next-btn" onclick="switchChanlunNextStock()"
-                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
-                                title="下一个标的 (快捷键: PageDown 或 Alt+→)">
-                                <span>下一个</span>
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                            </button>
-                        </div>
                     </div>
 
                     <!-- 操作按钮与快速搜索栏 -->
@@ -4772,6 +4755,23 @@
                         <!-- 热门标的快速标签 (实时随最小周期自动更新) -->
                         <div id="cl-popular-tags" class="flex items-center space-x-1 text-[11px] overflow-x-auto no-scrollbar pl-1">
                             <span class="text-slate-400 mr-0.5 shrink-0">热门:</span>
+                        </div>
+
+                        <!-- 选股策略标的导航组件 (上一个 / 1/113 / 下一个) -->
+                        <div id="cl-nav-group" class="inline-flex items-center bg-slate-900/90 rounded-lg p-0.5 border border-slate-700/80 shadow-sm shrink-0 ml-1" title="选股策略标的快速切换 (快捷键: PageUp/PageDown 或 Alt+←/→)">
+                            <button id="cl-prev-btn" onclick="switchChanlunPrevStock()"
+                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                                title="上一个标的 (快捷键: PageUp 或 Alt+←)">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                <span>上一个</span>
+                            </button>
+                            <span id="cl-nav-info" class="text-[11px] font-mono text-cyan-400 px-1.5 select-none font-semibold" title="当前标的在选股策略结果中的序号">--/--</span>
+                            <button id="cl-next-btn" onclick="switchChanlunNextStock()"
+                                class="px-2 py-0.5 rounded text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/80 transition flex items-center gap-1 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                                title="下一个标的 (快捷键: PageDown 或 Alt+→)">
+                                <span>下一个</span>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
