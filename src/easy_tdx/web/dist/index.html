@@ -16683,7 +16683,7 @@
                     const opTd = `
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
-                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
+                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近5年深度财报与AI体检">诊断</button>
                                 <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
                                 <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-200 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
@@ -19149,7 +19149,7 @@
                 const chanPeriodsQuery = chanPeriodsParam ? `&periods=${chanPeriodsParam}` : '';
                 const chanlunUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${chanPeriodsQuery}`;
                 const btnDiag = `<div class="inline-flex items-center space-x-1">
-                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看【${name}】近8期深度财报与AI体检">诊断</button>
+                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看【${name}】近5年深度财报与AI体检">诊断</button>
                     <a href="${chanlunUrl}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${name}', event, '${chanPeriodsArg}')" class="cl-screener-btn" title="在新标签中打开【${name}】(${cleanCode}) 缠论K线">缠论</a>
                 </div>`;
 
@@ -21584,7 +21584,7 @@
 
                 // 诊断: 优雅微胶囊按钮 (indigo, 严格匹配参考图片)
                 let btnDiag = `<div class="inline-flex items-center space-x-1">
-                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近8期深度财报与AI体检">诊断</button>
+                    <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近5年深度财报与AI体检">诊断</button>
                     <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
                     <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-300 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                 </div>`;
@@ -22089,13 +22089,27 @@
                         document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
                     }
 
-                    // 2. 渲染基础财务数据 (确保按单季度相减核算规则计算单季度营收与净利润，并核算环比)
-                    const normalizedFina = normalizeTsFinaData(d.fina_data || []);
+                    // 2. 渲染基础财务数据 (确保拉取近5年历史数据，并按单季度相减核算规则计算单季度营收与净利润与环比)
+                    let normalizedFina = normalizeTsFinaData(d.fina_data || []);
                     window._tsCurrentFinaData = normalizedFina;
                     window._tsCurrentFinaMode = 'cum';
                     renderTsFinaCards(normalizedFina, d.stock_name || name, code);
                     renderTsFinaTable(normalizedFina);
                     renderTsFinaChart(normalizedFina, 'cum');
+
+                    // 若后台返回少于15期（如旧缓存或初次加载），通过官方 JSONP 智能增补拉满近5年（20期）完整财报历史
+                    if (normalizedFina.length < 15 && code) {
+                        const cleanC = String(code).replace(/[^0-9]/g, '');
+                        fetchEastmoney5YearFinaJsonp(cleanC).then(cpdRows => {
+                            if (cpdRows && cpdRows.length > normalizedFina.length) {
+                                const fullFina = normalizeTsFinaData(convertCpdToFinaData(cpdRows));
+                                window._tsCurrentFinaData = fullFina;
+                                renderTsFinaCards(fullFina, d.stock_name || name, code);
+                                renderTsFinaTable(fullFina);
+                                renderTsFinaChart(fullFina, window._tsCurrentFinaMode || 'cum');
+                            }
+                        }).catch(e => console.warn('5-year fina JSONP fallback failed:', e));
+                    }
 
                     // 3. 存储并渲染同行对比大表 (全行业全部上市公司，默认按营收降序)
                     window._tsCurrentPeersData = d.peers_data || [];
@@ -22113,6 +22127,59 @@
         }
 
 
+
+        function fetchEastmoney5YearFinaJsonp(cleanCode) {
+            const cbName = 'em_fina_5y_' + cleanCode + '_' + Math.floor(Math.random() * 1000000);
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = `https://datacenter-web.eastmoney.com/api/data/v1/get?callback=${cbName}&reportName=RPT_LICO_FN_CPD&columns=ALL&filter=(SECURITY_CODE%3D%22${cleanCode}%22)&sortTypes=-1&sortColumns=REPORTDATE&pageSize=22`;
+                const timer = setTimeout(() => {
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('JSONP timeout'));
+                }, 6000);
+                window[cbName] = function (res) {
+                    clearTimeout(timer);
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    const rows = (res && res.result && res.result.data) ? res.result.data : [];
+                    resolve(rows);
+                };
+                script.onerror = function (err) {
+                    clearTimeout(timer);
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(err);
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        function convertCpdToFinaData(cpdData) {
+            if (!cpdData || !Array.isArray(cpdData)) return [];
+            return cpdData.slice(0, 20).map(item => {
+                const rep_date = String(item.REPORTDATE || '').substring(0, 10);
+                const ym = rep_date.substring(0, 7);
+                const y_str = ym.substring(0, 4);
+                const m_str = ym.substring(5, 7);
+                const qdate = (m_str === '03') ? `${y_str}一季报` : (m_str === '06') ? `${y_str}中报` : (m_str === '09') ? `${y_str}三季报` : `${y_str}年报`;
+                return {
+                    record_date: rep_date,
+                    qdate: qdate,
+                    total_operate_income: Number(item.TOTAL_OPERATE_INCOME || 0),
+                    parent_netprofit: Number(item.PARENT_NETPROFIT || 0),
+                    weightavg_roe: item.WEIGHTAVG_ROE !== null ? Number(Number(item.WEIGHTAVG_ROE).toFixed(2)) : 0,
+                    ystz: item.YSTZ !== null ? Number(Number(item.YSTZ).toFixed(2)) : 0,
+                    sjltz: item.SJLTZ !== null ? Number(Number(item.SJLTZ).toFixed(2)) : 0,
+                    xsmll: item.XSMLL !== null ? Number(Number(item.XSMLL).toFixed(2)) : 0,
+                    basic_eps: item.BASIC_EPS !== null ? Number(Number(item.BASIC_EPS).toFixed(3)) : 0,
+                    single_operate_income: null,
+                    single_income_qoq: null,
+                    single_netprofit: null,
+                    single_netprofit_qoq: null,
+                };
+            });
+        }
 
         function normalizeTsFinaData(finaData) {
             if (!finaData || !Array.isArray(finaData) || finaData.length === 0) return [];
@@ -22310,7 +22377,7 @@
             const tbody = document.getElementById('ts-fina-table-body');
             if (!tbody) return;
             if (!finaData || finaData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="12" class="p-6 text-center text-slate-400">暂无近8期标准化财报数据</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" class="p-6 text-center text-slate-400">暂无近5年标准化财报数据</td></tr>`;
                 return;
             }
             let tblHtml = '';

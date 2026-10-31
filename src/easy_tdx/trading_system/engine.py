@@ -1070,62 +1070,95 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     peers_list = []
     industry = "通用行业"
 
-    # 1. 尝试从东方财富高并发接口优先获取（直接包含权威营业与净利同比）
+    # 1. 尝试从东方财富官方权威接口获取近5年（20期季度）完整财报数据
     try:
-        url = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
-        req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urlopen_safe(req, timeout=3.5 if quick else 5.0) as resp:
+        # A. 从 RPT_LICO_FN_CPD 拉取近5年(22期，满足20期展示及前序单季差分推算)
+        url_cpd = f"https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD&columns=ALL&filter=(SECURITY_CODE%3D%22{clean_code}%22)&sortTypes=-1&sortColumns=REPORTDATE&pageSize=22"
+        req_cpd = urllib.request.Request(url_cpd, headers=_DEFAULT_HEADERS)
+        cpd_data = []
+        with urlopen_safe(req_cpd, timeout=3.5 if quick else 6.0) as resp:
             raw_bytes = resp.read()
             if raw_bytes[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
             else:
                 raw = raw_bytes.decode("utf-8", errors="replace")
-            data_json = json.loads(raw).get("data", [])
-            # 构建报告期字典映射，用于精准核算单季度营收与净利润
+            res_obj = json.loads(raw)
+            if res_obj and isinstance(res_obj, dict):
+                cpd_data = res_obj.get("result", {}).get("data", []) or []
+
+        # B. 同时拉取 ZYZBAjaxNew 用于对齐权威单季度环比指标 (DJD_TOI_QOQ, DJD_DPNP_QOQ)
+        zyzb_map = {}
+        try:
+            url_zyzb = f"https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew?type=0&code={pfx}{clean_code}"
+            req_zyzb = urllib.request.Request(url_zyzb, headers=_DEFAULT_HEADERS)
+            with urlopen_safe(req_zyzb, timeout=2.5) as resp_z:
+                rb = resp_z.read()
+                if rb[:2] == b"\x1f\x8b":
+                    raw_z = gzip.decompress(rb).decode("utf-8", errors="replace")
+                else:
+                    raw_z = rb.decode("utf-8", errors="replace")
+                zyzb_list = json.loads(raw_z).get("data", []) or []
+                for it in zyzb_list:
+                    rd = str(it.get("REPORT_DATE", ""))[:10]
+                    if rd:
+                        zyzb_map[rd[:7]] = it
+        except Exception:
+            pass
+
+        if cpd_data:
+            # 建立年月索引映射 (用于单季度相减核算: Q1=累计; Q2=中报-一季报; Q3=三季报-中报; Q4=年报-三季报)
             by_date_raw = {}
-            for item in data_json:
-                rd = str(item.get("REPORT_DATE", ""))[:10]
+            for item in cpd_data:
+                rd = str(item.get("REPORTDATE", ""))[:10]
                 if rd:
                     by_date_raw[rd[:7]] = item
 
-            for item in data_json[:8]:
-                rep_date = str(item.get("REPORT_DATE", ""))[:10]
-                qdate = str(item.get("REPORT_DATE_NAME") or rep_date)
-                rev = float(item.get("TOTALOPERATEREVE") or 0.0)
-                np_val = float(item.get("PARENTNETPROFIT") or 0.0)
-                roe = float(item.get("ROEJQ") or 0.0)
-                ystz = float(item.get("TOTALOPERATEREVETZ") or 0.0)
-                sjltz = float(item.get("PARENTNETPROFITTZ") or 0.0)
-                xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
-                eps = float(item.get("EPSJB") or 0.0)
-
-                # 单季度营收与归母净利润计算 (Q1直接等于累计; Q2=中报-一季报; Q3=三季报-中报; Q4=年报-三季报)
+            # 取近20期（整整近5年历史财报）
+            for item in cpd_data[:20]:
+                rep_date = str(item.get("REPORTDATE", ""))[:10]
                 ym = rep_date[:7]
                 year_str = ym[:4]
                 month_str = ym[5:7]
+                qdate = f"{year_str}一季报" if month_str == "03" else f"{year_str}中报" if month_str == "06" else f"{year_str}三季报" if month_str == "09" else f"{year_str}年报"
+
+                rev = float(item.get("TOTAL_OPERATE_INCOME") or 0.0)
+                np_val = float(item.get("PARENT_NETPROFIT") or 0.0)
+                roe = float(item.get("WEIGHTAVG_ROE") or 0.0)
+                ystz = float(item.get("YSTZ") or 0.0)
+                sjltz = float(item.get("SJLTZ") or 0.0)
+                xsmll = float(item.get("XSMLL") or 0.0) if item.get("XSMLL") is not None else 0.0
+                eps = float(item.get("BASIC_EPS") or 0.0)
+
+                # 单季度营收与归母净利润逐季相减计算
                 q_rev = rev
                 q_np = np_val
                 if month_str == "06":
                     q1_item = by_date_raw.get(f"{year_str}-03")
                     if q1_item:
-                        q_rev = rev - float(q1_item.get("TOTALOPERATEREVE") or 0.0)
-                        q_np = np_val - float(q1_item.get("PARENTNETPROFIT") or 0.0)
+                        q_rev = rev - float(q1_item.get("TOTAL_OPERATE_INCOME") or 0.0)
+                        q_np = np_val - float(q1_item.get("PARENT_NETPROFIT") or 0.0)
                 elif month_str == "09":
                     q2_item = by_date_raw.get(f"{year_str}-06")
                     if q2_item:
-                        q_rev = rev - float(q2_item.get("TOTALOPERATEREVE") or 0.0)
-                        q_np = np_val - float(q2_item.get("PARENTNETPROFIT") or 0.0)
+                        q_rev = rev - float(q2_item.get("TOTAL_OPERATE_INCOME") or 0.0)
+                        q_np = np_val - float(q2_item.get("PARENT_NETPROFIT") or 0.0)
                 elif month_str == "12":
                     q3_item = by_date_raw.get(f"{year_str}-09")
                     if q3_item:
-                        q_rev = rev - float(q3_item.get("TOTALOPERATEREVE") or 0.0)
-                        q_np = np_val - float(q3_item.get("PARENTNETPROFIT") or 0.0)
+                        q_rev = rev - float(q3_item.get("TOTAL_OPERATE_INCOME") or 0.0)
+                        q_np = np_val - float(q3_item.get("PARENT_NETPROFIT") or 0.0)
 
-                # 环比数据：优先采用官方权威指标 DJD_TOI_QOQ 与 DJD_DPNP_QOQ
-                djd_toi_qoq = item.get("DJD_TOI_QOQ")
-                djd_dpnp_qoq = item.get("DJD_DPNP_QOQ")
-                single_income_qoq = float(round(djd_toi_qoq, 2)) if djd_toi_qoq is not None else None
-                single_netprofit_qoq = float(round(djd_dpnp_qoq, 2)) if djd_dpnp_qoq is not None else None
+                # 环比数据：优先采用官方权威指标
+                z_item = zyzb_map.get(ym)
+                single_income_qoq = None
+                single_netprofit_qoq = None
+                if z_item:
+                    djd_toi = z_item.get("DJD_TOI_QOQ")
+                    djd_dpnp = z_item.get("DJD_DPNP_QOQ")
+                    if djd_toi is not None:
+                        single_income_qoq = float(round(float(djd_toi), 2))
+                    if djd_dpnp is not None:
+                        single_netprofit_qoq = float(round(float(djd_dpnp), 2))
 
                 fina_list.append({
                     "record_date": str(rep_date),
@@ -1142,8 +1175,37 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
                     "single_netprofit": float(round(q_np, 2)),
                     "single_netprofit_qoq": single_netprofit_qoq,
                 })
+        elif zyzb_map:
+            # 回退：若 RPT_LICO_FN_CPD 受阻，使用 ZYZBAjaxNew 数据
+            for ym_k in sorted(zyzb_map.keys(), reverse=True)[:20]:
+                it = zyzb_map[ym_k]
+                rep_date = str(it.get("REPORT_DATE", ""))[:10]
+                qdate = str(it.get("REPORT_DATE_NAME") or rep_date)
+                rev = float(it.get("TOTALOPERATEREVE") or 0.0)
+                np_val = float(it.get("PARENTNETPROFIT") or 0.0)
+                roe = float(it.get("ROEJQ") or 0.0)
+                ystz = float(it.get("TOTALOPERATEREVETZ") or 0.0)
+                sjltz = float(it.get("PARENTNETPROFITTZ") or 0.0)
+                xsmll = float(it.get("XSMLL") or 0.0) if it.get("XSMLL") is not None else 0.0
+                eps = float(it.get("EPSJB") or 0.0)
+
+                fina_list.append({
+                    "record_date": str(rep_date),
+                    "qdate": str(qdate),
+                    "total_operate_income": float(rev),
+                    "parent_netprofit": float(np_val),
+                    "weightavg_roe": float(round(roe, 2)),
+                    "ystz": float(round(ystz, 2)),
+                    "sjltz": float(round(sjltz, 2)),
+                    "xsmll": float(round(xsmll, 2)),
+                    "basic_eps": float(round(eps, 3)),
+                    "single_operate_income": None,
+                    "single_income_qoq": None,
+                    "single_netprofit": None,
+                    "single_netprofit_qoq": None,
+                })
     except Exception as e:
-        logger.debug(f"Failed to fetch EastMoney fina for {clean_code}: {e}")
+        logger.debug(f"Failed to fetch EastMoney 5-year fina for {clean_code}: {e}")
 
     # 2. 第二获取接口：若东方财富未返回或报错，回退到 SinaClient 报表 + TDX 每股净资产
     if not fina_list:
