@@ -1706,11 +1706,44 @@ def compute_fina_score(fina_data: List[Dict[str, Any]]) -> int:
 
 
 def load_api_config(provider: str = "deepseek") -> Optional[Dict[str, Any]]:
-    """读取 DeepSeek / 豆包 API 配置（支持项目根目录 api_config.json 及内网共享路径）。"""
+    """读取 DeepSeek / 豆包 API 配置（支持环境变量、项目根目录、用户主目录、macOS挂载卷及Windows内网共享路径）。"""
+    provider_lower = (provider or "deepseek").strip().lower()
+
+    # 1. 优先读取环境变量
+    if provider_lower == "deepseek":
+        ds_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("DEEPSEEK_KEY")
+        if ds_key:
+            return {
+                "provider": "deepseek",
+                "api_key": ds_key,
+                "model_endpoint": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+                "api_url": os.environ.get("DEEPSEEK_URL", "https://api.deepseek.com/chat/completions")
+            }
+    elif provider_lower == "doubao":
+        db_key = os.environ.get("DOUBAO_API_KEY") or os.environ.get("ARK_API_KEY") or os.environ.get("VOLC_API_KEY")
+        if db_key:
+            return {
+                "provider": "doubao",
+                "api_key": db_key,
+                "model_endpoint": os.environ.get("DOUBAO_MODEL", "ep-20260428191718-rtj5p"),
+                "api_url": os.environ.get("DOUBAO_URL", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+            }
+
+    # 2. 跨平台多路径探测
+    home_dir = os.path.expanduser("~")
     paths = [
+        # 当前项目根目录
         os.path.join(os.getcwd(), "api_config.json"),
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "api_config.json"),
-        r"\\192.168.1.20\aaron\eastmoney\cgi-bin\api_config.json"
+        # 用户主目录
+        os.path.join(home_dir, "api_config.json"),
+        os.path.join(home_dir, ".easy_tdx", "api_config.json"),
+        os.path.join(home_dir, ".config", "easy_tdx", "api_config.json"),
+        # macOS SMB 挂载路径 (访达连接 smb://192.168.1.20/aaron)
+        "/Volumes/aaron/eastmoney/cgi-bin/api_config.json",
+        "/Volumes/eastmoney/cgi-bin/api_config.json",
+        # Windows UNC 网络共享路径
+        r"\\192.168.1.20\aaron\eastmoney\cgi-bin\api_config.json",
     ]
     for p in paths:
         if os.path.exists(p):
@@ -1719,7 +1752,7 @@ def load_api_config(provider: str = "deepseek") -> Optional[Dict[str, Any]]:
                     data = json.load(f)
                     if isinstance(data, list):
                         for it in data:
-                            if it.get("provider", "").lower() == provider.lower():
+                            if it.get("provider", "").lower() == provider_lower:
                                 return it
                     elif isinstance(data, dict):
                         return data
@@ -1796,7 +1829,7 @@ def generate_llm_fina_analysis(
     if not cfg or not cfg.get("api_key") or str(cfg.get("api_key", "")).startswith("YOUR_"):
         return {
             "success": False,
-            "error": f"未找到有效的 {provider_clean} API Key 配置，请检查 api_config.json",
+            "error": f"未找到有效的 {provider_clean} API Key 配置。请在项目根目录创建 api_config.json，或在 Mac 挂载 /Volumes/aaron，或设置环境变量 DEEPSEEK_API_KEY",
             "provider": provider_clean
         }
 
