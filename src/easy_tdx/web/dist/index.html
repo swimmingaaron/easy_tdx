@@ -20594,10 +20594,10 @@
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 font-bold">报告期</th>
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-bold text-slate-800 dark:text-slate-100">营业总收入</th>
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-bold text-slate-800 dark:text-slate-100">营收同比</th>
-                                    <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季营收</th>
-                                    <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季环比</th>
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-bold text-slate-800 dark:text-slate-100">归母净利润</th>
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-bold text-slate-800 dark:text-slate-100">净利同比</th>
+                                    <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季营收</th>
+                                    <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季环比</th>
                                     <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季净利</th>
                                     <th class="sticky top-0 z-20 bg-slate-50 dark:bg-slate-900 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right font-normal text-[10.5px] text-slate-500 dark:text-slate-400">单季环比</th>
                                     <th class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right">ROE %</th>
@@ -22388,15 +22388,15 @@
                 tblHtml += `
                     <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition">
                         <td class="p-2.5 font-bold text-slate-800 dark:text-slate-200">${fd.qdate || fd.record_date}</td>
-                        <!-- 优先显示: 营业总收入 (突出加粗) -->
+                        <!-- 优先显示: 营业总收入 (加粗) 与 同比 -->
                         <td class="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-white">${fmtMoneyTs(fd.total_operate_income)}</td>
                         <td class="p-2.5 text-right font-mono">${fmtTrendTs(fd.ystz)}</td>
+                        <!-- 优先显示: 归母净利润 (加粗) 与 同比 -->
+                        <td class="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-white">${fmtMoneyTs(fd.parent_netprofit)}</td>
+                        <td class="p-2.5 text-right font-mono">${fmtTrendTs(fd.sjltz)}</td>
                         <!-- 次要小字: 单季营收 & 环比 -->
                         <td class="p-2.5 text-right font-mono text-[10.5px] text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/30">${fmtMoneyTs(sRev)}</td>
                         <td class="p-2.5 text-right font-mono text-[10.5px] bg-slate-50/50 dark:bg-slate-900/30">${fmtTrendTs(fd.single_income_qoq)}</td>
-                        <!-- 优先显示: 归母净利润 (突出加粗) -->
-                        <td class="p-2.5 text-right font-mono font-bold text-slate-900 dark:text-white">${fmtMoneyTs(fd.parent_netprofit)}</td>
-                        <td class="p-2.5 text-right font-mono">${fmtTrendTs(fd.sjltz)}</td>
                         <!-- 次要小字: 单季净利 & 环比 -->
                         <td class="p-2.5 text-right font-mono text-[10.5px] text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/30">${fmtMoneyTs(sNp)}</td>
                         <td class="p-2.5 text-right font-mono text-[10.5px] bg-slate-50/50 dark:bg-slate-900/30">${fmtTrendTs(fd.single_netprofit_qoq)}</td>
