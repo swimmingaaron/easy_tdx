@@ -8775,6 +8775,20 @@
         }
 
         document.addEventListener('keydown', (e) => {
+            // 优先检测业绩诊断弹窗 (Fina/Diagnosis Modal): 若处于打开状态，按 ESC 键立即退出
+            const finaModal = document.getElementById('ts-fina-modal');
+            if (finaModal && !finaModal.classList.contains('hidden')) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    if (typeof closeTsFinaModal === 'function') {
+                        closeTsFinaModal();
+                    } else {
+                        finaModal.classList.add('hidden');
+                    }
+                    return;
+                }
+            }
+
             const modal = document.getElementById('kline-preview-modal');
             const isModalOpen = modal && !modal.classList.contains('hidden');
 
@@ -20477,7 +20491,8 @@
 
     <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
     <div id="ts-fina-modal"
-        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5">
+        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5"
+        onclick="if(event.target === this) closeTsFinaModal()">
         <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-5xl w-full h-[85vh] min-h-[580px] max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
             onclick="event.stopPropagation()">
             <!-- Modal Header -->
@@ -20492,7 +20507,7 @@
                 </div>
                 <button onclick="closeTsFinaModal()"
                     class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white flex items-center justify-center transition text-lg leading-none cursor-pointer"
-                    title="关闭">&times;</button>
+                    title="关闭 (ESC)">&times;</button>
             </div>
 
             <!-- Modal Tabs (3个选项卡: AI业绩诊断 / 基础财务数据 / 同行对比) -->
@@ -22059,6 +22074,8 @@
             const modal = document.getElementById('ts-fina-modal');
             if (modal) modal.classList.add('hidden');
         }
+        window.closeTsFinaModal = closeTsFinaModal;
+        window.closeDiagnosisModal = closeTsFinaModal;
 
 
         function renderTsHoldersTable(d, code, name) {
