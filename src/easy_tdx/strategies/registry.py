@@ -4,16 +4,30 @@ from typing import Type, Any
 from easy_tdx.strategies.base import BaseStrategy
 
 STRATEGY_REGISTRY: dict[str, Type[BaseStrategy]] = {}
+STRATEGY_ALIASES: dict[str, str] = {
+    "weekly_big_bull_consolidation": "weekly_bull_flag",
+}
 
 def register_strategy(cls: Type[BaseStrategy]) -> Type[BaseStrategy]:
     if cls.name != "base_strategy":
         STRATEGY_REGISTRY[cls.name] = cls
     return cls
 
+def register_alias(alias: str, target: str) -> None:
+    """Register an alias for an existing strategy so it doesn't duplicate in the public UI list."""
+    STRATEGY_ALIASES[alias] = target
+
 def get_strategy(name: str, **kwargs) -> BaseStrategy:
-    if name not in STRATEGY_REGISTRY:
+    target = STRATEGY_ALIASES.get(name, name)
+    if target not in STRATEGY_REGISTRY:
         raise ValueError(f"Unknown strategy: {name}. Available: {list(STRATEGY_REGISTRY.keys())}")
-    return STRATEGY_REGISTRY[name](**kwargs)
+    return STRATEGY_REGISTRY[target](**kwargs)
+
+def get_strategy_class(name: str) -> Type[BaseStrategy]:
+    target = STRATEGY_ALIASES.get(name, name)
+    if target not in STRATEGY_REGISTRY:
+        raise ValueError(f"Unknown strategy: {name}. Available: {list(STRATEGY_REGISTRY.keys())}")
+    return STRATEGY_REGISTRY[target]
 
 def list_all_strategies() -> list[dict[str, Any]]:
     strategies = [

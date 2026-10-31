@@ -51,6 +51,7 @@ __all__ = [
     "RegisteredStrategy",
     "StrategyRegistry",
     "get_registry",
+    "register_alias",
     "register_strategy",
     "resolve",
 ]
@@ -272,6 +273,13 @@ class StrategyRegistry:
 
     def __init__(self) -> None:
         self._strategies: dict[str, RegisteredStrategy] = {}
+        self._aliases: dict[str, str] = {
+            "weekly_big_bull_consolidation": "weekly_bull_flag",
+        }
+
+    def register_alias(self, alias: str, target: str) -> None:
+        """注册策略别名，供内部兼容解析，不作为独立策略显示在列表中。"""
+        self._aliases[alias] = target
 
     def register(
         self,
@@ -295,9 +303,10 @@ class StrategyRegistry:
         return strategy_cls
 
     def get(self, name: str) -> RegisteredStrategy:
-        """按 name 取策略，不存在抛 KeyError。"""
+        """按 name 取策略（支持别名解析），不存在抛 KeyError。"""
+        canonical_name = self._aliases.get(name, name)
         try:
-            return self._strategies[name]
+            return self._strategies[canonical_name]
         except KeyError:
             raise KeyError(f"未知策略 '{name}'，可选: {sorted(self._strategies)}") from None
 
@@ -338,3 +347,8 @@ def register_strategy(
 def resolve(name: str) -> RegisteredStrategy:
     """便捷函数：按 name 解析策略。"""
     return _REGISTRY.get(name)
+
+
+def register_alias(alias: str, target: str) -> None:
+    """登记策略别名。"""
+    _REGISTRY.register_alias(alias, target)

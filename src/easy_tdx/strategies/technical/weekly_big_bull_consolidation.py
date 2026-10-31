@@ -263,7 +263,7 @@ class WeeklyBullFlagStrategy(BaseStrategy):
 
 
 # 兼容原类名与别名注册
-@register_strategy
+# 兼容原类名与别名引用 (合并为统一的上涨旗形策略，通过别名机制映射，不再向前端列表重复注册)
 class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
     name = "weekly_big_bull_consolidation"
     display_name = "通信达上涨旗形策略"

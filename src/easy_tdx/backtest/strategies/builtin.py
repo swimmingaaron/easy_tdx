@@ -14,6 +14,7 @@ import numpy as np
 from easy_tdx.backtest.strategies.registry import (
     Param,
     ParametrizedStrategy,
+    register_alias,
     register_strategy,
 )
 from easy_tdx.MyTT import (
@@ -1016,13 +1017,11 @@ class WeeklyBullFlagStrategy(ParametrizedStrategy):
                     self.sell()
 
 
-@register_strategy(
-    name="weekly_big_bull_consolidation",
-    label="通信达上涨旗形策略",
-    description="通信达上涨旗形策略（兼容原名称引用）。",
-)
+# 兼容原名称引用 (合并至统一的上涨旗形策略 weekly_bull_flag)
 class WeeklyBigBullConsolidationStrategy(WeeklyBullFlagStrategy):
     pass
+
+register_alias("weekly_big_bull_consolidation", "weekly_bull_flag")
 
 
 # ── 缠论实战买卖点策略 ────────────────────────────────────────────────────────
