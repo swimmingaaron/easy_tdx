@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 _CACHE_LOCK = threading.Lock()
 _SH_TZ = zoneinfo.ZoneInfo("Asia/Shanghai")
 
+_STOCK_MAC_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_STOCK_MAC_LOCK = threading.Lock()
+
 
 def is_trade_session() -> bool:
     """判断当前是否处于 A 股交易时段。"""

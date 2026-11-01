@@ -155,6 +155,9 @@ async def chanlun_quad_resonance_get(
     )
 
 
+import time
+import threading
+
 DEFAULT_HOT_STOCKS: list[dict[str, Any]] = [
     {"code": "000001", "name": "平安银行", "price": 12.5, "chg": "+0.00%", "tag": "金融核心"},
     {"code": "600519", "name": "贵州茅台", "price": 1700.0, "chg": "+0.00%", "tag": "白酒中军"},
@@ -164,9 +167,15 @@ DEFAULT_HOT_STOCKS: list[dict[str, Any]] = [
     {"code": "601127", "name": "赛力斯", "price": 90.0, "chg": "+0.00%", "tag": "智驾总龙"},
 ]
 
+_HOT_STOCKS_CACHE: list[dict[str, Any]] = [dict(d) for d in DEFAULT_HOT_STOCKS]
+_HOT_STOCKS_CACHE_TIME: float = 0.0
+_HOT_STOCKS_CACHE_TTL: float = 120.0  # 缓存 2 分钟，避免多次请求重复扫描梯队耗时数秒
+_HOT_STOCKS_LOCK = threading.Lock()
+_HOT_STOCKS_UPDATING: bool = False
 
-def get_chanlun_hot_stocks(limit: int = 8) -> list[dict[str, Any]]:
-    """获取当前市场最新热门股票（优先连板高度龙、板块先锋龙，兜底使用核心标的）。"""
+
+def _fetch_fresh_hot_stocks(limit: int = 8) -> list[dict[str, Any]]:
+    """实际执行全市场连板天梯与行业先锋扫描。"""
     hot_stocks: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -232,6 +241,42 @@ def get_chanlun_hot_stocks(limit: int = 8) -> list[dict[str, Any]]:
                 break
 
     return hot_stocks[:limit]
+
+
+def _update_hot_stocks_bg(limit: int = 8) -> None:
+    global _HOT_STOCKS_CACHE, _HOT_STOCKS_CACHE_TIME, _HOT_STOCKS_UPDATING
+    try:
+        fresh = _fetch_fresh_hot_stocks(limit)
+        if fresh:
+            with _HOT_STOCKS_LOCK:
+                _HOT_STOCKS_CACHE = list(fresh)
+                _HOT_STOCKS_CACHE_TIME = time.time()
+    finally:
+        with _HOT_STOCKS_LOCK:
+            _HOT_STOCKS_UPDATING = False
+
+
+def get_chanlun_hot_stocks(limit: int = 8) -> list[dict[str, Any]]:
+    """获取当前市场最新热门股票（零延迟瞬间返回，后台异步更新最新题材天梯）。"""
+    global _HOT_STOCKS_UPDATING
+    now = time.time()
+    need_refresh = False
+
+    with _HOT_STOCKS_LOCK:
+        if (now - _HOT_STOCKS_CACHE_TIME >= _HOT_STOCKS_CACHE_TTL) and not _HOT_STOCKS_UPDATING:
+            _HOT_STOCKS_UPDATING = True
+            need_refresh = True
+        cached_result = list(_HOT_STOCKS_CACHE[:limit]) if _HOT_STOCKS_CACHE else []
+
+    if need_refresh:
+        bg_thread = threading.Thread(target=_update_hot_stocks_bg, args=(limit,), daemon=True)
+        bg_thread.start()
+
+    if cached_result:
+        return cached_result
+
+    # 兜底：直接返回预置核心标的
+    return [dict(d) for d in DEFAULT_HOT_STOCKS[:limit]]
 
 
 @router.get("/chanlun/hot_stocks")

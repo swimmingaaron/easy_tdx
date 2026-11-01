@@ -366,9 +366,7 @@ _KLINE_BASE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _KLINE_CACHE_LOCK = threading.Lock()
 
 from easy_tdx.trading_system.engine import calculate_zig_series
-
-_STOCK_MAC_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_STOCK_MAC_LOCK = threading.Lock()
+from easy_tdx.kline_cache import _STOCK_MAC_CACHE, _STOCK_MAC_LOCK
 
 @router.get("/kline")
 def get_kline(

@@ -25091,6 +25091,8 @@
         let _clPendingBacktrackDate = null;
         let _clBacktrackDebounceTimer = null;
         const _clBacktrackCache = new Map();
+        const _clRealtimeCache = new Map();
+        const _clRealtimeCacheTTL = 25000; // 25秒客户端高速内存缓存
 
         function getClBacktrackKey(code, periods, cutoff) {
             return `${code}_${periods}_${cutoff || 'LATEST'}`;
@@ -25098,6 +25100,44 @@
 
         function clearClBacktrackCache() {
             _clBacktrackCache.clear();
+            _clRealtimeCache.clear();
+        }
+
+        function applyQuadWindowsData(wins) {
+            if (!wins) return;
+            const primaryKey = (_clActiveWindow && ['left', 'w2', 'right', 'w4'].includes(_clActiveWindow)) ? _clActiveWindow : 'left';
+
+            if (wins.left) { _clLeftCachedData = wins.left; _clCachedData = wins.left; }
+            if (wins.w2) { _clW2CachedData = wins.w2; }
+            if (wins.right) { _clRightCachedData = wins.right; }
+            if (wins.w4) { _clW4CachedData = wins.w4; }
+
+            ['cl-loading-overlay', 'cl-loading-overlay-w2', 'cl-loading-overlay-right', 'cl-loading-overlay-w4'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+            // 1. 优先极速渲染主视口核心窗口与概览卡片 (0ms秒级响应)
+            if (wins[primaryKey]) {
+                renderSingleChanlunChart(primaryKey, wins[primaryKey]);
+            }
+            const overviewData = wins.left || wins[primaryKey];
+            if (overviewData) {
+                updateChanlunOverview(overviewData);
+                updateChanlunTimeline(overviewData);
+                renderChanlunSignalsTable(overviewData);
+            }
+
+            // 2. 调度其余 3 个副窗口异步分帧渲染，确保主线程交互极致丝滑流畅
+            const secondaryKeys = ['left', 'w2', 'right', 'w4'].filter(k => k !== primaryKey);
+            requestAnimationFrame(() => {
+                secondaryKeys.forEach(k => {
+                    if (wins[k]) {
+                        renderSingleChanlunChart(k, wins[k]);
+                    }
+                });
+                setTimeout(adjustChanlunLayoutHeight, 30);
+            });
         }
 
         let _clBacktrackAbortController = null;
@@ -25114,6 +25154,17 @@
             const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
             const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
             const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+
+            // 0. 实时模式四窗口内存高速缓存（切换已看过的标的0毫秒瞬间成图，无任何白屏与网络等待）
+            const quadKey = `${_clCurrentCode}__${_clLeftPeriods}__${_clW2Periods}__${_clRightPeriods}__${_clW4Periods}`;
+            if (_clWindowMode === 'quad' && !_clIsBacktracking && !forceRefresh && _clRealtimeCache.has(quadKey)) {
+                const cached = _clRealtimeCache.get(quadKey);
+                if (cached && (Date.now() - cached.time < _clRealtimeCacheTTL)) {
+                    applyQuadWindowsData(cached.wins);
+                    _clIsDataLoading = false;
+                    return;
+                }
+            }
 
             // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
             if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKeyLeft)) {
@@ -25202,7 +25253,20 @@
                 // 单窗口渲染器：数据一旦就绪立即渲染上屏并隐藏该窗口遮罩，出图优先级最高！
                 async function renderWindowProgressive(key, periods, isPrimary = false) {
                     const targetCount = _clWindowCustomCounts[key] || 800;
-                    const data = await fetchResonance(periods, targetCount);
+                    const winRealtimeKey = `${_clCurrentCode}_${key}_${periods}_${targetCount}`;
+                    let data = null;
+                    if (!_clIsBacktracking && !forceRefresh && _clRealtimeCache.has(winRealtimeKey)) {
+                        const cached = _clRealtimeCache.get(winRealtimeKey);
+                        if (cached && (Date.now() - cached.time < _clRealtimeCacheTTL)) {
+                            data = cached.data;
+                        }
+                    }
+                    if (!data) {
+                        data = await fetchResonance(periods, targetCount);
+                        if (!_clIsBacktracking && data) {
+                            _clRealtimeCache.set(winRealtimeKey, { time: Date.now(), data });
+                        }
+                    }
                     if (reqCode !== _clCurrentCode) return null;
                     if (_clIsBacktracking && reqDate !== _clBacktrackDate) return null;
 
@@ -25270,40 +25334,8 @@
                     if (reqCode !== _clCurrentCode) return;
 
                     const wins = qJson.windows || {};
-                    // 4 个窗口数据同时到位，立即一键写入缓存并秒出图表！
-                    if (wins.left) {
-                        _clLeftCachedData = wins.left;
-                        _clCachedData = wins.left;
-                        _clBacktrackCache.set(cacheKeyLeft, wins.left);
-                        const ov1 = document.getElementById('cl-loading-overlay');
-                        if (ov1) ov1.style.display = 'none';
-                        renderSingleChanlunChart('left', wins.left);
-                        updateChanlunOverview(wins.left);
-                        updateChanlunTimeline(wins.left);
-                        renderChanlunSignalsTable(wins.left);
-                    }
-                    if (wins.w2) {
-                        _clW2CachedData = wins.w2;
-                        _clBacktrackCache.set(cacheKeyW2, wins.w2);
-                        const ov2 = document.getElementById('cl-loading-overlay-w2');
-                        if (ov2) ov2.style.display = 'none';
-                        renderSingleChanlunChart('w2', wins.w2);
-                    }
-                    if (wins.right) {
-                        _clRightCachedData = wins.right;
-                        _clBacktrackCache.set(cacheKeyRight, wins.right);
-                        const ovr = document.getElementById('cl-loading-overlay-right');
-                        if (ovr) ovr.style.display = 'none';
-                        renderSingleChanlunChart('right', wins.right);
-                    }
-                    if (wins.w4) {
-                        _clW4CachedData = wins.w4;
-                        _clBacktrackCache.set(cacheKeyW4, wins.w4);
-                        const ov4 = document.getElementById('cl-loading-overlay-w4');
-                        if (ov4) ov4.style.display = 'none';
-                        renderSingleChanlunChart('w4', wins.w4);
-                    }
-                    setTimeout(adjustChanlunLayoutHeight, 50);
+                    _clRealtimeCache.set(quadKey, { time: Date.now(), wins: wins });
+                    applyQuadWindowsData(wins);
                     return;
                 }
 
