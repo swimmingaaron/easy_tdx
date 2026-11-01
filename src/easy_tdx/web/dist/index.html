@@ -26488,36 +26488,27 @@
                         coord: [dt, high],
                         value: String(hVal),
                         symbol: 'circle',
-                        symbolSize: 2,
-                        symbolOffset: [0, 0],
+                        symbolSize: isTurnPoint ? 16 : 1,
+                        symbolOffset: isTurnPoint ? [0, -11] : [0, -9],
                         silent: true,
                         itemStyle: {
-                            color: 'transparent',
-                            borderColor: 'transparent',
-                            opacity: 0
+                            color: isTurnPoint ? (isDark ? '#dc2626' : '#ef4444') : 'transparent',
+                            borderColor: isTurnPoint ? (isDark ? '#fca5a5' : '#b91c1c') : 'transparent',
+                            borderWidth: isTurnPoint ? 1.2 : 0
                         },
                         label: {
                             show: true,
-                            position: 'top',
-                            distance: 2,
                             formatter: String(hVal),
                             color: isTurnPoint ? '#ffffff' : upRed,
-                            backgroundColor: isTurnPoint ? (isDark ? '#dc2626' : '#ef4444') : 'transparent',
-                            borderColor: isTurnPoint ? (isDark ? '#fca5a5' : '#b91c1c') : 'transparent',
-                            borderWidth: isTurnPoint ? 1.0 : 0,
-                            borderRadius: 2,
-                            padding: isTurnPoint ? [1, 3] : [0, 0],
-                            fontWeight: isTurnPoint ? '900' : 'bold',
-                            fontSize: isTurnPoint ? 11 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
-                            textBorderColor: isTurnPoint ? 'transparent' : (isDark ? '#000000' : '#ffffff'),
-                            textBorderWidth: isTurnPoint ? 0 : 1.2
+                            fontWeight: 'bold',
+                            fontSize: isTurnPoint ? 10 : 9.5,
+                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
                         },
                         tooltip: { show: false },
                         _isTd9: true,
                         _tdType: 'high',
                         _tdVal: hVal,
-                        z: 40
+                        z: isTurnPoint ? 90 : 80
                     });
                 }
 
@@ -26531,36 +26522,27 @@
                         coord: [dt, low],
                         value: String(lVal),
                         symbol: 'circle',
-                        symbolSize: 2,
-                        symbolOffset: [0, 0],
+                        symbolSize: isTurnPoint ? 16 : 1,
+                        symbolOffset: isTurnPoint ? [0, 11] : [0, 9],
                         silent: true,
                         itemStyle: {
-                            color: 'transparent',
-                            borderColor: 'transparent',
-                            opacity: 0
+                            color: isTurnPoint ? (isDark ? '#059669' : '#10b981') : 'transparent',
+                            borderColor: isTurnPoint ? (isDark ? '#6ee7b7' : '#047857') : 'transparent',
+                            borderWidth: isTurnPoint ? 1.2 : 0
                         },
                         label: {
                             show: true,
-                            position: 'bottom',
-                            distance: 2,
                             formatter: String(lVal),
                             color: isTurnPoint ? '#ffffff' : downGreen,
-                            backgroundColor: isTurnPoint ? (isDark ? '#059669' : '#10b981') : 'transparent',
-                            borderColor: isTurnPoint ? (isDark ? '#6ee7b7' : '#047857') : 'transparent',
-                            borderWidth: isTurnPoint ? 1.0 : 0,
-                            borderRadius: 2,
-                            padding: isTurnPoint ? [1, 3] : [0, 0],
-                            fontWeight: isTurnPoint ? '900' : 'bold',
-                            fontSize: isTurnPoint ? 11 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
-                            textBorderColor: isTurnPoint ? 'transparent' : (isDark ? '#000000' : '#ffffff'),
-                            textBorderWidth: isTurnPoint ? 0 : 1.2
+                            fontWeight: 'bold',
+                            fontSize: isTurnPoint ? 10 : 9.5,
+                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
                         },
                         tooltip: { show: false },
                         _isTd9: true,
                         _tdType: 'low',
                         _tdVal: lVal,
-                        z: 40
+                        z: isTurnPoint ? 90 : 80
                     });
                 }
             }
@@ -28941,9 +28923,9 @@
                 const ov = document.getElementById(overlayId);
                 if (ov) ov.style.display = 'none';
             }
-            if (side === 'left' || side === 'w1') {
-                setTimeout(updateChanlunVisibleExtrema, 100);
-            }
+            setTimeout(() => {
+                updateChanlunVisibleExtrema(side);
+            }, 100);
             // 同步绑定通达信右键拖选
             if (chartDom) {
                 chartDom._tdxGetChart = () => window[instanceProp] || (window.echarts && window.echarts.getInstanceByDom(chartDom));
