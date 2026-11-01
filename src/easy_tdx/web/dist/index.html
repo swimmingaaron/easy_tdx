@@ -7324,6 +7324,19 @@
                 if (window.chanlunChart && typeof _clCachedData !== 'undefined' && _clCachedData) {
                     renderChanlunChart(_clCachedData);
                 }
+                // 同步刷新保留区间统计浮动标签和选框样式
+                try {
+                    document.querySelectorAll('.tdx-box-header').forEach(h => {
+                        if (h._tdxStats && typeof renderTdxBoxHeader === 'function') {
+                            renderTdxBoxHeader(h, h._tdxStats, h.parentElement);
+                        }
+                    });
+                    document.querySelectorAll('.tdx-chart-selection-box').forEach(b => {
+                        b.style.border = isDark ? '1.5px dashed #38bdf8' : '1.5px dashed #0284c7';
+                        b.style.background = isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)';
+                        b.style.boxShadow = isDark ? '0 0 10px rgba(56, 189, 248, 0.4)' : '0 0 8px rgba(2, 132, 199, 0.25)';
+                    });
+                } catch (_) {}
                 // Re-render ETF charts with new theme colors
                 if (window._etfRawData && typeof renderEtfAllViews === 'function') {
                     if (window._etfChartTotal) {
@@ -30680,13 +30693,48 @@
             if (!dom) return null;
             dom.style.position = 'relative';
             let box = dom.querySelector('.tdx-chart-selection-box');
+            const isDark = document.documentElement.classList.contains('dark');
+            const boxBorder = isDark ? '1.5px dashed #38bdf8' : '1.5px dashed #0284c7';
+            const boxBg = isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)';
+            const boxShadow = isDark ? '0 0 10px rgba(56, 189, 248, 0.4)' : '0 0 8px rgba(2, 132, 199, 0.25)';
             if (!box || !dom.contains(box)) {
                 box = document.createElement('div');
                 box.className = 'tdx-chart-selection-box';
-                box.style.cssText = 'position: absolute; border: 1.5px dashed #38bdf8; background: rgba(56, 189, 248, 0.18); pointer-events: none; z-index: 999; display: none; box-shadow: 0 0 10px rgba(56, 189, 248, 0.5); border-radius: 2px;';
+                box.style.cssText = `position: absolute; border: ${boxBorder}; background: ${boxBg}; pointer-events: none; z-index: 999; display: none; box-shadow: ${boxShadow}; border-radius: 2px;`;
                 dom.appendChild(box);
+            } else {
+                box.style.border = boxBorder;
+                box.style.background = boxBg;
+                box.style.boxShadow = boxShadow;
             }
             return box;
+        }
+
+        function renderTdxBoxHeader(header, stats, box) {
+            if (!header || !stats) return;
+            header._tdxStats = stats;
+            const isDark = document.documentElement.classList.contains('dark');
+            const isUp = (Number(stats.chgPct || 0) >= 0);
+            const sign = isUp ? '+' : '';
+
+            let boxTop = 50;
+            if (box && box.style && box.style.top) {
+                boxTop = parseFloat(box.style.top) || 50;
+            } else if (header.parentElement && header.parentElement.style && header.parentElement.style.top) {
+                boxTop = parseFloat(header.parentElement.style.top) || 50;
+            }
+            const isNearTop = boxTop < 32;
+            const topPos = isNearTop ? '4px' : '-28px';
+
+            if (isDark) {
+                const colorHex = isUp ? '#f87171' : '#34d399';
+                header.innerHTML = `<span style="color:#cbd5e1">周期: <strong style="color:#38bdf8;font-weight:700">${stats.periodCount}</strong>根</span> <span style="opacity:0.35;color:#94a3b8">|</span> <span style="color:#cbd5e1">涨跌: <strong style="color:${colorHex};font-weight:700">${sign}${stats.chgPct}%</strong></span> <span style="opacity:0.35;color:#94a3b8">|</span> <span style="color:#cbd5e1">振幅: <strong style="color:#fbbf24;font-weight:700">${stats.ampPct}%</strong></span>`;
+                header.style.cssText = `position: absolute; top: ${topPos}; left: 0; background: rgba(15, 23, 42, 0.95); color: #e2e8f0; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; font-weight: 500; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.6); white-space: nowrap; pointer-events: none; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; gap: 6px; align-items: center;`;
+            } else {
+                const colorHex = isUp ? '#dc2626' : '#16a34a';
+                header.innerHTML = `<span style="color:#334155">周期: <strong style="color:#0284c7;font-weight:700">${stats.periodCount}</strong>根</span> <span style="color:#cbd5e1;opacity:0.8">|</span> <span style="color:#334155">涨跌: <strong style="color:${colorHex};font-weight:700">${sign}${stats.chgPct}%</strong></span> <span style="color:#cbd5e1;opacity:0.8">|</span> <span style="color:#334155">振幅: <strong style="color:#d97706;font-weight:700">${stats.ampPct}%</strong></span>`;
+                header.style.cssText = `position: absolute; top: ${topPos}; left: 0; background: rgba(255, 255, 255, 0.96); color: #0f172a; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; font-weight: 500; padding: 3px 8px; border-radius: 4px; border: 1px solid #cbd5e1; white-space: nowrap; pointer-events: none; z-index: 1000; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(0,0,0,0.06); display: flex; gap: 6px; align-items: center;`;
+            }
         }
 
         function bindChartRightClickSelection(dom, getChartInstance, getBarsFunc, getStockInfoFunc) {
@@ -30870,11 +30918,7 @@
                             header.className = 'tdx-box-header';
                             box.appendChild(header);
                         }
-                        const isUp = (Number(stats.chgPct || 0) >= 0);
-                        const colorHex = isUp ? '#f43f5e' : '#10b981';
-                        const sign = isUp ? '+' : '';
-                        header.innerHTML = `<span>周期: <strong style="color:#38bdf8">${stats.periodCount}</strong>根</span> <span style="opacity:0.5">|</span> <span>涨跌: <strong style="color:${colorHex}">${sign}${stats.chgPct}%</strong></span> <span style="opacity:0.5">|</span> <span>振幅: <strong style="color:#fbbf24">${stats.ampPct}%</strong></span>`;
-                        header.style.cssText = 'position: absolute; top: -28px; left: 0; background: rgba(15, 23, 42, 0.95); color: #e2e8f0; font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.7); white-space: nowrap; pointer-events: none; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; gap: 6px; align-items: center;';
+                        renderTdxBoxHeader(header, stats, box);
                     }
                     showTdxRangeStatModal(stats, e.clientX, e.clientY);
                 } else {
