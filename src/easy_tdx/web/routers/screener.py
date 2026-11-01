@@ -51,6 +51,10 @@ class PatternMatchRequest(BaseModel):
     period: str = "DAY"
     top_n: int = 30
     lookback_window: int = 0
+    min_similarity: float = 65.0
+    exclude_st: bool = True
+    exclude_gem_star: bool = False
+    target_future_prices: list[float] | None = None
 
 @router.post("/pattern-match")
 def api_pattern_match(req: PatternMatchRequest):
@@ -63,6 +67,10 @@ def api_pattern_match(req: PatternMatchRequest):
         period=req.period,
         top_n=req.top_n,
         lookback_window=req.lookback_window,
+        min_similarity=req.min_similarity,
+        exclude_st=req.exclude_st,
+        exclude_gem_star=req.exclude_gem_star,
+        target_future_prices=req.target_future_prices,
     )
     return res
 

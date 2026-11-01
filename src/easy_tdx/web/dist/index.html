@@ -6386,17 +6386,17 @@
 
     <!-- ==================== 形态匹配选股 弹窗 ==================== -->
     <div id="tdx-pattern-match-modal" class="fixed inset-0 z-[10000] hidden bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-        <div class="bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div class="bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             <!-- 头部 -->
             <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/80 shrink-0">
-                <div class="flex items-center space-x-2">
-                    <span class="p-1 rounded bg-amber-500/10 text-amber-500 font-bold text-base">✨</span>
+                <div class="flex items-center space-x-2.5">
+                    <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 font-bold text-lg">✨</span>
                     <div>
-                        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2 flex-wrap gap-1">
                             <span>形态匹配选股 (Pattern Matching)</span>
-                            <span id="pm-target-badge" class="px-2 py-0.5 rounded text-xs font-mono font-normal bg-cyan-950 text-cyan-300 border border-cyan-800">模板提取中</span>
+                            <span id="pm-target-badge" class="px-2 py-0.5 rounded text-xs font-mono font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">模板提取中</span>
                         </h3>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400">基于皮尔逊相关系数算法，在指定股票池中寻找走势形态最相似的标的</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">基于多维复合相似度算法（趋势相关40% + 几何贴合30% + 幅度节奏20% + 拐点同步10%），在指定股票池中寻找最强契合形态标的</p>
                     </div>
                 </div>
                 <button type="button" onclick="closePatternMatchModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer">
@@ -6404,46 +6404,134 @@
                 </button>
             </div>
 
-            <!-- 筛选栏与状态 -->
-            <div class="px-4 py-2 bg-slate-100/70 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
+            <!-- 模板特征与后续表现推演卡片 -->
+            <div id="pm-template-summary-bar" class="px-4 py-2 bg-amber-50/70 dark:bg-slate-900/60 border-b border-amber-200/60 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
+                <div class="flex items-center space-x-4 flex-wrap gap-y-1">
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">形态特征:</span>
+                        <span id="pm-tpl-features" class="font-mono font-bold text-slate-800 dark:text-slate-200">--</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-500 dark:text-slate-400 font-medium">形态后续推演:</span>
+                        <span id="pm-tpl-future" class="font-mono font-bold text-emerald-600 dark:text-emerald-400">--</span>
+                    </div>
+                </div>
                 <div class="flex items-center space-x-2">
-                    <span class="text-slate-500 font-medium">股票池:</span>
-                    <select id="pm-universe-select" onchange="runPatternMatchScan()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 font-mono text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer">
-                        <option value="core" selected>核心流动性龙头池 (159只 · 推荐极速)</option>
-                        <option value="hs300">沪深 300 权重池 (300只)</option>
-                        <option value="zz500">中证 500 主力池 (500只)</option>
-                        <option value="zz1000">中证 1000 活跃池 (1000只)</option>
-                        <option value="all">全市场 A 股 (5200+只)</option>
-                    </select>
-                    <button type="button" onclick="runPatternMatchScan()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded flex items-center space-x-1 cursor-pointer transition">
+                    <button type="button" onclick="copyPatternMatchCodes()" class="px-2 py-0.5 rounded text-[11px] bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:border-amber-400 transition cursor-pointer flex items-center space-x-1">
+                        <i data-lucide="copy" class="w-3 h-3"></i>
+                        <span>复制代码</span>
+                    </button>
+                    <button type="button" onclick="exportPatternMatchCsv()" class="px-2 py-0.5 rounded text-[11px] bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:border-amber-400 transition cursor-pointer flex items-center space-x-1">
+                        <i data-lucide="download" class="w-3 h-3"></i>
+                        <span>导出CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 多维筛选控制栏 -->
+            <div class="px-4 py-2.5 bg-slate-100/80 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2.5 text-xs shrink-0">
+                <div class="flex items-center space-x-2 flex-wrap gap-y-2">
+                    <!-- 股票池 -->
+                    <div class="flex items-center space-x-1">
+                        <span class="text-slate-500 font-medium">股票池:</span>
+                        <select id="pm-universe-select" onchange="runPatternMatchScan()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 font-mono text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer">
+                            <optgroup label="主流宽指股票池">
+                                <option value="core" selected>核心流动性龙头池 (159只 · 推荐)</option>
+                                <option value="hs300">沪深 300 权重池 (300只)</option>
+                                <option value="zz500">中证 500 主力池 (500只)</option>
+                                <option value="zz1000">中证 1000 活跃池 (1000只)</option>
+                                <option value="all">全市场 A 股 (5200+只)</option>
+                            </optgroup>
+                            <optgroup label="重点行业赛道">
+                                <option value="industry_index:tmt">科技 TMT 赛道池</option>
+                                <option value="industry_index:manufacturing">新能源与高端制造池</option>
+                                <option value="industry_index:consumption">大消费与商贸池</option>
+                                <option value="industry_index:healthcare">医药生物与健康池</option>
+                                <option value="industry_index:materials">周期资源与大宗池</option>
+                                <option value="industry_index:finance">大金融与地产池</option>
+                                <option value="industry:半导体">细分: 半导体芯片</option>
+                                <option value="industry:软件服务">细分: 软件服务</option>
+                                <option value="industry:通信设备">细分: 通信设备</option>
+                                <option value="industry:电池">细分: 锂电池/储能</option>
+                                <option value="industry:光伏设备">细分: 光伏设备</option>
+                                <option value="industry:汽车零部件">细分: 汽车零部件</option>
+                                <option value="industry:化学制药">细分: 化学制药</option>
+                                <option value="industry:证券">细分: 证券经纪</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <!-- 匹配模式 -->
+                    <div class="flex items-center space-x-1">
+                        <span class="text-slate-500 font-medium">模式:</span>
+                        <select id="pm-mode-select" onchange="runPatternMatchScan()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer">
+                            <option value="0" selected>⚡ 即时形态 (最新K线)</option>
+                            <option value="60">🔍 历史滑动 (近60根K线)</option>
+                            <option value="120">🔍 历史深度 (近120根K线)</option>
+                        </select>
+                    </div>
+
+                    <!-- 分析周期 -->
+                    <div class="flex items-center space-x-1">
+                        <span class="text-slate-500 font-medium">周期:</span>
+                        <select id="pm-period-select" onchange="runPatternMatchScan()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 font-mono text-xs text-slate-800 dark:text-slate-200 outline-none cursor-pointer">
+                            <option value="DAY" selected>日线 (DAY)</option>
+                            <option value="WEEK">周线 (WEEK)</option>
+                            <option value="MONTH">月线 (MONTH)</option>
+                            <option value="60M">60分钟 (60M)</option>
+                            <option value="30M">30分钟 (30M)</option>
+                        </select>
+                    </div>
+
+                    <!-- 相似度阈值滑块 -->
+                    <div class="flex items-center space-x-1.5 pl-1">
+                        <span class="text-slate-500 font-medium">阈值:</span>
+                        <input type="range" id="pm-sim-slider" min="60" max="90" step="1" value="65" oninput="updatePmSimSliderUI(this.value)" onchange="runPatternMatchScan()" class="w-16 sm:w-20 accent-amber-500 cursor-pointer">
+                        <span id="pm-sim-val" class="font-mono font-bold text-amber-500">65%</span>
+                    </div>
+
+                    <!-- 排除选项 -->
+                    <div class="flex items-center space-x-2 pl-1 select-none">
+                        <label class="flex items-center space-x-1 cursor-pointer text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" id="pm-exclude-st" checked onchange="runPatternMatchScan()" class="rounded border-slate-400 text-amber-500">
+                            <span>排ST</span>
+                        </label>
+                        <label class="flex items-center space-x-1 cursor-pointer text-slate-600 dark:text-slate-400">
+                            <input type="checkbox" id="pm-exclude-gem-star" onchange="runPatternMatchScan()" class="rounded border-slate-400 text-amber-500">
+                            <span>排双创/北交</span>
+                        </label>
+                    </div>
+
+                    <button type="button" onclick="runPatternMatchScan()" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded flex items-center space-x-1 cursor-pointer transition shadow-sm">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                         <span>重新匹配</span>
                     </button>
                 </div>
-                <div id="pm-scan-status" class="text-slate-500 font-mono text-[11px]">
+                <div id="pm-scan-status" class="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                     就绪
                 </div>
             </div>
 
             <!-- 结果表格列表 -->
-            <div class="flex-1 overflow-y-auto p-4 min-h-[300px]">
-                <div id="pm-loading" class="hidden flex-col items-center justify-center py-12 space-y-3 text-cyan-500">
-                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
-                    <span class="text-xs font-mono font-medium text-slate-400">正在全市场多线程并行提取K线并计算形态相关系数...</span>
+            <div class="flex-1 overflow-y-auto p-3 sm:p-4 min-h-[340px]">
+                <div id="pm-loading" class="hidden flex-col items-center justify-center py-16 space-y-3 text-cyan-500">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-amber-500"></i>
+                    <span class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">正在全市场多线程并行提取K线并计算复合相似度得分...</span>
                 </div>
 
-                <table id="pm-result-table" class="w-full text-left text-xs font-mono">
-                    <thead class="text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[11px] select-none pb-1">
+                <table id="pm-result-table" class="w-full text-left text-xs font-mono border-collapse">
+                    <thead class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[11px] select-none bg-slate-50/50 dark:bg-slate-900/30 sticky top-0 backdrop-blur">
                         <tr>
                             <th class="py-2 px-2 text-center w-10">#</th>
-                            <th class="py-2 px-2">代码</th>
-                            <th class="py-2 px-2">名称</th>
-                            <th class="py-2 px-3">形态相似度</th>
-                            <th class="py-2 px-3 text-center">走势拟合对比</th>
-                            <th class="py-2 px-2 text-right">现价</th>
-                            <th class="py-2 px-2 text-right">涨跌幅</th>
-                            <th class="py-2 px-3 text-center">匹配区间</th>
-                            <th class="py-2 px-3 text-center">操作</th>
+                            <th class="py-2 px-2 cursor-pointer hover:text-amber-500" onclick="sortPatternMatchResults('code')">代码/名称 ⇕</th>
+                            <th class="py-2 px-2">所属行业</th>
+                            <th class="py-2 px-3 cursor-pointer hover:text-amber-500" onclick="sortPatternMatchResults('similarity')">综合相似度 ⇕</th>
+                            <th class="py-2 px-3 text-center">走势拟合对比 (紫色模板/橙色候选)</th>
+                            <th class="py-2 px-2 text-right cursor-pointer hover:text-amber-500" onclick="sortPatternMatchResults('latest_price')">现价 ⇕</th>
+                            <th class="py-2 px-2 text-right cursor-pointer hover:text-amber-500" onclick="sortPatternMatchResults('pct_change')">最新涨跌 ⇕</th>
+                            <th class="py-2 px-2 text-right cursor-pointer hover:text-amber-500" onclick="sortPatternMatchResults('range_chg')">区间涨幅 ⇕</th>
+                            <th class="py-2 px-3 text-center">后续表现/区间</th>
+                            <th class="py-2 px-3 text-center w-28">操作</th>
                         </tr>
                     </thead>
                     <tbody id="pm-result-tbody" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans">
@@ -28641,6 +28729,7 @@
                 chartDom._tdxGetChart = () => window[instanceProp] || (window.echarts && window.echarts.getInstanceByDom(chartDom));
                 chartDom._tdxGetBars = () => uc;
                 chartDom._tdxGetStockInfo = () => ({ name: d.name || _clCurrentName || _clCurrentCode, code: d.code || _clCurrentCode });
+                chartDom._tdxPeriod = d.overview?.period || d.period || 'DAY';
                 if (typeof ensureChartSelectionBox === 'function') ensureChartSelectionBox(chartDom);
                 if (typeof bindChartRightClickSelection === 'function') {
                     bindChartRightClickSelection(chartDom, chartDom._tdxGetChart, chartDom._tdxGetBars, chartDom._tdxGetStockInfo);
@@ -30393,7 +30482,7 @@
             return [];
         }
 
-        function calcTdxRangeStatistics(bars, startIdx, endIdx, stockName, stockCode) {
+        function calcTdxRangeStatistics(bars, startIdx, endIdx, stockName, stockCode, chartPeriod) {
             if (!bars || bars.length === 0) return null;
             startIdx = Math.max(0, Math.min(bars.length - 1, startIdx));
             endIdx = Math.max(0, Math.min(bars.length - 1, endIdx));
@@ -30509,6 +30598,13 @@
                 return amt.toFixed(0);
             };
 
+            // 提取目标形态结束后的后续走势（若存在，最多提取 20 根 K 线供后续表现推演）
+            let targetFuturePrices = [];
+            if (endIdx < bars.length - 1) {
+                const futureEnd = Math.min(bars.length - 1, endIdx + 20);
+                targetFuturePrices = bars.slice(endIdx + 1, futureEnd + 1).map(b => Number(b.close || 0));
+            }
+
             return {
                 stockName: stockName || '标的',
                 stockCode: stockCode || '',
@@ -30540,12 +30636,21 @@
                 gainDays,
                 loseDays,
                 evenDays,
-                targetPrices: subBars.map(b => Number(b.close || 0))
+                targetPrices: subBars.map(b => Number(b.close || 0)),
+                targetFuturePrices: targetFuturePrices,
+                chartPeriod: (typeof chartPeriod !== 'undefined' && chartPeriod) ? chartPeriod : 'DAY'
             };
         }
 
         function handleTdxStatModalKeyDown(e) {
             if (e.key === 'Escape' || e.keyCode === 27) {
+                const pmModal = document.getElementById('tdx-pattern-match-modal');
+                if (pmModal && !pmModal.classList.contains('hidden') && pmModal.style.display !== 'none') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closePatternMatchModal();
+                    return;
+                }
                 const modal = document.getElementById('tdx-range-stat-modal');
                 if (modal && !modal.classList.contains('hidden') && modal.style.display !== 'none') {
                     e.preventDefault();
@@ -30909,7 +31014,11 @@
                     stockInfo.code = stockInfo.code || window._clCurrentCode || currentKpSymbol || '';
                     stockInfo.name = stockInfo.name || window._clCurrentName || stockInfo.code;
                 }
-                const stats = calcTdxRangeStatistics(bars, startIdx, endIdx, stockInfo.name, stockInfo.code);
+                let curPeriod = 'DAY';
+                if (dom._tdxPeriod) curPeriod = dom._tdxPeriod;
+                else if (window._clCachedData?.overview?.period) curPeriod = window._clCachedData.overview.period;
+                else if (typeof currentKpPeriod !== 'undefined' && currentKpPeriod) curPeriod = currentKpPeriod;
+                const stats = calcTdxRangeStatistics(bars, startIdx, endIdx, stockInfo.name, stockInfo.code, curPeriod);
                 if (stats) {
                     if (box) {
                         let header = box.querySelector('.tdx-box-header');
@@ -30937,6 +31046,19 @@
 
 
         // ==================== 形态匹配选股 逻辑 ====================
+        let _pmCurrentTargetPrices = [];
+        let _pmCurrentTargetSymbol = '';
+        let _pmCurrentTargetName = '';
+        let _pmCurrentStartDate = '';
+        let _pmCurrentEndDate = '';
+        let _pmCurrentPeriod = 'DAY';
+        let _pmCurrentFuturePrices = [];
+        let _pmCurrentStat = null;
+        let _pmCurrentMatches = [];
+        let _pmCurrentTargetNorm = [];
+        let _pmSortField = 'similarity';
+        let _pmSortAsc = false;
+
         function triggerPatternMatchFromStat() {
             if (!_currentTdxStatData || !_currentTdxStatData.targetPrices || _currentTdxStatData.targetPrices.length < 3) {
                 alert('请先框选至少 3 根 K 线的有效形态区间');
@@ -30947,16 +31069,22 @@
                 _currentTdxStatData.stockCode,
                 _currentTdxStatData.stockName,
                 _currentTdxStatData.startDate,
-                _currentTdxStatData.endDate
+                _currentTdxStatData.endDate,
+                _currentTdxStatData.chartPeriod || 'DAY',
+                _currentTdxStatData.targetFuturePrices || [],
+                _currentTdxStatData
             );
         }
 
-        let _pmCurrentTargetPrices = [];
-        let _pmCurrentTargetSymbol = '';
-
-        function openPatternMatchModal(prices, symbol, name, startDate, endDate) {
+        function openPatternMatchModal(prices, symbol, name, startDate, endDate, period, futurePrices, fullStat) {
             _pmCurrentTargetPrices = prices;
             _pmCurrentTargetSymbol = symbol;
+            _pmCurrentTargetName = name;
+            _pmCurrentStartDate = startDate;
+            _pmCurrentEndDate = endDate;
+            _pmCurrentPeriod = period || 'DAY';
+            _pmCurrentFuturePrices = futurePrices || [];
+            _pmCurrentStat = fullStat;
 
             const modal = document.getElementById('tdx-pattern-match-modal');
             if (!modal) return;
@@ -30964,7 +31092,35 @@
                 document.body.appendChild(modal);
             }
 
-            document.getElementById('pm-target-badge').innerText = `模板: ${name || symbol} (${symbol}) · ${startDate} ~ ${endDate} (${prices.length}根K线)`;
+            const pSel = document.getElementById('pm-period-select');
+            if (pSel) {
+                const optExists = Array.from(pSel.options).some(o => o.value === _pmCurrentPeriod);
+                if (optExists) pSel.value = _pmCurrentPeriod;
+            }
+
+            document.getElementById('pm-target-badge').innerText = `模板: ${name || symbol} (${symbol}) · ${startDate} ~ ${endDate} (${prices.length}根K线 · ${_pmCurrentPeriod})`;
+
+            // 填充顶部形态特征与后续推演栏
+            const tplFeaturesEl = document.getElementById('pm-tpl-features');
+            if (tplFeaturesEl) {
+                const ret = fullStat?.chgPct || (prices.length > 0 ? ((prices[prices.length - 1] - prices[0]) / prices[0] * 100).toFixed(2) : '0.00');
+                const amp = fullStat?.ampPct || '0.00';
+                const retSign = Number(ret) >= 0 ? '+' : '';
+                tplFeaturesEl.innerHTML = `<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 font-bold">${prices.length}根K线</span> · 涨跌: <strong class="${Number(ret) >= 0 ? 'text-rose-500' : 'text-emerald-500'}">${retSign}${ret}%</strong> · 振幅: <strong class="text-amber-500">${amp}%</strong>`;
+            }
+            const tplFutureEl = document.getElementById('pm-tpl-future');
+            if (tplFutureEl) {
+                if (futurePrices && futurePrices.length > 0) {
+                    const fLast = futurePrices[futurePrices.length - 1];
+                    const baseP = prices[prices.length - 1];
+                    const fRet = ((fLast - baseP) / baseP * 100).toFixed(2);
+                    const fSign = Number(fRet) >= 0 ? '+' : '';
+                    tplFutureEl.innerHTML = `<span>形态走出后随后 <strong class="text-cyan-500">${futurePrices.length}</strong> 根K线: 累计 <strong class="${Number(fRet) >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}">${fSign}${fRet}%</strong> (验证参考)</span>`;
+                } else {
+                    tplFutureEl.innerHTML = `<span class="text-cyan-600 dark:text-cyan-400 font-medium">⚡ 最新右侧形态 (当期未完结 · 跟踪确认)</span>`;
+                }
+            }
+
             modal.classList.remove('hidden');
             lucide.createIcons();
 
@@ -30976,15 +31132,26 @@
             if (modal) modal.classList.add('hidden');
         }
 
+        function updatePmSimSliderUI(val) {
+            const el = document.getElementById('pm-sim-val');
+            if (el) el.innerText = `${val}%`;
+        }
+
         async function runPatternMatchScan() {
             if (!_pmCurrentTargetPrices || _pmCurrentTargetPrices.length < 3) return;
             const universe = document.getElementById('pm-universe-select')?.value || 'core';
+            const lookback = parseInt(document.getElementById('pm-mode-select')?.value || '0', 10);
+            const period = document.getElementById('pm-period-select')?.value || _pmCurrentPeriod || 'DAY';
+            const minSim = parseFloat(document.getElementById('pm-sim-slider')?.value || '65');
+            const exclSt = document.getElementById('pm-exclude-st')?.checked ?? true;
+            const exclGemStar = document.getElementById('pm-exclude-gem-star')?.checked ?? false;
+
             const statusEl = document.getElementById('pm-scan-status');
             const loadingEl = document.getElementById('pm-loading');
             const tbody = document.getElementById('pm-result-tbody');
 
             if (loadingEl) { loadingEl.classList.remove('hidden'); loadingEl.classList.add('flex'); }
-            if (statusEl) statusEl.innerText = '正在全市场计算匹配度...';
+            if (statusEl) statusEl.innerText = '正在全市场计算复合相似度得分...';
             if (tbody) tbody.innerHTML = '';
 
             try {
@@ -30995,13 +31162,21 @@
                         target_prices: _pmCurrentTargetPrices,
                         target_symbol: _pmCurrentTargetSymbol,
                         universe: universe,
-                        top_n: 30
+                        period: period,
+                        lookback_window: lookback,
+                        min_similarity: minSim,
+                        exclude_st: exclSt,
+                        exclude_gem_star: exclGemStar,
+                        target_future_prices: _pmCurrentFuturePrices,
+                        top_n: 50
                     })
                 });
                 const res = await resp.json();
                 if (res.status === 'success') {
+                    _pmCurrentMatches = res.matches || [];
+                    _pmCurrentTargetNorm = res.target_points || [];
                     if (statusEl) statusEl.innerText = `扫描完成: 耗时 ${res.cost_seconds}s · 扫描 ${res.total_scanned} 只 · 匹配到 ${res.matched_count} 只`;
-                    renderPatternMatchRows(res.matches, res.target_points);
+                    renderPatternMatchRows(_pmCurrentMatches, _pmCurrentTargetNorm);
                 } else {
                     if (statusEl) statusEl.innerText = `匹配失败: ${res.message || '未知错误'}`;
                 }
@@ -31012,65 +31187,159 @@
             }
         }
 
-        function renderPatternSparklineSvg(targetNorm, candNorm) {
+        function sortPatternMatchResults(field) {
+            if (_pmSortField === field) {
+                _pmSortAsc = !_pmSortAsc;
+            } else {
+                _pmSortField = field;
+                _pmSortAsc = (field === 'code');
+            }
+            if (_pmCurrentMatches && _pmCurrentMatches.length > 0) {
+                _pmCurrentMatches.sort((a, b) => {
+                    let valA = a[field];
+                    let valB = b[field];
+                    if (typeof valA === 'string') {
+                        return _pmSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    }
+                    return _pmSortAsc ? (Number(valA || 0) - Number(valB || 0)) : (Number(valB || 0) - Number(valA || 0));
+                });
+                renderPatternMatchRows(_pmCurrentMatches, _pmCurrentTargetNorm);
+            }
+        }
+
+        function copyPatternMatchCodes() {
+            if (!_pmCurrentMatches || _pmCurrentMatches.length === 0) {
+                showToast('复制提示', '当前没有可复制的候选股票代码');
+                return;
+            }
+            const codes = _pmCurrentMatches.map(m => m.code).join(',');
+            navigator.clipboard.writeText(codes).then(() => {
+                showToast('复制成功', `已复制 ${_pmCurrentMatches.length} 只股票代码到剪贴板，可直接导入通达信自选板块！`);
+            }).catch(() => {
+                showToast('复制提示', `股票代码: ${codes}`);
+            });
+        }
+
+        function exportPatternMatchCsv() {
+            if (!_pmCurrentMatches || _pmCurrentMatches.length === 0) {
+                showToast('导出提示', '当前没有可导出的数据');
+                return;
+            }
+            let csv = '序号,代码,名称,所属行业,综合相似度,趋势相关度,现价,最新涨幅,区间涨跌幅,匹配区间,后续表现\n';
+            _pmCurrentMatches.forEach((m, idx) => {
+                const fwd = m.forward_returns ? `后5日:${m.forward_returns.f5 ?? '--'}% 后20日:${m.forward_returns.f20 ?? '--'}%` : (m.is_realtime ? '当期进行中' : '--');
+                csv += `${idx + 1},${m.code},"${m.name || ''}","${m.industry || ''}",${m.similarity}%,${(m.correlation * 100).toFixed(1)}%,${m.latest_price},${m.pct_change}%,${m.range_chg}%,${m.start_date}~${m.end_date},"${fwd}"\n`;
+            });
+            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `形态匹配_${_pmCurrentTargetSymbol}_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('导出成功', '已生成并下载 CSV 报表');
+        }
+
+        function renderPatternSparklineSvg(targetNorm, candNorm, details, simVal) {
             if (!candNorm || candNorm.length < 2) return '';
-            const w = 110;
-            const h = 26;
-            const pad = 3;
+            const w = 120;
+            const h = 28;
+            const pad = 4;
             const n = candNorm.length;
             const step = (w - pad * 2) / (n - 1);
 
             let tPath = '';
+            let tStartPt = null, tEndPt = null;
             if (targetNorm && targetNorm.length === n) {
                 targetNorm.forEach((v, i) => {
                     const x = pad + i * step;
                     const y = h - pad - (v / 100) * (h - pad * 2);
+                    if (i === 0) tStartPt = { x, y };
+                    if (i === n - 1) tEndPt = { x, y };
                     tPath += (i === 0 ? `M ${x.toFixed(1)} ${y.toFixed(1)}` : ` L ${x.toFixed(1)} ${y.toFixed(1)}`);
                 });
             }
 
             let cPath = '';
+            let cStartPt = null, cEndPt = null;
             candNorm.forEach((v, i) => {
                 const x = pad + i * step;
                 const y = h - pad - (v / 100) * (h - pad * 2);
+                if (i === 0) cStartPt = { x, y };
+                if (i === n - 1) cEndPt = { x, y };
                 cPath += (i === 0 ? `M ${x.toFixed(1)} ${y.toFixed(1)}` : ` L ${x.toFixed(1)} ${y.toFixed(1)}`);
             });
 
-            return `<svg width="${w}" height="${h}" class="inline-block overflow-visible">
-                ${tPath ? `<path d="${tPath}" fill="none" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="2,2" opacity="0.75" />` : ''}
-                <path d="${cPath}" fill="none" stroke="#eab308" stroke-width="1.6" stroke-linecap="round" />
+            const d = details || {};
+            const tipText = `【四维评分明细】\n• 综合相似度: ${simVal}%\n• 趋势方向: ${d.corr ?? '--'}%\n• 几何贴合: ${d.geom ?? '--'}%\n• 幅度契合: ${d.scale ?? '--'}%\n• 拐点同步: ${d.turning ?? '--'}%`;
+
+            return `<svg width="${w}" height="${h}" class="inline-block overflow-visible cursor-help" title="${tipText}">
+                <!-- 模板基准走势 (紫色虚线) -->
+                ${tPath ? `<path d="${tPath}" fill="none" stroke="#a855f7" stroke-width="1.3" stroke-dasharray="2.5,2.5" opacity="0.8" />` : ''}
+                ${tStartPt ? `<circle cx="${tStartPt.x.toFixed(1)}" cy="${tStartPt.y.toFixed(1)}" r="1.5" fill="#a855f7" />` : ''}
+                ${tEndPt ? `<circle cx="${tEndPt.x.toFixed(1)}" cy="${tEndPt.y.toFixed(1)}" r="2" fill="#a855f7" />` : ''}
+
+                <!-- 候选股票实际走势 (橙黄实线) -->
+                <path d="${cPath}" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                ${cEndPt ? `<circle cx="${cEndPt.x.toFixed(1)}" cy="${cEndPt.y.toFixed(1)}" r="2.2" fill="#f59e0b" />` : ''}
             </svg>`;
         }
 
         function renderPatternMatchRows(matches, targetNorm) {
             const tbody = document.getElementById('pm-result-tbody');
             if (!tbody) return;
+            const curThreshold = document.getElementById('pm-sim-slider')?.value || 65;
             if (!matches || matches.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400">未找到相似度达标的标的</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="p-12 text-center text-slate-400">未找到符合相似度阈值（>= ${curThreshold}%）的标的</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = matches.map((m, idx) => {
                 const pctColor = m.pct_change >= 0 ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold';
+                const rangeColor = m.range_chg >= 0 ? 'text-rose-500 font-medium' : 'text-emerald-500 font-medium';
                 const simVal = Number(m.similarity || 0);
-                const simBarColor = simVal >= 90 ? 'bg-amber-400' : (simVal >= 80 ? 'bg-emerald-400' : 'bg-cyan-400');
-                const sparkline = renderPatternSparklineSvg(targetNorm, m.cand_points);
+                const simBarColor = simVal >= 88 ? 'bg-amber-400' : (simVal >= 78 ? 'bg-emerald-400' : 'bg-cyan-400');
+                const sparkline = renderPatternSparklineSvg(targetNorm, m.cand_points, m.details, simVal);
+
+                let forwardHtml = '';
+                if (m.forward_returns && m.forward_returns.forward_bars > 0) {
+                    const f5 = m.forward_returns.f5;
+                    const f20 = m.forward_returns.f20;
+                    const f5Color = (f5 != null && f5 >= 0) ? 'text-rose-500' : 'text-emerald-500';
+                    const f20Color = (f20 != null && f20 >= 0) ? 'text-rose-500' : 'text-emerald-500';
+                    forwardHtml = `<div class="text-[10px] space-y-0.5">
+                        <div class="text-slate-400 font-mono">${m.start_date.slice(5)} ~ ${m.end_date.slice(5)}</div>
+                        <div class="font-mono">后5日: <strong class="${f5Color}">${f5 != null ? (f5 >= 0 ? '+' : '') + f5 + '%' : '--'}</strong> · 后20日: <strong class="${f20Color}">${f20 != null ? (f20 >= 0 ? '+' : '') + f20 + '%' : '--'}</strong></div>
+                    </div>`;
+                } else {
+                    forwardHtml = `<div class="text-[10px] space-y-0.5">
+                        <div class="text-slate-400 font-mono">${m.start_date.slice(5)} ~ ${m.end_date.slice(5)}</div>
+                        <span class="inline-block px-1.5 py-0.2 rounded text-[10px] bg-cyan-100 text-cyan-800 dark:bg-cyan-950/80 dark:text-cyan-300 font-mono">⚡当期即时运行中</span>
+                    </div>`;
+                }
 
                 return `<tr class="hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition">
                     <td class="py-2.5 px-2 text-center text-slate-400 font-mono">${idx + 1}</td>
                     <td class="py-2.5 px-2">
-                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="text-cyan-600 dark:text-cyan-400 font-mono font-bold hover:underline cursor-pointer">
-                            ${m.code}
-                        </button>
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="text-cyan-600 dark:text-cyan-400 font-mono font-bold hover:underline cursor-pointer">
+                                ${m.code}
+                            </button>
+                            <span class="font-bold text-slate-800 dark:text-slate-100 cursor-pointer hover:text-cyan-500" onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();">
+                                ${m.name || '--'}
+                            </span>
+                        </div>
                     </td>
-                    <td class="py-2.5 px-2 font-bold text-slate-800 dark:text-slate-100">
-                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="hover:text-cyan-500 cursor-pointer text-left">
-                            ${m.name || '--'}
-                        </button>
+                    <td class="py-2.5 px-2">
+                        <span class="inline-block px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="${m.category || ''}">
+                            ${m.industry || '其它'}
+                        </span>
                     </td>
                     <td class="py-2.5 px-3">
                         <div class="flex items-center space-x-2">
-                            <span class="font-mono font-bold ${simVal >= 90 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}">${simVal.toFixed(1)}%</span>
+                            <span class="font-mono font-bold ${simVal >= 88 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}">${simVal.toFixed(1)}%</span>
                             <div class="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div class="h-full ${simBarColor}" style="width: ${Math.min(100, Math.max(0, simVal))}%"></div>
                             </div>
@@ -31081,10 +31350,14 @@
                     </td>
                     <td class="py-2.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white">¥${Number(m.latest_price || 0).toFixed(2)}</td>
                     <td class="py-2.5 px-2 text-right font-mono ${pctColor}">${m.pct_change >= 0 ? '+' : ''}${Number(m.pct_change || 0).toFixed(2)}%</td>
-                    <td class="py-2.5 px-3 text-center text-[11px] text-slate-500 font-mono">${m.start_date || '--'} ~ ${m.end_date || '--'}</td>
+                    <td class="py-2.5 px-2 text-right font-mono ${rangeColor}">${m.range_chg >= 0 ? '+' : ''}${Number(m.range_chg || 0).toFixed(2)}%</td>
+                    <td class="py-2.5 px-3 text-center">
+                        ${forwardHtml}
+                    </td>
                     <td class="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
                         <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="px-2 py-0.5 rounded text-[11px] bg-cyan-950/80 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 transition cursor-pointer">K线</button>
                         <a href="/#chanlun?code=${m.code}" target="_blank" onclick="openChanlunKline('${m.code}', '${m.name}', event); closePatternMatchModal();" class="inline-block px-2 py-0.5 rounded text-[11px] bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900 transition cursor-pointer no-underline">缠论</a>
+                        <button onclick="toggleWatchlistStockBtn('${m.code}', '${m.name}', this)" class="px-1.5 py-0.5 rounded text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500 border border-slate-300 dark:border-slate-700 transition cursor-pointer" title="加入自选">+自选</button>
                     </td>
                 </tr>`;
             }).join('');
@@ -31094,6 +31367,7 @@
         function attachTdxSelectionToKpChart() {
             const dom = document.getElementById('echarts-preview-modal-container');
             if (dom) {
+                dom._tdxPeriod = currentKpPeriod || 'DAY';
                 bindChartRightClickSelection(
                     dom,
                     () => kpEchart,
@@ -31166,6 +31440,10 @@
         window.closePatternMatchModal = closePatternMatchModal;
         window.runPatternMatchScan = runPatternMatchScan;
         window.triggerPatternMatchFromStat = triggerPatternMatchFromStat;
+        window.sortPatternMatchResults = sortPatternMatchResults;
+        window.copyPatternMatchCodes = copyPatternMatchCodes;
+        window.exportPatternMatchCsv = exportPatternMatchCsv;
+        window.updatePmSimSliderUI = updatePmSimSliderUI;
 
     </script>
 
