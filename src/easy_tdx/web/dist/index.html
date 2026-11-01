@@ -4807,6 +4807,7 @@
                                 <option value="res" id="cl-opt-res">★共振信号</option>
                                 <option value="maShort" id="cl-opt-maShort">MA5/MA10 √</option>
                                 <option value="maLong" id="cl-opt-maLong">MA20/MA30/MA60</option>
+                                <option value="extrema" id="cl-opt-extrema">高低极值 √</option>
                                 <option value="lod" id="cl-opt-lod">🗺️ 缩放自适应(地图分层) √</option>
                                 <option value="__ALL_ON__">── 全部开启 √ ──</option>
                                 <option value="__ALL_OFF__">── 全部关闭 ──</option>
@@ -25411,6 +25412,7 @@
             res: false,
             maShort: true,  // MA5/MA10：默认开启 enable
             maLong: false,  // MA20/MA30/MA60：默认关闭 disable
+            extrema: true,  // 标出当前显示区域内股价/指数的最大值和最小值，默认开启 enable
             lod: true,     // 🗺️ 地图分级自适应：根据K线缩放范围自动分层显示买卖点与背驰
             lodMode: 'auto' // 'auto' (自动分级) | 'major' (仅大级别) | 'all' (全部显示)
         };
@@ -25660,7 +25662,8 @@
                 mmd: '买卖点',
                 res: '★共振信号',
                 maShort: 'MA5/MA10',
-                maLong: 'MA20/MA30/MA60'
+                maLong: 'MA20/MA30/MA60',
+                extrema: '高低极值'
             };
 
             let enabledCount = 0;
@@ -25697,10 +25700,10 @@
             const val = sel.value;
             if (!val) return;
             if (val === '__ALL_ON__') {
-                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong', 'extrema'];
                 keys.forEach(k => { _clLayers[k] = true; });
             } else if (val === '__ALL_OFF__') {
-                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong', 'extrema'];
                 keys.forEach(k => { _clLayers[k] = false; });
             } else if (val === 'lod') {
                 toggleChanlunMapLod();
@@ -25723,7 +25726,7 @@
         }
 
         window.setAllChanlunLayers = function(enabled) {
-            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
+            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong', 'extrema'];
             keys.forEach(k => { _clLayers[k] = !!enabled; });
             updateChanlunLayerButtons();
             renderChanlunChart();
@@ -26239,6 +26242,136 @@
         }
 
 
+        /**
+         * 计算当前显示区域内的股价或指数极值标示（最高价与最低价）
+         * 严格防重叠设计：
+         * 1. 缠论顶底分型 (▲顶/▼底) 及买卖点 (1买/1卖) 均垂直分布在K线正上方(position: top)或正下方(position: bottom)。
+         * 2. 本极值标示采用水平侧向展开机制 (若点在左半屏向右指 ←，若点在右半屏向左指 →)。
+         * 3. 极值由于是全可视区最高/最低，其侧向空间天然无任何蜡烛图实体与上下买卖点干扰，杜绝重叠遮挡。
+         */
+        function buildChanlunExtremaMarks(candles, dates, sIdx, eIdx, isDark) {
+            if (!_clLayers.extrema) return [];
+            if (!candles || candles.length === 0 || !dates || dates.length === 0) return [];
+
+            const start = Math.max(0, Math.min(candles.length - 1, sIdx));
+            const end = Math.max(0, Math.min(candles.length - 1, eIdx));
+            if (start > end) return [];
+
+            let maxH = -Infinity;
+            let minL = Infinity;
+            let maxIdx = -1;
+            let minIdx = -1;
+
+            for (let i = start; i <= end; i++) {
+                const c = candles[i];
+                if (!c) continue;
+                const low = Number(c[2]);
+                const high = Number(c[3]);
+                if (!isNaN(high) && high > maxH) {
+                    maxH = high;
+                    maxIdx = i;
+                }
+                if (!isNaN(low) && low < minL) {
+                    minL = low;
+                    minIdx = i;
+                }
+            }
+
+            if (maxIdx < 0 || minIdx < 0 || maxH === -Infinity || minL === Infinity) {
+                return [];
+            }
+
+            const maxDate = dates[maxIdx];
+            const minDate = dates[minIdx];
+            if (!maxDate || !minDate) return [];
+
+            const formatPrice = (v) => {
+                if (Math.abs(Math.round(v * 100) - v * 100) > 0.001) {
+                    return v.toFixed(3);
+                }
+                return v.toFixed(2);
+            };
+
+            const maxPriceStr = formatPrice(maxH);
+            const minPriceStr = formatPrice(minL);
+
+            const visibleCount = Math.max(1, end - start + 1);
+            const isMaxLeftHalf = (maxIdx - start) < (visibleCount * 0.5);
+            const isMinLeftHalf = (minIdx - start) < (visibleCount * 0.5);
+
+            const maxMark = {
+                name: '可视最高',
+                coord: [maxDate, maxH],
+                value: maxPriceStr,
+                symbol: 'circle',
+                symbolSize: 4.5,
+                itemStyle: {
+                    color: '#ef4444',
+                    borderColor: isDark ? '#ffffff' : '#991b1b',
+                    borderWidth: 1.2
+                },
+                label: {
+                    show: true,
+                    position: isMaxLeftHalf ? 'right' : 'left',
+                    distance: 7,
+                    formatter: isMaxLeftHalf ? `← 高 ${maxPriceStr}` : `${maxPriceStr} 高 →`,
+                    color: isDark ? '#fca5a5' : '#b91c1c',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDark ? '#ef4444' : '#f87171',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [2, 5],
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    fontFamily: 'Consolas, Monaco, monospace',
+                    shadowColor: 'rgba(0, 0, 0, 0.3)',
+                    shadowBlur: 3
+                },
+                tooltip: {
+                    show: true,
+                    formatter: `当前可视最高: ¥${maxPriceStr} (${maxDate})`
+                },
+                z: 10
+            };
+
+            const minMark = {
+                name: '可视最低',
+                coord: [minDate, minL],
+                value: minPriceStr,
+                symbol: 'circle',
+                symbolSize: 4.5,
+                itemStyle: {
+                    color: '#10b981',
+                    borderColor: isDark ? '#ffffff' : '#065f46',
+                    borderWidth: 1.2
+                },
+                label: {
+                    show: true,
+                    position: isMinLeftHalf ? 'right' : 'left',
+                    distance: 7,
+                    formatter: isMinLeftHalf ? `← 低 ${minPriceStr}` : `${minPriceStr} 低 →`,
+                    color: isDark ? '#6ee7b7' : '#047857',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: isDark ? '#10b981' : '#34d399',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [2, 5],
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    fontFamily: 'Consolas, Monaco, monospace',
+                    shadowColor: 'rgba(0, 0, 0, 0.3)',
+                    shadowBlur: 3
+                },
+                tooltip: {
+                    show: true,
+                    formatter: `当前可视最低: ¥${minPriceStr} (${minDate})`
+                },
+                z: 10
+            };
+
+            return [maxMark, minMark];
+        }
+
         function updateChanlunVisibleExtrema(side = 'left', zoomParams = null) {
             let chartInstance = window.chanlunChart;
             let d = _clLeftCachedData || _clCachedData;
@@ -26256,7 +26389,11 @@
             try {
                 const opt = chartInstance.getOption();
                 if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
-                const candles = d.unified_chart?.candles || [];
+                const uc = (_clMergeKlines && d.merged_chart && d.merged_chart.dates && d.merged_chart.dates.length > 0)
+                    ? d.merged_chart
+                    : d.unified_chart;
+                const candles = uc?.candles || [];
+                const dates = uc?.dates || [];
                 if (candles.length === 0) return;
 
                 let startPct = 40;
@@ -26314,49 +26451,56 @@
 
                     const visibleCount = endIdx - startIdx + 1;
                     const cData = window._clInstanceData ? window._clInstanceData[side] : null;
+                    const isDark = chartInstance._clThemeMode === 'dark';
+                    const newExtrema = buildChanlunExtremaMarks(candles, dates, startIdx, endIdx, isDark);
+
+                    let needMacdUpdate = false;
+                    let displayMmd = cData ? (cData.currentDisplayMmd || cData.rawMmd || []) : [];
+                    let displayMacd = cData ? (cData.currentDisplayMacd || cData.rawMacd || []) : [];
+
                     if (cData && _clLayers.lod) {
                         const targetLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleCount >= 160) ? 1 : ((visibleCount >= 70) ? 2 : 3));
                         if (cData.currentLod !== targetLod) {
                             cData.currentLod = targetLod;
-                            const newMmd = filterChanlunMmdByLod(cData.rawMmd, visibleCount, cData.dates);
-                            const newMacd = filterMacdMarksByLod(cData.rawMacd, visibleCount, cData.dates);
-
-                            const updateSeries = [
-                                {
-                                    name: '基准K线',
-                                    markPoint: {
-                                        data: [
-                                            ...(cData.fractalMarks || []),
-                                            ...newMmd,
-                                            ...(cData.resMarks || [])
-                                        ]
-                                    }
-                                }
-                            ];
-                            if (cData.isSubMacd) {
-                                updateSeries.push({
-                                    name: 'DIF',
-                                    markPoint: {
-                                        data: newMacd
-                                    }
-                                });
-                            }
-                            chartInstance.setOption({
-                                yAxis: [ { min: finalYMin, max: finalYMax } ],
-                                series: updateSeries
-                            });
-                            return;
+                            displayMmd = filterChanlunMmdByLod(cData.rawMmd, visibleCount, cData.dates);
+                            displayMacd = filterMacdMarksByLod(cData.rawMacd, visibleCount, cData.dates);
+                            cData.currentDisplayMmd = displayMmd;
+                            cData.currentDisplayMacd = displayMacd;
+                            needMacdUpdate = true;
                         }
                     }
 
-                    chartInstance.setOption({
-                        yAxis: [
+                    if (cData) {
+                        const updateSeries = [
                             {
-                                min: finalYMin,
-                                max: finalYMax
+                                name: '基准K线',
+                                markPoint: {
+                                    data: [
+                                        ...(cData.fractalMarks || []),
+                                        ...displayMmd,
+                                        ...(cData.resMarks || []),
+                                        ...newExtrema
+                                    ]
+                                }
                             }
-                        ]
-                    });
+                        ];
+                        if (cData.isSubMacd && needMacdUpdate) {
+                            updateSeries.push({
+                                name: 'DIF',
+                                markPoint: {
+                                    data: displayMacd
+                                }
+                            });
+                        }
+                        chartInstance.setOption({
+                            yAxis: [{ min: finalYMin, max: finalYMax }],
+                            series: updateSeries
+                        });
+                    } else {
+                        chartInstance.setOption({
+                            yAxis: [{ min: finalYMin, max: finalYMax }]
+                        });
+                    }
 
                     if (side === 'left' || side === 'w1') {
                         const amp = minL > 0 ? ((maxH - minL) / minL * 100) : 0;
@@ -27695,6 +27839,7 @@
             const initialLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleBarCount >= 160) ? 1 : ((visibleBarCount >= 70) ? 2 : 3));
             const displayMmdMarkPoints = _clLayers.lod ? filterChanlunMmdByLod(mmdMarkPoints, visibleBarCount, dates) : mmdMarkPoints;
             const displayMacdMarks = _clLayers.lod ? filterMacdMarksByLod(macdMarks, visibleBarCount, dates) : macdMarks;
+            const extremaMarkPoints = buildChanlunExtremaMarks(candles, dates, sIdx, eIdx, isDark);
 
             if (isSubMacd && Array.isArray(subSeries)) {
                 const difSeries = subSeries.find(s => s.name === 'DIF');
@@ -27709,7 +27854,10 @@
                 rawMacd: macdMarks,
                 fractalMarks: fractalMarkPoints,
                 resMarks: resMarkPoints,
+                currentDisplayMmd: displayMmdMarkPoints,
+                currentDisplayMacd: displayMacdMarks,
                 dates: dates,
+                candles: candles,
                 isSubMacd: isSubMacd,
                 currentLod: initialLod
             };
@@ -28068,7 +28216,8 @@
                             data: [
                                 ...fractalMarkPoints,
                                 ...displayMmdMarkPoints,
-                                ...resMarkPoints
+                                ...resMarkPoints,
+                                ...extremaMarkPoints
                             ]
                         },
                         markLine: {
