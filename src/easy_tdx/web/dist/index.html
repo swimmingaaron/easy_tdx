@@ -4805,6 +4805,8 @@
                                 <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
                                 <option value="mmd" id="cl-opt-mmd">买卖点</option>
                                 <option value="res" id="cl-opt-res">★共振信号</option>
+                                <option value="maShort" id="cl-opt-maShort">MA5/MA10</option>
+                                <option value="maLong" id="cl-opt-maLong">MA20/MA30/MA60</option>
                                 <option value="lod" id="cl-opt-lod">🗺️ 缩放自适应(地图分层) √</option>
                                 <option value="__ALL_ON__">── 全部开启 √ ──</option>
                                 <option value="__ALL_OFF__">── 全部关闭 ──</option>
@@ -25375,6 +25377,8 @@
             lowZs: true,
             mmd: !checkChanlunMobileOrTablet(), // 电脑PC端默认开启，移动设备(手机/Pad)默认关闭
             res: false,
+            maShort: false, // MA5/MA10：默认关闭 disable
+            maLong: false,  // MA20/MA30/MA60：默认关闭 disable
             lod: true,     // 🗺️ 地图分级自适应：根据K线缩放范围自动分层显示买卖点与背驰
             lodMode: 'auto' // 'auto' (自动分级) | 'major' (仅大级别) | 'all' (全部显示)
         };
@@ -25622,11 +25626,14 @@
                 lowBi: '小笔(蓝)',
                 lowZs: '小中枢',
                 mmd: '买卖点',
-                res: '★共振信号'
+                res: '★共振信号',
+                maShort: 'MA5/MA10',
+                maLong: 'MA20/MA30/MA60'
             };
 
             let enabledCount = 0;
-            Object.keys(layerNames).forEach(k => {
+            const layerKeys = Object.keys(layerNames);
+            layerKeys.forEach(k => {
                 const isEnabled = !!_clLayers[k];
                 if (isEnabled) enabledCount++;
                 const opt = document.getElementById('cl-opt-' + k);
@@ -25645,7 +25652,7 @@
             // 更新主图下拉菜单摘要文本
             const optSummary = document.getElementById('cl-opt-summary');
             if (optSummary) {
-                optSummary.innerText = `图层开关 (${enabledCount}/8)`;
+                optSummary.innerText = `图层开关 (${enabledCount}/${layerKeys.length})`;
             }
             const selMain = document.getElementById('cl-select-main-layers');
             if (selMain) {
@@ -25658,10 +25665,10 @@
             const val = sel.value;
             if (!val) return;
             if (val === '__ALL_ON__') {
-                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
                 keys.forEach(k => { _clLayers[k] = true; });
             } else if (val === '__ALL_OFF__') {
-                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+                const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
                 keys.forEach(k => { _clLayers[k] = false; });
             } else if (val === 'lod') {
                 toggleChanlunMapLod();
@@ -25684,7 +25691,7 @@
         }
 
         window.setAllChanlunLayers = function(enabled) {
-            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
+            const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res', 'maShort', 'maLong'];
             keys.forEach(k => { _clLayers[k] = !!enabled; });
             updateChanlunLayerButtons();
             renderChanlunChart();
@@ -25699,6 +25706,8 @@
             _clLayers.lowZs = false;
             _clLayers.mmd = false;
             _clLayers.res = false;
+            _clLayers.maShort = false;
+            _clLayers.maLong = false;
             updateChanlunLayerButtons();
             renderChanlunChart();
         };
@@ -26456,6 +26465,103 @@
             const highTheme = getPeriodTheme(highP, isDark);
             const midTheme = getPeriodTheme(midP, isDark);
             const lowTheme = getPeriodTheme(lowP, isDark);
+
+            // 均线辅助计算
+            function calcCandleMA(period, cList) {
+                if (!cList || cList.length === 0) return [];
+                const res = [];
+                let sum = 0;
+                for (let i = 0; i < cList.length; i++) {
+                    const closeVal = Number((cList[i] && cList[i][1] != null) ? cList[i][1] : 0);
+                    sum += closeVal;
+                    if (i < period - 1) {
+                        res.push('-');
+                    } else {
+                        if (i >= period) {
+                            sum -= Number((cList[i - period] && cList[i - period][1] != null) ? cList[i - period][1] : 0);
+                        }
+                        res.push(Number((sum / period).toFixed(2)));
+                    }
+                }
+                return res;
+            }
+
+            const ma5Data = calcCandleMA(5, candles);
+            const ma10Data = calcCandleMA(10, candles);
+            const ma20Data = calcCandleMA(20, candles);
+            const ma30Data = calcCandleMA(30, candles);
+            const ma60Data = calcCandleMA(60, candles);
+
+            const maShortSeries = _clLayers.maShort ? [
+                {
+                    name: 'MA5',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: ma5Data,
+                    smooth: false,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: { color: isDark ? '#e2e8f0' : '#64748b', width: 1.2 },
+                    itemStyle: { color: isDark ? '#e2e8f0' : '#64748b' },
+                    z: 2
+                },
+                {
+                    name: 'MA10',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: ma10Data,
+                    smooth: false,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: { color: '#eab308', width: 1.2 },
+                    itemStyle: { color: '#eab308' },
+                    z: 2
+                }
+            ] : [];
+
+            const maLongSeries = _clLayers.maLong ? [
+                {
+                    name: 'MA20',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: ma20Data,
+                    smooth: false,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: { color: '#a855f7', width: 1.3 },
+                    itemStyle: { color: '#a855f7' },
+                    z: 2
+                },
+                {
+                    name: 'MA30',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: ma30Data,
+                    smooth: false,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: { color: '#f97316', width: 1.3 },
+                    itemStyle: { color: '#f97316' },
+                    z: 2
+                },
+                {
+                    name: 'MA60',
+                    type: 'line',
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    data: ma60Data,
+                    smooth: false,
+                    showSymbol: false,
+                    symbol: 'none',
+                    lineStyle: { color: '#22c55e', width: 1.3 },
+                    itemStyle: { color: '#22c55e' },
+                    z: 2
+                }
+            ] : [];
 
             // 250天移动平均线 (MA250 鲜红色，与线段粗细度相同)
             const ma250Data = (() => {
@@ -27708,6 +27814,16 @@
 
                         const curM250 = ma250Data[idx];
                         const m250Str = (curM250 != null && curM250 !== '-') ? Number(curM250).toFixed(2) : '--';
+                        const curM5 = ma5Data[idx];
+                        const ma5Str = (curM5 != null && curM5 !== '-') ? Number(curM5).toFixed(2) : '--';
+                        const curM10 = ma10Data[idx];
+                        const ma10Str = (curM10 != null && curM10 !== '-') ? Number(curM10).toFixed(2) : '--';
+                        const curM20 = ma20Data[idx];
+                        const ma20Str = (curM20 != null && curM20 !== '-') ? Number(curM20).toFixed(2) : '--';
+                        const curM30 = ma30Data[idx];
+                        const ma30Str = (curM30 != null && curM30 !== '-') ? Number(curM30).toFixed(2) : '--';
+                        const curM60 = ma60Data[idx];
+                        const ma60Str = (curM60 != null && curM60 !== '-') ? Number(curM60).toFixed(2) : '--';
 
                         let subHtml = '';
                         if (isSubMacd && macdData.dif && macdData.dif[idx] !== undefined) {
@@ -27802,6 +27918,15 @@
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
                                         <span style="color: #ff1f1f; font-weight: 700;">MA250:</span><span style="color: #ff1f1f; font-weight: 700; text-align: right;">${m250Str}</span>
+                                        ${_clLayers.maShort ? `
+                                            <span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700;">MA5:</span><span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700; text-align: right;">${ma5Str}</span>
+                                            <span style="color: #eab308; font-weight: 700;">MA10:</span><span style="color: #eab308; font-weight: 700; text-align: right;">${ma10Str}</span>
+                                        ` : ''}
+                                        ${_clLayers.maLong ? `
+                                            <span style="color: #a855f7; font-weight: 700;">MA20:</span><span style="color: #a855f7; font-weight: 700; text-align: right;">${ma20Str}</span>
+                                            <span style="color: #f97316; font-weight: 700;">MA30:</span><span style="color: #f97316; font-weight: 700; text-align: right;">${ma30Str}</span>
+                                            <span style="color: #22c55e; font-weight: 700;">MA60:</span><span style="color: #22c55e; font-weight: 700; text-align: right;">${ma60Str}</span>
+                                        ` : ''}
                                     ` : `
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${openColor}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
@@ -27811,6 +27936,15 @@
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
                                         <span style="color: #ff1f1f; font-weight: 700;">MA250:</span><span style="color: #ff1f1f; font-weight: 700; text-align: right;">${m250Str}</span>
+                                        ${_clLayers.maShort ? `
+                                            <span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700;">MA5:</span><span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700; text-align: right;">${ma5Str}</span>
+                                            <span style="color: #eab308; font-weight: 700;">MA10:</span><span style="color: #eab308; font-weight: 700; text-align: right;">${ma10Str}</span>
+                                        ` : ''}
+                                        ${_clLayers.maLong ? `
+                                            <span style="color: #a855f7; font-weight: 700;">MA20:</span><span style="color: #a855f7; font-weight: 700; text-align: right;">${ma20Str}</span>
+                                            <span style="color: #f97316; font-weight: 700;">MA30:</span><span style="color: #f97316; font-weight: 700; text-align: right;">${ma30Str}</span>
+                                            <span style="color: #22c55e; font-weight: 700;">MA60:</span><span style="color: #22c55e; font-weight: 700; text-align: right;">${ma60Str}</span>
+                                        ` : ''}
                                     `}
                                 </div>
                                 ${mmdHtml}
@@ -27923,6 +28057,8 @@
                             ]
                         }
                     },
+                    ...maShortSeries,
+                    ...maLongSeries,
                     {
                         name: 'MA250',
                         type: 'line',
