@@ -4796,7 +4796,7 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">主图:</span>
                             <select id="cl-select-main-layers" onchange="toggleChanlunLayerFromSelect(this)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="" disabled selected id="cl-opt-summary">图层开关 (4/8)</option>
+                                <option value="" disabled selected id="cl-opt-summary">图层开关 (5/10)</option>
                                 <option value="highBi" id="cl-opt-highBi">大笔(紫) √</option>
                                 <option value="highZs" id="cl-opt-highZs">大中枢</option>
                                 <option value="midBi" id="cl-opt-midBi">中笔(黄) √</option>
@@ -4805,7 +4805,7 @@
                                 <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
                                 <option value="mmd" id="cl-opt-mmd">买卖点</option>
                                 <option value="res" id="cl-opt-res">★共振信号</option>
-                                <option value="maShort" id="cl-opt-maShort">MA5/MA10</option>
+                                <option value="maShort" id="cl-opt-maShort">MA5/MA10 √</option>
                                 <option value="maLong" id="cl-opt-maLong">MA20/MA30/MA60</option>
                                 <option value="lod" id="cl-opt-lod">🗺️ 缩放自适应(地图分层) √</option>
                                 <option value="__ALL_ON__">── 全部开启 √ ──</option>
@@ -25377,7 +25377,7 @@
             lowZs: true,
             mmd: !checkChanlunMobileOrTablet(), // 电脑PC端默认开启，移动设备(手机/Pad)默认关闭
             res: false,
-            maShort: false, // MA5/MA10：默认关闭 disable
+            maShort: true,  // MA5/MA10：默认开启 enable
             maLong: false,  // MA20/MA30/MA60：默认关闭 disable
             lod: true,     // 🗺️ 地图分级自适应：根据K线缩放范围自动分层显示买卖点与背驰
             lodMode: 'auto' // 'auto' (自动分级) | 'major' (仅大级别) | 'all' (全部显示)
