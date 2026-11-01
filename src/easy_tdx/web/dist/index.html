@@ -12504,7 +12504,7 @@
                         itemStyle: { color: isDark ? '#00e5ff' : '#0284c7' },
                         markPoint: {
                             silent: true,
-                            data: displayMacdMarks
+                            data: macdMarks
                         }
                     },
                     {
@@ -26779,6 +26779,7 @@
             const isSubExpma = _clSubIndicator === 'expma';
 
             const macdData = uc.macd || { hist: [], dif: [], dea: [] };
+            let macdMarks = [];
 
             // 辅助前端本地计算 (当后端未返回对应字段时平滑兜底)
             const rawCandles = uc.candles || [];
@@ -27025,7 +27026,7 @@
                 }));
                 const enhancedMacd = typeof calcEnhancedMacdData === 'function' ? calcEnhancedMacdData(barsForMacd, dates) : null;
 
-                const macdMarks = [];
+                macdMarks = [];
                 const macdMarkLines = [
                     {
                         yAxis: 0,
@@ -27556,6 +27557,13 @@
             const initialLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleBarCount >= 160) ? 1 : ((visibleBarCount >= 70) ? 2 : 3));
             const displayMmdMarkPoints = _clLayers.lod ? filterChanlunMmdByLod(mmdMarkPoints, visibleBarCount, dates) : mmdMarkPoints;
             const displayMacdMarks = _clLayers.lod ? filterMacdMarksByLod(macdMarks, visibleBarCount, dates) : macdMarks;
+
+            if (isSubMacd && Array.isArray(subSeries)) {
+                const difSeries = subSeries.find(s => s.name === 'DIF');
+                if (difSeries && difSeries.markPoint) {
+                    difSeries.markPoint.data = displayMacdMarks;
+                }
+            }
 
             if (!window._clInstanceData) window._clInstanceData = {};
             window._clInstanceData[side] = {
