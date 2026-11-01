@@ -25587,13 +25587,15 @@
             let filtered = [];
             if (isLevel1) {
                 // 超远景宏观层 (可视K线 >= 360 根，如 500~800 根全览)
-                // 1. high 级别全部买卖点
-                // 2. mid 级别全部买卖点 (1/2/3买卖点全部保留，确保关键顶底分型波段拐点完整)
-                // 3. low 级别保留核心 1买(底背) 和 1卖(顶背)
+                // 1. 第三类买卖点(3买/3卖)置顶优先显示，所有级别均强制保留，绝不隐藏！
+                // 2. high 级别全部买卖点
+                // 3. mid 级别全部买卖点 (1/2/3买卖点全部保留，确保关键顶底分型波段拐点完整)
+                // 4. low 级别保留核心 1买(底背)、1卖(顶背) 以及 3买/3卖
                 const candidates = rawList.filter(m => {
+                    if (m._is3rd) return true; // 第三类买卖点优先显示，绝不隐藏
                     if (m._level === 'high') return true;
                     if (m._level === 'mid') return true;
-                    if (m._level === 'low' && (m._type.includes('1buy') || m._type.includes('1sell'))) return true;
+                    if (m._level === 'low' && (m._type.includes('1buy') || m._type.includes('1sell') || m._is3rd)) return true;
                     return false;
                 });
 
@@ -25602,9 +25604,22 @@
                 let lastItem = null;
                 for (const item of candidates) {
                     const curIdx = dateIdxMap[item._date] ?? 0;
-                    // 同方向仅在紧邻(<=2根K线)时做优先级合并，杜绝稀疏拐点被错误剔除
+                    // 同一根K线(curIdx === lastIdx)：全部保留，后续在 grps 中垂直叠放分行，绝不互相覆盖
+                    if (curIdx === lastIdx) {
+                        filtered.push(item);
+                        lastItem = item;
+                        continue;
+                    }
+                    // 同方向仅在紧邻(<=2根K线)时做优先级合并；但若包含第3类买卖点，3类买卖点必须优先保留！
                     if (curIdx - lastIdx <= 2 && item._isBuy === lastItem?._isBuy) {
-                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                        if (item._is3rd && !lastItem?._is3rd) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        } else if (!item._is3rd && lastItem?._is3rd) {
+                            // 前一个是第3类买卖点，当前普通买卖点免于覆盖3买
+                            continue;
+                        } else if ((item._priority || 99) < (lastItem._priority || 99)) {
                             filtered[filtered.length - 1] = item;
                             lastIdx = curIdx;
                             lastItem = item;
@@ -25617,12 +25632,13 @@
                 }
             } else if (isLevel2) {
                 // 中景层 (200 <= visibleCount < 360 根K线)
-                // 空间适中：大级别全部、中级别全部 (1/2/3类全部保留)、小级别保留 1买/1卖/2买/2卖 关键波段拐点
+                // 空间适中：第三类买卖点(3买/3卖)全部保留，大级别全部、中级别全部、小级别保留 1买/1卖/2买/2卖/3买/3卖
                 const candidates = rawList.filter(m => {
+                    if (m._is3rd) return true; // 第三类买卖点优先显示，绝不隐藏
                     if (m._level === 'high') return true;
                     if (m._level === 'mid') return true;
                     if (m._level === 'low') {
-                        if (m._type.includes('1buy') || m._type.includes('1sell') || m._type.includes('2buy') || m._type.includes('2sell')) return true;
+                        if (m._type.includes('1buy') || m._type.includes('1sell') || m._type.includes('2buy') || m._type.includes('2sell') || m._is3rd) return true;
                         return false;
                     }
                     return true;
@@ -25633,8 +25649,20 @@
                 let lastItem = null;
                 for (const item of candidates) {
                     const curIdx = dateIdxMap[item._date] ?? 0;
+                    // 同一根K线(curIdx === lastIdx)：全部保留，后续在 grps 中垂直叠放分行
+                    if (curIdx === lastIdx) {
+                        filtered.push(item);
+                        lastItem = item;
+                        continue;
+                    }
                     if (curIdx - lastIdx <= 1 && item._isBuy === lastItem?._isBuy) {
-                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                        if (item._is3rd && !lastItem?._is3rd) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        } else if (!item._is3rd && lastItem?._is3rd) {
+                            continue;
+                        } else if ((item._priority || 99) < (lastItem._priority || 99)) {
                             filtered[filtered.length - 1] = item;
                             lastIdx = curIdx;
                             lastItem = item;
@@ -25662,6 +25690,7 @@
             const isDark = document.documentElement.classList.contains('dark');
             for (const gk in grps) {
                 const list = grps[gk];
+                // 优先级排序：数值越小优先级越高。第3类买卖点 priority 最小 (1~3)，排在最前 list[0]，紧贴K线并显示主箭头！
                 list.sort((a, b) => (a._priority || 99) - (b._priority || 99));
                 list.forEach((item, k) => {
                     const isFirst = (k === 0);
@@ -27007,6 +27036,7 @@
                         }
 
                         const mType = (m.type || '').toLowerCase();
+                        const is3rd = mType.includes('3buy') || mType.includes('3sell') || (m.label && (m.label.includes('3买') || m.label.includes('3卖') || m.label.includes('三买') || m.label.includes('三卖')));
                         let typeStr = '';
                         if (mType.includes('1buy')) typeStr = '1买(底背)';
                         else if (mType.includes('2buy')) typeStr = '2买';
@@ -27017,9 +27047,16 @@
                         else typeStr = m.short_label || m.label || m.type;
 
                         const displayText = `${m.is_buy ? '▲' : '▼'} [${levelName}] ${typeStr}`;
-                        const tagColor = theme.badgeBg;
-                        const tagBorder = theme.badgeBorder || theme.primary;
-                        const tagTextColor = theme.badgeText;
+                        // 第三类买卖点视觉高亮：买点使用暖金/琥珀边框与柔和底色，卖点使用鲜红/绯红边框与柔和底色
+                        const tagColor = is3rd 
+                            ? (isDark ? (m.is_buy ? 'rgba(245, 158, 11, 0.28)' : 'rgba(239, 68, 68, 0.28)') : (m.is_buy ? '#fef3c7' : '#fee2e2'))
+                            : theme.badgeBg;
+                        const tagBorder = is3rd
+                            ? (isDark ? (m.is_buy ? '#fbbf24' : '#f87171') : (m.is_buy ? '#d97706' : '#dc2626'))
+                            : (theme.badgeBorder || theme.primary);
+                        const tagTextColor = is3rd
+                            ? (isDark ? '#ffffff' : (m.is_buy ? '#92400e' : '#991b1b'))
+                            : theme.badgeText;
 
                         // 锚点计算：买点锚定在K线最低价下方，卖点锚定在最高价上方，绝不遮挡蜡烛图
                         const dKey = m.coord ? m.coord[0] : m.date;
@@ -27038,6 +27075,11 @@
                         // 首行(k===0)绘制指引箭头，后续同bar买卖点隐藏箭头保持同等基准，只向下/向上分行排列标签
                         const isFirst = (k === 0);
                         const rowDistance = 3 + k * 19; // 每行高度约16px + 3px间距
+
+                        // 优先级设计：第三类买卖点置顶 (大3类=1, 中3类=2, 小3类=3)，远高于其他普通买卖点(11~32)，排在首位且绝不隐藏
+                        const priorityVal = is3rd 
+                            ? (isBig ? 1 : (isMid ? 2 : 3))
+                            : ((isBig ? 10 : (isMid ? 20 : 30)) + (mType.includes('1') ? 1 : 2));
 
                         result.push({
                             name: m.type,
@@ -27061,21 +27103,22 @@
                                 color: tagTextColor,
                                 backgroundColor: tagColor,
                                 borderColor: tagBorder,
-                                borderWidth: 1.0,
+                                borderWidth: is3rd ? 1.6 : 1.0,
                                 borderRadius: 3,
                                 padding: [1.5, 4.5],
                                 fontWeight: 'bold',
-                                fontSize: 9.5,
+                                fontSize: is3rd ? 10 : 9.5,
                                 fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
-                                shadowBlur: isDark ? 3 : 0,
-                                shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent'
+                                shadowBlur: (is3rd || isDark) ? 3 : 0,
+                                shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(245, 158, 11, 0.3)'
                             },
                             _level: m.level,
                             _type: mType,
                             _isBuy: m.is_buy,
                             _date: dKey,
                             _themePrimary: theme.primary,
-                            _priority: (isBig ? 1 : (isMid ? 2 : 3)) * 10 + (mType.includes('1') ? 1 : (mType.includes('2') ? 2 : 3))
+                            _is3rd: is3rd,
+                            _priority: priorityVal
                         });
                     });
                 }

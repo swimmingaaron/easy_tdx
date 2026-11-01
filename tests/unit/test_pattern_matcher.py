@@ -84,3 +84,4 @@ def test_search_pattern_matches_execution():
     assert res["target_future_stats"]["future_ret"] > 0
     assert "matches" in res
     assert isinstance(res["matches"], list)
+
