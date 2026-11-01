@@ -22089,6 +22089,47 @@
                         document.getElementById('ts-modal-pane-ai').innerHTML = mdHtml;
                     }
 
+                    // 保证 DeepSeek / 豆包 大模型投研卡片 100% 存在于 DOM (即便缓存或自定义HTML缺失也会优雅补全)
+                    if (!document.getElementById('ts-deepseek-analysis-card')) {
+                        const aiPane = document.getElementById('ts-modal-pane-ai');
+                        if (aiPane) {
+                            const cardHtml = `
+                                <div id="ts-deepseek-analysis-card" class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-indigo-200 dark:border-indigo-900/60 shadow-xs space-y-3 mt-3">
+                                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2.5">
+                                        <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 dark:bg-cyan-400 animate-pulse"></span>
+                                            <span id="ts-llm-title">🤖 5. DeepSeek / 豆包 大模型投研深度分析（含金量拆解 · 预期差 · 新闻排雷）</span>
+                                        </div>
+                                        <div class="flex items-center space-x-1.5 text-xs">
+                                            <button id="ts-btn-llm-deepseek" onclick="triggerTsLlmAnalysis('deepseek')"
+                                                class="px-2.5 py-0.5 rounded text-[11px] font-semibold bg-indigo-600 text-white dark:bg-cyan-500 dark:text-slate-950 transition cursor-pointer shadow-xs">
+                                                DeepSeek
+                                            </button>
+                                            <button id="ts-btn-llm-doubao" onclick="triggerTsLlmAnalysis('doubao')"
+                                                class="px-2.5 py-0.5 rounded text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer">
+                                                豆包 AI
+                                            </button>
+                                            <button onclick="triggerTsLlmAnalysis(null, true)"
+                                                class="px-2 py-0.5 rounded text-[11px] font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-cyan-400 transition cursor-pointer" title="重新调用大模型生成">
+                                                🔄 重新分析
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="ts-llm-content" class="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                                        <div class="py-6 text-center space-y-2">
+                                            <div class="inline-flex items-center space-x-2 text-indigo-600 dark:text-cyan-400 font-medium">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-cyan-400 animate-ping"></span>
+                                                <span id="ts-llm-loading-text">正在由 DeepSeek 深度投研大模型进行宏观业绩与同行对比多维演算中，请稍候...</span>
+                                            </div>
+                                            <p class="text-[11px] text-slate-400 dark:text-slate-500">基于利润含金量拆解、预期差定价、重大新闻公告及机构操作三原则深度研判</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            aiPane.insertAdjacentHTML('beforeend', cardHtml);
+                        }
+                    }
+
                     // 1.1 异步启动 DeepSeek / 豆包 大模型投研深度分析
                     triggerTsLlmAnalysis('deepseek', false, code, d.stock_name || name, d.fina_data, d.peers_data, d.industry);
 
@@ -22805,6 +22846,48 @@
 
             // 渲染走势图表
             renderTsHoldersChart(hHistory, d.stock_name || name, cleanCode);
+
+            // 弹性容错补充：若当前接口暂未返回多期股东历史，自动从已验证生效的 K 弹窗接口(/api/quotes/stock_profile)进行秒级增补回填
+            if ((!hHistory || hHistory.length === 0) && cleanCode) {
+                fetch(`/api/quotes/stock_profile?symbol=${cleanCode}`)
+                    .then(r => r.json())
+                    .then(prof => {
+                        if (prof && prof.shareholder_history && prof.shareholder_history.length > 0) {
+                            const newHist = prof.shareholder_history.map(item => {
+                                const h_num = item.holder_count || 0;
+                                const h_num_str = (h_num >= 10000) ? `${(h_num / 10000).toFixed(2)}万` : String(h_num);
+                                const qVal = item.holder_qoq;
+                                return {
+                                    date: item.period || item.period_title || '',
+                                    num: h_num,
+                                    num_str: h_num_str,
+                                    ratio: qVal,
+                                    ratio_str: (qVal !== null && qVal !== undefined) ? `${qVal > 0 ? '+' : ''}${Number(qVal).toFixed(2)}%` : '',
+                                    price: null,
+                                    hold_ratio: 0.0,
+                                    focus: item.focus || '--',
+                                    source: item.source || 'easy_tdx',
+                                };
+                            });
+                            hData.holders_history = newHist;
+                            if (prof.shareholders && prof.shareholders.holder_count) {
+                                const latestH = prof.shareholders.holder_count;
+                                hData.holders_num = latestH;
+                                hData.holders_str = (latestH >= 10000) ? `${(latestH / 10000).toFixed(2)}万` : String(latestH);
+                            }
+                            if (badgeEl) {
+                                const parts = [];
+                                if (hData.holders_str && hData.holders_str !== '--') parts.push(`最新股东户数: ${hData.holders_str}`);
+                                if (hData.holder_ratio) parts.push(`前十大股东占比: ${hData.holder_ratio}%`);
+                                if (hData.holder_focus && hData.holder_focus !== '--') parts.push(hData.holder_focus);
+                                badgeEl.innerText = parts.join(' | ') || '股东筹码监控';
+                            }
+                            if (tbody) tbody.innerHTML = buildHoldersTableHtml(newHist);
+                            renderTsHoldersChart(newHist, d.stock_name || name, cleanCode);
+                        }
+                    })
+                    .catch(e => console.warn('Shareholder profile fallback error:', e));
+            }
 
             // 检查历史数据中是否缺失对应股价；若缺失，通过日K线历史收盘价异步补全，实现无缝平滑兼容
             const needsPriceFallback = hHistory.some(it => it.price === null || it.price === undefined);

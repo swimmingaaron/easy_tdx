@@ -366,16 +366,22 @@ def _get_market_prefix(code: str) -> str:
 def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     """
     获取股东人数及前十大股东集中度。
-    第一获取接口：从 easy_tdx 原生 TDX 接口获取最新股东人数；
-    若失败或需要历史变动及集中度，再从外部接口（东方财富等）补充/兜底抓取。
+    最高优先首选：easy_tdx 原生 TDX 通信协议接口获取最新股东人数及户均持股；
+    多级弹性容错兜底：
+      * Tier 1: 本项目原生 easy_tdx TDX 通信协议 (get_finance_info) 实时直连
+      * Tier 2: 东方财富 DataCenter (RPT_F10_EH_HOLDERNUM) 官方权威多期历史
+      * Tier 3: 东方财富 PageAjax (PC_HSF10/ShareholderResearch/PageAjax)
+      * Tier 4: 同花顺 10jqka 股东变动解析 (Web fallback)
+      * Tier 5: 本本地持久化股东数据库 (_PERSISTENT_HOLDERS_DATA) 终极容灾
     """
     clean_code = code.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
     pfx = _get_market_prefix(clean_code)
+    mkt = _get_market(clean_code)
     now = time.time()
     if clean_code in _HOLDERS_CACHE:
         ts, data = _HOLDERS_CACHE[clean_code]
-        # 只要缓存中有有效的股东集中度(>0)且在24小时内，直接复用缓存
-        if (now - ts < 86400) and (data.get("holder_ratio", 0.0) > 0):
+        # 只要缓存中有有效的股东数据且在24小时内，直接复用缓存
+        if (now - ts < 86400) and (data.get("holders_num", 0) > 0 or data.get("holder_ratio", 0.0) > 0):
             return data
 
     res = {
@@ -402,35 +408,94 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
             res["holders_num"] = int(p_data["holders_num"])
             res["holders_str"] = str(p_data.get("holders_str", "--"))
 
-    # 1. 第一获取接口：easy_tdx 原生 TDX get_finance_info 获取最新股东人数
+    # 1. 第一获取接口（最高优先级首选）：easy_tdx 原生 TDX get_finance_info 获取最新股东人数与股本
+    tdx_data = None
     try:
-        cli = _TDX_POOL.acquire()
-        try:
-            mkt = _get_market(clean_code)
-            df = cli.get_finance_info(mkt, clean_code)
-            _TDX_POOL.release(cli, success=True)
-            if df is not None and not df.empty:
-                row = df.iloc[0]
-                num = int(row.get("gudong_renshu") or 0)
-                if num > 0:
-                    res["holders_num"] = num
-                    res["holders_str"] = f"{num / 10000:.2f}万" if num >= 10000 else str(num)
-        except Exception as e:
-            _TDX_POOL.release(cli, success=False)
-            logger.debug(f"easy_tdx get_finance_info failed for {clean_code}: {e}")
+        from easy_tdx.stock_profile import _fetch_shareholder_history_tdx, _format_period_title, _resolve_quarter_end_date
+        tdx_data = _fetch_shareholder_history_tdx(clean_code, mkt)
+        if tdx_data and tdx_data.get("holder_count"):
+            h_count = int(tdx_data["holder_count"])
+            if h_count > 0:
+                res["holders_num"] = h_count
+                res["holders_str"] = f"{h_count / 10000:.2f}万" if h_count >= 10000 else str(h_count)
+                # 预置 native TDX 最新一期记录
+                tdx_period = tdx_data.get("period") or _resolve_quarter_end_date(tdx_data.get("raw_updated_date", ""))
+                base_tdx_entry = {
+                    "date": tdx_period,
+                    "num": h_count,
+                    "num_str": res["holders_str"],
+                    "ratio": None,
+                    "ratio_str": "",
+                    "price": None,
+                    "hold_ratio": res.get("holder_ratio", 0.0),
+                    "focus": res.get("holder_focus", "--"),
+                    "source": "easy_tdx",
+                }
+                if not res["holders_history"]:
+                    res["holders_history"] = [base_tdx_entry]
     except Exception as e:
-        logger.debug(f"easy_tdx acquire failed for {clean_code}: {e}")
+        logger.debug(f"easy_tdx native shareholder fetch failed for {clean_code}: {e}")
 
     # 若为快速模式(如全市场/大批量筛选)，直接返回原生 TDX 最新股东人数及持久化集中度，避免发起外部高延迟 HTTP 请求
     if quick:
         _HOLDERS_CACHE[clean_code] = (now, res)
         return res
 
-    # 2. 第二获取接口/补充接口：抓取股东集中度与完整历史变动明细
+    # 2. 第二获取接口/四级弹性容错历史架构 (包含 DataCenter, PageAjax, THS, 融合原生 TDX)
+    try:
+        from easy_tdx.stock_profile import _fetch_shareholder_history
+        sh_records = _fetch_shareholder_history(clean_code, pfx, mkt=mkt, tdx_data=tdx_data)
+        if sh_records and len(sh_records) > 0:
+            history = []
+            changes = []
+            for item in sh_records:
+                edate = str(item.get("period") or "")[:10]
+                h_num = int(item.get("holder_count") or 0)
+                h_num_str = f"{h_num / 10000:.2f}万" if h_num >= 10000 else str(h_num)
+                chg_r = item.get("holder_qoq")
+                ratio_val = round(float(chg_r), 2) if chg_r is not None else None
+                ratio_str = f"{ratio_val:+.2f}%" if ratio_val is not None else ""
+                h_ratio_val = float(item.get("hold_ratio") or 0.0)
+                price_val = float(item.get("price")) if item.get("price") is not None else None
+                focus_str = str(item.get("focus") or "--")
+
+                history.append({
+                    "date": edate,
+                    "num": h_num,
+                    "num_str": h_num_str,
+                    "ratio": ratio_val,
+                    "ratio_str": ratio_str,
+                    "price": price_val,
+                    "hold_ratio": h_ratio_val,
+                    "focus": focus_str,
+                    "source": item.get("source", "easy_tdx"),
+                })
+                if ratio_val is not None and len(changes) < 3:
+                    changes.append({
+                        "date": edate,
+                        "ratio": ratio_val,
+                        "num": h_num,
+                    })
+
+            if history:
+                latest = history[0]
+                if latest["num"] > 0:
+                    res["holders_num"] = latest["num"]
+                    res["holders_str"] = latest["num_str"]
+                res["holders_history"] = history
+                res["holders_changes"] = changes
+                if latest.get("hold_ratio", 0.0) > 0:
+                    res["holder_ratio"] = latest["hold_ratio"]
+                if latest.get("focus") and latest["focus"] != "--":
+                    res["holder_focus"] = latest["focus"]
+    except Exception as e:
+        logger.debug(f"Shareholder multi-tier history fetch failed for {clean_code}: {e}")
+
+    # 3. 补充尝试从 PageAjax 抓取精确十大股东集中度与历史变动股价
     try:
         url = f"https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code={pfx}{clean_code}"
         req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-        with urlopen_safe(req, timeout=3.5) as resp:
+        with urlopen_safe(req, timeout=3.0) as resp:
             raw_bytes = resp.read()
             if raw_bytes[:2] == b"\x1f\x8b":
                 raw = gzip.decompress(raw_bytes).decode("utf-8", errors="replace")
@@ -439,14 +504,6 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
             data_json = json.loads(raw)
             if "gdrs" in data_json and data_json["gdrs"]:
                 gdrs = data_json["gdrs"]
-                latest = gdrs[0]
-                em_num = int(latest.get("HOLDER_TOTAL_NUM") or 0)
-                # 股东人数格式化 (优先采用东财精确总人数)
-                if em_num > 0:
-                    res["holders_num"] = em_num
-                    res["holders_str"] = f"{em_num / 10000:.2f}万" if em_num >= 10000 else str(em_num)
-
-                # 寻找最新有效的集中度（部分临时公告仅有变动人数无集中度，需向前寻找最近季度披露）
                 ratio = 0.0
                 focus = ""
                 for item in gdrs:
@@ -455,50 +512,24 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
                         ratio = float(r)
                         focus = str(item.get("HOLD_FOCUS") or "")
                         break
+                if ratio > 0:
+                    res["holder_ratio"] = round(ratio, 2)
+                    if not focus:
+                        focus = "非常集中" if ratio >= 70 else ("集中" if ratio >= 55 else ("较分散" if ratio >= 40 else "非常分散"))
+                    res["holder_focus"] = focus or "--"
 
-                changes = []
-                for item in gdrs[:3]:
-                    chg_r = item.get("TOTAL_NUM_RATIO")
-                    edate = str(item.get("END_DATE") or "")[:10]
-                    if chg_r is not None:
-                        changes.append({
-                            "date": edate,
-                            "ratio": round(float(chg_r), 2),
-                            "num": int(item.get("HOLDER_TOTAL_NUM") or 0)
-                        })
-
-                # 完整历史变动明细 (对齐变动日期、股东总人数、较上期变动、对应股价)
-                history = []
+                # 补充股价到已有 history
+                by_date_price = {}
                 for item in gdrs:
-                    edate = str(item.get("END_DATE") or "")[:10]
-                    h_num = int(item.get("HOLDER_TOTAL_NUM") or 0)
-                    h_num_str = f"{h_num / 10000:.2f}万" if h_num >= 10000 else str(h_num)
-                    chg_r = item.get("TOTAL_NUM_RATIO")
-                    ratio_val = round(float(chg_r), 2) if chg_r is not None else None
-                    ratio_str = f"{ratio_val:+.2f}%" if ratio_val is not None else ""
-                    h_ratio = item.get("HOLD_RATIO_TOTAL") or item.get("FREEHOLD_RATIO_TOTAL")
-                    h_ratio_val = round(float(h_ratio), 2) if h_ratio is not None else 0.0
-                    price_raw = item.get("PRICE")
-                    price_val = float(round(float(price_raw), 2)) if price_raw is not None else None
-                    history.append({
-                        "date": edate,
-                        "num": h_num,
-                        "num_str": h_num_str,
-                        "ratio": ratio_val,
-                        "ratio_str": ratio_str,
-                        "price": price_val,
-                        "hold_ratio": h_ratio_val,
-                        "focus": str(item.get("HOLD_FOCUS") or ""),
-                    })
-
-                res["holder_ratio"] = round(ratio, 2)
-                if not focus and ratio > 0:
-                    focus = "非常集中" if ratio >= 70 else ("集中" if ratio >= 55 else ("较分散" if ratio >= 40 else "非常分散"))
-                res["holder_focus"] = focus or "--"
-                res["holders_changes"] = changes
-                res["holders_history"] = history
+                    d_str = str(item.get("END_DATE") or "")[:10]
+                    p_raw = item.get("PRICE")
+                    if d_str and p_raw is not None:
+                        by_date_price[d_str] = round(float(p_raw), 2)
+                for h_entry in res["holders_history"]:
+                    if h_entry.get("price") is None and h_entry.get("date") in by_date_price:
+                        h_entry["price"] = by_date_price[h_entry["date"]]
     except Exception as e:
-        logger.debug(f"Eastmoney shareholder fetch failed for {clean_code}: {e}")
+        logger.debug(f"Eastmoney PageAjax supplement failed for {clean_code}: {e}")
 
     save_persistent_holders_data(clean_code, res)
     _HOLDERS_CACHE[clean_code] = (now, res)
@@ -1069,6 +1100,27 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     fina_list = []
     peers_list = []
     industry = "通用行业"
+
+    # 0. 最高优先级首选项：通过 easy_tdx 原生 TDX 通信接口直连获取基准财务与股东数据
+    tdx_fin = {}
+    nav = 0.0
+    try:
+        from easy_tdx.market_data import _get_or_create_client, _CLIENT_LOCK
+        with _CLIENT_LOCK:
+            cli = _get_or_create_client()
+            df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+        if df_tdx is not None and not df_tdx.empty:
+            tdx_fin = df_tdx.iloc[0].to_dict()
+            nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
+    except Exception:
+        try:
+            with TdxClient.from_best_host(timeout=2.0) as cli:
+                df_tdx = cli.get_finance_info(_get_market(clean_code), clean_code)
+                if df_tdx is not None and not df_tdx.empty:
+                    tdx_fin = df_tdx.iloc[0].to_dict()
+                    nav = float(tdx_fin.get("meigujing_zichan") or 0.0)
+        except Exception as e:
+            logger.debug(f"easy_tdx get_finance_info baseline attempt failed for {clean_code}: {e}")
 
     # 1. 尝试从东方财富官方权威接口获取近5年（20期季度）完整财报数据
     try:
