@@ -25287,7 +25287,7 @@
             const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
 
             // 0. 实时模式四窗口内存高速缓存（切换已看过的标的0毫秒瞬间成图，无任何白屏与网络等待）
-            const quadKey = `${_clCurrentCode}__${_clLeftPeriods}__${_clW2Periods}__${_clRightPeriods}__${_clW4Periods}`;
+            const quadKey = `${_clCurrentCode}__${_clLeftPeriods}__${_clW2Periods}__${_clRightPeriods}__${_clW4Periods}__${_clWindowCustomCounts['left'] || 800}_${_clWindowCustomCounts['w2'] || 800}_${_clWindowCustomCounts['right'] || 800}_${_clWindowCustomCounts['w4'] || 800}`;
             if (_clWindowMode === 'quad' && !_clIsBacktracking && !forceRefresh && _clRealtimeCache.has(quadKey)) {
                 const cached = _clRealtimeCache.get(quadKey);
                 if (cached && (Date.now() - cached.time < _clRealtimeCacheTTL)) {
@@ -27031,6 +27031,7 @@
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma5Data,
+                    sampling: 'lttb',
                     smooth: false,
                     showSymbol: false,
                     symbol: 'none',
@@ -27044,6 +27045,7 @@
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma10Data,
+                    sampling: 'lttb',
                     smooth: false,
                     showSymbol: false,
                     symbol: 'none',
@@ -27060,6 +27062,7 @@
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma20Data,
+                    sampling: 'lttb',
                     smooth: false,
                     showSymbol: false,
                     symbol: 'none',
@@ -27073,6 +27076,7 @@
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma30Data,
+                    sampling: 'lttb',
                     smooth: false,
                     showSymbol: false,
                     symbol: 'none',
@@ -27086,6 +27090,7 @@
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma60Data,
+                    sampling: 'lttb',
                     smooth: false,
                     showSymbol: false,
                     symbol: 'none',
@@ -27559,6 +27564,8 @@
                     {
                         name: '成交额',
                         type: 'bar',
+                        large: true,
+                        largeThreshold: 1200,
                         xAxisIndex: 1,
                         yAxisIndex: 1,
                         data: amountsData.map(v => ({
@@ -27602,6 +27609,8 @@
                     {
                         name: '主力净流入',
                         type: 'bar',
+                        large: true,
+                        largeThreshold: 1200,
                         xAxisIndex: 1,
                         yAxisIndex: 1,
                         data: netInflows.map(val => {
@@ -28582,6 +28591,8 @@
                         type: 'candlestick',
                         barWidth: '55%',
                         barMaxWidth: 14,
+                        large: true,
+                        largeThreshold: 1200,
                         xAxisIndex: 0,
                         yAxisIndex: 0,
                         data: candles,
@@ -28604,8 +28615,8 @@
                                 ...midBiLines,     // 中周期中间层
                                 ...highBiLines     // 大周期最顶层（线段重合时大周期的颜色显示为主！）
                             ],
-                            symbol: ['circle', 'circle'],
-                            symbolSize: 4
+                            symbol: visibleBarCount > 400 ? ['none', 'none'] : ['circle', 'circle'],
+                            symbolSize: visibleBarCount > 400 ? 0 : 3.5
                         },
                         markArea: {
                             data: [
@@ -28621,6 +28632,7 @@
                         name: 'MA250',
                         type: 'line',
                         data: ma250Data,
+                        sampling: 'lttb',
                         smooth: true,
                         showSymbol: false,
                         symbol: 'none',
@@ -29815,7 +29827,7 @@
         }
         window.updateAllWindowKlineTierUIs = updateAllWindowKlineTierUIs;
 
-        window.changeWindowKlineCount = async function(side, targetCount) {
+        window.changeWindowKlineCount = async function(side, targetCount, isAutoExpand = false) {
             if (_clExpandingWindows.has(side)) return;
             _clWindowCustomCounts[side] = targetCount;
             _clExpandingWindows.add(side);
@@ -29861,14 +29873,22 @@
 
                     const newDates = data?.unified_chart?.dates || [];
                     let customPrevZoom = null;
-                    if (anchorDate && newDates.length > 0) {
+                    if (isAutoExpand && anchorDate && newDates.length > 0) {
                         const anchorIdx = newDates.indexOf(anchorDate);
                         if (anchorIdx > 0) {
                             const anchorPct = (anchorIdx / newDates.length) * 100;
                             customPrevZoom = { start: Math.max(0, anchorPct - 6), end: Math.min(100, anchorPct + 20) };
                         }
+                    } else if (!isAutoExpand) {
+                        // 用户从下拉菜单或按钮主动切换大数量级时，呈现全景全量K线（0%~100%），让历史K线一览无余
+                        customPrevZoom = { start: 0, end: 100 };
                     }
                     renderSingleChanlunChart(side, data, customPrevZoom);
+                    if (side === 'left') {
+                        if (typeof updateChanlunOverview === 'function') updateChanlunOverview(data);
+                        if (typeof updateChanlunTimeline === 'function') updateChanlunTimeline(data);
+                        if (typeof renderChanlunSignalsTable === 'function') renderChanlunSignalsTable(data);
+                    }
                 }
             } catch (e) {
                 console.warn('changeWindowKlineCount error:', e);
@@ -29900,7 +29920,7 @@
             const idx = tiers.indexOf(curCount);
             const nextCount = (idx !== -1 && idx < tiers.length - 1) ? tiers[idx + 1] : tiers[tiers.length - 1];
 
-            await window.changeWindowKlineCount(side, nextCount);
+            await window.changeWindowKlineCount(side, nextCount, true);
         }
 
         function checkAndTriggerDynamicZoom(side, instance) {

@@ -1295,12 +1295,48 @@ def analyze_multi_period_resonance(
             mid_p: 120 if mid_p == "MONTH" else (350 if mid_p == "WEEK" else 800),
             low_p: 350 if low_p == "WEEK" else 800,
         }
+    is_single_period = (high_p == mid_p == low_p)
     # 5F / 30F / 15F / 1F 分钟线动态适配：由调用者传入的 count 驱动（支持缩放动态按需扩充，默认 800 根秒出）
-    for p in p_list:
-        if p in ("5F", "5M", "1F", "1M"):
-            req_counts[p] = min(max(count, 800), 12000)
-        elif p in ("30F", "30M", "15F", "15M"):
-            req_counts[p] = min(max(count, 800), 6000)
+    # 基准周期 (low_p) 严格由 count 驱动
+    req_counts[low_p] = min(max(count, 800), 12000 if low_p in ("5F", "5M", "1F", "1M") else (6000 if low_p in ("30F", "30M", "15F", "15M") else 3200))
+    if not is_single_period:
+        # 多周期立体共振组合（如 30F, 5F, 1F）：高/中级别仅需覆盖 low_p 时间跨度 + 缠论指标温和预热缓冲区
+        low_cnt = req_counts[low_p]
+        if low_p in ("1F", "1M"):
+            cover_days = low_cnt / 240.0
+        elif low_p in ("5F", "5M"):
+            cover_days = low_cnt / 48.0
+        elif low_p in ("15F", "15M"):
+            cover_days = low_cnt / 16.0
+        elif low_p in ("30F", "30M"):
+            cover_days = low_cnt / 8.0
+        elif low_p in ("60F", "60M"):
+            cover_days = low_cnt / 4.0
+        else:
+            cover_days = float(low_cnt)
+
+        for p in (mid_p, high_p):
+            if p in ("5F", "5M"):
+                p_needed = int(cover_days * 48 + 350)
+                req_counts[p] = max(800, min(p_needed, 6000))
+            elif p in ("15F", "15M"):
+                p_needed = int(cover_days * 16 + 250)
+                req_counts[p] = max(800, min(p_needed, 4000))
+            elif p in ("30F", "30M"):
+                p_needed = int(cover_days * 8 + 200)
+                req_counts[p] = max(800, min(p_needed, 3000))
+            elif p in ("60F", "60M", "120F", "120M"):
+                p_needed = int(cover_days * 4 + 150)
+                req_counts[p] = max(500, min(p_needed, 1500))
+            elif p in ("DAY", "D"):
+                p_needed = int(cover_days + 150)
+                req_counts[p] = max(350, min(p_needed, 800))
+            elif p in ("WEEK", "W"):
+                req_counts[p] = 350
+            elif p in ("MONTH", "M"):
+                req_counts[p] = 120
+            elif p in ("SEASON", "QUARTER"):
+                req_counts[p] = 60
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
     effective_force_refresh = False if is_backtracking else force_refresh
@@ -1341,14 +1377,16 @@ def analyze_multi_period_resonance(
         else:
             target_cnt = max(needed_cnt, 800)
 
-        # 1. 检查内存缓存
+        # 1. 检查内存缓存（严格校验条数是否满足 target_cnt）
         if not effective_force_refresh:
             with _RESONANCE_CACHE_LOCK:
                 if (clean_code, p_name) in _RESONANCE_RAW_KLINE_CACHE:
                     c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)]
                     if c_df is not None and not c_df.empty:
-                        if is_backtracking or (now_ts - c_time < REALTIME_CACHE_TTL):
-                            return p_name, c_df
+                        is_full = bool(getattr(c_df, "attrs", {}).get("full_history", False))
+                        if (len(c_df) >= target_cnt or is_full) and (is_backtracking or (now_ts - c_time < REALTIME_CACHE_TTL)):
+                            ret_df = c_df.iloc[-target_cnt:].copy().reset_index(drop=True) if len(c_df) > target_cnt else c_df
+                            return p_name, ret_df
 
         # 2. 检查本地磁盘持久化缓存（借鉴 chanlun-pro FileCacheDB，支持新股 full_history 容错）
         disk_cache = get_global_kline_disk_cache()
@@ -1468,11 +1506,12 @@ def analyze_multi_period_resonance(
     min_date = available_dates[0] if available_dates else ""
     max_date = available_dates[-1] if available_dates else ""
 
-    # 实时态瞬时分析结果缓存命中检查：如果标的最新一根 K 线的时点与收盘价未改变，直接复用完整分析结果
+    # 实时态瞬时分析结果缓存命中检查：校验标的代码、周期序列、请求深度及最新K线时点收盘价
     if not is_backtracking and not base_full_df.empty and not effective_force_refresh:
         latest_dt_check = str(base_full_df["datetime"].iloc[-1])
         latest_close_check = round(float(base_full_df["close"].iloc[-1]), 2)
-        rt_cache_key = (clean_code, tuple(p_list), latest_dt_check, latest_close_check)
+        base_cnt = len(base_full_df)
+        rt_cache_key = (clean_code, tuple(p_list), base_cnt, latest_dt_check, latest_close_check)
         with _RESONANCE_CACHE_LOCK:
             if rt_cache_key in _RESONANCE_REALTIME_ANALYSIS_CACHE:
                 cached_at, cached_res = _RESONANCE_REALTIME_ANALYSIS_CACHE[rt_cache_key]
@@ -2292,8 +2331,11 @@ def analyze_multi_period_resonance(
     for p in unique_p_list:
         p_res = results[p]
         p_df = dfs[p]
-        p_dates = p_df["datetime"].astype(str).tolist() if not p_df.empty else []
-        p_candles = p_df[["open", "close", "low", "high"]].values.tolist() if not p_df.empty else []
+        # 当请求深度极大(count > 800)时，分屏数据仅裁剪保留最近 800 根，彻底减去多兆冗余 JSON 传输与前端解析负荷
+        slice_cnt = 800 if (count > 800 and len(p_df) > 800) else len(p_df)
+        p_df_slice = p_df.iloc[-slice_cnt:] if slice_cnt < len(p_df) else p_df
+        p_dates = p_df_slice["datetime"].astype(str).tolist() if not p_df_slice.empty else []
+        p_candles = p_df_slice[["open", "close", "low", "high"]].values.tolist() if not p_df_slice.empty else []
         p_bis = [
             [[p_dates[bi.start.k.k_index], bi.start.val], [p_dates[bi.end.k.k_index], bi.end.val]]
             for bi in p_res.bis
@@ -2313,9 +2355,9 @@ def analyze_multi_period_resonance(
         ]
         p_macd = p_res.macd or {}
 
-        p_c = p_df["close"].values if not p_df.empty else np.array([])
-        p_h = p_df["high"].values if not p_df.empty else np.array([])
-        p_l = p_df["low"].values if not p_df.empty else np.array([])
+        p_c = p_df_slice["close"].values if not p_df_slice.empty else np.array([])
+        p_h = p_df_slice["high"].values if not p_df_slice.empty else np.array([])
+        p_l = p_df_slice["low"].values if not p_df_slice.empty else np.array([])
         p_rsi: dict[str, list[float | None]] = {"rsi6": [], "rsi12": [], "rsi24": []}
         p_kdj: dict[str, list[float | None]] = {"k": [], "d": [], "j": []}
         p_expma: dict[str, list[float | None]] = {"exp12": [], "exp50": []}
@@ -2516,7 +2558,8 @@ def analyze_multi_period_resonance(
             if len(_RESONANCE_REALTIME_ANALYSIS_CACHE) > 500:
                 for k in list(_RESONANCE_REALTIME_ANALYSIS_CACHE.keys())[:200]:
                     _RESONANCE_REALTIME_ANALYSIS_CACHE.pop(k, None)
-            rt_cache_key = (clean_code, tuple(p_list), str(latest_dt), round(float(latest_close), 2))
+            base_cnt = len(base_full_df) if not base_full_df.empty else 0
+            rt_cache_key = (clean_code, tuple(p_list), base_cnt, str(latest_dt), round(float(latest_close), 2))
             _RESONANCE_REALTIME_ANALYSIS_CACHE[rt_cache_key] = (now_ts, result_data)
 
     return result_data
