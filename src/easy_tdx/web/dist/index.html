@@ -25812,6 +25812,56 @@
             return rawList;
         }
 
+        // 视口与分层(LOD)标记裁剪引擎：大幅削减极端K线根数(如4800~12000根)下的DOM/Canvas对象，实现毫秒级极速渲染与60FPS流畅缩放
+        function getVisibleChanlunMarkPoints(cData, sIdx, eIdx, visibleCount, isDark) {
+            if (!cData) return [];
+            const buffer = 40;
+            const datesLen = cData.dates ? cData.dates.length : 0;
+            const minIdx = Math.max(0, sIdx - buffer);
+            const maxIdx = Math.min(datesLen - 1, eIdx + buffer);
+            const isFarOut = visibleCount > 360;
+
+            // 1. TD9 序列标记：超远景(>360根)只呈现 9 与 13 关键转折点，中近景呈现 1~13 序列；严格限定在视口缓冲区间
+            let td9 = [];
+            if (_clLayers.td9 && cData.td9Marks && cData.td9Marks.length > 0) {
+                td9 = cData.td9Marks.filter(m => {
+                    const idx = m._dateIdx;
+                    if (idx != null && (idx < minIdx || idx > maxIdx)) return false;
+                    if (isFarOut && !m._isTurnPoint) return false;
+                    return true;
+                });
+            }
+
+            // 2. 顶底分型：超远景(>360根)隐藏密集微观分型文本(由中枢和笔表征)，近景放大时在视口内精细呈现
+            let fractals = [];
+            if (cData.fractalMarks && cData.fractalMarks.length > 0 && !isFarOut) {
+                fractals = cData.fractalMarks.filter(f => {
+                    const idx = f._dateIdx;
+                    return idx != null ? (idx >= minIdx && idx <= maxIdx) : true;
+                });
+            }
+
+            // 3. 买卖点 MMD：在视口缓冲范围内的买卖点
+            let mmd = cData.currentDisplayMmd || cData.rawMmd || [];
+            if (mmd.length > 0) {
+                mmd = mmd.filter(m => {
+                    const idx = m._dateIdx;
+                    return idx != null ? (idx >= minIdx && idx <= maxIdx) : true;
+                });
+            }
+
+            // 4. 共振买卖点：在视口缓冲范围内的标记
+            let res = cData.resMarks || [];
+            if (res.length > 0) {
+                res = res.filter(r => {
+                    const idx = r._dateIdx;
+                    return idx != null ? (idx >= minIdx && idx <= maxIdx) : true;
+                });
+            }
+
+            return [...fractals, ...mmd, ...res, ...td9];
+        }
+
         function updateChanlunLayerButtons() {
             // 同步副图下拉菜单与K线合并开关
             const selectSub = document.getElementById('cl-select-sub-indicator');
@@ -26508,6 +26558,8 @@
                         _isTd9: true,
                         _tdType: 'high',
                         _tdVal: hVal,
+                        _dateIdx: i,
+                        _isTurnPoint: isTurnPoint,
                         z: isTurnPoint ? 90 : 80
                     });
                 }
@@ -26542,6 +26594,8 @@
                         _isTd9: true,
                         _tdType: 'low',
                         _tdVal: lVal,
+                        _dateIdx: i,
+                        _isTurnPoint: isTurnPoint,
                         z: isTurnPoint ? 90 : 80
                     });
                 }
@@ -26772,15 +26826,13 @@
                     }
 
                     if (cData) {
+                        const visMarks = getVisibleChanlunMarkPoints(cData, startIdx, endIdx, visibleCount, isDark);
                         const updateSeries = [
                             {
                                 name: '基准K线',
                                 markPoint: {
                                     data: [
-                                        ...(cData.fractalMarks || []),
-                                        ...displayMmd,
-                                        ...(cData.resMarks || []),
-                                        ...((_clLayers.td9 && cData.td9Marks) || []),
+                                        ...visMarks,
                                         ...newExtrema
                                     ]
                                 }
@@ -26927,6 +26979,8 @@
                 ? d.merged_chart
                 : d.unified_chart;
             const dates = uc.dates || [];
+            const dateIdxMap = {};
+            for (let i = 0; i < dates.length; i++) dateIdxMap[dates[i]] = i;
             const candles = uc.candles || []; // [open, close, low, high]
             const volumes = uc.volumes || [];
             const n_bars = dates.length;
@@ -27271,7 +27325,8 @@
                             _date: dKey,
                             _themePrimary: theme.primary,
                             _is3rd: is3rd,
-                            _priority: priorityVal
+                            _priority: priorityVal,
+                            _dateIdx: dateIdxMap ? (dateIdxMap[dKey] ?? -1) : -1
                         });
                     });
                 }
@@ -27306,7 +27361,8 @@
                         fontWeight: 'bold',
                         fontSize: 10.5,
                         formatter: r.label
-                    }
+                    },
+                    _dateIdx: (dateIdxMap && r.coord) ? (dateIdxMap[r.coord[0]] ?? -1) : -1
                 };
             }) : [];
 
@@ -27363,7 +27419,8 @@
                         borderWidth: 0.8,
                         borderRadius: 2,
                         padding: [1, 2]
-                    }
+                    },
+                    _dateIdx: (dateIdxMap && f.coord) ? (dateIdxMap[f.coord[0]] ?? -1) : -1
                 };
             });
 
@@ -28182,6 +28239,7 @@
                 isSubMacd: isSubMacd,
                 currentLod: initialLod
             };
+            const initialVisMarks = getVisibleChanlunMarkPoints(window._clInstanceData[side], sIdx, eIdx, visibleBarCount, isDark);
 
             const option = {
                 backgroundColor: 'transparent',
@@ -28535,10 +28593,7 @@
                         },
                         markPoint: {
                             data: [
-                                ...fractalMarkPoints,
-                                ...displayMmdMarkPoints,
-                                ...resMarkPoints,
-                                ...td9MarkPoints,
+                                ...initialVisMarks,
                                 ...extremaMarkPoints
                             ]
                         },
@@ -28653,6 +28708,10 @@
 
             const chartDom = document.getElementById(domId);
             if (!chartDom || !d || !d.unified_chart) return;
+            const existingInst = window[instanceProp];
+            if (existingInst) {
+                try { existingInst.hideLoading(); } catch (_) {}
+            }
 
             const isDark = document.documentElement.classList.contains('dark');
             let instance = window[instanceProp];
@@ -29762,6 +29821,19 @@
             _clExpandingWindows.add(side);
             updateWindowKlineTierUI(side);
 
+            const chartInst = (side === 'left') ? window.chanlunChart 
+                : (side === 'w2' ? window.chanlunChartW2 
+                : (side === 'right' ? window.chanlunChartRight : window.chanlunChartW4));
+            if (chartInst && targetCount >= 4800) {
+                chartInst.showLoading({
+                    text: `正在拉取并解析 ${targetCount} 根K线...`,
+                    color: '#06b6d4',
+                    textColor: document.documentElement.classList.contains('dark') ? '#94a3b8' : '#475569',
+                    maskColor: document.documentElement.classList.contains('dark') ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.65)',
+                    zlevel: 9999
+                });
+            }
+
             try {
                 let periods = _clLeftPeriods;
                 if (side === 'w2') periods = _clW2Periods;
@@ -29801,6 +29873,9 @@
             } catch (e) {
                 console.warn('changeWindowKlineCount error:', e);
             } finally {
+                if (chartInst) {
+                    try { chartInst.hideLoading(); } catch (_) {}
+                }
                 _clExpandingWindows.delete(side);
                 updateWindowKlineTierUI(side);
             }

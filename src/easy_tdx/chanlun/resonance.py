@@ -47,6 +47,16 @@ def safe_float(val: Any, default: float | None = None) -> float | None:
         return default
 
 
+def safe_float_list(arr: Any) -> list[float | None]:
+    if arr is None:
+        return []
+    if isinstance(arr, np.ndarray):
+        if arr.dtype.kind in ("f", "i", "u"):
+            arr_clean = np.where(np.isfinite(arr), np.round(arr, 2), np.nan)
+            return [None if np.isnan(x) else float(x) for x in arr_clean]
+    return [safe_float(v) for v in arr]
+
+
 def calculate_inflow_data(
     df: pd.DataFrame,
     clean_code: str | None = None,
@@ -165,9 +175,9 @@ def calculate_inflow_data(
 
     return {
         "net_inflow": [round(float(v_val), 2) for v_val in net_inflows],
-        "ma3": [safe_float(v_val) for v_val in inflow_ma3],
-        "ma5": [safe_float(v_val) for v_val in inflow_ma5],
-        "ma10": [safe_float(v_val) for v_val in inflow_ma10],
+        "ma3": safe_float_list(inflow_ma3),
+        "ma5": safe_float_list(inflow_ma5),
+        "ma10": safe_float_list(inflow_ma10),
     }
 
 
@@ -395,22 +405,22 @@ def build_merged_chart_data(
     r12 = RSI(ck_c, 12)
     r24 = RSI(ck_c, 24)
     ck_rsi = {
-        "rsi6": [safe_float(v) for v in r6],
-        "rsi12": [safe_float(v) for v in r12],
-        "rsi24": [safe_float(v) for v in r24],
+        "rsi6": safe_float_list(r6),
+        "rsi12": safe_float_list(r12),
+        "rsi24": safe_float_list(r24),
     }
 
     kv, dv, jv = KDJ(ck_c, ck_h, ck_l, 9, 3, 3)
     ck_kdj = {
-        "k": [safe_float(v) for v in kv],
-        "d": [safe_float(v) for v in dv],
-        "j": [safe_float(v) for v in jv],
+        "k": safe_float_list(kv),
+        "d": safe_float_list(dv),
+        "j": safe_float_list(jv),
     }
 
     e12, e50 = EXPMA(ck_c, 12, 50)
     ck_expma = {
-        "exp12": [safe_float(v) for v in e12],
-        "exp50": [safe_float(v) for v in e50],
+        "exp12": safe_float_list(e12),
+        "exp50": safe_float_list(e50),
     }
 
     ck_df = pd.DataFrame({
@@ -1287,9 +1297,9 @@ def analyze_multi_period_resonance(
         }
     # 5F / 30F / 15F / 1F 分钟线动态适配：由调用者传入的 count 驱动（支持缩放动态按需扩充，默认 800 根秒出）
     for p in p_list:
-        if p in ("5F", "5M"):
+        if p in ("5F", "5M", "1F", "1M"):
             req_counts[p] = min(max(count, 800), 12000)
-        elif p in ("30F", "30M", "15F", "15M", "1F", "1M"):
+        elif p in ("30F", "30M", "15F", "15M"):
             req_counts[p] = min(max(count, 800), 6000)
 
     # 回溯模式下强制禁用 force_refresh，彻底阻断向行情服务器重复更新 K 线
@@ -1323,10 +1333,10 @@ def analyze_multi_period_resonance(
             target_cnt = 350  # 安全拉取 350 根周线（覆盖约 7 年历史波段）
         elif p_name in ("DAY", "120M", "60M"):
             target_cnt = 500 if screener_mode else max(needed_cnt, 800)
-        elif p_name in ("5F", "5M"):
-            # 5F 分钟线动态适配：由前端请求深度或缩放自适应驱动，默认 800 根极速秒出，缩放时按需放大，最大支持 12000 根
+        elif p_name in ("5F", "5M", "1F", "1M"):
+            # 5F / 1F 分钟线动态适配：由前端请求深度或缩放自适应驱动，默认 800 根极速秒出，缩放时按需放大，最大支持 12000 根
             target_cnt = min(max(needed_cnt, 800), 12000)
-        elif p_name in ("30F", "30M", "15F", "15M", "1F", "1M"):
+        elif p_name in ("30F", "30M", "15F", "15M"):
             target_cnt = min(max(needed_cnt, 800), 6000)
         else:
             target_cnt = max(needed_cnt, 800)
@@ -2255,30 +2265,31 @@ def analyze_multi_period_resonance(
         r12 = RSI(c_arr, 12)
         r24 = RSI(c_arr, 24)
         rsi_data = {
-            "rsi6": [safe_float(v) for v in r6],
-            "rsi12": [safe_float(v) for v in r12],
-            "rsi24": [safe_float(v) for v in r24],
+            "rsi6": safe_float_list(r6),
+            "rsi12": safe_float_list(r12),
+            "rsi24": safe_float_list(r24),
         }
 
         kv, dv, jv = KDJ(c_arr, h_arr, l_arr, 9, 3, 3)
         kdj_data = {
-            "k": [safe_float(v) for v in kv],
-            "d": [safe_float(v) for v in dv],
-            "j": [safe_float(v) for v in jv],
+            "k": safe_float_list(kv),
+            "d": safe_float_list(dv),
+            "j": safe_float_list(jv),
         }
 
         e12, e50 = EXPMA(c_arr, 12, 50)
         expma_data = {
-            "exp12": [safe_float(v) for v in e12],
-            "exp50": [safe_float(v) for v in e50],
+            "exp12": safe_float_list(e12),
+            "exp50": safe_float_list(e50),
         }
 
         ma250_calc = MA(c_arr, 250) if len(c_arr) >= 250 else np.full(len(c_arr), np.nan)
-        ma250_data = [safe_float(v) for v in ma250_calc]
+        ma250_data = safe_float_list(ma250_calc)
 
     # 7. 各周期独立分屏数据（用于切换分屏联动视图或单独看某个周期）
     levels_data = {}
-    for p in p_list:
+    unique_p_list = list(dict.fromkeys(p_list))
+    for p in unique_p_list:
         p_res = results[p]
         p_df = dfs[p]
         p_dates = p_df["datetime"].astype(str).tolist() if not p_df.empty else []
@@ -2310,23 +2321,23 @@ def analyze_multi_period_resonance(
         p_expma: dict[str, list[float | None]] = {"exp12": [], "exp50": []}
         if len(p_c) > 0:
             p_rsi = {
-                "rsi6": [safe_float(v) for v in RSI(p_c, 6)],
-                "rsi12": [safe_float(v) for v in RSI(p_c, 12)],
-                "rsi24": [safe_float(v) for v in RSI(p_c, 24)],
+                "rsi6": safe_float_list(RSI(p_c, 6)),
+                "rsi12": safe_float_list(RSI(p_c, 12)),
+                "rsi24": safe_float_list(RSI(p_c, 24)),
             }
             p_kv, p_dv, p_jv = KDJ(p_c, p_h, p_l, 9, 3, 3)
             p_kdj = {
-                "k": [safe_float(v) for v in p_kv],
-                "d": [safe_float(v) for v in p_dv],
-                "j": [safe_float(v) for v in p_jv],
+                "k": safe_float_list(p_kv),
+                "d": safe_float_list(p_dv),
+                "j": safe_float_list(p_jv),
             }
             p_e12, p_e50 = EXPMA(p_c, 12, 50)
             p_expma = {
-                "exp12": [safe_float(v) for v in p_e12],
-                "exp50": [safe_float(v) for v in p_e50],
+                "exp12": safe_float_list(p_e12),
+                "exp50": safe_float_list(p_e50),
             }
             p_ma250_calc = MA(p_c, 250) if len(p_c) >= 250 else np.full(len(p_c), np.nan)
-            p_ma250 = [safe_float(v) for v in p_ma250_calc]
+            p_ma250 = safe_float_list(p_ma250_calc)
         else:
             p_ma250 = []
 
