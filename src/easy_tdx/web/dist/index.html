@@ -7280,6 +7280,9 @@
             if (!foundNavList && Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) {
                 foundNavList = window._lastScreenerMatches;
             }
+            if (!foundNavList && typeof _pmCurrentMatches !== 'undefined' && Array.isArray(_pmCurrentMatches) && _pmCurrentMatches.length > 0) {
+                foundNavList = _pmCurrentMatches;
+            }
             if (foundNavList && typeof saveScreenerNavStocks === 'function') {
                 saveScreenerNavStocks(foundNavList);
             }
@@ -8425,7 +8428,17 @@
                 const finaModal = document.getElementById('ts-fina-modal');
                 const isFinaOpen = finaModal && !finaModal.classList.contains('hidden');
                 const finaZ = finaModal ? (parseInt(finaModal.style.zIndex || '80', 10) || 80) : 80;
-                kModal.style.zIndex = isFinaOpen ? String(finaZ + 10) : '70';
+
+                const pmModal = document.getElementById('tdx-pattern-match-modal');
+                const isPmOpen = pmModal && !pmModal.classList.contains('hidden') && pmModal.style.display !== 'none';
+
+                if (isPmOpen) {
+                    kModal.style.zIndex = '10050'; // 位于形态匹配选股窗口(z-10000)之上，形态匹配窗口在底层保留不关闭
+                } else if (isFinaOpen) {
+                    kModal.style.zIndex = String(finaZ + 10);
+                } else {
+                    kModal.style.zIndex = '70';
+                }
                 kModal.classList.remove('hidden');
             }
             const rawSym = String(sym || '600123').trim();
@@ -8592,7 +8605,11 @@
             currentKpHoverDate = null;
             const badge = document.getElementById('kp-pattern-badge-overlay');
             if (badge) badge.classList.add('hidden');
-            document.getElementById('kline-preview-modal').classList.add('hidden');
+            const kModal = document.getElementById('kline-preview-modal');
+            if (kModal) {
+                kModal.classList.add('hidden');
+                kModal.style.zIndex = '';
+            }
         }
 
         // ==================== K线窗口专属防手机触摸双击放大与手势缩放机制 ==================== //
@@ -30687,6 +30704,11 @@
 
         function handleTdxStatModalKeyDown(e) {
             if (e.key === 'Escape' || e.keyCode === 27) {
+                const kModal = document.getElementById('kline-preview-modal');
+                if (kModal && !kModal.classList.contains('hidden') && kModal.style.display !== 'none') {
+                    // 当上层打开了 K 线行情弹窗时，ESC 优先交给 K 线弹窗关闭，形态匹配窗口在底层完好保留
+                    return;
+                }
                 const pmModal = document.getElementById('tdx-pattern-match-modal');
                 if (pmModal && !pmModal.classList.contains('hidden') && pmModal.style.display !== 'none') {
                     e.preventDefault();
@@ -31367,10 +31389,10 @@
                     <td class="py-2.5 px-2 text-center text-slate-400 font-mono">${idx + 1}</td>
                     <td class="py-2.5 px-2">
                         <div class="flex items-center space-x-1.5">
-                            <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="text-cyan-600 dark:text-cyan-400 font-mono font-bold hover:underline cursor-pointer">
+                            <button onclick="openKlineModal('${m.code}', '${m.name}', null, _pmCurrentMatches);" class="text-cyan-600 dark:text-cyan-400 font-mono font-bold hover:underline cursor-pointer" title="点击查看K线行情">
                                 ${m.code}
                             </button>
-                            <span class="font-bold text-slate-800 dark:text-slate-100 cursor-pointer hover:text-cyan-500" onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();">
+                            <span class="font-bold text-slate-800 dark:text-slate-100 cursor-pointer hover:text-cyan-500" onclick="openKlineModal('${m.code}', '${m.name}', null, _pmCurrentMatches);" title="点击查看K线行情">
                                 ${m.name || '--'}
                             </span>
                         </div>
@@ -31398,8 +31420,8 @@
                         ${forwardHtml}
                     </td>
                     <td class="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="openKlineModal('${m.code}', '${m.name}'); closePatternMatchModal();" class="px-2 py-0.5 rounded text-[11px] bg-cyan-950/80 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 transition cursor-pointer">K线</button>
-                        <a href="/#chanlun?code=${m.code}" target="_blank" onclick="openChanlunKline('${m.code}', '${m.name}', event); closePatternMatchModal();" class="inline-block px-2 py-0.5 rounded text-[11px] bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900 transition cursor-pointer no-underline">缠论</a>
+                        <button onclick="openKlineModal('${m.code}', '${m.name}', null, _pmCurrentMatches);" class="px-2 py-0.5 rounded text-[11px] bg-cyan-950/80 text-cyan-300 border border-cyan-800 hover:bg-cyan-900 transition cursor-pointer" title="在新层打开K线行情，选股窗口保留在底层">K线</button>
+                        <a href="/#chanlun?code=${m.code}" target="_blank" onclick="openChanlunKline('${m.code}', '${m.name}', event);" class="inline-block px-2 py-0.5 rounded text-[11px] bg-purple-950/80 text-purple-300 border border-purple-800 hover:bg-purple-900 transition cursor-pointer no-underline" title="在新标签打开缠论技术图谱">缠论</a>
                         <button onclick="toggleWatchlistStockBtn('${m.code}', '${m.name}', this)" class="px-1.5 py-0.5 rounded text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-amber-500 border border-slate-300 dark:border-slate-700 transition cursor-pointer" title="加入自选">+自选</button>
                     </td>
                 </tr>`;
