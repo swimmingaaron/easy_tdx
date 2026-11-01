@@ -4805,9 +4805,20 @@
                                 <option value="lowZs" id="cl-opt-lowZs">小中枢 √</option>
                                 <option value="mmd" id="cl-opt-mmd">买卖点</option>
                                 <option value="res" id="cl-opt-res">★共振信号</option>
+                                <option value="lod" id="cl-opt-lod">🗺️ 缩放自适应(地图分层) √</option>
                                 <option value="__ALL_ON__">── 全部开启 √ ──</option>
                                 <option value="__ALL_OFF__">── 全部关闭 ──</option>
                             </select>
+                        </div>
+
+                        <!-- 地图分级自适应(LOD)快捷开关 -->
+                        <div class="flex items-center space-x-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 rounded border border-slate-200 dark:border-slate-800/90 shrink-0">
+                            <button id="cl-btn-map-lod" onclick="toggleChanlunMapLod()"
+                                class="h-6 px-1.5 flex items-center space-x-1 text-[11px] font-sans font-semibold rounded transition cursor-pointer text-indigo-600 dark:text-cyan-300 bg-indigo-50/80 dark:bg-cyan-950/40 border border-indigo-200 dark:border-cyan-800"
+                                title="地图缩放分层(LOD)：根据K线缩放区间智能分级显示买卖点与MACD背驰，远景只显示大级别/核心共振，放大后显示微观细节，彻底避免标记密集遮挡">
+                                <span class="text-[11.5px]">🗺️</span>
+                                <span id="cl-text-map-lod">地图分级: 自动</span>
+                            </button>
                         </div>
 
                         <!-- 3. 副图级联选择 -->
@@ -12493,7 +12504,7 @@
                         itemStyle: { color: isDark ? '#00e5ff' : '#0284c7' },
                         markPoint: {
                             silent: true,
-                            data: macdMarks
+                            data: displayMacdMarks
                         }
                     },
                     {
@@ -25363,10 +25374,237 @@
             lowBi: true,
             lowZs: true,
             mmd: !checkChanlunMobileOrTablet(), // 电脑PC端默认开启，移动设备(手机/Pad)默认关闭
-            res: false
+            res: false,
+            lod: true,     // 🗺️ 地图分级自适应：根据K线缩放范围自动分层显示买卖点与背驰
+            lodMode: 'auto' // 'auto' (自动分级) | 'major' (仅大级别) | 'all' (全部显示)
         };
         let _clSubIndicator = 'macd'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
         let _clMergeKlines = false; // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
+
+        function toggleChanlunMapLod() {
+            if (!_clLayers.lodMode) _clLayers.lodMode = 'auto';
+            if (_clLayers.lodMode === 'auto') {
+                _clLayers.lodMode = 'major';
+                _clLayers.lod = true;
+            } else if (_clLayers.lodMode === 'major') {
+                _clLayers.lodMode = 'all';
+                _clLayers.lod = false;
+            } else {
+                _clLayers.lodMode = 'auto';
+                _clLayers.lod = true;
+            }
+            updateChanlunMapLodUI();
+            updateChanlunLayerButtons();
+            renderChanlunChart();
+        }
+        window.toggleChanlunMapLod = toggleChanlunMapLod;
+
+        function updateChanlunMapLodUI() {
+            const btn = document.getElementById('cl-btn-map-lod');
+            const txt = document.getElementById('cl-text-map-lod');
+            if (!txt) return;
+            const mode = _clLayers.lodMode || 'auto';
+            if (mode === 'auto') {
+                txt.innerText = '地图分级: 自动';
+                if (btn) btn.className = 'h-6 px-1.5 flex items-center space-x-1 text-[11px] font-sans font-semibold rounded transition cursor-pointer text-indigo-600 dark:text-cyan-300 bg-indigo-50/80 dark:bg-cyan-950/40 border border-indigo-200 dark:border-cyan-800';
+            } else if (mode === 'major') {
+                txt.innerText = '地图分级: 仅大级';
+                if (btn) btn.className = 'h-6 px-1.5 flex items-center space-x-1 text-[11px] font-sans font-semibold rounded transition cursor-pointer text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800';
+            } else {
+                txt.innerText = '地图分级: 全部';
+                if (btn) btn.className = 'h-6 px-1.5 flex items-center space-x-1 text-[11px] font-sans font-medium rounded transition cursor-pointer text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700';
+            }
+        }
+
+        // ==================== 地图缩放分层(LOD)核心算法 ==================== //
+        function filterChanlunMmdByLod(rawList, visibleCount, dates) {
+            if (!rawList || rawList.length === 0) return [];
+            if (!_clLayers.lod) return rawList;
+            const mode = _clLayers.lodMode || 'auto';
+            const isMajorOnly = (mode === 'major');
+
+            const isLevel1 = isMajorOnly || (visibleCount >= 160);
+            const isLevel2 = !isMajorOnly && (visibleCount >= 70 && visibleCount < 160);
+
+            const dateIdxMap = {};
+            if (dates && dates.length > 0) {
+                for (let i = 0; i < dates.length; i++) dateIdxMap[dates[i]] = i;
+            }
+
+            let filtered = [];
+            if (isLevel1) {
+                // 远景宏观层 (可视K线 >= 160 根，如 800 根全览)
+                // 1. high 级别（日线/周线/月线）全部买卖点
+                // 2. mid 级别（如 30F）的核心 1买(底背) 和 1卖(顶背)
+                // 彻底隐藏 low 级别(5F)全部买卖点，隐藏 mid 级别的 2/3 类买卖点
+                const candidates = rawList.filter(m => {
+                    if (m._level === 'high') return true;
+                    if (m._level === 'mid' && (m._type.includes('1buy') || m._type.includes('1sell'))) return true;
+                    return false;
+                });
+
+                candidates.sort((a, b) => (dateIdxMap[a._date] ?? 0) - (dateIdxMap[b._date] ?? 0));
+                let lastIdx = -999;
+                let lastItem = null;
+                for (const item of candidates) {
+                    const curIdx = dateIdxMap[item._date] ?? 0;
+                    if (curIdx - lastIdx < 8) {
+                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        }
+                    } else {
+                        filtered.push(item);
+                        lastIdx = curIdx;
+                        lastItem = item;
+                    }
+                }
+            } else if (isLevel2) {
+                // 中景层 (70 <= visibleCount < 160 根K线)
+                // 显示 high 级别全部、mid 级别全部 (1/2/3类)、low 级别仅保留 1买(底背) 与 1卖(顶背)
+                const candidates = rawList.filter(m => {
+                    if (m._level === 'high') return true;
+                    if (m._level === 'mid') return true;
+                    if (m._level === 'low' && (m._type.includes('1buy') || m._type.includes('1sell'))) return true;
+                    return false;
+                });
+
+                candidates.sort((a, b) => (dateIdxMap[a._date] ?? 0) - (dateIdxMap[b._date] ?? 0));
+                let lastIdx = -999;
+                let lastItem = null;
+                for (const item of candidates) {
+                    const curIdx = dateIdxMap[item._date] ?? 0;
+                    if (curIdx - lastIdx < 4) {
+                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        }
+                    } else {
+                        filtered.push(item);
+                        lastIdx = curIdx;
+                        lastItem = item;
+                    }
+                }
+            } else {
+                // 近景微观特写 (visibleCount < 70 根K线)：空间宽阔，完整展现所有级别与类别
+                filtered = [...rawList];
+            }
+
+            // 重新按 (日期, 买卖方向) 规整多行箭头与避让间距
+            const grps = {};
+            filtered.forEach(it => {
+                const gk = `${it._date}_${it._isBuy ? 'buy' : 'sell'}`;
+                if (!grps[gk]) grps[gk] = [];
+                grps[gk].push(it);
+            });
+
+            const finalList = [];
+            const isDark = document.documentElement.classList.contains('dark');
+            for (const gk in grps) {
+                const list = grps[gk];
+                list.sort((a, b) => (a._priority || 99) - (b._priority || 99));
+                list.forEach((item, k) => {
+                    const isFirst = (k === 0);
+                    const cloned = { ...item };
+                    cloned.label = { ...item.label, distance: 3 + k * 19 };
+                    cloned.itemStyle = {
+                        ...item.itemStyle,
+                        color: isFirst ? (item._themePrimary || item.itemStyle?.color) : 'transparent',
+                        borderColor: (isFirst && isDark) ? 'rgba(0, 0, 0, 0.4)' : (isFirst ? '#ffffff' : 'transparent'),
+                        borderWidth: isFirst ? 0.8 : 0
+                    };
+                    finalList.push(cloned);
+                });
+            }
+            return finalList;
+        }
+
+        function filterMacdMarksByLod(rawList, visibleCount, dates) {
+            if (!rawList || rawList.length === 0) return [];
+            if (!_clLayers.lod) return rawList;
+            const mode = _clLayers.lodMode || 'auto';
+            const isMajorOnly = (mode === 'major');
+
+            const isLevel1 = isMajorOnly || (visibleCount >= 160);
+            const isLevel2 = !isMajorOnly && (visibleCount >= 70 && visibleCount < 160);
+
+            const dateIdxMap = {};
+            if (dates && dates.length > 0) {
+                for (let i = 0; i < dates.length; i++) dateIdxMap[dates[i]] = i;
+            }
+
+            if (isLevel1) {
+                // 远景宏观层 (visibleCount >= 160)：只保留核心强信号(★金叉共振, MACD底离, MACD顶离)
+                // 彻底过滤隐藏普通金叉、死叉、底部、RSI买点，副图极度清爽干净！
+                const candidates = rawList.filter(m => {
+                    return m._sigType === 'resonance' || m._sigType === 'bot_div' || m._sigType === 'top_div';
+                });
+
+                candidates.sort((a, b) => {
+                    const dtA = a.coord ? a.coord[0] : '';
+                    const dtB = b.coord ? b.coord[0] : '';
+                    return (dateIdxMap[dtA] ?? 0) - (dateIdxMap[dtB] ?? 0);
+                });
+
+                const filtered = [];
+                let lastIdx = -999;
+                let lastItem = null;
+                for (const item of candidates) {
+                    const dt = item.coord ? item.coord[0] : '';
+                    const curIdx = dateIdxMap[dt] ?? 0;
+                    if (curIdx - lastIdx < 8) {
+                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        }
+                    } else {
+                        filtered.push(item);
+                        lastIdx = curIdx;
+                        lastItem = item;
+                    }
+                }
+                return filtered;
+            }
+
+            if (isLevel2) {
+                // 中景层 (70 <= visibleCount < 160)：显示共振、底离、顶离、底部，隐藏 RSI 并抽稀密集金叉死叉
+                const candidates = rawList.filter(m => {
+                    return m._sigType !== 'rsi_buy' && m._sigType !== 'rsi_div';
+                });
+
+                candidates.sort((a, b) => {
+                    const dtA = a.coord ? a.coord[0] : '';
+                    const dtB = b.coord ? b.coord[0] : '';
+                    return (dateIdxMap[dtA] ?? 0) - (dateIdxMap[dtB] ?? 0);
+                });
+
+                const filtered = [];
+                let lastIdx = -999;
+                let lastItem = null;
+                for (const item of candidates) {
+                    const dt = item.coord ? item.coord[0] : '';
+                    const curIdx = dateIdxMap[dt] ?? 0;
+                    if (curIdx - lastIdx < 4) {
+                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        }
+                    } else {
+                        filtered.push(item);
+                        lastIdx = curIdx;
+                        lastItem = item;
+                    }
+                }
+                return filtered;
+            }
+
+            // 近景微观特写：全部呈现
+            return rawList;
+        }
 
         function updateChanlunLayerButtons() {
             // 同步副图下拉菜单与K线合并开关
@@ -25397,6 +25635,13 @@
                 }
             });
 
+            const optLod = document.getElementById('cl-opt-lod');
+            if (optLod) {
+                const mode = _clLayers.lodMode || 'auto';
+                optLod.innerText = (mode === 'auto') ? '🗺️ 缩放自适应 (自动) √' : (mode === 'major' ? '🎯 仅大级别 √' : '🗺️ 缩放自适应 (全部显示)');
+            }
+            updateChanlunMapLodUI();
+
             // 更新主图下拉菜单摘要文本
             const optSummary = document.getElementById('cl-opt-summary');
             if (optSummary) {
@@ -25418,6 +25663,10 @@
             } else if (val === '__ALL_OFF__') {
                 const keys = ['highBi', 'highZs', 'midBi', 'midZs', 'lowBi', 'lowZs', 'mmd', 'res'];
                 keys.forEach(k => { _clLayers[k] = false; });
+            } else if (val === 'lod') {
+                toggleChanlunMapLod();
+                sel.value = "";
+                return;
             } else if (_clLayers[val] !== undefined) {
                 _clLayers[val] = !_clLayers[val];
             }
@@ -26022,6 +26271,43 @@
                     const finalYMin = Math.max(0.01, +(minL - pad).toFixed(2));
                     const finalYMax = +(maxH + pad).toFixed(2);
 
+                    const visibleCount = endIdx - startIdx + 1;
+                    const cData = window._clInstanceData ? window._clInstanceData[side] : null;
+                    if (cData && _clLayers.lod) {
+                        const targetLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleCount >= 160) ? 1 : ((visibleCount >= 70) ? 2 : 3));
+                        if (cData.currentLod !== targetLod) {
+                            cData.currentLod = targetLod;
+                            const newMmd = filterChanlunMmdByLod(cData.rawMmd, visibleCount, cData.dates);
+                            const newMacd = filterMacdMarksByLod(cData.rawMacd, visibleCount, cData.dates);
+
+                            const updateSeries = [
+                                {
+                                    name: '基准K线',
+                                    markPoint: {
+                                        data: [
+                                            ...(cData.fractalMarks || []),
+                                            ...newMmd,
+                                            ...(cData.resMarks || [])
+                                        ]
+                                    }
+                                }
+                            ];
+                            if (cData.isSubMacd) {
+                                updateSeries.push({
+                                    name: 'DIF',
+                                    markPoint: {
+                                        data: newMacd
+                                    }
+                                });
+                            }
+                            chartInstance.setOption({
+                                yAxis: [ { min: finalYMin, max: finalYMax } ],
+                                series: updateSeries
+                            });
+                            return;
+                        }
+                    }
+
                     chartInstance.setOption({
                         yAxis: [
                             {
@@ -26381,7 +26667,13 @@
                                 fontFamily: "'JetBrains Mono', Consolas, -apple-system, sans-serif",
                                 shadowBlur: isDark ? 3 : 0,
                                 shadowColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'transparent'
-                            }
+                            },
+                            _level: m.level,
+                            _type: mType,
+                            _isBuy: m.is_buy,
+                            _date: dKey,
+                            _themePrimary: theme.primary,
+                            _priority: (isBig ? 1 : (isMid ? 2 : 3)) * 10 + (mType.includes('1') ? 1 : (mType.includes('2') ? 2 : 3))
                         });
                     });
                 }
@@ -26790,7 +27082,9 @@
                                     borderWidth: 1,
                                     padding: [2, 4],
                                     borderRadius: 3
-                                }
+                                },
+                                _sigType: 'resonance',
+                                _priority: 1
                             });
                         } else if (enhancedMacd.macdGcSignals[i]) {
                             macdMarks.push({
@@ -26808,7 +27102,9 @@
                                     backgroundColor: 'rgba(127, 29, 29, 0.75)',
                                     padding: [1, 3],
                                     borderRadius: 2
-                                }
+                                },
+                                _sigType: 'gc',
+                                _priority: 4
                             });
                         } else if (enhancedMacd.macdDcSignals[i]) {
                             macdMarks.push({
@@ -26826,7 +27122,9 @@
                                     backgroundColor: 'rgba(6, 78, 59, 0.75)',
                                     padding: [1, 3],
                                     borderRadius: 2
-                                }
+                                },
+                                _sigType: 'dc',
+                                _priority: 4
                             });
                         }
 
@@ -26849,7 +27147,9 @@
                                     borderWidth: 1,
                                     padding: [1, 3],
                                     borderRadius: 2
-                                }
+                                },
+                                _sigType: 'bot',
+                                _priority: 3
                             });
                         }
 
@@ -26871,7 +27171,9 @@
                                     borderWidth: 1,
                                     padding: [1.5, 3.5],
                                     borderRadius: 3
-                                }
+                                },
+                                _sigType: 'bot_div',
+                                _priority: 2
                             });
                         }
 
@@ -26893,7 +27195,9 @@
                                     borderWidth: 1,
                                     padding: [1.5, 3.5],
                                     borderRadius: 3
-                                }
+                                },
+                                _sigType: 'top_div',
+                                _priority: 2
                             });
                         }
 
@@ -26913,7 +27217,9 @@
                                     backgroundColor: 'rgba(131, 24, 67, 0.85)',
                                     padding: [1, 3],
                                     borderRadius: 2
-                                }
+                                },
+                                _sigType: 'rsi_buy',
+                                _priority: 5
                             });
                         }
 
@@ -26933,7 +27239,9 @@
                                     backgroundColor: 'rgba(22, 78, 99, 0.85)',
                                     padding: [1, 3],
                                     borderRadius: 2
-                                }
+                                },
+                                _sigType: 'rsi_div',
+                                _priority: 5
                             });
                         }
                     }
@@ -27242,6 +27550,23 @@
                 finalYMin = Math.max(0.01, +(visMinL - pad).toFixed(2));
                 finalYMax = +(visMaxH + pad).toFixed(2);
             }
+
+            // 地图分层(LOD)计算当前缩放区间可视K线数
+            const visibleBarCount = Math.max(1, eIdx - sIdx + 1);
+            const initialLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleBarCount >= 160) ? 1 : ((visibleBarCount >= 70) ? 2 : 3));
+            const displayMmdMarkPoints = _clLayers.lod ? filterChanlunMmdByLod(mmdMarkPoints, visibleBarCount, dates) : mmdMarkPoints;
+            const displayMacdMarks = _clLayers.lod ? filterMacdMarksByLod(macdMarks, visibleBarCount, dates) : macdMarks;
+
+            if (!window._clInstanceData) window._clInstanceData = {};
+            window._clInstanceData[side] = {
+                rawMmd: mmdMarkPoints,
+                rawMacd: macdMarks,
+                fractalMarks: fractalMarkPoints,
+                resMarks: resMarkPoints,
+                dates: dates,
+                isSubMacd: isSubMacd,
+                currentLod: initialLod
+            };
 
             const option = {
                 backgroundColor: 'transparent',
@@ -27568,7 +27893,7 @@
                         markPoint: {
                             data: [
                                 ...fractalMarkPoints,
-                                ...mmdMarkPoints,
+                                ...displayMmdMarkPoints,
                                 ...resMarkPoints
                             ]
                         },
