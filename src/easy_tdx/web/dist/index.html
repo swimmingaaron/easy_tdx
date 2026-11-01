@@ -12920,7 +12920,7 @@
                                         <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${formatDatetimeWithWeekday(bar.datetime)}</span>
                                         <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                    <div style="display: grid; grid-template-columns: 42px 1fr; gap: 1.5px 6px; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px;">
                                         <span style="color: ${labelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${bar.close.toFixed(2)}</span>
                                         <span style="color: ${labelColor}; font-weight: 600;">开盘:</span><span style="color: ${bar.open >= bar.close ? '#10b981' : '#ef4444'}; font-weight: 600; text-align: right;">${bar.open.toFixed(2)}</span>
                                         <span style="color: ${labelColor}; font-weight: 600;">最高:</span><span style="color: #ef4444; font-weight: 600; text-align: right;">${bar.high.toFixed(2)}</span>
@@ -25461,8 +25461,11 @@
             const mode = _clLayers.lodMode || 'auto';
             const isMajorOnly = (mode === 'major');
 
-            const isLevel1 = isMajorOnly || (visibleCount >= 160);
-            const isLevel2 = !isMajorOnly && (visibleCount >= 70 && visibleCount < 160);
+            // 远景宏观层阈值调整：只有当可视K线超过 360 根时才进入远景宏观分层；
+            // 中景层调整为 200~360 根；
+            // 标准/近景层 (< 200 根，涵盖日常看盘 100~200 根区间)：空间宽阔，保留大/中/小级别关键顶底分型位置全部买卖点！
+            const isLevel1 = isMajorOnly || (visibleCount >= 360);
+            const isLevel2 = !isMajorOnly && (visibleCount >= 200 && visibleCount < 360);
 
             const dateIdxMap = {};
             if (dates && dates.length > 0) {
@@ -25471,36 +25474,10 @@
 
             let filtered = [];
             if (isLevel1) {
-                // 远景宏观层 (可视K线 >= 160 根，如 800 根全览)
-                // 1. high 级别（日线/周线/月线）全部买卖点
-                // 2. mid 级别（如 30F）的核心 1买(底背) 和 1卖(顶背)
-                // 彻底隐藏 low 级别(5F)全部买卖点，隐藏 mid 级别的 2/3 类买卖点
-                const candidates = rawList.filter(m => {
-                    if (m._level === 'high') return true;
-                    if (m._level === 'mid' && (m._type.includes('1buy') || m._type.includes('1sell'))) return true;
-                    return false;
-                });
-
-                candidates.sort((a, b) => (dateIdxMap[a._date] ?? 0) - (dateIdxMap[b._date] ?? 0));
-                let lastIdx = -999;
-                let lastItem = null;
-                for (const item of candidates) {
-                    const curIdx = dateIdxMap[item._date] ?? 0;
-                    if (curIdx - lastIdx < 8) {
-                        if ((item._priority || 99) < (lastItem._priority || 99)) {
-                            filtered[filtered.length - 1] = item;
-                            lastIdx = curIdx;
-                            lastItem = item;
-                        }
-                    } else {
-                        filtered.push(item);
-                        lastIdx = curIdx;
-                        lastItem = item;
-                    }
-                }
-            } else if (isLevel2) {
-                // 中景层 (70 <= visibleCount < 160 根K线)
-                // 显示 high 级别全部、mid 级别全部 (1/2/3类)、low 级别仅保留 1买(底背) 与 1卖(顶背)
+                // 超远景宏观层 (可视K线 >= 360 根，如 500~800 根全览)
+                // 1. high 级别全部买卖点
+                // 2. mid 级别全部买卖点 (1/2/3买卖点全部保留，确保关键顶底分型波段拐点完整)
+                // 3. low 级别保留核心 1买(底背) 和 1卖(顶背)
                 const candidates = rawList.filter(m => {
                     if (m._level === 'high') return true;
                     if (m._level === 'mid') return true;
@@ -25513,7 +25490,38 @@
                 let lastItem = null;
                 for (const item of candidates) {
                     const curIdx = dateIdxMap[item._date] ?? 0;
-                    if (curIdx - lastIdx < 4) {
+                    // 同方向仅在紧邻(<=2根K线)时做优先级合并，杜绝稀疏拐点被错误剔除
+                    if (curIdx - lastIdx <= 2 && item._isBuy === lastItem?._isBuy) {
+                        if ((item._priority || 99) < (lastItem._priority || 99)) {
+                            filtered[filtered.length - 1] = item;
+                            lastIdx = curIdx;
+                            lastItem = item;
+                        }
+                    } else {
+                        filtered.push(item);
+                        lastIdx = curIdx;
+                        lastItem = item;
+                    }
+                }
+            } else if (isLevel2) {
+                // 中景层 (200 <= visibleCount < 360 根K线)
+                // 空间适中：大级别全部、中级别全部 (1/2/3类全部保留)、小级别保留 1买/1卖/2买/2卖 关键波段拐点
+                const candidates = rawList.filter(m => {
+                    if (m._level === 'high') return true;
+                    if (m._level === 'mid') return true;
+                    if (m._level === 'low') {
+                        if (m._type.includes('1buy') || m._type.includes('1sell') || m._type.includes('2buy') || m._type.includes('2sell')) return true;
+                        return false;
+                    }
+                    return true;
+                });
+
+                candidates.sort((a, b) => (dateIdxMap[a._date] ?? 0) - (dateIdxMap[b._date] ?? 0));
+                let lastIdx = -999;
+                let lastItem = null;
+                for (const item of candidates) {
+                    const curIdx = dateIdxMap[item._date] ?? 0;
+                    if (curIdx - lastIdx <= 1 && item._isBuy === lastItem?._isBuy) {
                         if ((item._priority || 99) < (lastItem._priority || 99)) {
                             filtered[filtered.length - 1] = item;
                             lastIdx = curIdx;
@@ -25526,7 +25534,7 @@
                     }
                 }
             } else {
-                // 近景微观特写 (visibleCount < 70 根K线)：空间宽阔，完整展现所有级别与类别
+                // 标准/近景特写 (visibleCount < 200 根K线)：空间宽阔，完整展现所有级别与关键顶底分型买卖点
                 filtered = [...rawList];
             }
 
@@ -26459,7 +26467,7 @@
                     let displayMacd = cData ? (cData.currentDisplayMacd || cData.rawMacd || []) : [];
 
                     if (cData && _clLayers.lod) {
-                        const targetLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleCount >= 160) ? 1 : ((visibleCount >= 70) ? 2 : 3));
+                        const targetLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleCount >= 360) ? 1 : ((visibleCount >= 200) ? 2 : 3));
                         if (cData.currentLod !== targetLod) {
                             cData.currentLod = targetLod;
                             displayMmd = filterChanlunMmdByLod(cData.rawMmd, visibleCount, cData.dates);
@@ -27836,7 +27844,7 @@
 
             // 地图分层(LOD)计算当前缩放区间可视K线数
             const visibleBarCount = Math.max(1, eIdx - sIdx + 1);
-            const initialLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleBarCount >= 160) ? 1 : ((visibleBarCount >= 70) ? 2 : 3));
+            const initialLod = (_clLayers.lodMode === 'major') ? 1 : ((visibleBarCount >= 360) ? 1 : ((visibleBarCount >= 200) ? 2 : 3));
             const displayMmdMarkPoints = _clLayers.lod ? filterChanlunMmdByLod(mmdMarkPoints, visibleBarCount, dates) : mmdMarkPoints;
             const displayMacdMarks = _clLayers.lod ? filterMacdMarksByLod(macdMarks, visibleBarCount, dates) : macdMarks;
             const extremaMarkPoints = buildChanlunExtremaMarks(candles, dates, sIdx, eIdx, isDark);
@@ -27880,8 +27888,8 @@
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
                     borderWidth: 1,
-                    padding: [8, 12],
-                    extraCssText: 'box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); border-radius: 8px; z-index: 99999; backdrop-blur: 8px; width: 330px; max-width: 330px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
+                    padding: [5, 8],
+                    extraCssText: 'box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32); border-radius: 6px; z-index: 99999; backdrop-blur: 8px; width: 200px; max-width: 200px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
                     formatter: function (params) {
                         if (!Array.isArray(params) || params.length === 0) return '';
                         const dateStr = params[0].name;
@@ -28086,11 +28094,11 @@
 
                         return `
                             <div style="color: ${tooltipTextColor}; font-size: 11px; line-height: 1.45; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 4px; margin-bottom: 6px;">
-                                    <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 12px;">${dateStr}</span>
-                                    <span style="color: ${chgColor}; font-weight: 700; font-size: 12px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
+                                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid ${splitColor}; padding-bottom: 3px; margin-bottom: 4px;">
+                                    <span style="font-weight: 700; color: ${tooltipTitleColor}; font-size: 11px;">${dateStr}</span>
+                                    <span style="color: ${chgColor}; font-weight: 700; font-size: 11px; font-family: 'JetBrains Mono', monospace;">${chgSign}${chgPct.toFixed(2)}%</span>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 46px 1fr; gap: 2px 8px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                <div style="display: grid; grid-template-columns: 42px 1fr; gap: 1.5px 6px; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 10px;">
                                     ${_clMergeKlines ? `
                                         <span style="color: #c084fc; font-weight: 700; grid-column: span 2; padding-bottom: 2px; border-bottom: 1px dashed ${splitColor}; font-size: 10.5px;">⚡ 缠论K线 (无上下影线)</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">最高:</span><span style="color: ${highColor}; font-weight: 700; text-align: right;">${high.toFixed(2)}</span>
