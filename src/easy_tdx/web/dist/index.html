@@ -7256,18 +7256,43 @@
             }
         });
 
-        // 点击股票代码/K线链接在新的浏览器标签中打开缠论视图并定位到该股缠论K线
-        function openChanlunKline(code, name, event, periods = '') {
+        // 点击股票代码/K线链接在新的浏览器标签中打开缠论视图并定位到该股缠论K线（支持来源标的池导航）
+        function openChanlunKline(code, name, event, periods = '', navList = null) {
             if (!code) return;
             const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
             if (!cleanCode) return;
             const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
             const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${pParam}`;
 
-            // 保存来源标的池（交易系统行情池、选股策略、自选股等）至 localStorage，以便在新标签页中可上下切换
-            let foundNavList = null;
-            if (typeof resolveNavListForStock === 'function') {
+            // 保存来源标的池（自选监控池、交易系统行情池、选股策略等）至 localStorage，以便在新标签页中可直接上下切换
+            let foundNavList = (Array.isArray(navList) && navList.length > 0) ? navList : null;
+            let strategyTitle = '';
+            if (foundNavList) {
+                strategyTitle = '自选监控实时行情池';
+            }
+            if (!foundNavList && typeof resolveNavListForStock === 'function') {
                 foundNavList = resolveNavListForStock(cleanCode, name);
+            }
+            if (!foundNavList && typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) {
+                const idx = findStockIndexInList(_cachedWatchlistRows, cleanCode, name);
+                if (idx !== -1) {
+                    foundNavList = _cachedWatchlistRows;
+                    strategyTitle = '自选监控实时行情池';
+                }
+            }
+            if (!foundNavList && Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) {
+                const idx = findStockIndexInList(window._cachedWatchlistRows, cleanCode, name);
+                if (idx !== -1) {
+                    foundNavList = window._cachedWatchlistRows;
+                    strategyTitle = '自选监控实时行情池';
+                }
+            }
+            if (!foundNavList && typeof getWatchlistSymbols === 'function') {
+                const wlSyms = getWatchlistSymbols();
+                if (wlSyms.includes(cleanCode)) {
+                    foundNavList = wlSyms.map(s => ({ code: s, name: s }));
+                    strategyTitle = '自选监控实时行情池';
+                }
             }
             if (!foundNavList && typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) {
                 foundNavList = tsAllRows;
@@ -7285,7 +7310,7 @@
                 foundNavList = _pmCurrentMatches;
             }
             if (foundNavList && typeof saveScreenerNavStocks === 'function') {
-                saveScreenerNavStocks(foundNavList);
+                saveScreenerNavStocks(foundNavList, strategyTitle || '标的行情池');
             }
 
             // 如果链接已有原生 target="_blank" 属性，由浏览器原生在新标签页中打开
@@ -8150,7 +8175,13 @@
 
             const candidateLists = [];
 
-            // 1. 如果当前在交易系统，优先交易系统全量与过滤列表
+            // 1. 如果当前在仪表盘或自选监控，优先自选监控行情池
+            if (curTab === 'dashboard' || curTab === 'watchlist') {
+                if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) candidateLists.push(_cachedWatchlistRows);
+                if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
+            }
+
+            // 2. 如果当前在交易系统，优先交易系统全量与过滤列表
             if (curTab === 'tradingsystem') {
                 if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
                 if (typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) candidateLists.push(tsAllRows);
@@ -8163,7 +8194,9 @@
                 if (Array.isArray(window._cachedLadderStocks) && window._cachedLadderStocks.length > 0) candidateLists.push(window._cachedLadderStocks);
             }
 
-            // 2. 依次检查全量候选行情池
+            // 3. 依次检查全量候选行情池（自选池拥有高优先级兜底）
+            if (typeof _cachedWatchlistRows !== 'undefined' && Array.isArray(_cachedWatchlistRows) && _cachedWatchlistRows.length > 0) candidateLists.push(_cachedWatchlistRows);
+            if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
             if (typeof tradingSystemFilteredRows !== 'undefined' && Array.isArray(tradingSystemFilteredRows) && tradingSystemFilteredRows.length > 0) candidateLists.push(tradingSystemFilteredRows);
             if (typeof tsAllRows !== 'undefined' && Array.isArray(tsAllRows) && tsAllRows.length > 0) candidateLists.push(tsAllRows);
             if (Array.isArray(window._lastTradingSystemRows) && window._lastTradingSystemRows.length > 0) candidateLists.push(window._lastTradingSystemRows);
@@ -8171,7 +8204,6 @@
             if (Array.isArray(window.tsRowsData) && window.tsRowsData.length > 0) candidateLists.push(window.tsRowsData);
             if (Array.isArray(window._lastScreenerMatches) && window._lastScreenerMatches.length > 0) candidateLists.push(window._lastScreenerMatches);
             if (Array.isArray(window.CURRENT_SECTOR_STOCKS_DATA) && window.CURRENT_SECTOR_STOCKS_DATA.length > 0) candidateLists.push(window.CURRENT_SECTOR_STOCKS_DATA);
-            if (Array.isArray(window._cachedWatchlistRows) && window._cachedWatchlistRows.length > 0) candidateLists.push(window._cachedWatchlistRows);
             if (Array.isArray(window._cachedLadderStocks) && window._cachedLadderStocks.length > 0) candidateLists.push(window._cachedLadderStocks);
             if (Array.isArray(window._cachedAnomaliesStream) && window._cachedAnomaliesStream.length > 0) candidateLists.push(window._cachedAnomaliesStream);
             if (Array.isArray(window._cachedAnomaliesAuction) && window._cachedAnomaliesAuction.length > 0) candidateLists.push(window._cachedAnomaliesAuction);
@@ -8189,6 +8221,14 @@
                     return cl;
                 }
             }
+
+            // 4. 自选代码池兜底检查
+            if (typeof getWatchlistSymbols === 'function') {
+                const wlSyms = getWatchlistSymbols();
+                if (wlSyms.includes(sym)) {
+                    return wlSyms.map(s => ({ code: s, name: s }));
+                }
+            }
             return null;
         }
 
@@ -8198,8 +8238,8 @@
             if (!Array.isArray(matches) || matches.length === 0) return;
             try {
                 const navList = matches.map(m => ({
-                    code: String(m.code || m.symbol || m.stock_code || '').trim().replace(/[^0-9]/g, ''),
-                    name: String(m.name || m.stock_name || '').trim(),
+                    code: String(m.code || m.symbol || m.stock_code || m).trim().replace(/[^0-9]/g, ''),
+                    name: String(m.name || m.stock_name || m.code || m.symbol || m.stock_code || m).trim(),
                     period: m.period || '',
                     chan_periods: m.chan_periods || null
                 })).filter(x => !!x.code);
@@ -8215,9 +8255,13 @@
         }
 
         function getChanlunScreenerStockList() {
-            // 1. 优先使用当前窗口显式指定的导航列表
+            // 1. 优先使用当前窗口显式指定的导航列表（且确保当前股票在此列表中）
+            const curCode = normalizeStockCode(window._clCurrentCode || '000001');
+            const curName = String(window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || '').trim();
             if (Array.isArray(window._currentChanlunNavList) && window._currentChanlunNavList.length > 0) {
-                return window._currentChanlunNavList;
+                if (!curCode || findStockIndexInList(window._currentChanlunNavList, curCode, curName) !== -1) {
+                    return window._currentChanlunNavList;
+                }
             }
             // 2. 从 localStorage 读取（支持新标签页打开与跨页面同步）
             try {
@@ -8225,13 +8269,43 @@
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        return parsed;
+                        // 如果当前标的在 parsed 列表中，或者当前尚未指定标的，直接使用该列表
+                        if (!curCode || findStockIndexInList(parsed, curCode, curName) !== -1) {
+                            return parsed;
+                        }
                     }
                 }
             } catch (e) { }
-            // 3. 内存回退：如果在当前单页应用中，检查内存中各行情池中是否包含当前股票
-            const curCode = normalizeStockCode(window._clCurrentCode || '000001');
-            const curName = String(window._clCurrentName || document.getElementById('cl-stock-name')?.innerText || '').trim();
+
+            // 3. 自选监控池智能回退：若当前标的属于自选池，自动提取自选池全量标的作为导航列表
+            try {
+                const wlRowsRaw = localStorage.getItem('easy_tdx_watchlist_rows');
+                if (wlRowsRaw) {
+                    const wlRows = JSON.parse(wlRowsRaw);
+                    if (Array.isArray(wlRows) && wlRows.length > 0) {
+                        if (!curCode || findStockIndexInList(wlRows, curCode, curName) !== -1) {
+                            window._currentChanlunNavList = wlRows;
+                            try { localStorage.setItem('easy_tdx_screener_strategy', '自选监控实时行情池'); } catch (_) {}
+                            return wlRows;
+                        }
+                    }
+                }
+                const wlRaw = localStorage.getItem(WATCHLIST_STORAGE_KEY) || (typeof getWatchlistSymbols === 'function' ? JSON.stringify(getWatchlistSymbols()) : null);
+                if (wlRaw) {
+                    const wlSyms = JSON.parse(wlRaw);
+                    if (Array.isArray(wlSyms) && wlSyms.length > 0) {
+                        const cleanSyms = wlSyms.map(s => String(s.code || s.symbol || s.stock_code || s).trim().replace(/[^0-9]/g, '')).filter(Boolean);
+                        if (!curCode || cleanSyms.includes(curCode)) {
+                            const wlNav = cleanSyms.map(c => ({ code: c, name: c }));
+                            window._currentChanlunNavList = wlNav;
+                            try { localStorage.setItem('easy_tdx_screener_strategy', '自选监控实时行情池'); } catch (_) {}
+                            return wlNav;
+                        }
+                    }
+                }
+            } catch (e) { }
+
+            // 4. 内存回退：如果在当前单页应用中，检查内存中各行情池中是否包含当前股票
             if (typeof resolveNavListForStock === 'function') {
                 const fallbackList = resolveNavListForStock(curCode, curName);
                 if (fallbackList && fallbackList.length > 0) {
@@ -8276,21 +8350,25 @@
             }
 
             const total = list.length;
+            const stName = localStorage.getItem('easy_tdx_screener_strategy') || '';
+            const prefix = stName.includes('自选') ? '自选' : (stName ? stName.slice(0, 4) : '');
+
             if (index === -1) {
-                // 当前标的不在选股策略列表中，但有选股列表，支持点击跳入第1只
-                navInfo.innerText = `--/${total}`;
+                // 当前标的不在列表中，但有可用标的池，支持点击跳入第1只
+                navInfo.innerText = prefix ? `${prefix}:--/${total}` : `--/${total}`;
                 prevBtn.disabled = false;
                 nextBtn.disabled = false;
                 prevBtn.classList.remove('opacity-40', 'cursor-not-allowed');
                 nextBtn.classList.remove('opacity-40', 'cursor-not-allowed');
                 const first = list[0];
                 const firstName = first.name || first.stock_name || first.code || '第一只';
-                prevBtn.title = `跳转选股结果首只标的: ${firstName}`;
-                nextBtn.title = `跳转选股结果首只标的: ${firstName}`;
+                prevBtn.title = `跳转首只标的: ${firstName}`;
+                nextBtn.title = `跳转首只标的: ${firstName}`;
                 return;
             }
 
-            navInfo.innerText = `${index + 1}/${total}`;
+            navInfo.innerText = prefix ? `${prefix}:${index + 1}/${total}` : `${index + 1}/${total}`;
+            navInfo.title = `${stName ? `【${stName}】` : ''}当前标的序号: ${index + 1}/${total}`;
 
             // Previous stock button
             if (index > 0) {
@@ -8328,6 +8406,8 @@
             const target = list[targetIdx];
             const code = String(target.code || target.symbol || target.stock_code || '').trim().replace(/[^0-9]/g, '');
             if (!code) return;
+            const name = String(target.name || target.stock_name || code).trim();
+            if (name) window._clCurrentName = name;
 
             if (target.chan_periods) {
                 const pStr = Array.isArray(target.chan_periods) ? target.chan_periods.join(',') : String(target.chan_periods);
@@ -8354,6 +8434,8 @@
             const target = list[targetIdx];
             const code = String(target.code || target.symbol || target.stock_code || '').trim().replace(/[^0-9]/g, '');
             if (!code) return;
+            const name = String(target.name || target.stock_name || code).trim();
+            if (name) window._clCurrentName = name;
 
             if (target.chan_periods) {
                 const pStr = Array.isArray(target.chan_periods) ? target.chan_periods.join(',') : String(target.chan_periods);
@@ -16569,7 +16651,7 @@
 
         let _watchlistSortCol = null;
         let _watchlistSortAsc = false;
-        let _cachedWatchlistRows = [];
+        let _cachedWatchlistRows = []; window._cachedWatchlistRows = _cachedWatchlistRows;
 
         function changeWatchlistSort(col) {
             if (_watchlistSortCol === col) {
@@ -16630,6 +16712,13 @@
                     return _watchlistSortAsc ? va - vb : vb - va;
                 });
             }
+            window._cachedWatchlistRows = rows;
+            try {
+                localStorage.setItem('easy_tdx_watchlist_rows', JSON.stringify(rows.map(r => ({
+                    code: r.stock_code || r.code,
+                    name: r.stock_name || r.name || r.stock_code || r.code
+                }))));
+            } catch (e) { }
 
             tableEl.innerHTML = rows.map((q, idx) => {
                 try {
@@ -16676,7 +16765,7 @@
                     const cleanCode = (code || '').toString().trim().replace(/[^0-9]/g, '');
                     const cleanName = (name || cleanCode).toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     const buyLinkHtml = cleanCode
-                        ? `<a href="/#chanlun?code=${cleanCode}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${cleanName}', event)" class="inline-block cursor-pointer hover:opacity-80 transition transform hover:scale-105 no-underline" title="在新标签中打开【${cleanName}】(${cleanCode}) 缠论K线">${bBadge}</a>`
+                        ? `<a href="/#chanlun?code=${cleanCode}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${cleanName}', event, '', rows)" class="inline-block cursor-pointer hover:opacity-80 transition transform hover:scale-105 no-underline" title="在新标签中打开【${cleanName}】(${cleanCode}) 缠论K线">${bBadge}</a>`
                         : bBadge;
                     const buyTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${buyLinkHtml}</td>`;
 
@@ -16831,7 +16920,7 @@
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
                                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 transition cursor-pointer font-medium" title="查看近5年深度财报与AI体检">诊断</button>
-                                <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
+                                <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event, '', rows)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
                                 <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-200 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
                                 <button onclick="removeWatchlistStock('${code}', '${name}')" class="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/80 text-xs hover:bg-rose-100 dark:hover:bg-rose-900 transition cursor-pointer font-bold" title="从自选池移除">✕</button>
                             </div>
@@ -16912,6 +17001,13 @@
                     rows.forEach(r => { rowMap[r.stock_code] = r; });
                     // Order according to watchlist symbols initially
                     _cachedWatchlistRows = symbols.map(s => rowMap[s]).filter(Boolean);
+                    window._cachedWatchlistRows = _cachedWatchlistRows;
+                    try {
+                        localStorage.setItem('easy_tdx_watchlist_rows', JSON.stringify(_cachedWatchlistRows.map(r => ({
+                            code: r.stock_code || r.code,
+                            name: r.stock_name || r.name || r.stock_code || r.code
+                        }))));
+                    } catch (e) { }
                     renderWatchlistQuotesTable();
                 }
             } catch (e) {
