@@ -4991,7 +4991,7 @@
             <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏，默认四窗口) -->
             <div id="cl-charts-split-container" class="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
                 <!-- 窗口 1: 季·月·周 (左上窗/第1窗) -->
-                <div id="cl-chart-card-left" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <div id="cl-chart-card-left" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('left')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5002,6 +5002,7 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗1: 季·月·周</span>
+                            <button id="cl-max-badge-left" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text">--</span>
                             </div>
@@ -5047,7 +5048,7 @@
                 </div>
 
                 <!-- 窗口 2: 月·周·日 (右上窗/第2窗) -->
-                <div id="cl-chart-card-w2" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <div id="cl-chart-card-w2" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('w2')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5058,6 +5059,7 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗2: 月·周·日</span>
+                            <button id="cl-max-badge-w2" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w2">--</span>
                             </div>
@@ -5103,7 +5105,7 @@
                 </div>
 
                 <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
-                <div id="cl-chart-card-right" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <div id="cl-chart-card-right" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('right')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5114,6 +5116,7 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗3: 周·日·30F</span>
+                            <button id="cl-max-badge-right" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-right">--</span>
                             </div>
@@ -5161,7 +5164,7 @@
                 </div>
 
                 <!-- 窗口 4: 日·30F·5F (右下窗/第4窗) -->
-                <div id="cl-chart-card-w4" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
+                <div id="cl-chart-card-w4" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('w4')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5172,6 +5175,7 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗4: 日·30F·5F</span>
+                            <button id="cl-max-badge-w4" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w4">--</span>
                             </div>
@@ -9077,6 +9081,16 @@
                     e.preventDefault();
                     e.stopPropagation();
                     if (typeof closeTdxRangeStatModal === 'function') closeTdxRangeStatModal();
+                    return;
+                }
+            }
+            if (_clMaximizedWindow && (e.key === 'Escape' || e.keyCode === 27)) {
+                const fModal = document.getElementById('ts-fina-modal');
+                const kModal = document.getElementById('kline-preview-modal');
+                if ((!fModal || fModal.classList.contains('hidden')) && (!kModal || kModal.classList.contains('hidden'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    exitMaximizeChanlunWindow();
                     return;
                 }
             }
@@ -25162,6 +25176,91 @@
         let _clReplayTimer = null;
         let _clHasInitialized = false;
 
+        let _clMaximizedWindow = null;
+        let _clPrevWindowModeBeforeMax = 'quad';
+        let _lastMaxToggleTs = 0;
+
+        window.toggleMaximizeChanlunWindow = function(side) {
+            const now = Date.now();
+            if (now - _lastMaxToggleTs < 250) return;
+            _lastMaxToggleTs = now;
+
+            if (_clMaximizedWindow === side) {
+                exitMaximizeChanlunWindow();
+            } else {
+                maximizeChanlunWindow(side);
+            }
+        };
+
+        window.maximizeChanlunWindow = function(side) {
+            if (!_clMaximizedWindow) {
+                _clPrevWindowModeBeforeMax = _clWindowMode || 'quad';
+            }
+            _clMaximizedWindow = side;
+
+            const splitContainer = document.getElementById('cl-charts-split-container');
+            if (splitContainer) {
+                splitContainer.className = 'flex flex-col gap-3 w-full';
+            }
+
+            const selectWin = document.getElementById('cl-select-win-mode');
+            if (selectWin) selectWin.value = 'single';
+
+            const cards = {
+                left: document.getElementById('cl-chart-card-left'),
+                w2: document.getElementById('cl-chart-card-w2'),
+                right: document.getElementById('cl-chart-card-right'),
+                w4: document.getElementById('cl-chart-card-w4')
+            };
+
+            const charts = {
+                left: window.chanlunChart,
+                w2: window.chanlunChartW2,
+                right: window.chanlunChartRight,
+                w4: window.chanlunChartW4
+            };
+
+            Object.entries(cards).forEach(([s, card]) => {
+                if (!card) return;
+                const badge = document.getElementById(`cl-max-badge-${s}`);
+                if (s === side) {
+                    card.style.display = '';
+                    card.className = 'w-full min-w-0 glass-card bg-[#0b0f19]/90 border border-purple-500/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col transition-all';
+                    if (badge) {
+                        badge.classList.remove('hidden');
+                        badge.classList.add('inline-flex');
+                    }
+                } else {
+                    card.style.display = 'none';
+                    if (badge) {
+                        badge.classList.add('hidden');
+                        badge.classList.remove('inline-flex');
+                    }
+                }
+            });
+
+            setTimeout(() => {
+                adjustChanlunLayoutHeight();
+                if (charts[side]) charts[side].resize();
+            }, 30);
+        };
+
+        window.exitMaximizeChanlunWindow = function() {
+            if (!_clMaximizedWindow) return;
+            const prevMode = _clPrevWindowModeBeforeMax || 'quad';
+            _clMaximizedWindow = null;
+
+            ['left', 'w2', 'right', 'w4'].forEach(s => {
+                const badge = document.getElementById(`cl-max-badge-${s}`);
+                if (badge) {
+                    badge.classList.add('hidden');
+                    badge.classList.remove('inline-flex');
+                }
+            });
+
+            setChanlunWindowMode(prevMode);
+        };
+
         function adjustChanlunLayoutHeight() {
             const splitContainer = document.getElementById('cl-charts-split-container');
             if (!splitContainer) return;
@@ -25183,6 +25282,19 @@
             const cardRight = document.getElementById('cl-chart-card-right');
             const cardW4 = document.getElementById('cl-chart-card-w4');
 
+            if (_clMaximizedWindow) {
+                const maxCard = document.getElementById(_clMaximizedWindow === 'left' ? 'cl-chart-card-left' : (_clMaximizedWindow === 'w2' ? 'cl-chart-card-w2' : (_clMaximizedWindow === 'right' ? 'cl-chart-card-right' : 'cl-chart-card-w4')));
+                if (maxCard) maxCard.style.height = `${targetH}px`;
+                const charts = {
+                    left: window.chanlunChart,
+                    w2: window.chanlunChartW2,
+                    right: window.chanlunChartRight,
+                    w4: window.chanlunChartW4
+                };
+                if (charts[_clMaximizedWindow]) charts[_clMaximizedWindow].resize();
+                return;
+            }
+
             if (_clWindowMode === 'quad' || _clWindowMode === 'dual') {
                 const quadH = Math.max(330, Math.floor((targetH - 12) / 2));
                 if (cardLeft) cardLeft.style.height = `${quadH}px`;
@@ -25203,6 +25315,16 @@
         }
 
         window.setChanlunWindowMode = function(mode) {
+            if (_clMaximizedWindow) {
+                _clMaximizedWindow = null;
+                ['left', 'w2', 'right', 'w4'].forEach(s => {
+                    const badge = document.getElementById(`cl-max-badge-${s}`);
+                    if (badge) {
+                        badge.classList.add('hidden');
+                        badge.classList.remove('inline-flex');
+                    }
+                });
+            }
             _clWindowMode = mode;
             const selectWin = document.getElementById('cl-select-win-mode');
             if (selectWin) selectWin.value = mode;
@@ -29148,6 +29270,11 @@
                         checkAndTriggerDynamicZoom(side, instance);
                     }
                 });
+                if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                    instance.getZr().on('dblclick', () => {
+                        toggleMaximizeChanlunWindow(side);
+                    });
+                }
                 window[instanceProp] = instance;
             }
 
@@ -29417,6 +29544,18 @@
         }
 
         function renderChanlunChart(d) {
+            if (_clMaximizedWindow) {
+                const dataMap = {
+                    left: d || _clLeftCachedData || _clCachedData,
+                    w2: _clW2CachedData,
+                    right: _clRightCachedData,
+                    w4: _clW4CachedData
+                };
+                if (dataMap[_clMaximizedWindow]) {
+                    renderSingleChanlunChart(_clMaximizedWindow, dataMap[_clMaximizedWindow]);
+                }
+                return;
+            }
             const leftData = d || _clLeftCachedData || _clCachedData;
             if (leftData) renderSingleChanlunChart('left', leftData);
             if (_clWindowMode === 'quad') {
@@ -30340,13 +30479,24 @@
         }
 
         function zoomChanlunChart(factor) {
-            const chartMap = { left: window.chanlunChart };
-            if (_clWindowMode === 'quad') {
-                chartMap.w2 = window.chanlunChartW2;
-                chartMap.right = window.chanlunChartRight;
-                chartMap.w4 = window.chanlunChartW4;
-            } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
-                chartMap.right = window.chanlunChartRight;
+            let chartMap = {};
+            if (_clMaximizedWindow) {
+                const allCharts = {
+                    left: window.chanlunChart,
+                    w2: window.chanlunChartW2,
+                    right: window.chanlunChartRight,
+                    w4: window.chanlunChartW4
+                };
+                if (allCharts[_clMaximizedWindow]) chartMap[_clMaximizedWindow] = allCharts[_clMaximizedWindow];
+            } else {
+                chartMap = { left: window.chanlunChart };
+                if (_clWindowMode === 'quad') {
+                    chartMap.w2 = window.chanlunChartW2;
+                    chartMap.right = window.chanlunChartRight;
+                    chartMap.w4 = window.chanlunChartW4;
+                } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
+                    chartMap.right = window.chanlunChartRight;
+                }
             }
 
             Object.entries(chartMap).forEach(([side, chart]) => {
@@ -30385,6 +30535,12 @@
                     e.preventDefault();
                     e.stopPropagation();
                     if (typeof closeTdxRangeStatModal === 'function') closeTdxRangeStatModal();
+                    return;
+                }
+                if (_clMaximizedWindow) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    exitMaximizeChanlunWindow();
                     return;
                 }
             }
