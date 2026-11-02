@@ -3042,7 +3042,29 @@
                     <!-- 顶部标题与控制工具栏 -->
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2 pb-2 border-b border-slate-800/80">
                         <div class="flex items-center space-x-2 flex-wrap gap-y-1">
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/80 text-purple-300 border border-purple-800/60" title="当前共振周期：月线(中枢) + 周线(笔) + 日线(主图)">月·周·日</span>
+                            <select id="sector-cl-select-preset" onchange="changeSectorChanlunPeriod(this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded px-1 font-mono text-[10px] sm:text-[10.5px] outline-none cursor-pointer hover:border-cyan-400 transition" title="切换核心成分股缠论分析周期">
+                                <optgroup label="多周期立体共振">
+                                    <option value="SEASON,MONTH,WEEK">季·月·周 (超长线)</option>
+                                    <option value="DAY,30F,5F">日·30F·5F (标准)</option>
+                                    <option value="30F,5F,1F">30F·5F·1F (超短)</option>
+                                    <option value="WEEK,DAY,30F">周·日·30F (波段)</option>
+                                    <option value="MONTH,WEEK,DAY" selected>月·周·日 (长线)</option>
+                                    <option value="DAY,60F,15F">日·60F·15F (日内)</option>
+                                    <option value="60F,30F,5F">60F·30F·5F (短线)</option>
+                                </optgroup>
+                                <optgroup label="单周期缠论K线">
+                                    <option value="1F">1F (单周期)</option>
+                                    <option value="5F">5F (单周期)</option>
+                                    <option value="15F">15F (单周期)</option>
+                                    <option value="30F">30F (单周期)</option>
+                                    <option value="60F">60F (单周期)</option>
+                                    <option value="120F">120F (单周期)</option>
+                                    <option value="DAY">日 (单周期)</option>
+                                    <option value="WEEK">周 (单周期)</option>
+                                    <option value="MONTH">月 (单周期)</option>
+                                    <option value="SEASON">季 (单周期)</option>
+                                </optgroup>
+                            </select>
                             <span id="sector-cl-stock-name" class="font-bold text-white text-sm font-sans tracking-tight">--</span>
                             <span id="sector-cl-stock-code" class="text-xs font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded cursor-pointer hover:underline" title="点击在雪球查看行情">--</span>
                             <span id="sector-cl-title-text-price" class="stock-title-price font-bold font-mono text-xs text-slate-300">--</span>
@@ -18113,6 +18135,23 @@
         let _currentSectorStockCode = null;
         let _currentSectorStockName = null;
         let _sectorChanlunData = null;
+        window._sectorChanlunPeriods = 'MONTH,WEEK,DAY';
+
+        window.changeSectorChanlunPeriod = function(val) {
+            if (!val) return;
+            window._sectorChanlunPeriods = val;
+            const selectEl = document.getElementById('sector-cl-select-preset');
+            if (selectEl && selectEl.value !== val) {
+                selectEl.value = val;
+            }
+            if (window._currentSectorStockCode) {
+                // 切换分析周期时重置视口记录，以便按新周期（日线半年/分钟级150根）自适应定位
+                if (window.sectorChanlunChart) {
+                    window.sectorChanlunChart._clLastRenderedCode = null;
+                }
+                loadSectorChanlun(window._currentSectorStockCode, window._currentSectorStockName);
+            }
+        };
 
         async function loadSectorChanlun(code, name, price = null, chgPct = null) {
             if (!code) return;
@@ -18149,6 +18188,12 @@
                 chgEl.className = `stock-title-chg font-bold font-mono text-xs ${colorClass}`;
             }
 
+            // 同步下拉框选中的周期值
+            const selectEl = document.getElementById('sector-cl-select-preset');
+            if (selectEl && window._sectorChanlunPeriods && selectEl.value !== window._sectorChanlunPeriods) {
+                selectEl.value = window._sectorChanlunPeriods;
+            }
+
             // 2. 高亮左侧成分股表格当前选中行
             try {
                 const tbody = document.getElementById('sector-stocks-table');
@@ -18166,11 +18211,18 @@
             // 3. 显示加载遮罩，隐藏空态
             const loadingOv = document.getElementById('sector-cl-loading-overlay');
             const emptyOv = document.getElementById('sector-cl-empty-overlay');
-            if (loadingOv) loadingOv.classList.remove('hidden');
-            if (emptyOv) emptyOv.classList.add('hidden');
+            if (loadingOv) {
+                loadingOv.style.display = 'flex';
+                loadingOv.classList.remove('hidden');
+            }
+            if (emptyOv) {
+                emptyOv.style.display = 'none';
+                emptyOv.classList.add('hidden');
+            }
 
+            const currentPeriods = window._sectorChanlunPeriods || 'MONTH,WEEK,DAY';
             try {
-                const resp = await fetch(`/api/v1/chanlun/resonance?code=${encodeURIComponent(cleanCode)}&periods=MONTH,WEEK,DAY&count=800`);
+                const resp = await fetch(`/api/v1/chanlun/resonance?code=${encodeURIComponent(cleanCode)}&periods=${encodeURIComponent(currentPeriods)}&count=800`);
                 if (!resp.ok) {
                     throw new Error(`HTTP ${resp.status}`);
                 }
@@ -18180,10 +18232,13 @@
             } catch (err) {
                 console.error('Failed to load sector Chanlun data:', err);
                 if (window.showToast) {
-                    window.showToast('缠论加载失败', `${name || cleanCode} 月周日缠论获取超时或异常`);
+                    window.showToast('缠论加载失败', `${name || cleanCode} (${currentPeriods}) 缠论获取超时或异常`);
                 }
             } finally {
-                if (loadingOv) loadingOv.classList.add('hidden');
+                if (loadingOv) {
+                    loadingOv.style.display = 'none';
+                    loadingOv.classList.add('hidden');
+                }
             }
         }
         window.loadSectorChanlun = loadSectorChanlun;
@@ -18205,11 +18260,12 @@
 
         window.openSectorStockChanlunFullscreen = function(event) {
             if (!window._currentSectorStockCode) return;
+            const currentPeriods = window._sectorChanlunPeriods || 'MONTH,WEEK,DAY';
             openChanlunKline(
                 window._currentSectorStockCode, 
                 window._currentSectorStockName || window._currentSectorStockCode, 
                 event, 
-                'MONTH,WEEK,DAY', 
+                currentPeriods, 
                 window.CURRENT_SECTOR_STOCKS_DATA
             );
         };
@@ -18328,7 +18384,7 @@
                     <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" style="${inflow3dStyle}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                     <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" style="${inflow5dStyle}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-2 text-center">
-                        <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); openChanlunKline('${s.code}', '${s.name}', event, 'MONTH,WEEK,DAY', window.CURRENT_SECTOR_STOCKS_DATA)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论月周日多周期共振K线">缠论</a>
+                        <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); openChanlunKline('${s.code}', '${s.name}', event, window._sectorChanlunPeriods || 'MONTH,WEEK,DAY', window.CURRENT_SECTOR_STOCKS_DATA)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论月周日多周期共振K线">缠论</a>
                     </td>
                 </tr>
             `;
@@ -28405,29 +28461,42 @@
             let defaultZoomEnd = 100;
 
             if (side === 'sector' && n_bars > 0) {
-                // 行业核心成分股缠论窗口：默认展示半年 (约120~125个交易日) 的K线行情
-                let sixMonthsAgoIdx = Math.max(0, n_bars - 125);
-                const lastDateStr = dates[n_bars - 1];
-                if (lastDateStr) {
-                    try {
-                        const lastD = new Date(lastDateStr.replace(/-/g, '/'));
-                        const targetD = new Date(lastD);
-                        targetD.setMonth(targetD.getMonth() - 6);
-                        const targetTime = targetD.getTime();
-                        for (let i = n_bars - 1; i >= 0; i--) {
-                            const curTime = new Date(dates[i].replace(/-/g, '/')).getTime();
-                            if (curTime <= targetTime) {
-                                sixMonthsAgoIdx = i;
-                                break;
+                // 行业核心成分股缠论窗口：判断当前主图周期
+                const pStr = window._sectorChanlunPeriods || 'MONTH,WEEK,DAY';
+                const pList = pStr.split(',').map(s => s.trim().toUpperCase());
+                const lowestP = pList[pList.length - 1];
+                const isMinute = /^\d+F$/.test(lowestP);
+
+                if (isMinute) {
+                    // 分钟级别（如1F/5F/15F/30F/60F）：默认呈现最新120~160根活跃K线
+                    const visCount = Math.min(150, n_bars);
+                    defaultZoomStart = Math.max(0, Number((((n_bars - visCount) / n_bars) * 100).toFixed(2)));
+                    defaultZoomEnd = 100;
+                } else {
+                    // 日线及以上级别：默认呈现半年行情 (约120~125个交易日)
+                    let sixMonthsAgoIdx = Math.max(0, n_bars - 125);
+                    const lastDateStr = dates[n_bars - 1];
+                    if (lastDateStr) {
+                        try {
+                            const lastD = new Date(lastDateStr.replace(/-/g, '/'));
+                            const targetD = new Date(lastD);
+                            targetD.setMonth(targetD.getMonth() - 6);
+                            const targetTime = targetD.getTime();
+                            for (let i = n_bars - 1; i >= 0; i--) {
+                                const curTime = new Date(dates[i].replace(/-/g, '/')).getTime();
+                                if (curTime <= targetTime) {
+                                    sixMonthsAgoIdx = i;
+                                    break;
+                                }
                             }
-                        }
-                    } catch (_) {}
+                        } catch (_) {}
+                    }
+                    if (n_bars - sixMonthsAgoIdx < 100 && n_bars >= 125) {
+                        sixMonthsAgoIdx = Math.max(0, n_bars - 125);
+                    }
+                    defaultZoomStart = Math.max(0, Number(((sixMonthsAgoIdx / n_bars) * 100).toFixed(2)));
+                    defaultZoomEnd = 100;
                 }
-                if (n_bars - sixMonthsAgoIdx < 100 && n_bars >= 125) {
-                    sixMonthsAgoIdx = Math.max(0, n_bars - 125);
-                }
-                defaultZoomStart = Math.max(0, Number(((sixMonthsAgoIdx / n_bars) * 100).toFixed(2)));
-                defaultZoomEnd = 100;
             } else if (uc.high_bis && uc.high_bis.length > 0 && n_bars > 0) {
                 const highBis = uc.high_bis || [];
                 const targetBi = highBis[highBis.length - 1];
@@ -29020,7 +29089,7 @@
                 domId = 'sector-chanlun-echart';
                 titleElId = 'sector-cl-title-text';
                 patternElId = 'sector-cl-pattern-overlay';
-                periodLabel = '月·周·日';
+                periodLabel = window._sectorChanlunPeriods || '月·周·日';
                 instanceProp = 'sectorChanlunChart';
             }
 
