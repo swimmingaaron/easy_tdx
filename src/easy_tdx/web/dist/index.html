@@ -574,9 +574,9 @@
         #chanlun-echart-right,
         #chanlun-echart-w4 {
             width: 100%;
-            flex: 1;
+            flex: 1 1 0%;
             min-height: 0;
-            height: 100% !important;
+            height: auto;
         }
 
         /* 缠论回溯时间轴进度条样式 (亮色/暗色全适配，进度条轨迹与滑块清晰醒目) */
@@ -25182,7 +25182,7 @@
 
         window.toggleMaximizeChanlunWindow = function(side) {
             const now = Date.now();
-            if (now - _lastMaxToggleTs < 250) return;
+            if (now - _lastMaxToggleTs < 400) return;
             _lastMaxToggleTs = now;
 
             if (_clMaximizedWindow === side) {
@@ -25213,6 +25213,13 @@
                 w4: document.getElementById('cl-chart-card-w4')
             };
 
+            const dataMap = {
+                left: _clLeftCachedData || _clCachedData,
+                w2: _clW2CachedData,
+                right: _clRightCachedData,
+                w4: _clW4CachedData
+            };
+
             const charts = {
                 left: window.chanlunChart,
                 w2: window.chanlunChartW2,
@@ -25225,7 +25232,7 @@
                 const badge = document.getElementById(`cl-max-badge-${s}`);
                 if (s === side) {
                     card.style.display = '';
-                    card.className = 'w-full min-w-0 glass-card bg-[#0b0f19]/90 border border-purple-500/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col transition-all';
+                    card.className = 'w-full min-w-0 glass-card bg-[#0b0f19]/90 border border-purple-500/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
                     if (badge) {
                         badge.classList.remove('hidden');
                         badge.classList.add('inline-flex');
@@ -25239,10 +25246,23 @@
                 }
             });
 
+            // 立即计算全屏高度并赋予容器，避免任何延迟导致的底部空白
+            adjustChanlunLayoutHeight();
+
+            // 针对当前最大化窗口重新渲染，确保 ECharts grid、dataZoom、蜡烛图与中枢按全屏高度重新布局
+            if (dataMap[side]) {
+                renderSingleChanlunChart(side, dataMap[side]);
+            }
+
+            requestAnimationFrame(() => {
+                adjustChanlunLayoutHeight();
+                if (charts[side]) charts[side].resize();
+            });
+
             setTimeout(() => {
                 adjustChanlunLayoutHeight();
                 if (charts[side]) charts[side].resize();
-            }, 30);
+            }, 50);
         };
 
         window.exitMaximizeChanlunWindow = function() {
@@ -25255,6 +25275,10 @@
                 if (badge) {
                     badge.classList.add('hidden');
                     badge.classList.remove('inline-flex');
+                }
+                const card = document.getElementById(s === 'left' ? 'cl-chart-card-left' : (s === 'w2' ? 'cl-chart-card-w2' : (s === 'right' ? 'cl-chart-card-right' : 'cl-chart-card-w4')));
+                if (card) {
+                    card.style.minHeight = '';
                 }
             });
 
@@ -25270,12 +25294,12 @@
             const rect = splitContainer.getBoundingClientRect();
             const topOffset = rect.top;
             const bottomMargin = 12;
-            let targetH = window.innerHeight - topOffset - bottomMargin;
+            let targetH = window.innerHeight - Math.max(0, topOffset) - bottomMargin;
 
-            if (targetH < 350 || topOffset <= 0) {
-                targetH = Math.max(380, window.innerHeight - 230);
+            if (targetH < 380 || topOffset <= 0) {
+                targetH = Math.max(480, window.innerHeight - 200);
             }
-            targetH = Math.max(360, Math.floor(targetH));
+            targetH = Math.max(400, Math.floor(targetH));
 
             const cardLeft = document.getElementById('cl-chart-card-left');
             const cardW2 = document.getElementById('cl-chart-card-w2');
@@ -25284,7 +25308,10 @@
 
             if (_clMaximizedWindow) {
                 const maxCard = document.getElementById(_clMaximizedWindow === 'left' ? 'cl-chart-card-left' : (_clMaximizedWindow === 'w2' ? 'cl-chart-card-w2' : (_clMaximizedWindow === 'right' ? 'cl-chart-card-right' : 'cl-chart-card-w4')));
-                if (maxCard) maxCard.style.height = `${targetH}px`;
+                if (maxCard) {
+                    maxCard.style.height = `${targetH}px`;
+                    maxCard.style.minHeight = `${targetH}px`;
+                }
                 const charts = {
                     left: window.chanlunChart,
                     w2: window.chanlunChartW2,
@@ -25297,15 +25324,15 @@
 
             if (_clWindowMode === 'quad' || _clWindowMode === 'dual') {
                 const quadH = Math.max(330, Math.floor((targetH - 12) / 2));
-                if (cardLeft) cardLeft.style.height = `${quadH}px`;
-                if (cardW2) cardW2.style.height = `${quadH}px`;
-                if (cardRight) cardRight.style.height = `${quadH}px`;
-                if (cardW4) cardW4.style.height = `${quadH}px`;
+                if (cardLeft) { cardLeft.style.height = `${quadH}px`; cardLeft.style.minHeight = ''; }
+                if (cardW2) { cardW2.style.height = `${quadH}px`; cardW2.style.minHeight = ''; }
+                if (cardRight) { cardRight.style.height = `${quadH}px`; cardRight.style.minHeight = ''; }
+                if (cardW4) { cardW4.style.height = `${quadH}px`; cardW4.style.minHeight = ''; }
             } else {
-                if (cardLeft) cardLeft.style.height = `${targetH}px`;
-                if (cardW2) cardW2.style.height = `${targetH}px`;
-                if (cardRight) cardRight.style.height = `${targetH}px`;
-                if (cardW4) cardW4.style.height = `${targetH}px`;
+                if (cardLeft) { cardLeft.style.height = `${targetH}px`; cardLeft.style.minHeight = `${targetH}px`; }
+                if (cardW2) { cardW2.style.height = `${targetH}px`; cardW2.style.minHeight = `${targetH}px`; }
+                if (cardRight) { cardRight.style.height = `${targetH}px`; cardRight.style.minHeight = `${targetH}px`; }
+                if (cardW4) { cardW4.style.height = `${targetH}px`; cardW4.style.minHeight = `${targetH}px`; }
             }
 
             if (window.chanlunChart) window.chanlunChart.resize();
@@ -29271,7 +29298,11 @@
                     }
                 });
                 if (['left', 'w2', 'right', 'w4'].includes(side)) {
-                    instance.getZr().on('dblclick', () => {
+                    instance.getZr().off('dblclick');
+                    instance.getZr().on('dblclick', (e) => {
+                        if (e && e.event && typeof e.event.stopPropagation === 'function') {
+                            e.event.stopPropagation();
+                        }
                         toggleMaximizeChanlunWindow(side);
                     });
                 }
@@ -29433,74 +29464,16 @@
                 }
             });
 
-            // 监听鼠标双击事件：双击 K 线时，将回溯截止日期设为此处，模拟历史当下
+            // 监听鼠标双击事件：双击窗口任意位置 (包含K线、图表空白、副图等)，最大化该窗口 (单窗全宽全屏显示)，再次双击或按ESC退出
             instance.off('dblclick');
-            instance.on('dblclick', (params) => {
-                let targetDate = null;
-                const hovered = _clHoveredCandle[side];
-
-                // 1. 优先使用鼠标当前悬停/吸附的蜡烛日期（杜绝中枢色块、笔线段、K线间隙导致的误判）
-                if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
-                    if (/^\d{4}[-/]\d{2}/.test(hovered.date)) {
-                        targetDate = hovered.date;
+            if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                instance.on('dblclick', (params) => {
+                    if (params && params.event && typeof params.event.stopPropagation === 'function') {
+                        params.event.stopPropagation();
                     }
-                }
-
-                // 2. 检查 params.name 是否包含合法日期格式（严格过滤中枢名、画线名、空白等）
-                if (!targetDate && params && params.name) {
-                    const nStr = String(params.name).trim();
-                    if (/^\d{4}[-/]\d{2}/.test(nStr)) {
-                        targetDate = nStr;
-                    }
-                }
-
-                // 3. 检查 params.dataIndex
-                if (!targetDate && params && typeof params.dataIndex === 'number' && dates[params.dataIndex]) {
-                    const dStr = String(dates[params.dataIndex]).trim();
-                    if (/^\d{4}[-/]\d{2}/.test(dStr)) {
-                        targetDate = dStr;
-                    }
-                }
-
-                // 4. 坐标系换算兜底（严格防跳回第0根：严禁超出当前可视区域范围）
-                if (!targetDate && params && params.event) {
-                    try {
-                        const zrEvt = params.event;
-                        const px = (zrEvt && typeof zrEvt.zrX === 'number') ? zrEvt.zrX : (zrEvt && typeof zrEvt.offsetX === 'number' ? zrEvt.offsetX : null);
-                        const py = (zrEvt && typeof zrEvt.zrY === 'number') ? zrEvt.zrY : (zrEvt && typeof zrEvt.offsetY === 'number' ? zrEvt.offsetY : null);
-                        if (px != null && py != null) {
-                            const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
-                            if (pointInGrid && typeof pointInGrid[0] === 'number' && !isNaN(pointInGrid[0])) {
-                                const xIdx = Math.round(pointInGrid[0]);
-                                // 检查当前视口范围，严禁异常降级到远在可视区域外的第0根！
-                                const opt = instance.getOption();
-                                const zoom = opt && opt.dataZoom && opt.dataZoom[0];
-                                let minValidIdx = 0;
-                                let maxValidIdx = dates.length - 1;
-                                if (zoom && typeof zoom.start === 'number' && typeof zoom.end === 'number') {
-                                    minValidIdx = Math.max(0, Math.floor((zoom.start / 100) * dates.length) - 5);
-                                    maxValidIdx = Math.min(dates.length - 1, Math.ceil((zoom.end / 100) * dates.length) + 5);
-                                }
-                                if (xIdx >= minValidIdx && xIdx <= maxValidIdx && dates[xIdx]) {
-                                    const candidate = String(dates[xIdx]).trim();
-                                    if (/^\d{4}[-/]\d{2}/.test(candidate)) {
-                                        targetDate = candidate;
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_) {}
-                }
-
-                // 5. 兜底：如果悬停记录存在过有效日期，使用该日期，绝不跳到第 0 根
-                if (!targetDate && hovered && hovered.date && /^\d{4}[-/]\d{2}/.test(hovered.date)) {
-                    targetDate = hovered.date;
-                }
-
-                if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
-                    setChanlunBacktrackDateToBar(targetDate, side);
-                }
-            });
+                    toggleMaximizeChanlunWindow(side);
+                });
+            }
 
             if (!chartDom._hasLeaveListener) {
                 chartDom._hasLeaveListener = true;
