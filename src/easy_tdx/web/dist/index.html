@@ -4991,7 +4991,7 @@
             <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏，默认四窗口) -->
             <div id="cl-charts-split-container" class="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
                 <!-- 窗口 1: 季·月·周 (左上窗/第1窗) -->
-                <div id="cl-chart-card-left" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('left')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-left" ondblclick="handleChanlunCardDblClick('left', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5048,7 +5048,7 @@
                 </div>
 
                 <!-- 窗口 2: 月·周·日 (右上窗/第2窗) -->
-                <div id="cl-chart-card-w2" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('w2')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-w2" ondblclick="handleChanlunCardDblClick('w2', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5105,7 +5105,7 @@
                 </div>
 
                 <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
-                <div id="cl-chart-card-right" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('right')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-right" ondblclick="handleChanlunCardDblClick('right', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5164,7 +5164,7 @@
                 </div>
 
                 <!-- 窗口 4: 日·30F·5F (右下窗/第4窗) -->
-                <div id="cl-chart-card-w4" ondblclick="if(!event.target.closest('select, input, button, a, option, optgroup')) toggleMaximizeChanlunWindow('w4')" title="双击窗口最大化显示 (按ESC退出)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-w4" ondblclick="handleChanlunCardDblClick('w4', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -25190,6 +25190,7 @@
 
         window.toggleMaximizeChanlunWindow = function(side) {
             const now = Date.now();
+            if (now - (window._lastBarDblClickTs || 0) < 500) return;
             if (now - _lastMaxToggleTs < 400) return;
             _lastMaxToggleTs = now;
 
@@ -25198,6 +25199,18 @@
             } else {
                 maximizeChanlunWindow(side);
             }
+        };
+
+        window.handleChanlunCardDblClick = function(side, event) {
+            const now = Date.now();
+            if (now - (window._lastBarDblClickTs || 0) < 500) return;
+            if (event && event.target) {
+                // 忽略下拉、输入框、按钮等交互控件
+                if (event.target.closest('select, input, button, a, option, optgroup, .cl-search-item')) return;
+                // 如果双击的是 canvas 画布内部，交由 canvas 专属的 ZRender/ECharts 监听精确区分 K线与空白
+                if (event.target.tagName === 'CANVAS' || event.target.closest('canvas')) return;
+            }
+            toggleMaximizeChanlunWindow(side);
         };
 
         window.maximizeChanlunWindow = function(side) {
@@ -29267,6 +29280,7 @@
                             ]
                         },
                         markLine: {
+                            silent: true,
                             data: [
                                 ...resVerticalLines,
                                 ...lowBiLines,     // 小周期底层
@@ -29277,6 +29291,7 @@
                             symbolSize: visibleBarCount > 400 ? 0 : 3.5
                         },
                         markArea: {
+                            silent: true,
                             data: [
                                 ...lowZsAreas,     // 小中枢底层
                                 ...midZsAreas,     // 中中枢中间层
@@ -29415,15 +29430,7 @@
                         checkAndTriggerDynamicZoom(side, instance);
                     }
                 });
-                if (['left', 'w2', 'right', 'w4'].includes(side)) {
-                    instance.getZr().off('dblclick');
-                    instance.getZr().on('dblclick', (e) => {
-                        if (e && e.event && typeof e.event.stopPropagation === 'function') {
-                            e.event.stopPropagation();
-                        }
-                        toggleMaximizeChanlunWindow(side);
-                    });
-                }
+                // 针对画布的空白与图元双击监听在 renderChanlunWindow 中统一精确派发
                 window[instanceProp] = instance;
             }
 
@@ -29582,12 +29589,71 @@
                 }
             });
 
-            // 监听鼠标双击事件：双击窗口任意位置 (包含K线、图表空白、副图等)，最大化该窗口 (单窗全宽全屏显示)，再次双击或按ESC退出
+            // 监听鼠标双击事件：区分对待两种双击功能
+            // 1. 如果双击落在某根K线蜡烛图上 (或其买卖点/九转标记)，回溯到该日
+            // 2. 如果双击落在空白区域上 (画布空白、副图空白、图表间隙等)，单屏放大显示 (按ESC退出)
             instance.off('dblclick');
             if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                // A. 图元点击监听：当双击命中具体数据项时触发 (如K线、markPoint)
                 instance.on('dblclick', (params) => {
+                    let targetDate = null;
+                    const isCandleSeries = params && (
+                        params.seriesType === 'candlestick' || 
+                        (params.componentType === 'series' && params.seriesName === '基准K线')
+                    );
+                    const isMark = params && (
+                        params.componentType === 'markPoint' ||
+                        params.componentType === 'markLine'
+                    );
+
+                    if (isCandleSeries || isMark) {
+                        // 1. 优先读取 params.name (类目轴的类目名称即日期)
+                        if (params.name && /^\d{4}[-/]\d{2}/.test(String(params.name).trim())) {
+                            targetDate = String(params.name).trim();
+                        }
+                        // 2. 读取 params.dataIndex
+                        if (!targetDate && params.dataIndex != null && dates[params.dataIndex]) {
+                            const dStr = String(dates[params.dataIndex]).trim();
+                            if (/^\d{4}[-/]\d{2}/.test(dStr)) {
+                                targetDate = dStr;
+                            }
+                        }
+                        // 3. 读取 markPoint 坐标
+                        if (!targetDate && params.data && Array.isArray(params.data.coord) && params.data.coord[0]) {
+                            const cStr = String(params.data.coord[0]).trim();
+                            if (/^\d{4}[-/]\d{2}/.test(cStr)) {
+                                targetDate = cStr;
+                            }
+                        }
+                    }
+
+                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
+                        // 命中某根K线：执行回溯到该日！
+                        window._lastBarDblClickTs = Date.now();
+                        if (params && params.event && params.event.event && typeof params.event.event.stopPropagation === 'function') {
+                            params.event.event.stopPropagation();
+                        }
+                        setChanlunBacktrackDateToBar(targetDate, side);
+                        return;
+                    }
+
+                    // 双击其他非K线图元：按空白区域处理，切换单屏放大显示
+                    if (Date.now() - (window._lastBarDblClickTs || 0) < 500) return;
                     if (params && params.event && typeof params.event.stopPropagation === 'function') {
                         params.event.stopPropagation();
+                    }
+                    toggleMaximizeChanlunWindow(side);
+                });
+
+                // B. ZRender 底层画布监听：当双击落在纯空白区域 (没有命中任何图元，!e.target) 时触发
+                instance.getZr().off('dblclick');
+                instance.getZr().on('dblclick', (e) => {
+                    // 若双击在具体图元上 (如K线、标记等)，交由 instance.on('dblclick') 处理回溯
+                    if (e && e.target) return;
+                    // 若刚刚触发了K线回溯，防止并发
+                    if (Date.now() - (window._lastBarDblClickTs || 0) < 500) return;
+                    if (e && e.event && typeof e.event.stopPropagation === 'function') {
+                        e.event.stopPropagation();
                     }
                     toggleMaximizeChanlunWindow(side);
                 });
