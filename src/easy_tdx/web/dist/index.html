@@ -4846,6 +4846,7 @@
                             <select id="cl-select-win-mode" onchange="setChanlunWindowMode(this.value)"
                                 class="h-6 bg-transparent text-purple-600 dark:text-purple-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
                                 <option value="quad" selected>⊞ 四窗口 (日·30F·周·月)</option>
+                                <option value="dual_h">◫ 双窗口 (左右对比)</option>
                                 <option value="dual">⬒ 双窗口 (上下对比)</option>
                                 <option value="single">⬜ 单窗口 (全宽显示)</option>
                             </select>
@@ -7099,7 +7100,7 @@
                                 if (typeof updateChanlunNavButtons === 'function') updateChanlunNavButtons();
                                 if (window.chanlunChart) window.chanlunChart.resize();
                                 if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
-                                if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
+                                if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
                                 if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
                                 if (typeof attachTdxSelectionToChanlunCharts === 'function') attachTdxSelectionToChanlunCharts();
                             }, 50);
@@ -25194,7 +25195,7 @@
 
             if (window.chanlunChart) window.chanlunChart.resize();
             if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
-            if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
+            if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
             if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
         }
 
@@ -25230,6 +25231,26 @@
                 setTimeout(() => {
                     adjustChanlunLayoutHeight();
                     if (!_clW2CachedData || !_clRightCachedData || !_clW4CachedData) {
+                        loadChanlunData(false);
+                    } else {
+                        renderChanlunChart();
+                    }
+                }, 50);
+            } else if (mode === 'dual_h') {
+                if (splitContainer) splitContainer.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 w-full';
+                if (cardLeft) {
+                    cardLeft.style.display = '';
+                    cardLeft.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW2) cardW2.style.display = 'none';
+                if (cardRight) {
+                    cardRight.style.display = '';
+                    cardRight.className = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
+                }
+                if (cardW4) cardW4.style.display = 'none';
+                setTimeout(() => {
+                    adjustChanlunLayoutHeight();
+                    if (!_clRightCachedData) {
                         loadChanlunData(false);
                     } else {
                         renderChanlunChart();
@@ -25643,7 +25664,7 @@
                         _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
                         renderSingleChanlunChart('w4', _clW4CachedData);
                     }
-                } else if (_clWindowMode === 'dual' && _clBacktrackCache.has(cacheKeyRight)) {
+                } else if ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') && _clBacktrackCache.has(cacheKeyRight)) {
                     _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
@@ -25682,7 +25703,7 @@
 
             if (loadingOverlay) loadingOverlay.style.display = (!hasLeftData && !_clIsBacktracking) ? 'flex' : 'none';
             if (loadingOverlayW2 && _clWindowMode === 'quad') loadingOverlayW2.style.display = (!hasW2Data && !_clIsBacktracking) ? 'flex' : 'none';
-            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'quad')) loadingOverlayRight.style.display = (!hasRightData && !_clIsBacktracking) ? 'flex' : 'none';
+            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) loadingOverlayRight.style.display = (!hasRightData && !_clIsBacktracking) ? 'flex' : 'none';
             if (loadingOverlayW4 && _clWindowMode === 'quad') loadingOverlayW4.style.display = (!hasW4Data && !_clIsBacktracking) ? 'flex' : 'none';
 
             try {
@@ -25810,7 +25831,7 @@
                     if (primaryKey !== 'w2') secondaryPromises.push(renderWindowProgressive('w2', _clW2Periods, false));
                     if (primaryKey !== 'right') secondaryPromises.push(renderWindowProgressive('right', _clRightPeriods, false));
                     if (primaryKey !== 'w4') secondaryPromises.push(renderWindowProgressive('w4', _clW4Periods, false));
-                } else if (_clWindowMode === 'dual') {
+                } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
                     if (primaryKey !== 'left') secondaryPromises.push(renderWindowProgressive('left', _clLeftPeriods, false));
                     if (primaryKey !== 'right') secondaryPromises.push(renderWindowProgressive('right', _clRightPeriods, false));
                 }
@@ -29399,7 +29420,7 @@
                 if (_clW2CachedData) renderSingleChanlunChart('w2', _clW2CachedData);
                 if (_clRightCachedData) renderSingleChanlunChart('right', _clRightCachedData);
                 if (_clW4CachedData) renderSingleChanlunChart('w4', _clW4CachedData);
-            } else if (_clWindowMode === 'dual' && _clRightCachedData) {
+            } else if ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') && _clRightCachedData) {
                 renderSingleChanlunChart('right', _clRightCachedData);
             }
         }
@@ -30321,7 +30342,7 @@
                 chartMap.w2 = window.chanlunChartW2;
                 chartMap.right = window.chanlunChartRight;
                 chartMap.w4 = window.chanlunChartW4;
-            } else if (_clWindowMode === 'dual') {
+            } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
                 chartMap.right = window.chanlunChartRight;
             }
 
