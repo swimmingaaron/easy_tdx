@@ -25786,6 +25786,8 @@
                     }
                 });
                 setTimeout(adjustChanlunLayoutHeight, 30);
+                window._clResetZoomToLatest = false;
+                window._clForceAlignLatestBar = false;
             });
         }
 
@@ -25967,7 +25969,7 @@
                 }
 
                 // 极速四窗口全并行秒级聚合流水线：单次请求拉回 4 窗口全部数据，彻底消除多请求网络排队争用！
-                if (_clWindowMode === 'quad' && !_clIsBacktracking) {
+                if (_clWindowMode === 'quad') {
                     const qQuery = new URLSearchParams();
                     qQuery.set('code', _clCurrentCode);
                     qQuery.set('periods_w1', _clLeftPeriods);
@@ -25975,6 +25977,9 @@
                     qQuery.set('periods_w3', _clRightPeriods);
                     qQuery.set('periods_w4', _clW4Periods);
                     qQuery.set('count', '800');
+                    if (_clIsBacktracking && _clBacktrackDate) {
+                        qQuery.set('cutoff_date', _clBacktrackDate);
+                    }
                     if (forceRefresh) qQuery.set('force_refresh', 'true');
 
                     const qResp = await fetch(`/api/v1/chanlun/quad_resonance?${qQuery.toString()}`, { signal });
@@ -25983,7 +25988,9 @@
                     if (reqCode !== _clCurrentCode) return;
 
                     const wins = qJson.windows || {};
-                    _clRealtimeCache.set(quadKey, { time: Date.now(), wins: wins });
+                    if (!_clIsBacktracking) {
+                        _clRealtimeCache.set(quadKey, { time: Date.now(), wins: wins });
+                    }
                     applyQuadWindowsData(wins);
                     return;
                 }
@@ -26023,7 +26030,10 @@
                 }
             } finally {
                 _clIsDataLoading = false;
-                window._clResetZoomToLatest = false;
+                if (_clWindowMode !== 'quad') {
+                    window._clResetZoomToLatest = false;
+                    window._clForceAlignLatestBar = false;
+                }
                 if (refreshIcon) {
                     setTimeout(() => {
                         refreshIcon.classList.remove('animate-spin');
@@ -27071,20 +27081,21 @@
                             coord: [dt, high],
                             value: String(hVal),
                             symbol: 'circle',
-                            symbolSize: 0.001,
-                            symbolOffset: [0, 0],
+                            symbolSize: 14,
+                            symbolOffset: [0, -10],
                             itemStyle: {
-                                opacity: 0
+                                color: 'transparent',
+                                borderColor: 'transparent',
+                                borderWidth: 0
                             },
                             silent: true,
                             label: {
                                 show: true,
-                                position: 'top',
-                                distance: 2,
+                                position: 'inside',
                                 formatter: String(hVal),
                                 color: isDark ? '#ff00ff' : '#dc2626',
                                 fontWeight: 'bold',
-                                fontSize: 9.5,
+                                fontSize: 10,
                                 fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
                                 textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
                                 textBorderWidth: 1.5
@@ -27145,20 +27156,21 @@
                             coord: [dt, low],
                             value: String(lVal),
                             symbol: 'circle',
-                            symbolSize: 0.001,
-                            symbolOffset: [0, 0],
+                            symbolSize: 14,
+                            symbolOffset: [0, 10],
                             itemStyle: {
-                                opacity: 0
+                                color: 'transparent',
+                                borderColor: 'transparent',
+                                borderWidth: 0
                             },
                             silent: true,
                             label: {
                                 show: true,
-                                position: 'bottom',
-                                distance: 2,
+                                position: 'inside',
                                 formatter: String(lVal),
                                 color: isDark ? '#00ff00' : '#16a34a',
                                 fontWeight: 'bold',
-                                fontSize: 9.5,
+                                fontSize: 10,
                                 fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
                                 textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
                                 textBorderWidth: 1.5
@@ -28802,14 +28814,18 @@
                 }
             }
 
+            const shouldResetToLatest = Boolean(window._clResetZoomToLatest || window._clForceAlignLatestBar);
             const finalStart = (() => {
+                if (shouldResetToLatest) {
+                    return Math.max(0, 100 - (100 / (n_bars || 1)) * 110);
+                }
                 if (prevDataZoom && (prevDataZoom.end - prevDataZoom.start) > 2) {
                     const prevBars = (prevDataZoom.end - prevDataZoom.start) / 100 * dates.length;
                     if (prevBars >= 10) return prevDataZoom.start;
                 }
                 return defaultZoomStart;
             })();
-            const finalEnd = prevDataZoom ? prevDataZoom.end : defaultZoomEnd;
+            const finalEnd = shouldResetToLatest ? 100 : (prevDataZoom ? prevDataZoom.end : defaultZoomEnd);
 
             // 动态贴合可视区间的上下界 (呼吸留白6%)，保证Y轴绝不从0开始，自动调整高度
             let visMinL = Infinity;
@@ -29518,7 +29534,7 @@
 
             let prevDataZoom = customPrevZoom;
             const targetCurrentCode = (side === 'sector') ? window._currentSectorStockCode : _clCurrentCode;
-            if (window._clResetZoomToLatest) {
+            if (window._clResetZoomToLatest || window._clForceAlignLatestBar) {
                 // 历史回溯跳转时：重置缩放视图，确保所有窗口最右侧最新K线全部对齐跳转至该日期！
                 prevDataZoom = null;
             } else if (!prevDataZoom) {
@@ -29574,12 +29590,39 @@
             });
 
             // 监听鼠标双击事件：精确区分 K线点击 与 空白区域点击
-            // 1. 如果双击落在某根K线蜡烛图上 (或其标记)，触发历史回溯，所有窗口最新K线跳到此处的日期
+            // 1. 如果双击落在某根K线蜡烛图上 (或其标记)，触发历史回溯，所有窗口最新K线全部对齐跳到此处的日期
             // 2. 如果双击落在空白区域上，单屏放大显示 (按ESC退出)
             instance.off('dblclick');
             instance.getZr().off('dblclick');
 
             if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                // A. ECharts 图元原生双击监听：直接捕获 K 线蜡烛实体、九转标记、买卖点等
+                instance.on('dblclick', (params) => {
+                    let targetDate = null;
+                    if (params) {
+                        if (params.seriesType === 'candlestick' && params.name) {
+                            targetDate = params.name;
+                        } else if (params.componentType === 'markPoint') {
+                            if (params.data && params.data.coord && params.data.coord[0]) {
+                                targetDate = params.data.coord[0];
+                            } else if (params.name && /^\d{4}/.test(params.name)) {
+                                targetDate = params.name;
+                            }
+                        } else if (params.dataIndex != null && dates && dates[params.dataIndex]) {
+                            targetDate = dates[params.dataIndex];
+                        }
+                    }
+
+                    if (targetDate && /^\d{4}[-/]\d{2}/.test(String(targetDate).trim())) {
+                        window._lastBarDblClickTs = Date.now();
+                        if (params.event && typeof params.event.stopPropagation === 'function') {
+                            params.event.stopPropagation();
+                        }
+                        setChanlunBacktrackDateToBar(targetDate, side);
+                    }
+                });
+
+                // B. ZRender 底层画布双击监听：判定击中范围与空白区域
                 instance.getZr().on('dblclick', (e) => {
                     const now = Date.now();
                     if (now - (window._lastBarDblClickTs || 0) < 500) return;
@@ -29599,12 +29642,21 @@
                                     const high = Number(c[3]);
                                     const yPrice = pt[1];
                                     const span = Math.max(0.01, high - low);
-                                    // 容差判定：若点击落在该K线价格上下 40% 范围内，精确判定为击中该K线
-                                    if (yPrice >= (low - span * 0.4 - 0.02) && yPrice <= (high + span * 0.4 + 0.02)) {
+                                    // 宽松容差判定：上下延伸 80% span，兼顾极小实体及上方买卖点/九转数字
+                                    const yBuffer = Math.max(span * 0.8, (visMaxH - visMinL) * 0.08);
+                                    if (yPrice >= (low - yBuffer) && yPrice <= (high + yBuffer)) {
                                         targetDate = dates[xIdx];
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // 兜底：如果刚刚光标悬停在某根K线上且双击位于主图上半区域
+                    if (!targetDate && _clHoveredCandle[side] && (now - (_clHoveredCandle[side].time || 0) < 3000)) {
+                        const py = (typeof e.zrY === 'number') ? e.zrY : ((typeof e.offsetY === 'number') ? e.offsetY : null);
+                        if (py != null && py < (instance.getHeight() * 0.75)) {
+                            targetDate = _clHoveredCandle[side].date;
                         }
                     }
 
@@ -29613,8 +29665,8 @@
                         targetDate = dates[e.target.dataIndex];
                     }
 
-                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate)) {
-                        // 击中某根K线蜡烛图：执行历史回溯，所有窗口最新K线跳到该日
+                    if (targetDate && /^\d{4}[-/]\d{2}/.test(String(targetDate).trim())) {
+                        // 击中某根K线蜡烛图：执行历史回溯，所有窗口最新K线全部对齐跳到该日
                         window._lastBarDblClickTs = now;
                         if (e.event && typeof e.event.stopPropagation === 'function') {
                             e.event.stopPropagation();
@@ -30106,6 +30158,7 @@
             });
 
             window._clResetZoomToLatest = true;
+            window._clForceAlignLatestBar = true;
 
             if (allInCache) {
                 _clLeftCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate));

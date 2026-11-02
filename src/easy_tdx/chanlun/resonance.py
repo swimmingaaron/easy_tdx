@@ -2612,6 +2612,21 @@ def analyze_quad_resonance(
         for p_name, df in pool.map(_fetch_p, unique_periods):
             raw_dfs[p_name] = df
 
+    # 如果指定了 cutoff_date，进行历史无未来切除，确保 precomputed 结果与各窗口计算严密对齐
+    if cutoff_date and str(cutoff_date).strip():
+        try:
+            cutoff_dt = pd.to_datetime(str(cutoff_date).strip())
+            for p_name in list(raw_dfs.keys()):
+                df_cur = raw_dfs[p_name]
+                if not df_cur.empty and "datetime" in df_cur.columns:
+                    dts = pd.to_datetime(df_cur["datetime"].astype(str))
+                    sub_df = df_cur[dts <= cutoff_dt].copy().reset_index(drop=True)
+                    if len(sub_df) < 15:
+                        sub_df = df_cur.iloc[:min(len(df_cur), 30)].copy().reset_index(drop=True)
+                    raw_dfs[p_name] = sub_df
+        except Exception as e:
+            logger.debug("四窗口截断处理异常 %s: %s", clean_code, e)
+
     # 3. 单次并行解析 6 个唯一周期的 ChanlunAnalyser（消灭跨窗口重复计算！）
     def _ana_p(p_name: str) -> tuple[str, ChanlunResult]:
         df = raw_dfs.get(p_name)
