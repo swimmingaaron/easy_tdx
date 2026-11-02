@@ -5123,7 +5123,10 @@
                             <div id="cl-tier-box-right" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
                                 <select id="cl-tier-select-right" onchange="changeWindowKlineCount('right', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
                                     <option value="800" selected>800根 (初)</option>
-                                    <option value="3200">3200根 (满)</option>
+                                    <option value="3200">3200根</option>
+                                    <option value="4800">4800根</option>
+                                    <option value="9600">9600根</option>
+                                    <option value="12000">12000根 (满)</option>
                                 </select>
                             </div>
                             <select id="cl-select-preset-right" onchange="applyChanlunWindowPreset('right', this.value)" class="h-5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1 font-mono text-[10.5px] outline-none cursor-pointer">
@@ -30177,7 +30180,7 @@
         function getWindowKlineTiers(side) {
             const lowest = getWindowLowestPeriod(side);
             if (lowest === '30F' || lowest === '30M') {
-                return [800, 3200];
+                return [800, 3200, 4800, 9600, 12000];
             } else if (lowest === '5F' || lowest === '5M' || lowest === '1F' || lowest === '1M') {
                 return [800, 4800, 9600, 12000];
             } else {
@@ -30215,7 +30218,7 @@
             sel.innerHTML = tiers.map(t => {
                 let tag = '';
                 if (t === 800) tag = ' (初)';
-                else if (t >= 12000) tag = ' (满)';
+                else if (t === tiers[tiers.length - 1]) tag = ' (满)';
                 return `<option value="${t}" ${t === curCount ? 'selected' : ''} class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">${t}根${tag}</option>`;
             }).join('');
             sel.value = String(curCount);
