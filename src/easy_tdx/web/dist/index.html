@@ -2895,9 +2895,9 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- 2. 行业主线与板块成分股 占 2/3 区域 (lg:col-span-2), 其中1半显示板块信息, 另一半显示板块成分股信息 -->
-                <div class="glass-card p-5 rounded-2xl lg:col-span-3 flex flex-col">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <!-- 2. 行业主线与板块成分股 占 7/12 区域 -->
+                <div class="glass-card p-5 rounded-2xl lg:col-span-7 xl:col-span-7 flex flex-col">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 h-full">
                         <!-- 板块信息 (占 1/2 of 2/3) -->
                         <div
@@ -3037,14 +3037,52 @@
                     </div>
                 </div>
 
-                <!-- 2. 全市场涨跌幅分布直方图 占 1/4 区域 (lg:col-span-1) -->
-                <div class="glass-card p-5 rounded-2xl lg:col-span-1 flex flex-col justify-between">
-                    <div class="flex flex-wrap justify-between items-center gap-1.5 mb-3">
-                        <h4 class="text-sm font-semibold text-slate-200 flex items-center"><i data-lucide="bar-chart-2"
-                                class="w-4 h-4 mr-2 text-cyan-400"></i>全市场涨跌幅分布直方图</h4>
-                        <span id="chart-breadth-ratio" class="text-[11px] font-mono text-slate-400"></span>
+                <!-- 2. 行业核心成分股 缠论月周日多周期共振 K线窗口 (占 5/12 区域) -->
+                <div id="sector-chanlun-card" class="glass-card p-4 rounded-2xl lg:col-span-5 xl:col-span-5 flex flex-col justify-between relative overflow-hidden" style="min-height: 460px;">
+                    <!-- 顶部标题与控制工具栏 -->
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-2 pb-2 border-b border-slate-800/80">
+                        <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-purple-950/80 text-purple-300 border border-purple-800/60" title="当前共振周期：月线(中枢) + 周线(笔) + 日线(主图)">月·周·日</span>
+                            <span id="sector-cl-stock-name" class="font-bold text-white text-sm font-sans tracking-tight">--</span>
+                            <span id="sector-cl-stock-code" class="text-xs font-mono text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded cursor-pointer hover:underline" title="点击在雪球查看行情">--</span>
+                            <span id="sector-cl-title-text-price" class="stock-title-price font-bold font-mono text-xs text-slate-300">--</span>
+                            <span id="sector-cl-title-text-chg" class="stock-title-chg font-bold font-mono text-xs text-slate-400">--</span>
+                            <!-- 隐藏的标题定位DOM，供 updateWindowHeaderCandle 动态更新 -->
+                            <span id="sector-cl-title-text" class="hidden"></span>
+                        </div>
+                        <div class="flex items-center space-x-1.5">
+                            <button type="button" onclick="switchSectorChanlunStock(-1)" class="px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition cursor-pointer" title="上一只成分股">
+                                <span>▲ 上一只</span>
+                            </button>
+                            <button type="button" onclick="switchSectorChanlunStock(1)" class="px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition cursor-pointer" title="下一只成分股">
+                                <span>▼ 下一只</span>
+                            </button>
+                            <button type="button" onclick="openSectorStockChanlunFullscreen(event)" class="px-2 py-0.5 rounded text-[11px] font-medium bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center space-x-1 transition cursor-pointer" title="在新标签页中全屏查看该股缠论月周日多周期共振图">
+                                <span>全屏</span>
+                                <i data-lucide="external-link" class="w-3 h-3"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="h-64 w-full"><canvas id="breadthChart"></canvas></div>
+
+                    <!-- 缠论周期笔线段/买卖点即时状态条 -->
+                    <div id="sector-cl-pattern-overlay" class="flex items-center space-x-1.5 text-[10.5px] font-sans pb-1 overflow-x-auto min-h-[22px]"></div>
+
+                    <!-- ECharts 容器 -->
+                    <div class="relative w-full flex-1 flex flex-col" style="min-height: 380px;">
+                        <div id="sector-chanlun-echart" class="w-full flex-1" style="min-height: 380px;"></div>
+
+                        <!-- 加载中遮罩 -->
+                        <div id="sector-cl-loading-overlay" class="absolute inset-0 bg-slate-900/70 backdrop-blur-xs flex flex-col items-center justify-center z-20 hidden">
+                            <i data-lucide="loader-2" class="w-6 h-6 animate-spin text-cyan-400 mb-2"></i>
+                            <span class="text-xs text-slate-300 font-sans">正在解析月·周·日缠论共振结构...</span>
+                        </div>
+
+                        <!-- 空数据提示 -->
+                        <div id="sector-cl-empty-overlay" class="absolute inset-0 flex flex-col items-center justify-center z-10 text-slate-500 text-xs hidden">
+                            <i data-lucide="trending-up" class="w-8 h-8 text-slate-600 mb-2 stroke-1"></i>
+                            <span>点击左侧核心成分股查看缠论K线</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -6993,6 +7031,7 @@
                         if (t === 'dashboard') {
                             setTimeout(() => {
                                 if (window.breadthChart) window.breadthChart.resize();
+                                if (window.sectorChanlunChart) window.sectorChanlunChart.resize();
                                 loadDashboardData();
                                 loadRealtimeQuotes();
                             }, 50);
@@ -7268,7 +7307,11 @@
             let foundNavList = (Array.isArray(navList) && navList.length > 0) ? navList : null;
             let strategyTitle = '';
             if (foundNavList) {
-                strategyTitle = '自选监控实时行情池';
+                if (window.CURRENT_SECTOR_STOCKS_DATA && foundNavList === window.CURRENT_SECTOR_STOCKS_DATA) {
+                    strategyTitle = window.CURRENT_SECTOR_NAME ? `【${window.CURRENT_SECTOR_NAME}】核心成分股` : '板块核心成分股';
+                } else {
+                    strategyTitle = '自选监控实时行情池';
+                }
             }
             if (!foundNavList && typeof resolveNavListForStock === 'function') {
                 foundNavList = resolveNavListForStock(cleanCode, name);
@@ -7440,6 +7483,11 @@
                 // Re-render Chanlun chart
                 if (window.chanlunChart && typeof _clCachedData !== 'undefined' && _clCachedData) {
                     renderChanlunChart(_clCachedData);
+                }
+                if (window.sectorChanlunChart && window._sectorChanlunData) {
+                    window.sectorChanlunChart.dispose();
+                    window.sectorChanlunChart = null;
+                    renderSingleChanlunChart('sector', window._sectorChanlunData);
                 }
                 // 同步刷新保留区间统计浮动标签和选框样式
                 try {
@@ -10588,6 +10636,7 @@
 
             window.addEventListener('resize', () => {
                 hideKpContextMenu();
+                if (window.sectorChanlunChart) window.sectorChanlunChart.resize();
             });
         }
 
@@ -18061,6 +18110,110 @@
             return 'color: #64748b !important;';
         }
 
+        let _currentSectorStockCode = null;
+        let _currentSectorStockName = null;
+        let _sectorChanlunData = null;
+
+        async function loadSectorChanlun(code, name, price = null, chgPct = null) {
+            if (!code) return;
+            const cleanCode = String(code).trim().replace(/[^0-9]/g, '');
+            if (!cleanCode) return;
+
+            window._currentSectorStockCode = cleanCode;
+            window._currentSectorStockName = name || cleanCode;
+
+            // 1. 更新卡片头部股票基本信息与价格
+            const nameEl = document.getElementById('sector-cl-stock-name');
+            const codeEl = document.getElementById('sector-cl-stock-code');
+            const priceEl = document.getElementById('sector-cl-title-text-price');
+            const chgEl = document.getElementById('sector-cl-title-text-chg');
+
+            if (nameEl) nameEl.textContent = name || cleanCode;
+            if (codeEl) {
+                codeEl.textContent = cleanCode;
+                codeEl.onclick = (e) => {
+                    e.stopPropagation();
+                    window.open(getXueqiuUrl(cleanCode), '_blank');
+                };
+            }
+
+            if (price != null && chgPct != null && priceEl && chgEl) {
+                const numP = Number(price);
+                const numC = Number(chgPct);
+                const isUp = numC > 0.0001;
+                const isDown = numC < -0.0001;
+                const colorClass = isUp ? 'text-rose-500 font-bold' : (isDown ? 'text-emerald-500 font-bold' : 'text-slate-400 font-medium');
+                priceEl.textContent = `¥${numP.toFixed(2)}`;
+                priceEl.className = `stock-title-price font-bold font-mono text-xs ${colorClass}`;
+                chgEl.textContent = `${isUp ? '+' : ''}${numC.toFixed(2)}%`;
+                chgEl.className = `stock-title-chg font-bold font-mono text-xs ${colorClass}`;
+            }
+
+            // 2. 高亮左侧成分股表格当前选中行
+            try {
+                const tbody = document.getElementById('sector-stocks-table');
+                if (tbody) {
+                    Array.from(tbody.children).forEach(tr => {
+                        if (tr.dataset && tr.dataset.code === cleanCode) {
+                            tr.className = 'bg-cyan-950/50 border-l-2 border-cyan-400 font-semibold cursor-pointer transition';
+                        } else {
+                            tr.className = 'hover:bg-slate-800/40 cursor-pointer transition';
+                        }
+                    });
+                }
+            } catch (_) {}
+
+            // 3. 显示加载遮罩，隐藏空态
+            const loadingOv = document.getElementById('sector-cl-loading-overlay');
+            const emptyOv = document.getElementById('sector-cl-empty-overlay');
+            if (loadingOv) loadingOv.classList.remove('hidden');
+            if (emptyOv) emptyOv.classList.add('hidden');
+
+            try {
+                const resp = await fetch(`/api/v1/chanlun/resonance?code=${encodeURIComponent(cleanCode)}&periods=MONTH,WEEK,DAY&count=800`);
+                if (!resp.ok) {
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+                const data = await resp.json();
+                window._sectorChanlunData = data;
+                renderSingleChanlunChart('sector', data);
+            } catch (err) {
+                console.error('Failed to load sector Chanlun data:', err);
+                if (window.showToast) {
+                    window.showToast('缠论加载失败', `${name || cleanCode} 月周日缠论获取超时或异常`);
+                }
+            } finally {
+                if (loadingOv) loadingOv.classList.add('hidden');
+            }
+        }
+        window.loadSectorChanlun = loadSectorChanlun;
+
+        window.switchSectorChanlunStock = function(delta) {
+            const stocks = window.CURRENT_SECTOR_STOCKS_DATA;
+            if (!stocks || stocks.length === 0) return;
+            const curCode = window._currentSectorStockCode;
+            let idx = stocks.findIndex(s => String(s.code).trim().replace(/[^0-9]/g, '') === String(curCode).trim());
+            if (idx === -1) idx = 0;
+            else {
+                idx = (idx + delta + stocks.length) % stocks.length;
+            }
+            const nextStock = stocks[idx];
+            if (nextStock) {
+                loadSectorChanlun(nextStock.code, nextStock.name, nextStock.price, nextStock.change_pct);
+            }
+        };
+
+        window.openSectorStockChanlunFullscreen = function(event) {
+            if (!window._currentSectorStockCode) return;
+            openChanlunKline(
+                window._currentSectorStockCode, 
+                window._currentSectorStockName || window._currentSectorStockCode, 
+                event, 
+                'MONTH,WEEK,DAY', 
+                window.CURRENT_SECTOR_STOCKS_DATA
+            );
+        };
+
         function applySectorStocksSortAndRender() {
             const name = window.CURRENT_SECTOR_NAME || '板块';
             let stocks = window.CURRENT_SECTOR_STOCKS_DATA ? [...window.CURRENT_SECTOR_STOCKS_DATA] : [];
@@ -18069,8 +18222,18 @@
                 let valB = Number(b[currentSectorStocksSortField] || 0);
                 return currentSectorStocksSortAsc ? valA - valB : valB - valA;
             });
+            window.CURRENT_SECTOR_STOCKS_DATA = stocks;
             renderSectorStocks(name, stocks);
             updateSectorStocksSortUI();
+
+            // 若当前未选择或选中标的不在当前板块列表中，自动载入排序第1位的核心成分股
+            if (stocks.length > 0) {
+                const hasCurrent = window._currentSectorStockCode && stocks.some(s => String(s.code).trim().replace(/[^0-9]/g, '') === window._currentSectorStockCode);
+                if (!hasCurrent) {
+                    const first = stocks[0];
+                    loadSectorChanlun(first.code, first.name, first.price, first.change_pct);
+                }
+            }
         }
 
         async function loadSectorStocks(code, name, isBackground = false) {
@@ -18120,6 +18283,12 @@
             }
 
             tableEl.innerHTML = stocks.map(s => {
+                const cleanCode = String(s.code).trim().replace(/[^0-9]/g, '');
+                const isSelected = (window._currentSectorStockCode && cleanCode === window._currentSectorStockCode);
+                const rowClass = isSelected
+                    ? 'bg-cyan-950/50 border-l-2 border-cyan-400 font-semibold cursor-pointer transition'
+                    : 'hover:bg-slate-800/40 cursor-pointer transition';
+
                 const chg = Number(s.change_pct || 0);
                 const isUp = chg > 0;
                 const isDown = chg < 0;
@@ -18149,9 +18318,9 @@
                 const totalMvStr = formatTotalMvYi(s.total_mv_yi);
 
                 return `
-                <tr class="hover:bg-slate-800/40 transition">
-                    <td class="py-2 font-mono"><a href="${getXueqiuUrl(s.code)}" target="_blank" rel="noopener noreferrer" class="stock-code-link cursor-pointer hover:underline" title="在雪球查看 ${s.code} ${s.name || ''} 行情与讨论">${s.code}</a></td>
-                    <td class="py-2 font-sans font-medium"><span onclick="openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
+                <tr class="${rowClass}" data-code="${cleanCode}" onclick="loadSectorChanlun('${cleanCode}', '${s.name || cleanCode}', ${s.price}, ${s.change_pct})">
+                    <td class="py-2 font-mono"><a href="${getXueqiuUrl(s.code)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="stock-code-link cursor-pointer hover:underline" title="在雪球查看 ${s.code} ${s.name || ''} 行情与讨论">${s.code}</a></td>
+                    <td class="py-2 font-sans font-medium"><span onclick="event.stopPropagation(); openKlineModal('${s.code}', '${s.name}')" class="stock-click-link text-white truncate max-w-[70px] inline-block align-middle cursor-pointer" title="${s.name}">${s.name}</span></td>
                     <td class="py-2 text-right font-mono text-slate-300 font-medium whitespace-nowrap">${totalMvStr}</td>
                     <td class="py-2 text-right font-mono ${priceClass}" style="${priceStyle}">¥${Number(s.price).toFixed(2)}</td>
                     <td class="py-2 text-right font-mono ${chgClass}" style="${chgStyle}">${chgStr}</td>
@@ -18159,7 +18328,7 @@
                     <td class="py-2 text-right font-mono text-[11px] ${inflow3dColor}" style="${inflow3dStyle}" title="3日主力净流入: ${inflow3dStr}">${inflow3dStr}</td>
                     <td class="py-2 text-right font-mono text-[11px] ${inflow5dColor}" style="${inflow5dStyle}" title="5日主力净流入: ${inflow5dStr}">${inflow5dStr}</td>
                     <td class="py-2 text-center">
-                        <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${s.code}', '${s.name}', event)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论K线">缠论</a>
+                        <a href="/#chanlun?code=${s.code}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); openChanlunKline('${s.code}', '${s.name}', event, 'MONTH,WEEK,DAY', window.CURRENT_SECTOR_STOCKS_DATA)" class="inline-block px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800 text-[10px] font-medium transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${s.name}】(${s.code}) 缠论月周日多周期共振K线">缠论</a>
                     </td>
                 </tr>
             `;
@@ -26841,6 +27010,9 @@
             } else if (side === 'w4') {
                 chartInstance = window.chanlunChartW4;
                 d = _clW4CachedData;
+            } else if (side === 'sector') {
+                chartInstance = window.sectorChanlunChart;
+                d = window._sectorChanlunData;
             }
             if (!chartInstance || !d) return;
             try {
@@ -28626,8 +28798,8 @@
                     }
                 },
                 grid: [
-                    { left: 52, right: 32, top: 38, bottom: isSubNone ? 28 : '24%' },
-                    { left: 52, right: 32, height: isSubNone ? 0 : '14%', bottom: 25, show: !isSubNone }
+                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 24 : 32), top: (side === 'sector' ? 28 : 38), bottom: isSubNone ? 28 : '24%' },
+                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 24 : 32), height: isSubNone ? 0 : '14%', bottom: 25, show: !isSubNone }
                 ],
                 xAxis: [
                     {
@@ -28767,6 +28939,8 @@
                 titleElId = 'cl-chart-title-text-right';
             } else if (side === 'w4') {
                 titleElId = 'cl-chart-title-text-w4';
+            } else if (side === 'sector') {
+                titleElId = 'sector-cl-title-text';
             }
 
             const priceEl = document.getElementById(titleElId + '-price');
@@ -28818,6 +28992,12 @@
                 patternElId = 'cl-pattern-overlay-w4';
                 periodLabel = _clW4Periods || '日·30F·5F';
                 instanceProp = 'chanlunChartW4';
+            } else if (side === 'sector') {
+                domId = 'sector-chanlun-echart';
+                titleElId = 'sector-cl-title-text';
+                patternElId = 'sector-cl-pattern-overlay';
+                periodLabel = '月·周·日';
+                instanceProp = 'sectorChanlunChart';
             }
 
             const chartDom = document.getElementById(domId);
@@ -28956,9 +29136,10 @@
             }
 
             let prevDataZoom = customPrevZoom;
+            const targetCurrentCode = (side === 'sector') ? window._currentSectorStockCode : _clCurrentCode;
             if (!prevDataZoom) {
                 try {
-                    if (instance._clLastRenderedCode === _clCurrentCode) {
+                    if (instance._clLastRenderedCode === targetCurrentCode) {
                         const curOpt = instance.getOption();
                         if (curOpt && curOpt.dataZoom && curOpt.dataZoom.length > 0) {
                             prevDataZoom = { start: curOpt.dataZoom[0].start, end: curOpt.dataZoom[0].end };
@@ -28966,7 +29147,7 @@
                     }
                 } catch (e) { }
             }
-            instance._clLastRenderedCode = _clCurrentCode;
+            instance._clLastRenderedCode = targetCurrentCode;
 
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
             if (opt) {
@@ -28977,7 +29158,7 @@
             // 鼠标点击图表任意区域时，将该窗口设为回溯主控窗口
             instance.off('click');
             instance.on('click', () => {
-                if (typeof setActiveChanlunWindow === 'function') {
+                if (side !== 'sector' && typeof setActiveChanlunWindow === 'function') {
                     setActiveChanlunWindow(side);
                 }
             });
@@ -29092,6 +29273,7 @@
             else if (side === 'w2') overlayId = 'cl-loading-overlay-w2';
             else if (side === 'right' || side === 'w3') overlayId = 'cl-loading-overlay-right';
             else if (side === 'w4') overlayId = 'cl-loading-overlay-w4';
+            else if (side === 'sector') overlayId = 'sector-cl-loading-overlay';
             if (overlayId) {
                 const ov = document.getElementById(overlayId);
                 if (ov) ov.style.display = 'none';
@@ -29114,6 +29296,7 @@
             else if (side === 'w2') window._clW2CachedData = d;
             else if (side === 'right' || side === 'w3') window._clRightCachedData = d;
             else if (side === 'w4') window._clW4CachedData = d;
+            else if (side === 'sector') window._sectorChanlunData = d;
         }
 
         function renderChanlunChart(d) {
