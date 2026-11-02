@@ -12034,71 +12034,74 @@
                                 z: 90
                             });
                         } else {
-                            // 3~8: 通达信洋红小字 (COLORFF00FF)
+                            // 1~12: 通达信洋红数字 (COLORFF00FF)
                             markPointData.push({
                                 name: `高${hVal}`,
                                 coord: [b.datetime, b.high],
                                 value: String(hVal),
-                                symbol: 'circle',
-                                symbolSize: 1,
-                                symbolOffset: [0, -9],
-                                itemStyle: { color: 'transparent' },
+                                symbol: 'none',
+                                silent: true,
                                 label: {
                                     show: true,
+                                    position: 'top',
+                                    distance: 2,
                                     formatter: String(hVal),
                                     color: '#ff00ff',
                                     fontWeight: 'bold',
-                                    fontSize: 9.5
+                                    fontSize: 9.5,
+                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
+                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
+                                    textBorderWidth: 1.5
                                 },
                                 z: 80
                             });
                         }
                     }
 
-                    // 下跌九转 (低九/低十三，抄底买点，从第3根日线起标注在底部)
-                    if (lVal >= 3) {
+                    // 下跌九转 (低九/低十三，抄底买点，从第1根起标注在蜡烛下方)
+                    if (lVal >= 1) {
                         const isCompleted = (lVal === mVal);
                         if (isCompleted) {
-                            // 第 9 或 13 根：通达信标准洋红/玫瑰红高亮徽章图标
+                            // 第 9 或 13 根：通达信标准洋红高亮转折点
                             markPointData.push({
                                 name: `九转低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
-                                symbol: 'circle',
-                                symbolSize: 18,
-                                symbolOffset: [0, 12],
-                                itemStyle: {
-                                    color: '#881337',
-                                    borderColor: '#f43f5e',
-                                    borderWidth: 2,
-                                    shadowBlur: 8,
-                                    shadowColor: 'rgba(244, 63, 94, 0.85)'
-                                },
+                                symbol: 'none',
+                                silent: true,
                                 label: {
                                     show: true,
+                                    position: 'bottom',
+                                    distance: 2,
                                     formatter: String(lVal),
-                                    color: '#ffffff',
-                                    fontWeight: 'bold',
-                                    fontSize: 10
+                                    color: '#ff00ff',
+                                    fontWeight: '900',
+                                    fontSize: 11,
+                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
+                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
+                                    textBorderWidth: 1.5
                                 },
                                 z: 90
                             });
                         } else {
-                            // 1~8: 通达信绿色小字 (COLOR00FF00)
+                            // 1~12: 通达信标准绿色数字 (COLOR00FF00)
                             markPointData.push({
                                 name: `低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
-                                symbol: 'circle',
-                                symbolSize: 1,
-                                symbolOffset: [0, 9],
-                                itemStyle: { color: 'transparent' },
+                                symbol: 'none',
+                                silent: true,
                                 label: {
                                     show: true,
+                                    position: 'bottom',
+                                    distance: 2,
                                     formatter: String(lVal),
                                     color: '#00ff00',
                                     fontWeight: 'bold',
-                                    fontSize: 9.5
+                                    fontSize: 9.5,
+                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
+                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
+                                    textBorderWidth: 1.5
                                 },
                                 z: 80
                             });
@@ -25821,13 +25824,14 @@
             const maxIdx = Math.min(datesLen - 1, eIdx + buffer);
             const isFarOut = visibleCount > 360;
 
-            // 1. TD9 序列标记：超远景(>360根)只呈现 9 与 13 关键转折点，中近景呈现 1~13 序列；严格限定在视口缓冲区间
+            // 1. TD9 序列标记：视口缓冲区间内完整呈现 1~13 序列；仅在极端超远景(>1600根)时降级为仅呈现 9 与 13 关键转折点
             let td9 = [];
             if (_clLayers.td9 && cData.td9Marks && cData.td9Marks.length > 0) {
+                const isTd9FarOut = visibleCount > 1600;
                 td9 = cData.td9Marks.filter(m => {
                     const idx = m._dateIdx;
                     if (idx != null && (idx < minIdx || idx > maxIdx)) return false;
-                    if (isFarOut && !m._isTurnPoint) return false;
+                    if (isTd9FarOut && !m._isTurnPoint) return false;
                     return true;
                 });
             }
@@ -26488,37 +26492,35 @@
             const showHigh = new Array(n).fill(0);
             const showLow = new Array(n).fill(0);
 
-            // 1. 扫描已完成的上升九转 (及后续延伸至13)
+            // 1. 扫描上升序列 (9转与13转标准复刻：A3与A6算法)
             for (let i = 0; i < n; i++) {
                 if (a2[i] === 9) {
                     for (let j = Math.max(0, i - 8); j <= i; j++) showHigh[j] = a2[j];
-                } else if (a2[i] > 9 && showHigh[i - 1] > 0) {
+                } else if (a2[i] > 9 && showHigh[i - 1] > 0 && a2[i] <= 13) {
                     showHigh[i] = a2[i]; // 9转后延伸序列 (10~13)
                 }
             }
-            // 实时倒数：若最新K线正在进行中且尚未达到9转，展示当前九转进度（通达信 ISLASTBAR）
+            // 实时倒数：若最新K线正在进行中且尚未完成，展示当前实时九转进度（通达信 ISLASTBAR / A5）
             const lastA2 = a2[n - 1];
-            if (lastA2 >= 1 && lastA2 < 9) {
+            if (lastA2 >= 1 && lastA2 <= 13 && showHigh[n - 1] === 0) {
                 for (let j = Math.max(0, n - lastA2); j < n; j++) showHigh[j] = a2[j];
             }
 
-            // 2. 扫描已完成的下降九转 (及后续延伸至13)
+            // 2. 扫描下降序列 (9转与13转标准复刻：B3与B6算法)
             for (let i = 0; i < n; i++) {
                 if (b2[i] === 9) {
                     for (let j = Math.max(0, i - 8); j <= i; j++) showLow[j] = b2[j];
-                } else if (b2[i] > 9 && showLow[i - 1] > 0) {
-                    showLow[i] = b2[i];
+                } else if (b2[i] > 9 && showLow[i - 1] > 0 && b2[i] <= 13) {
+                    showLow[i] = b2[i]; // 10~13
                 }
             }
             const lastB2 = b2[n - 1];
-            if (lastB2 >= 1 && lastB2 < 9) {
+            if (lastB2 >= 1 && lastB2 <= 13 && showLow[n - 1] === 0) {
                 for (let j = Math.max(0, n - lastB2); j < n; j++) showLow[j] = b2[j];
             }
 
             const marks = [];
             const map = {};
-            const upRed = isDark ? '#f87171' : '#dc2626';
-            const downGreen = isDark ? '#34d399' : '#16a34a';
 
             for (let i = 0; i < n; i++) {
                 const dt = dates[i];
@@ -26528,31 +26530,33 @@
                 const high = Number(c[3] != null ? c[3] : (c[1] || 0));
                 const low = Number(c[2] != null ? c[2] : (c[1] || 0));
 
-                // 上涨序列 (红数字，标记在蜡烛上方，通达信 H + H * 0.02)
+                // 上涨序列 (红/洋红数字标注在蜡烛上方，通达信 DRAWTEXT(A6>0,H+H*0.02,VAR2STR(A6,0)),COLORFF00FF)
+                // 见顶转折点(13转或9转未延续)显示为绿色(COLOR00FF00)
                 const hVal = showHigh[i];
                 if (hVal > 0) {
                     const isTurnPoint = (hVal === 9 || hVal === 13);
+                    const isGreenTurn = (hVal === 13 || (hVal === 9 && (i === n - 1 || showHigh[i + 1] === 0)));
+                    const numColor = isGreenTurn 
+                        ? (isDark ? '#00ff00' : '#16a34a') 
+                        : (isDark ? '#ff00ff' : '#dc2626');
                     map[dt] = { type: 'high', val: hVal };
                     marks.push({
                         name: `高${hVal}`,
                         coord: [dt, high],
                         value: String(hVal),
-                        symbol: 'circle',
-                        symbolSize: isTurnPoint ? 16 : 1,
-                        symbolOffset: isTurnPoint ? [0, -11] : [0, -9],
+                        symbol: 'none',
                         silent: true,
-                        itemStyle: {
-                            color: isTurnPoint ? (isDark ? '#dc2626' : '#ef4444') : 'transparent',
-                            borderColor: isTurnPoint ? (isDark ? '#fca5a5' : '#b91c1c') : 'transparent',
-                            borderWidth: isTurnPoint ? 1.2 : 0
-                        },
                         label: {
                             show: true,
+                            position: 'top',
+                            distance: 2,
                             formatter: String(hVal),
-                            color: isTurnPoint ? '#ffffff' : upRed,
-                            fontWeight: 'bold',
-                            fontSize: isTurnPoint ? 10 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
+                            color: numColor,
+                            fontWeight: isTurnPoint ? '900' : 'bold',
+                            fontSize: isTurnPoint ? 11 : 9.5,
+                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                            textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                            textBorderWidth: 1.5
                         },
                         tooltip: { show: false },
                         _isTd9: true,
@@ -26564,31 +26568,33 @@
                     });
                 }
 
-                // 下降序列 (绿数字，标记在蜡烛下方，通达信 L - L * 0.02)
+                // 下降序列 (绿色数字标注在蜡烛下方，通达信 DRAWTEXT(B6>0,L-L*0.02,VAR2STR(B6,0)),COLOR00FF00)
+                // 见底转折点(13转或9转未延续)显示为洋红/红色(COLORFF00FF)
                 const lVal = showLow[i];
                 if (lVal > 0) {
                     const isTurnPoint = (lVal === 9 || lVal === 13);
+                    const isMagentaTurn = (lVal === 13 || (lVal === 9 && (i === n - 1 || showLow[i + 1] === 0)));
+                    const numColor = isMagentaTurn 
+                        ? (isDark ? '#ff00ff' : '#dc2626') 
+                        : (isDark ? '#00ff00' : '#16a34a');
                     map[dt] = { type: 'low', val: lVal };
                     marks.push({
                         name: `低${lVal}`,
                         coord: [dt, low],
                         value: String(lVal),
-                        symbol: 'circle',
-                        symbolSize: isTurnPoint ? 16 : 1,
-                        symbolOffset: isTurnPoint ? [0, 11] : [0, 9],
+                        symbol: 'none',
                         silent: true,
-                        itemStyle: {
-                            color: isTurnPoint ? (isDark ? '#059669' : '#10b981') : 'transparent',
-                            borderColor: isTurnPoint ? (isDark ? '#6ee7b7' : '#047857') : 'transparent',
-                            borderWidth: isTurnPoint ? 1.2 : 0
-                        },
                         label: {
                             show: true,
+                            position: 'bottom',
+                            distance: 2,
                             formatter: String(lVal),
-                            color: isTurnPoint ? '#ffffff' : downGreen,
-                            fontWeight: 'bold',
-                            fontSize: isTurnPoint ? 10 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
+                            color: numColor,
+                            fontWeight: isTurnPoint ? '900' : 'bold',
+                            fontSize: isTurnPoint ? 11 : 9.5,
+                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                            textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                            textBorderWidth: 1.5
                         },
                         tooltip: { show: false },
                         _isTd9: true,
