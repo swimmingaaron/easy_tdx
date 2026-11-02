@@ -1785,8 +1785,11 @@ def _evaluate_stock_for_strategy(
         except Exception:
             patterns = ["震荡整理"]
 
+        cl_3rd_tags = [p for p in patterns if any(k in p for k in ("3买", "3卖", "3BUY", "3SELL"))]
+
         if strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
-            patterns = [chan_tag] + [p for p in patterns if "缠论" not in p and "买" not in p and "卖" not in p]
+            other_pats = [p for p in patterns if "缠论" not in p and "买" not in p and "卖" not in p and p not in cl_3rd_tags]
+            patterns = [chan_tag] + cl_3rd_tags + other_pats
         elif strategy_name == "td_sequential":
             td_badge = f"高{cur_h_seq}序列" if cur_h_seq < 9 else (f"高{cur_h_seq}序列(见顶)" if cur_h_seq == 9 else f"高{cur_h_seq}序列")
             patterns = [td_badge] + [p for p in patterns if "TD" not in p and "序列" not in p]
@@ -1826,9 +1829,12 @@ def _evaluate_stock_for_strategy(
             except Exception:
                 trigger_patterns = ["震荡整理"]
 
+        cl_3rd_trig = [p for p in trigger_patterns if any(k in p for k in ("3买", "3卖", "3BUY", "3SELL"))]
+
         if strategy_name in ("chanlun_strategy", "chanlun_resonance", "chanlun_dual_resonance"):
             if chan_tag not in trigger_patterns:
-                trigger_patterns = [chan_tag] + [p for p in trigger_patterns if "缠论" not in p and "买" not in p and "卖" not in p]
+                other_trig = [p for p in trigger_patterns if "缠论" not in p and "买" not in p and "卖" not in p and p not in cl_3rd_trig]
+                trigger_patterns = [chan_tag] + cl_3rd_trig + other_trig
         elif strategy_name == "td_sequential":
             if "高3序列" not in trigger_patterns:
                 trigger_patterns = ["高3序列"] + [p for p in trigger_patterns if "TD" not in p and "序列" not in p]

@@ -1044,8 +1044,11 @@ def get_kline(
     zs_block = b_info.get("board_name") or board_lbl or ""
     data1 = f"{clean_sym}|{zs_block}"
 
-    from easy_tdx.pattern_recognition import detect_patterns
+    from easy_tdx.pattern_recognition import detect_patterns, detect_stock_chanlun_3rd_patterns
     patterns = detect_patterns(df, vol_ratio=vol_ratio)
+    cl_3rd = detect_stock_chanlun_3rd_patterns(clean_sym)
+    if cl_3rd:
+        patterns = cl_3rd + [p for p in patterns if p not in cl_3rd]
     pattern_status = " · ".join(patterns) if patterns else "震荡整理"
 
     res = {

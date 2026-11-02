@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,101 @@ logger = logging.getLogger(__name__)
 _PATTERN_CACHE: dict[str, tuple[float, list[str]]] = {}
 _PATTERN_LOCK = threading.Lock()
 PATTERN_CACHE_TTL = 15.0  # 15s cache TTL for real-time responsiveness
+
+# 缠论各级别第三类买卖点检测配置: (周期Key, 缠论频率, 买点标签, 卖点标签, 拉取根数, 最大有效回溯根数)
+CHANLUN_3RD_PERIOD_CONFIGS = [
+    ("MONTH", "monthly", "月3买", "月3卖", 60, 6),
+    ("WEEK", "weekly", "周3买", "周3卖", 100, 8),
+    ("DAY", "daily", "日3买", "日3卖", 160, 15),
+    ("30F", "30min", "30F3买", "30F3卖", 200, 30),
+    ("5F", "5min", "5F3买", "5F3卖", 240, 30),
+]
+
+_CL_3RD_CACHE: dict[str, tuple[float, list[str]]] = {}
+_CL_3RD_LOCK = threading.Lock()
+CL_3RD_CACHE_TTL = 30.0
+
+
+def _detect_single_period_3rd_mmd(
+    symbol: str, p_key: str, freq: str, buy_lbl: str, sell_lbl: str, count: int, max_bars: int
+) -> str | None:
+    try:
+        from easy_tdx.market_data import fetch_security_kline
+        from easy_tdx.chanlun.analyser import ChanlunAnalyser
+        from easy_tdx.chanlun.types import MMDType
+
+        df = fetch_security_kline(symbol, category=p_key, count=count)
+        if df is None or len(df) < 10:
+            return None
+        ana = ChanlunAnalyser(frequency=freq)
+        cl_res = ana.process_klines(df)
+        mmds = cl_res.mmds
+        if not mmds:
+            return None
+
+        n = len(df)
+        last_mmd = mmds[-1]
+        bi = last_mmd.bi
+        bars_ago = (n - 1 - bi.end.k.k_index) if (bi and bi.end) else 999
+        if bars_ago <= max_bars:
+            if last_mmd.mmd_type == MMDType.BUY_3:
+                return buy_lbl
+            elif last_mmd.mmd_type == MMDType.SELL_3:
+                return sell_lbl
+
+        # 检查最新买点是否为3买且未被后续卖点破坏
+        buys = [m for m in mmds if "buy" in m.mmd_type.value]
+        sells = [m for m in mmds if "sell" in m.mmd_type.value]
+        if buys and buys[-1].mmd_type == MMDType.BUY_3:
+            b_bi = buys[-1].bi
+            b_bars = (n - 1 - b_bi.end.k.k_index) if (b_bi and b_bi.end) else 999
+            if b_bars <= max_bars and (not sells or (sells[-1].bi and b_bi and sells[-1].bi.end.k.k_index < b_bi.end.k.k_index)):
+                return buy_lbl
+        elif sells and sells[-1].mmd_type == MMDType.SELL_3:
+            s_bi = sells[-1].bi
+            s_bars = (n - 1 - s_bi.end.k.k_index) if (s_bi and s_bi.end) else 999
+            if s_bars <= max_bars and (not buys or (buys[-1].bi and s_bi and buys[-1].bi.end.k.k_index < s_bi.end.k.k_index)):
+                return sell_lbl
+    except Exception as e:
+        logger.debug(f"Failed to detect 3rd MMD for {symbol} on {p_key}: {e}")
+    return None
+
+
+def detect_stock_chanlun_3rd_patterns(symbol: str) -> list[str]:
+    """并发检测标的在月、周、日、30F、5F各级别的缠论第三类买卖点特征。"""
+    clean_sym = (
+        symbol.strip()
+        .upper()
+        .replace("SH", "")
+        .replace("SZ", "")
+        .replace("BJ", "")
+        .replace("HY", "")
+        .replace("BK", "")
+        .replace(".", "")
+    )
+    if not clean_sym:
+        clean_sym = "000001"
+
+    now = time.time()
+    with _CL_3RD_LOCK:
+        if clean_sym in _CL_3RD_CACHE:
+            ts, cached_res = _CL_3RD_CACHE[clean_sym]
+            if now - ts < CL_3RD_CACHE_TTL:
+                return list(cached_res)
+
+    def _worker(cfg):
+        p_key, freq, b_lbl, s_lbl, cnt, mb = cfg
+        return _detect_single_period_3rd_mmd(clean_sym, p_key, freq, b_lbl, s_lbl, cnt, mb)
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        matched = list(pool.map(_worker, CHANLUN_3RD_PERIOD_CONFIGS))
+
+    results = [m for m in matched if m]
+
+    with _CL_3RD_LOCK:
+        _CL_3RD_CACHE[clean_sym] = (now, results)
+
+    return list(results)
 
 
 def detect_patterns(df: pd.DataFrame, vol_ratio: Optional[float] = None) -> list[str]:
@@ -517,10 +613,45 @@ def detect_patterns(df: pd.DataFrame, vol_ratio: Optional[float] = None) -> list
     except Exception:
         pass
 
-    # Deduplicate while preserving order
+    # 缠论日线第三类买卖点检测 (日3买 / 日3卖)
+    cl_3rd_in_df: list[str] = []
+    try:
+        if n >= 15:
+            from easy_tdx.chanlun.analyser import ChanlunAnalyser
+            from easy_tdx.chanlun.types import MMDType
+            ana = ChanlunAnalyser(frequency="daily")
+            cl_res = ana.process_klines(df)
+            mmds = cl_res.mmds
+            if mmds:
+                last_mmd = mmds[-1]
+                bi = last_mmd.bi
+                bars_ago = (n - 1 - bi.end.k.k_index) if (bi and bi.end) else 999
+                if bars_ago <= 15:
+                    if last_mmd.mmd_type == MMDType.BUY_3:
+                        cl_3rd_in_df.append("日3买")
+                    elif last_mmd.mmd_type == MMDType.SELL_3:
+                        cl_3rd_in_df.append("日3卖")
+
+                if not cl_3rd_in_df:
+                    buys = [m for m in mmds if "buy" in m.mmd_type.value]
+                    sells = [m for m in mmds if "sell" in m.mmd_type.value]
+                    if buys and buys[-1].mmd_type == MMDType.BUY_3:
+                        b_bi = buys[-1].bi
+                        b_bars = (n - 1 - b_bi.end.k.k_index) if (b_bi and b_bi.end) else 999
+                        if b_bars <= 15 and (not sells or (sells[-1].bi and b_bi and sells[-1].bi.end.k.k_index < b_bi.end.k.k_index)):
+                            cl_3rd_in_df.append("日3买")
+                    elif sells and sells[-1].mmd_type == MMDType.SELL_3:
+                        s_bi = sells[-1].bi
+                        s_bars = (n - 1 - s_bi.end.k.k_index) if (s_bi and s_bi.end) else 999
+                        if s_bars <= 15 and (not buys or (buys[-1].bi and s_bi and buys[-1].bi.end.k.k_index < s_bi.end.k.k_index)):
+                            cl_3rd_in_df.append("日3卖")
+    except Exception as e:
+        logger.debug(f"Daily 3rd MMD detection error: {e}")
+
+    # Deduplicate while preserving order (缠论第3类买卖点严格置顶)
     seen = set()
     unique_patterns = []
-    for p in patterns:
+    for p in cl_3rd_in_df + patterns:
         if p not in seen:
             seen.add(p)
             unique_patterns.append(p)
@@ -539,7 +670,8 @@ def detect_patterns(df: pd.DataFrame, vol_ratio: Optional[float] = None) -> list
 
 
 def detect_stock_patterns(symbol: str, count: int = 60) -> list[str]:
-    """Fetch historical K-line bars for symbol and dynamically recognize all satisfied patterns.
+    """Fetch historical K-line bars for symbol and dynamically recognize all satisfied patterns,
+    including Chanlun 3rd MMD features across MONTH, WEEK, DAY, 30F, 5F periods.
 
     Results are cached with a 15-second TTL.
     """
@@ -563,15 +695,36 @@ def detect_stock_patterns(symbol: str, count: int = 60) -> list[str]:
             if now - ts < PATTERN_CACHE_TTL:
                 return list(cached_patterns)
 
+    # 1. 并发检测全周期 (月、周、日、30F、5F) 缠论第3类买卖点特征
+    try:
+        cl_3rd_patterns = detect_stock_chanlun_3rd_patterns(clean_sym)
+    except Exception as e:
+        logger.debug(f"Failed to detect 3rd MMD for {clean_sym}: {e}")
+        cl_3rd_patterns = []
+
+    # 2. 检测日线基础量化形态特征
     try:
         from easy_tdx.market_data import fetch_security_kline
         df = fetch_security_kline(clean_sym, count=count)
-        patterns = detect_patterns(df)
+        base_patterns = detect_patterns(df)
     except Exception as e:
         logger.debug(f"Failed to detect patterns for {clean_sym}: {e}")
-        patterns = ["震荡整理"]
+        base_patterns = ["震荡整理"]
+
+    # 3. 组合并严格置顶缠论第3类买卖点特征
+    combined = []
+    seen = set()
+    for p in cl_3rd_patterns + base_patterns:
+        if p and p not in seen:
+            seen.add(p)
+            combined.append(p)
+
+    if not combined:
+        combined = ["震荡整理"]
+    elif len(combined) > 1 and "震荡整理" in combined:
+        combined = [p for p in combined if p != "震荡整理"]
 
     with _PATTERN_LOCK:
-        _PATTERN_CACHE[clean_sym] = (now, patterns)
+        _PATTERN_CACHE[clean_sym] = (now, combined)
 
-    return list(patterns)
+    return list(combined)
