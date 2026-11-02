@@ -12210,7 +12210,9 @@
                                 name: `高${hVal}`,
                                 coord: [b.datetime, b.high],
                                 value: String(hVal),
-                                symbol: 'none',
+                                symbol: 'circle',
+                                symbolSize: 0.001,
+                                itemStyle: { opacity: 0 },
                                 silent: true,
                                 label: {
                                     show: true,
@@ -12238,19 +12240,23 @@
                                 name: `九转低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
-                                symbol: 'none',
-                                silent: true,
+                                symbol: 'circle',
+                                symbolSize: 18,
+                                symbolOffset: [0, 12],
+                                itemStyle: {
+                                    color: '#701a75',
+                                    borderColor: '#f43f5e',
+                                    borderWidth: 2,
+                                    shadowBlur: 8,
+                                    shadowColor: 'rgba(244, 63, 94, 0.85)'
+                                },
                                 label: {
                                     show: true,
-                                    position: 'bottom',
-                                    distance: 2,
+                                    position: 'inside',
                                     formatter: String(lVal),
-                                    color: '#ff00ff',
-                                    fontWeight: '900',
-                                    fontSize: 11,
-                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
-                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
-                                    textBorderWidth: 1.5
+                                    color: '#ffffff',
+                                    fontWeight: 'bold',
+                                    fontSize: 10
                                 },
                                 z: 90
                             });
@@ -12260,7 +12266,9 @@
                                 name: `低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
-                                symbol: 'none',
+                                symbol: 'circle',
+                                symbolSize: 0.001,
+                                itemStyle: { opacity: 0 },
                                 silent: true,
                                 label: {
                                     show: true,
@@ -27025,79 +27033,151 @@
                 const low = Number(c[2] != null ? c[2] : (c[1] || 0));
 
                 // 上涨序列 (红/洋红数字标注在蜡烛上方，通达信 DRAWTEXT(A6>0,H+H*0.02,VAR2STR(A6,0)),COLORFF00FF)
-                // 见顶转折点(13转或9转未延续)显示为绿色(COLOR00FF00)
+                // 见顶转折点(9转或13转)显示为通达信标准高亮徽章图标(绿底白字)
                 const hVal = showHigh[i];
                 if (hVal > 0) {
                     const isTurnPoint = (hVal === 9 || hVal === 13);
-                    const isGreenTurn = (hVal === 13 || (hVal === 9 && (i === n - 1 || showHigh[i + 1] === 0)));
-                    const numColor = isGreenTurn 
-                        ? (isDark ? '#00ff00' : '#16a34a') 
-                        : (isDark ? '#ff00ff' : '#dc2626');
                     map[dt] = { type: 'high', val: hVal };
-                    marks.push({
-                        name: `高${hVal}`,
-                        coord: [dt, high],
-                        value: String(hVal),
-                        symbol: 'none',
-                        silent: true,
-                        label: {
-                            show: true,
-                            position: 'top',
-                            distance: 2,
-                            formatter: String(hVal),
-                            color: numColor,
-                            fontWeight: isTurnPoint ? '900' : 'bold',
-                            fontSize: isTurnPoint ? 11 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
-                            textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
-                            textBorderWidth: 1.5
-                        },
-                        tooltip: { show: false },
-                        _isTd9: true,
-                        _tdType: 'high',
-                        _tdVal: hVal,
-                        _dateIdx: i,
-                        _isTurnPoint: isTurnPoint,
-                        z: isTurnPoint ? 90 : 80
-                    });
+                    if (isTurnPoint) {
+                        marks.push({
+                            name: `九转高${hVal}`,
+                            coord: [dt, high],
+                            value: String(hVal),
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, -12],
+                            itemStyle: {
+                                color: isDark ? '#14532d' : '#15803d',
+                                borderColor: '#22c55e',
+                                borderWidth: 2,
+                                shadowBlur: 6,
+                                shadowColor: 'rgba(34, 197, 94, 0.75)'
+                            },
+                            silent: true,
+                            label: {
+                                show: true,
+                                position: 'inside',
+                                formatter: String(hVal),
+                                color: '#ffffff',
+                                fontWeight: '900',
+                                fontSize: 10,
+                                fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
+                            },
+                            tooltip: { show: false },
+                            _isTd9: true,
+                            _tdType: 'high',
+                            _tdVal: hVal,
+                            _dateIdx: i,
+                            _isTurnPoint: true,
+                            z: 95
+                        });
+                    } else {
+                        marks.push({
+                            name: `高${hVal}`,
+                            coord: [dt, high],
+                            value: String(hVal),
+                            symbol: 'circle',
+                            symbolSize: 0.001,
+                            symbolOffset: [0, 0],
+                            itemStyle: {
+                                opacity: 0
+                            },
+                            silent: true,
+                            label: {
+                                show: true,
+                                position: 'top',
+                                distance: 2,
+                                formatter: String(hVal),
+                                color: isDark ? '#ff00ff' : '#dc2626',
+                                fontWeight: 'bold',
+                                fontSize: 9.5,
+                                fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                                textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                                textBorderWidth: 1.5
+                            },
+                            tooltip: { show: false },
+                            _isTd9: true,
+                            _tdType: 'high',
+                            _tdVal: hVal,
+                            _dateIdx: i,
+                            _isTurnPoint: false,
+                            z: 80
+                        });
+                    }
                 }
 
                 // 下降序列 (绿色数字标注在蜡烛下方，通达信 DRAWTEXT(B6>0,L-L*0.02,VAR2STR(B6,0)),COLOR00FF00)
-                // 见底转折点(13转或9转未延续)显示为洋红/红色(COLORFF00FF)
+                // 见底转折点(9转或13转)显示为通达信标准高亮徽章图标(洋红/玫瑰红圆底白字)
                 const lVal = showLow[i];
                 if (lVal > 0) {
                     const isTurnPoint = (lVal === 9 || lVal === 13);
-                    const isMagentaTurn = (lVal === 13 || (lVal === 9 && (i === n - 1 || showLow[i + 1] === 0)));
-                    const numColor = isMagentaTurn 
-                        ? (isDark ? '#ff00ff' : '#dc2626') 
-                        : (isDark ? '#00ff00' : '#16a34a');
                     map[dt] = { type: 'low', val: lVal };
-                    marks.push({
-                        name: `低${lVal}`,
-                        coord: [dt, low],
-                        value: String(lVal),
-                        symbol: 'none',
-                        silent: true,
-                        label: {
-                            show: true,
-                            position: 'bottom',
-                            distance: 2,
-                            formatter: String(lVal),
-                            color: numColor,
-                            fontWeight: isTurnPoint ? '900' : 'bold',
-                            fontSize: isTurnPoint ? 11 : 9.5,
-                            fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
-                            textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
-                            textBorderWidth: 1.5
-                        },
-                        tooltip: { show: false },
-                        _isTd9: true,
-                        _tdType: 'low',
-                        _tdVal: lVal,
-                        _dateIdx: i,
-                        _isTurnPoint: isTurnPoint,
-                        z: isTurnPoint ? 90 : 80
-                    });
+                    if (isTurnPoint) {
+                        marks.push({
+                            name: `九转低${lVal}`,
+                            coord: [dt, low],
+                            value: String(lVal),
+                            symbol: 'circle',
+                            symbolSize: 18,
+                            symbolOffset: [0, 12],
+                            itemStyle: {
+                                color: isDark ? '#701a75' : '#be185d',
+                                borderColor: '#f43f5e',
+                                borderWidth: 2,
+                                shadowBlur: 6,
+                                shadowColor: 'rgba(244, 63, 94, 0.75)'
+                            },
+                            silent: true,
+                            label: {
+                                show: true,
+                                position: 'inside',
+                                formatter: String(lVal),
+                                color: '#ffffff',
+                                fontWeight: '900',
+                                fontSize: 10,
+                                fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
+                            },
+                            tooltip: { show: false },
+                            _isTd9: true,
+                            _tdType: 'low',
+                            _tdVal: lVal,
+                            _dateIdx: i,
+                            _isTurnPoint: true,
+                            z: 95
+                        });
+                    } else {
+                        marks.push({
+                            name: `低${lVal}`,
+                            coord: [dt, low],
+                            value: String(lVal),
+                            symbol: 'circle',
+                            symbolSize: 0.001,
+                            symbolOffset: [0, 0],
+                            itemStyle: {
+                                opacity: 0
+                            },
+                            silent: true,
+                            label: {
+                                show: true,
+                                position: 'bottom',
+                                distance: 2,
+                                formatter: String(lVal),
+                                color: isDark ? '#00ff00' : '#16a34a',
+                                fontWeight: 'bold',
+                                fontSize: 9.5,
+                                fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                                textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+                                textBorderWidth: 1.5
+                            },
+                            tooltip: { show: false },
+                            _isTd9: true,
+                            _tdType: 'low',
+                            _tdVal: lVal,
+                            _dateIdx: i,
+                            _isTurnPoint: false,
+                            z: 80
+                        });
+                    }
                 }
             }
 
@@ -27911,7 +27991,9 @@
                     name: isDing ? '顶分型' : '底分型',
                     coord: f.coord,
                     value: isDing ? '▲顶' : '▼底',
-                    symbol: 'none',
+                    symbol: 'circle',
+                    symbolSize: 0.001,
+                    itemStyle: { opacity: 0 },
                     label: {
                         show: true,
                         position: isDing ? 'top' : 'bottom',
@@ -28911,6 +28993,41 @@
                             `;
                         }
 
+                        // 查找神奇九转事件 (高9/高13转折预警，低9/低13抄底反弹)
+                        let td9Html = '';
+                        if (_clLayers.td9 && td9Map && td9Map[dateStr]) {
+                            const tdItem = td9Map[dateStr];
+                            if (tdItem.type === 'high') {
+                                if (tdItem.val === 9 || tdItem.val === 13) {
+                                    td9Html = `
+                                        <div style="margin-top: 4px; padding: 3px 8px; background: ${isDark ? 'rgba(20, 83, 45, 0.4)' : '#dcfce7'}; border: 1px solid #22c55e; border-radius: 4px; color: ${isDark ? '#4ade80' : '#15803d'}; font-weight: bold; font-size: 11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
+                                            🎯 通达信九转：高${tdItem.val} 见顶警示/反转点
+                                        </div>
+                                    `;
+                                } else {
+                                    td9Html = `
+                                        <div style="margin-top: 3px; font-size: 10px; color: ${isDark ? '#f472b6' : '#db2777'}; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                                            九转上升序列：第 ${tdItem.val} 根
+                                        </div>
+                                    `;
+                                }
+                            } else if (tdItem.type === 'low') {
+                                if (tdItem.val === 9 || tdItem.val === 13) {
+                                    td9Html = `
+                                        <div style="margin-top: 4px; padding: 3px 8px; background: ${isDark ? 'rgba(112, 26, 117, 0.4)' : '#fce7f3'}; border: 1px solid #f43f5e; border-radius: 4px; color: ${isDark ? '#f43f5e' : '#be185d'}; font-weight: bold; font-size: 11px; box-sizing: border-box; width: 100%; word-break: break-word; overflow-wrap: anywhere; white-space: normal; line-height: 1.4;">
+                                            🎯 通达信九转：低${tdItem.val} 超跌支撑/抄底买点
+                                        </div>
+                                    `;
+                                } else {
+                                    td9Html = `
+                                        <div style="margin-top: 3px; font-size: 10px; color: ${isDark ? '#4ade80' : '#16a34a'}; font-weight: 600; font-family: 'JetBrains Mono', monospace;">
+                                            九转下降序列：第 ${tdItem.val} 根
+                                        </div>
+                                    `;
+                                }
+                            }
+                        }
+
                         const fieldLabelColor = isDark ? '#94a3b8' : '#475569';
                         const ampColor = isDark ? '#e2e8f0' : '#1e293b';
 
@@ -29058,6 +29175,7 @@
                                 ${mmdHtml}
                                 ${resHtml}
                                 ${macdHtml}
+                                ${td9Html}
                                 ${subHtml}
                             </div>
                         `;
