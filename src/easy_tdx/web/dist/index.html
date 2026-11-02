@@ -11585,14 +11585,6 @@
         // 全局形态特征字典与红绿多空分类器 (利好: 红色 up, 利空: 绿色 down, 中性: 灰色 neutral)
         // =========================================================================
         const GLOBAL_PATTERN_MAP = {
-            // === 缠论第3类买卖点特征 (利好: 红色 up) ===
-            '月3买': 'up', '月3BUY': 'up', '月三买': 'up',
-            '周3买': 'up', '周3BUY': 'up', '周三买': 'up',
-            '日3买': 'up', '日3BUY': 'up', '日三买': 'up',
-            '30F3买': 'up', '30F3BUY': 'up', '30分3买': 'up',
-            '5F3买': 'up', '5F3BUY': 'up', '5分3买': 'up',
-            '3买': 'up', '3BUY': 'up', '三买': 'up',
-
             // === 利好 (看涨 / 买入 / 突破 / 企稳反弹) -> 红色 ===
             '放量突破': 'up', '蛟龙出海': 'up', '出水芙蓉': 'up', '均线多头': 'up', '金蜘蛛': 'up', '价托': 'up', '缩量回踩': 'up', '上升三法': 'up',
             '红三兵': 'up', '启明星': 'up', '早晨之星': 'up', '曙光初现': 'up', '旭日东升': 'up', '阳包阴': 'up', '看涨吞没': 'up', '锤子线': 'up',
@@ -11602,14 +11594,6 @@
             'RSI底背离': 'up', 'RSI超卖': 'up', 'CCI突破': 'up', 'CCI超卖': 'up', 'OBV创新高': 'up', '布林下轨支撑': 'up',
             '价涨量增': 'up', '放量反弹': 'up',
             'TD9见底': 'up', 'TD9买点': 'up', 'TD13见底': 'up', 'TD13买点': 'up', 'TD买入结构': 'up', 'ZIG波谷启动': 'up', '波谷启动': 'up', '买点': 'up',
-
-            // === 缠论第3类买卖点特征 (利空: 绿色 down) ===
-            '月3卖': 'down', '月3SELL': 'down', '月三卖': 'down',
-            '周3卖': 'down', '周3SELL': 'down', '周三卖': 'down',
-            '日3卖': 'down', '日3SELL': 'down', '日三卖': 'down',
-            '30F3卖': 'down', '30F3SELL': 'down', '30分3卖': 'down',
-            '5F3卖': 'down', '5F3SELL': 'down', '5分3卖': 'down',
-            '3卖': 'down', '3SELL': 'down', '三卖': 'down',
 
             // === 利空 (看跌 / 卖出 / 阻力 / 见顶回落) -> 绿色 ===
             '均线空头': 'down', '空头排列': 'down', '死蜘蛛': 'down', '价压': 'down', '放量下跌': 'down', '放量滞涨': 'down', '下降三法': 'down', '弱势整理': 'down',
@@ -11893,13 +11877,6 @@
                      + `<span style="font-weight: 700; color: ${lblColor}; margin-right: 6px;">形态特征:</span>`;
 
             const tokens = pats.map(p => {
-                const is3Buy = p.includes('3买') || p.includes('3BUY') || p.includes('三买');
-                const is3Sell = p.includes('3卖') || p.includes('3SELL') || p.includes('三卖');
-                if (is3Buy) {
-                    return `<span style="color: #ef4444 !important; font-weight: 900; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 3px; padding: 0.5px 4px;">${p}</span>`;
-                } else if (is3Sell) {
-                    return `<span style="color: #10b981 !important; font-weight: 900; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 3px; padding: 0.5px 4px;">${p}</span>`;
-                }
                 const type = getPatternType(p);
                 if (type === 'up') {
                     return `<span style="color: #ef4444 !important; font-weight: 800; padding: 0 1px;">${p}</span>`;
@@ -16587,17 +16564,6 @@
             if (!p) return '';
             const pStr = (typeof p === 'object' && p.name) ? p.name : String(p).trim();
             if (!pStr) return '';
-            
-            // 缠论第3类买卖点特征专属高对比度胶囊标识 (在所有涉及形态特征的列醒目标识3买3卖)
-            const is3Buy = pStr.includes('3买') || pStr.includes('3BUY') || pStr.includes('三买');
-            const is3Sell = pStr.includes('3卖') || pStr.includes('3SELL') || pStr.includes('三卖');
-            if (is3Buy) {
-                return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs whitespace-nowrap select-none" title="缠论第3类买点: ${pStr}">${pStr}</span>`;
-            }
-            if (is3Sell) {
-                return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs whitespace-nowrap select-none" title="缠论第3类卖点: ${pStr}">${pStr}</span>`;
-            }
-
             const type = getPatternType(pStr);
             let textColor = 'text-slate-400 font-medium';
             if (type === 'up') {
@@ -20694,13 +20660,6 @@
                         ];
 
                         return items.map(p => {
-                            const is3Buy = p.includes('3买') || p.includes('3BUY') || p.includes('三买');
-                            const is3Sell = p.includes('3卖') || p.includes('3SELL') || p.includes('三卖');
-                            if (is3Buy) {
-                                return `<span class="pattern-bullish inline-flex items-center px-1.5 py-0.2 rounded text-[11px] font-extrabold bg-rose-500/15 text-rose-500 border border-rose-500/40 shadow-xs whitespace-nowrap" style="color: #e11d48;" title="${p} (缠论第3类买点)">${p}</span>`;
-                            } else if (is3Sell) {
-                                return `<span class="pattern-bearish inline-flex items-center px-1.5 py-0.2 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-500 border border-emerald-500/40 shadow-xs whitespace-nowrap" style="color: #059669;" title="${p} (缠论第3类卖点)">${p}</span>`;
-                            }
                             if (bearKeywords.some(k => p.includes(k))) {
                                 return `<span class="pattern-bearish inline-block" style="color: #059669; font-weight: 600;">${p}</span>`;
                             } else if (bullKeywords.some(k => p.includes(k))) {
@@ -21582,22 +21541,15 @@
             // 优先读取 pattern_recognition.py 识别出的形态
             if (r.patterns && Array.isArray(r.patterns) && r.patterns.length > 0) {
                 r.patterns.forEach(p => {
-                    const pName = (typeof p === 'object' && p.name) ? p.name : String(p).trim();
-                    const is3Buy = pName.includes('3买') || pName.includes('3BUY') || pName.includes('三买');
-                    const is3Sell = pName.includes('3卖') || pName.includes('3SELL') || pName.includes('三卖');
-                    if (is3Buy) {
-                        items.push(`<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/40 shadow-xs whitespace-nowrap mr-1.5 select-none" title="${pName} (缠论第3类买点)">${pName}</span>`);
-                    } else if (is3Sell) {
-                        items.push(`<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs whitespace-nowrap mr-1.5 select-none" title="${pName} (缠论第3类卖点)">${pName}</span>`);
-                    } else if (p.score > 0 || p.type === 'up' || getPatternType(pName) === 'up') {
+                    if (p.score > 0 || p.type === 'up') {
                         // 上涨信号 红色 (纯文本，不用框框，无 +1)
-                        items.push(`<span class="text-rose-600 dark:text-rose-400 font-medium whitespace-nowrap mr-2" title="${pName} (看涨形态)">${pName}</span>`);
-                    } else if (p.score < 0 || p.type === 'down' || getPatternType(pName) === 'down') {
+                        items.push(`<span class="text-rose-600 dark:text-rose-400 font-medium whitespace-nowrap mr-2" title="${p.name} (看涨形态)">${p.name}</span>`);
+                    } else if (p.score < 0 || p.type === 'down') {
                         // 下跌信号 绿色 (纯文本，不用框框，无 -1)
-                        items.push(`<span class="text-emerald-600 dark:text-emerald-400 font-medium whitespace-nowrap mr-2" title="${pName} (看跌形态)">${pName}</span>`);
+                        items.push(`<span class="text-emerald-600 dark:text-emerald-400 font-medium whitespace-nowrap mr-2" title="${p.name} (看跌形态)">${p.name}</span>`);
                     } else {
                         // 中性形态 灰色 (纯文本，不用框框)
-                        items.push(`<span class="text-slate-400 dark:text-slate-500 whitespace-nowrap mr-2" title="${pName}">${pName}</span>`);
+                        items.push(`<span class="text-slate-400 dark:text-slate-500 whitespace-nowrap mr-2" title="${p.name}">${p.name}</span>`);
                     }
                 });
             }
