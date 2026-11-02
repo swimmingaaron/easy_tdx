@@ -26023,6 +26023,7 @@
                 }
             } finally {
                 _clIsDataLoading = false;
+                window._clResetZoomToLatest = false;
                 if (refreshIcon) {
                     setTimeout(() => {
                         refreshIcon.classList.remove('animate-spin');
@@ -26339,15 +26340,12 @@
             const maxIdx = Math.min(datesLen - 1, eIdx + buffer);
             const isFarOut = visibleCount > 360;
 
-            // 1. TD9 序列标记：视口缓冲区间内完整呈现 1~13 序列；仅在极端超远景(>1600根)时降级为仅呈现 9 与 13 关键转折点
+            // 1. TD9 序列标记：视口内满足条件的数字全部完整呈现
             let td9 = [];
             if (_clLayers.td9 && cData.td9Marks && cData.td9Marks.length > 0) {
-                const isTd9FarOut = visibleCount > 1600;
                 td9 = cData.td9Marks.filter(m => {
                     const idx = m._dateIdx;
-                    if (idx != null && (idx < minIdx || idx > maxIdx)) return false;
-                    if (isTd9FarOut && !m._isTurnPoint) return false;
-                    return true;
+                    return idx == null || (idx >= minIdx && idx <= maxIdx);
                 });
             }
 
@@ -27007,31 +27005,14 @@
             const showHigh = new Array(n).fill(0);
             const showLow = new Array(n).fill(0);
 
-            // 1. 扫描上升序列 (9转与13转标准复刻：A3与A6算法)
+            // 满足条件的数字全部完整呈现 (1~13连续编号呈现，9与13见顶/见底转折点高亮徽章标出)
             for (let i = 0; i < n; i++) {
-                if (a2[i] === 9) {
-                    for (let j = Math.max(0, i - 8); j <= i; j++) showHigh[j] = a2[j];
-                } else if (a2[i] > 9 && showHigh[i - 1] > 0 && a2[i] <= 13) {
-                    showHigh[i] = a2[i]; // 9转后延伸序列 (10~13)
+                if (a2[i] > 0) {
+                    showHigh[i] = a2[i] <= 13 ? a2[i] : (((a2[i] - 1) % 13) + 1);
                 }
-            }
-            // 实时倒数：若最新K线正在进行中且尚未完成，展示当前实时九转进度（通达信 ISLASTBAR / A5）
-            const lastA2 = a2[n - 1];
-            if (lastA2 >= 1 && lastA2 <= 13 && showHigh[n - 1] === 0) {
-                for (let j = Math.max(0, n - lastA2); j < n; j++) showHigh[j] = a2[j];
-            }
-
-            // 2. 扫描下降序列 (9转与13转标准复刻：B3与B6算法)
-            for (let i = 0; i < n; i++) {
-                if (b2[i] === 9) {
-                    for (let j = Math.max(0, i - 8); j <= i; j++) showLow[j] = b2[j];
-                } else if (b2[i] > 9 && showLow[i - 1] > 0 && b2[i] <= 13) {
-                    showLow[i] = b2[i]; // 10~13
+                if (b2[i] > 0) {
+                    showLow[i] = b2[i] <= 13 ? b2[i] : (((b2[i] - 1) % 13) + 1);
                 }
-            }
-            const lastB2 = b2[n - 1];
-            if (lastB2 >= 1 && lastB2 <= 13 && showLow[n - 1] === 0) {
-                for (let j = Math.max(0, n - lastB2); j < n; j++) showLow[j] = b2[j];
             }
 
             const marks = [];
@@ -29537,7 +29518,10 @@
 
             let prevDataZoom = customPrevZoom;
             const targetCurrentCode = (side === 'sector') ? window._currentSectorStockCode : _clCurrentCode;
-            if (!prevDataZoom) {
+            if (window._clResetZoomToLatest) {
+                // 历史回溯跳转时：重置缩放视图，确保所有窗口最右侧最新K线全部对齐跳转至该日期！
+                prevDataZoom = null;
+            } else if (!prevDataZoom) {
                 try {
                     if (instance._clLastRenderedCode === targetCurrentCode) {
                         const curOpt = instance.getOption();
@@ -29589,70 +29573,58 @@
                 }
             });
 
-            // 监听鼠标双击事件：区分对待两种双击功能
-            // 1. 如果双击落在某根K线蜡烛图上 (或其买卖点/九转标记)，回溯到该日
-            // 2. 如果双击落在空白区域上 (画布空白、副图空白、图表间隙等)，单屏放大显示 (按ESC退出)
+            // 监听鼠标双击事件：精确区分 K线点击 与 空白区域点击
+            // 1. 如果双击落在某根K线蜡烛图上 (或其标记)，触发历史回溯，所有窗口最新K线跳到此处的日期
+            // 2. 如果双击落在空白区域上，单屏放大显示 (按ESC退出)
             instance.off('dblclick');
-            if (['left', 'w2', 'right', 'w4'].includes(side)) {
-                // A. 图元点击监听：当双击命中具体数据项时触发 (如K线、markPoint)
-                instance.on('dblclick', (params) => {
-                    let targetDate = null;
-                    const isCandleSeries = params && (
-                        params.seriesType === 'candlestick' || 
-                        (params.componentType === 'series' && params.seriesName === '基准K线')
-                    );
-                    const isMark = params && (
-                        params.componentType === 'markPoint' ||
-                        params.componentType === 'markLine'
-                    );
+            instance.getZr().off('dblclick');
 
-                    if (isCandleSeries || isMark) {
-                        // 1. 优先读取 params.name (类目轴的类目名称即日期)
-                        if (params.name && /^\d{4}[-/]\d{2}/.test(String(params.name).trim())) {
-                            targetDate = String(params.name).trim();
-                        }
-                        // 2. 读取 params.dataIndex
-                        if (!targetDate && params.dataIndex != null && dates[params.dataIndex]) {
-                            const dStr = String(dates[params.dataIndex]).trim();
-                            if (/^\d{4}[-/]\d{2}/.test(dStr)) {
-                                targetDate = dStr;
-                            }
-                        }
-                        // 3. 读取 markPoint 坐标
-                        if (!targetDate && params.data && Array.isArray(params.data.coord) && params.data.coord[0]) {
-                            const cStr = String(params.data.coord[0]).trim();
-                            if (/^\d{4}[-/]\d{2}/.test(cStr)) {
-                                targetDate = cStr;
+            if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                instance.getZr().on('dblclick', (e) => {
+                    const now = Date.now();
+                    if (now - (window._lastBarDblClickTs || 0) < 500) return;
+
+                    let targetDate = null;
+                    if (e && e.event) {
+                        const px = (typeof e.zrX === 'number') ? e.zrX : ((typeof e.offsetX === 'number') ? e.offsetX : null);
+                        const py = (typeof e.zrY === 'number') ? e.zrY : ((typeof e.offsetY === 'number') ? e.offsetY : null);
+
+                        if (px != null && py != null && instance.containPixel({ gridIndex: 0 }, [px, py])) {
+                            const pt = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
+                            if (pt && pt.length >= 2) {
+                                const xIdx = Math.round(pt[0]);
+                                if (xIdx >= 0 && xIdx < dates.length && candles && candles[xIdx]) {
+                                    const c = candles[xIdx];
+                                    const low = Number(c[2]);
+                                    const high = Number(c[3]);
+                                    const yPrice = pt[1];
+                                    const span = Math.max(0.01, high - low);
+                                    // 容差判定：若点击落在该K线价格上下 40% 范围内，精确判定为击中该K线
+                                    if (yPrice >= (low - span * 0.4 - 0.02) && yPrice <= (high + span * 0.4 + 0.02)) {
+                                        targetDate = dates[xIdx];
+                                    }
+                                }
                             }
                         }
                     }
 
-                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
-                        // 命中某根K线：执行回溯到该日！
-                        window._lastBarDblClickTs = Date.now();
-                        if (params && params.event && params.event.event && typeof params.event.event.stopPropagation === 'function') {
-                            params.event.event.stopPropagation();
+                    // 兜底：如果直接命中了 markPoint 标记
+                    if (!targetDate && e && e.target && e.target.dataIndex != null && dates[e.target.dataIndex]) {
+                        targetDate = dates[e.target.dataIndex];
+                    }
+
+                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate)) {
+                        // 击中某根K线蜡烛图：执行历史回溯，所有窗口最新K线跳到该日
+                        window._lastBarDblClickTs = now;
+                        if (e.event && typeof e.event.stopPropagation === 'function') {
+                            e.event.stopPropagation();
                         }
                         setChanlunBacktrackDateToBar(targetDate, side);
                         return;
                     }
 
-                    // 双击其他非K线图元：按空白区域处理，切换单屏放大显示
-                    if (Date.now() - (window._lastBarDblClickTs || 0) < 500) return;
-                    if (params && params.event && typeof params.event.stopPropagation === 'function') {
-                        params.event.stopPropagation();
-                    }
-                    toggleMaximizeChanlunWindow(side);
-                });
-
-                // B. ZRender 底层画布监听：当双击落在纯空白区域 (没有命中任何图元，!e.target) 时触发
-                instance.getZr().off('dblclick');
-                instance.getZr().on('dblclick', (e) => {
-                    // 若双击在具体图元上 (如K线、标记等)，交由 instance.on('dblclick') 处理回溯
-                    if (e && e.target) return;
-                    // 若刚刚触发了K线回溯，防止并发
-                    if (Date.now() - (window._lastBarDblClickTs || 0) < 500) return;
-                    if (e && e.event && typeof e.event.stopPropagation === 'function') {
+                    // 否则点击在空白区域（空白天空/地面、图表间隙、边框等），执行单屏放大
+                    if (e.event && typeof e.event.stopPropagation === 'function') {
                         e.event.stopPropagation();
                     }
                     toggleMaximizeChanlunWindow(side);
@@ -29722,6 +29694,7 @@
             } else if ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') && _clRightCachedData) {
                 renderSingleChanlunChart('right', _clRightCachedData);
             }
+            window._clResetZoomToLatest = false;
         }
 
         function focusChanlunSignal(idx) {
@@ -30124,18 +30097,22 @@
                 window.showToast('缠论历史回溯', `双击定位：最新截断至 ${cleanDate} (以窗${winInfo.winNum}为主控)`);
             }
 
-            // 5. 优先检查客户端内存缓存
-            const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
-            const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
-            const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
-            const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+            // 5. 检查客户端内存缓存 (必须所有激活窗口全部都在缓存中才命中，否则通过 loadChanlunData 完整加载所有窗口)
+            const activeWins = (_clWindowMode === 'quad') ? ['left', 'w2', 'right', 'w4'] :
+                               ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') ? ['left', 'right'] : ['left']);
+            const allInCache = activeWins.every(w => {
+                const p = (w === 'left') ? _clLeftPeriods : (w === 'w2') ? _clW2Periods : (w === 'right') ? _clRightPeriods : _clW4Periods;
+                return _clBacktrackCache.has(getClBacktrackKey(_clCurrentCode, p, _clBacktrackDate));
+            });
 
-            if (_clBacktrackCache.has(cacheKeyLeft)) {
-                _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+            window._clResetZoomToLatest = true;
+
+            if (allInCache) {
+                _clLeftCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate));
                 _clCachedData = _clLeftCachedData;
-                if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
-                if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
-                if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
+                if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
+                if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
+                if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
                 updateChanlunOverview(_clLeftCachedData);
                 updateChanlunTimeline(getActiveWindowData());
                 renderChanlunSignalsTable(_clLeftCachedData);
@@ -30143,8 +30120,8 @@
                 return;
             }
 
-            // 6. 加载回溯计算结果
-            loadChanlunData(false);
+            // 6. 加载回溯计算结果 (向后端请求所有窗口截至该截断日期的K线与缠论形态)
+            loadChanlunData(true);
         }
 
         function onChanlunCutoffDateChange(dateVal) {
