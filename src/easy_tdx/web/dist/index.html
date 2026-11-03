@@ -29022,11 +29022,7 @@
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">主力净流入:</span>
                                         <b style="color: ${flowColor}; text-align: right;">${formatFlow(flowVal)}</b>
                                     </div>
-                                    <div style="display: flex; gap: 8px; justify-content: space-between; font-size: 10px;">
-                                        <span style="color: #FACC15;">MA3: <b>${formatFlow(m3)}</b></span>
-                                        <span style="color: #38BDF8;">MA5: <b>${formatFlow(m5)}</b></span>
-                                        <span style="color: #C084FC;">MA10: <b>${formatFlow(m10)}</b></span>
-                                    </div>
+
                                 </div>
                             `;
                         }
@@ -29044,16 +29040,7 @@
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">最低:</span><span style="color: ${lowColor}; font-weight: 700; text-align: right;">${low.toFixed(2)}</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
-                                        <span style="color: #ff1f1f; font-weight: 700;">MA250:</span><span style="color: #ff1f1f; font-weight: 700; text-align: right;">${m250Str}</span>
-                                        ${_clLayers.maShort ? `
-                                            <span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700;">MA5:</span><span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700; text-align: right;">${ma5Str}</span>
-                                            <span style="color: #eab308; font-weight: 700;">MA10:</span><span style="color: #eab308; font-weight: 700; text-align: right;">${ma10Str}</span>
-                                        ` : ''}
-                                        ${_clLayers.maLong ? `
-                                            <span style="color: #a855f7; font-weight: 700;">MA20:</span><span style="color: #a855f7; font-weight: 700; text-align: right;">${ma20Str}</span>
-                                            <span style="color: #f97316; font-weight: 700;">MA30:</span><span style="color: #f97316; font-weight: 700; text-align: right;">${ma30Str}</span>
-                                            <span style="color: #22c55e; font-weight: 700;">MA60:</span><span style="color: #22c55e; font-weight: 700; text-align: right;">${ma60Str}</span>
-                                        ` : ''}
+
                                     ` : `
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">收盘:</span><span style="color: ${chgColor}; font-weight: 700; text-align: right;">${close.toFixed(2)}</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">开盘:</span><span style="color: ${openColor}; font-weight: 600; text-align: right;">${open.toFixed(2)}</span>
@@ -29062,16 +29049,7 @@
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">涨跌:</span><span style="color: ${chgColor}; font-weight: 600; text-align: right;">${chgSign}${chg.toFixed(2)}</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">振幅:</span><span style="color: ${ampColor}; font-weight: 600; text-align: right;">${ampVal.toFixed(2)}%</span>
                                         <span style="color: ${fieldLabelColor}; font-weight: 600;">成交额:</span><span style="color: ${tooltipTextColor}; font-weight: 600; text-align: right;">${amtStr}</span>
-                                        <span style="color: #ff1f1f; font-weight: 700;">MA250:</span><span style="color: #ff1f1f; font-weight: 700; text-align: right;">${m250Str}</span>
-                                        ${_clLayers.maShort ? `
-                                            <span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700;">MA5:</span><span style="color: ${isDark ? '#e2e8f0' : '#64748b'}; font-weight: 700; text-align: right;">${ma5Str}</span>
-                                            <span style="color: #eab308; font-weight: 700;">MA10:</span><span style="color: #eab308; font-weight: 700; text-align: right;">${ma10Str}</span>
-                                        ` : ''}
-                                        ${_clLayers.maLong ? `
-                                            <span style="color: #a855f7; font-weight: 700;">MA20:</span><span style="color: #a855f7; font-weight: 700; text-align: right;">${ma20Str}</span>
-                                            <span style="color: #f97316; font-weight: 700;">MA30:</span><span style="color: #f97316; font-weight: 700; text-align: right;">${ma30Str}</span>
-                                            <span style="color: #22c55e; font-weight: 700;">MA60:</span><span style="color: #22c55e; font-weight: 700; text-align: right;">${ma60Str}</span>
-                                        ` : ''}
+
                                     `}
                                 </div>
                                 ${mmdHtml}
@@ -30681,7 +30659,7 @@
                     showToast('国家队ETF动向已更新', isAuto ? '打开页面已自动同步最新行情与动向' : '已成功从easy_tdx获取真实ETF行情与K线数据');
                 }
             } catch (err) {
-                if (window.showToast) {
+                if (window.showToast && !isAuto) {
                     showToast('更新失败', err.message || '网络连接超时');
                 }
             } finally {
@@ -30700,14 +30678,16 @@
                 const resp = await fetch(`/api/etf/data?force=${force ? 'true' : 'false'}`);
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                 const data = await resp.json();
-                if (!data || !data.etfs || !data.dates) {
+                if (!data || !data.etfs || !data.dates || (data.dates.length === 0 && data.error)) {
                     throw new Error(data?.error || '返回数据格式不符合预期');
                 }
                 window._etfRawData = data;
                 renderEtfAllViews();
+                return data;
             } catch (e) {
                 console.error('[ETF] 加载国家队ETF数据失败:', e);
                 showToast('ETF数据加载失败', e.message);
+                throw e;
             }
         }
 
@@ -30718,24 +30698,26 @@
             // 1. 基准日更新
             const timeEl = document.getElementById('etf-update-time');
             if (timeEl) {
-                timeEl.textContent = data.updated || (data.dates.length ? data.dates[data.dates.length - 1] : '--');
+                timeEl.textContent = data.updated || (data.dates && data.dates.length ? data.dates[data.dates.length - 1] : '--');
             }
 
             // 2. 指标卡片与单只下拉框
-            renderEtfMetricCards(data);
-            populateEtfSelect(data);
+            try { renderEtfMetricCards(data); } catch (e) { console.warn('[ETF] renderEtfMetricCards:', e); }
+            try { populateEtfSelect(data); } catch (e) { console.warn('[ETF] populateEtfSelect:', e); }
 
             // 3. 图表渲染
-            renderEtfChartTotal(data);
-            renderEtfSingleChart();
-            renderEtfChartFutures(data);
+            try { renderEtfChartTotal(data); } catch (e) { console.warn('[ETF] renderEtfChartTotal:', e); }
+            try { renderEtfSingleChart(); } catch (e) { console.warn('[ETF] renderEtfSingleChart:', e); }
+            try { renderEtfChartFutures(data); } catch (e) { console.warn('[ETF] renderEtfChartFutures:', e); }
 
             // 4. 表格渲染
-            renderEtfTable(data);
-            renderEtfFuturesTable(data);
-            renderEtfBaselineTable(data);
+            try { renderEtfTable(data); } catch (e) { console.warn('[ETF] renderEtfTable:', e); }
+            try { renderEtfFuturesTable(data); } catch (e) { console.warn('[ETF] renderEtfFuturesTable:', e); }
+            try { renderEtfBaselineTable(data); } catch (e) { console.warn('[ETF] renderEtfBaselineTable:', e); }
 
-            lucide.createIcons();
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
         }
 
         function renderEtfMetricCards(data) {
@@ -31339,15 +31321,43 @@
             if (!tbody) return;
 
             const fut = data.futures || {};
-            if (dateEl) dateEl.textContent = fut.latest?.date || data.dates?.[data.dates.length - 1] || '--';
+            if (dateEl) dateEl.textContent = fut.latest?.date || (data.dates && data.dates.length ? data.dates[data.dates.length - 1] : '--');
 
-            const contracts = fut.latest?.contracts || [];
-            if (!contracts.length) {
+            let contractList = [];
+            const rawContracts = fut.latest?.contracts;
+            if (Array.isArray(rawContracts)) {
+                contractList = rawContracts;
+            } else if (rawContracts && typeof rawContracts === 'object') {
+                const prodOrder = ['IF', 'IH', 'IC', 'IM'];
+                const keys = Object.keys(rawContracts).sort((a, b) => {
+                    const ia = prodOrder.indexOf(a);
+                    const ib = prodOrder.indexOf(b);
+                    return (ia !== -1 ? ia : 99) - (ib !== -1 ? ib : 99);
+                });
+                keys.forEach(k => {
+                    const arr = rawContracts[k];
+                    if (Array.isArray(arr)) {
+                        arr.forEach(item => {
+                            if (Array.isArray(item)) {
+                                contractList.push({
+                                    name: item[0],
+                                    long: item[1] != null ? item[1] : 0,
+                                    short: item[3] != null ? item[3] : 0,
+                                });
+                            } else if (item && typeof item === 'object') {
+                                contractList.push(item);
+                            }
+                        });
+                    }
+                });
+            }
+
+            if (!contractList.length) {
                 tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400 dark:text-slate-500">暂无合约龙虎榜数据</td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = contracts.map(c => {
+            tbody.innerHTML = contractList.map(c => {
                 const net = (c.short || 0) - (c.long || 0);
                 return `<tr class="hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition">
                     <td class="py-1.5 font-semibold text-slate-800 dark:text-slate-200">${c.name || c.contract || '--'}</td>
@@ -31362,20 +31372,38 @@
         function renderEtfBaselineTable(data) {
             const tbody = document.getElementById('etf-baseline-tbody');
             if (!tbody) return;
-            const baselines = data.baseline || [];
+
+            let baselines = [];
+            if (Array.isArray(data.baseline)) {
+                baselines = data.baseline;
+            } else if (data.baseline && Array.isArray(data.baseline.holders)) {
+                baselines = data.baseline.holders.map(h => ({
+                    code: '国家队主力',
+                    name: `覆盖 ${h.etf_count || '--'} 只核心宽基ETF`,
+                    holder: h.name,
+                    holding_shares: h.shares_yi,
+                    ratio: h.avg_pct != null ? (h.avg_pct / 100) : null,
+                    holding_value: h.value_yi
+                }));
+            }
+
             if (!baselines.length) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400 dark:text-slate-500">暂无基准披露数据</td></tr>`;
                 return;
             }
 
             tbody.innerHTML = baselines.map(b => {
+                const ratioStr = b.ratio != null ? (b.ratio * 100).toFixed(2) + '%' : (b.pct || '--');
+                const sharesStr = b.holding_shares != null ? Number(b.holding_shares).toFixed(2) : '--';
+                const valueStr = b.holding_value != null ? Number(b.holding_value).toFixed(2) : '--';
+                const isStockCode = b.code && /^\d{6}$/.test(b.code);
                 return `<tr class="hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition">
-                    <td class="p-2 text-cyan-600 dark:text-cyan-400 font-semibold cursor-pointer hover:underline" onclick="openKlineModal('${b.code}', '${b.name}')">${b.code}</td>
+                    <td class="p-2 text-cyan-600 dark:text-cyan-400 font-semibold ${isStockCode ? 'cursor-pointer hover:underline' : ''}" onclick="${isStockCode ? `openKlineModal('${b.code}', '${b.name}')` : ''}">${b.code || '--'}</td>
                     <td class="p-2 font-sans text-slate-800 dark:text-slate-200">${b.name || '--'}</td>
                     <td class="p-2 font-sans text-amber-600 dark:text-amber-400 font-medium">${b.holder || b.entity || '中央汇金投资有限责任公司'}</td>
-                    <td class="p-2 text-right text-slate-800 dark:text-slate-200">${b.holding_shares != null ? Number(b.holding_shares).toFixed(2) : '--'}</td>
-                    <td class="p-2 text-right text-slate-600 dark:text-slate-400">${b.ratio ? (b.ratio * 100).toFixed(2) + '%' : (b.pct || '--')}</td>
-                    <td class="p-2 text-right font-semibold text-slate-900 dark:text-slate-100">${b.holding_value != null ? Number(b.holding_value).toFixed(2) : '--'}</td>
+                    <td class="p-2 text-right text-slate-800 dark:text-slate-200">${sharesStr}</td>
+                    <td class="p-2 text-right text-slate-600 dark:text-slate-400">${ratioStr}</td>
+                    <td class="p-2 text-right font-semibold text-slate-900 dark:text-slate-100">${valueStr}</td>
                 </tr>`;
             }).join('');
         }

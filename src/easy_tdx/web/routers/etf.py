@@ -16,20 +16,32 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Query
 
+import os
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/etf", tags=["etf"])
 
 def _find_data_file() -> Path:
-    # Look for data/etf_data.json at repo root (parents[4])
+    # Look for data/etf_data.json across various directory layouts
+    candidates = [
+        Path.cwd() / "data" / "etf_data.json",
+        Path(__file__).resolve().parents[4] / "data" / "etf_data.json",
+        Path(__file__).resolve().parents[3] / "data" / "etf_data.json",
+        Path(__file__).resolve().parents[2] / "data" / "etf_data.json",
+        Path(__file__).resolve().parents[1] / "data" / "etf_data.json",
+    ]
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate
+        except Exception:
+            continue
+    # Default to repo root or cwd
     try:
-        repo_root = Path(__file__).resolve().parents[4]
-        candidate = repo_root / "data" / "etf_data.json"
-        if candidate.is_file() or candidate.parent.is_dir():
-            return candidate
+        return Path(__file__).resolve().parents[4] / "data" / "etf_data.json"
     except Exception:
-        pass
-    return Path(__file__).resolve().parent.parent / "data" / "etf_data.json"
+        return Path.cwd() / "data" / "etf_data.json"
 
 
 _DATA_FILE = _find_data_file()
@@ -200,11 +212,14 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
             "dates": master_dates,
             "series": new_series,
             "futures": local_data.get("futures"),
+            "success": True,
         }
 
         try:
             _DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_file = _DATA_FILE.with_suffix(".json.tmp")
+            tmp_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp_file, _DATA_FILE)
             logger.info("Successfully updated and saved ETF data to %s via easy_tdx", _DATA_FILE)
         except Exception as err:
             logger.warning("Failed to save ETF data to disk: %s", err)
@@ -245,6 +260,7 @@ def get_etf_tracking_data(force: bool = Query(False, description="强制从easy_
             "series": {},
         }
 
+    data["success"] = True
     with _ETF_CACHE_LOCK:
         _ETF_MEM_CACHE = data
         _ETF_CACHE_TS = now
