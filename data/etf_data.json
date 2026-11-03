@@ -1,6 +1,6 @@
 {
   "sample": false,
-  "updated": "2026-11-03 13:28 (easy_tdx行情)",
+  "updated": "2026-11-03 13:53 (easy_tdx行情)",
   "baseline": {
     "asof": "2025年年报（截至2025-12-31，2026年4月披露）",
     "total_value_yi": 15400,
@@ -59,9 +59,9 @@
       "exch": "SH",
       "index": "沪深300",
       "gjd_note": "汇金系合计持约736亿份，占比82.8%（2025年报）",
-      "price": 4.07,
-      "change_pct": -0.39,
-      "turnover_wan": 923501.3,
+      "price": 4.06,
+      "change_pct": -0.61,
+      "turnover_wan": 971532.6,
       "total_shares_yi": 414.0139
     },
     {
@@ -71,9 +71,9 @@
       "exch": "SH",
       "index": "沪深300",
       "gjd_note": "汇金重仓（2025年报持仓市值超1800亿元）",
-      "price": 3.95,
-      "change_pct": -0.43,
-      "turnover_wan": 356922.9,
+      "price": 3.94,
+      "change_pct": -0.65,
+      "turnover_wan": 363732.9,
       "total_shares_yi": 228.8585
     },
     {
@@ -84,8 +84,8 @@
       "index": "沪深300",
       "gjd_note": "汇金重仓（2025年报持仓市值超1300亿元）",
       "price": 4.24,
-      "change_pct": -0.35,
-      "turnover_wan": 143156.6,
+      "change_pct": -0.56,
+      "turnover_wan": 184947.3,
       "total_shares_yi": 138.5665
     },
     {
@@ -95,9 +95,9 @@
       "exch": "SZ",
       "index": "沪深300",
       "gjd_note": "汇金重仓（2025年报持仓市值超1200亿元）",
-      "price": 4.25,
-      "change_pct": -0.35,
-      "turnover_wan": 157722.2,
+      "price": 4.24,
+      "change_pct": -0.59,
+      "turnover_wan": 196746.4,
       "total_shares_yi": 123.2752
     },
     {
@@ -107,9 +107,9 @@
       "exch": "SH",
       "index": "上证50",
       "gjd_note": "汇金重仓",
-      "price": 2.87,
-      "change_pct": -0.21,
-      "turnover_wan": 1041865.6,
+      "price": 2.86,
+      "change_pct": -0.35,
+      "turnover_wan": 1073783.0,
       "total_shares_yi": 128.6617
     },
     {
@@ -119,9 +119,9 @@
       "exch": "SH",
       "index": "上证180",
       "gjd_note": "汇金持仓",
-      "price": 3.62,
-      "change_pct": -0.06,
-      "turnover_wan": 7238.0,
+      "price": 3.61,
+      "change_pct": -0.22,
+      "turnover_wan": 8668.6,
       "total_shares_yi": 44.4706
     },
     {
@@ -131,9 +131,9 @@
       "exch": "SH",
       "index": "中证500",
       "gjd_note": "汇金重仓，2025上半年获增持",
-      "price": 6.37,
-      "change_pct": -1.32,
-      "turnover_wan": 654726.5,
+      "price": 6.36,
+      "change_pct": -1.49,
+      "turnover_wan": 873123.6,
       "total_shares_yi": 79.1017
     },
     {
@@ -144,8 +144,8 @@
       "index": "中证500",
       "gjd_note": "华夏-汇金资管计划2025下半年增持约4亿份",
       "price": 3.6,
-      "change_pct": -1.4,
-      "turnover_wan": 30474.5,
+      "change_pct": -1.51,
+      "turnover_wan": 36424.3,
       "total_shares_yi": 19.4881
     },
     {
@@ -155,9 +155,9 @@
       "exch": "SH",
       "index": "中证1000",
       "gjd_note": "汇金重仓，2025上半年获增持",
-      "price": 2.54,
-      "change_pct": -1.52,
-      "turnover_wan": 461726.1,
+      "price": 2.53,
+      "change_pct": -1.79,
+      "turnover_wan": 609613.6,
       "total_shares_yi": 142.4722
     },
     {
@@ -167,9 +167,9 @@
       "exch": "SZ",
       "index": "中证1000",
       "gjd_note": "汇金持仓，2025上半年获增持",
-      "price": 2.6,
-      "change_pct": -1.74,
-      "turnover_wan": 141356.4,
+      "price": 2.59,
+      "change_pct": -2.0,
+      "turnover_wan": 169379.2,
       "total_shares_yi": 33.3043
     },
     {
@@ -179,9 +179,9 @@
       "exch": "SH",
       "index": "中证1000",
       "gjd_note": "汇金持仓，2025上半年获增持",
-      "price": 2.6,
-      "change_pct": -1.59,
-      "turnover_wan": 109582.7,
+      "price": 2.59,
+      "change_pct": -1.89,
+      "turnover_wan": 128579.8,
       "total_shares_yi": 33.2462
     },
     {
@@ -191,9 +191,9 @@
       "exch": "SZ",
       "index": "中证1000",
       "gjd_note": "汇金持仓，2025上半年获增持",
-      "price": 2.61,
-      "change_pct": -1.66,
-      "turnover_wan": 41355.3,
+      "price": 2.6,
+      "change_pct": -1.92,
+      "turnover_wan": 48597.3,
       "total_shares_yi": 10.3525
     },
     {
@@ -204,8 +204,8 @@
       "index": "科创50",
       "gjd_note": "汇金重仓",
       "price": 1.21,
-      "change_pct": -4.21,
-      "turnover_wan": 1077289.9,
+      "change_pct": -4.37,
+      "turnover_wan": 1238877.6,
       "total_shares_yi": 956.1267
     },
     {
@@ -216,8 +216,8 @@
       "index": "科创50",
       "gjd_note": "汇金持仓，2025上半年获增持",
       "price": 1.17,
-      "change_pct": -4.17,
-      "turnover_wan": 157105.4,
+      "change_pct": -4.42,
+      "turnover_wan": 179801.0,
       "total_shares_yi": 318.9163
     },
     {
@@ -227,9 +227,9 @@
       "exch": "SZ",
       "index": "创业板指",
       "gjd_note": "汇金持仓，2025上半年获增持",
-      "price": 2.42,
-      "change_pct": -2.22,
-      "turnover_wan": 1294209.8,
+      "price": 2.4,
+      "change_pct": -2.75,
+      "turnover_wan": 1408226.5,
       "total_shares_yi": 391.6846
     },
     {
@@ -240,8 +240,8 @@
       "index": "创业板指",
       "gjd_note": "汇金投资2025下半年增持2.3亿份（唯一加仓标的）",
       "price": 1.25,
-      "change_pct": -2.26,
-      "turnover_wan": 37920.8,
+      "change_pct": -2.8,
+      "turnover_wan": 42901.2,
       "total_shares_yi": 53.6787
     }
   ],
@@ -2253,7 +2253,7 @@
         4.11,
         4.07,
         4.09,
-        4.07
+        4.06
       ]
     },
     "510310": {
@@ -3761,7 +3761,7 @@
         4.0,
         3.94,
         3.97,
-        3.95
+        3.94
       ]
     },
     "510330": {
@@ -6777,7 +6777,7 @@
         4.29,
         4.24,
         4.26,
-        4.25
+        4.24
       ]
     },
     "510050": {
@@ -8285,7 +8285,7 @@
         2.87,
         2.86,
         2.87,
-        2.87
+        2.86
       ]
     },
     "510180": {
@@ -9793,7 +9793,7 @@
         3.64,
         3.6,
         3.62,
-        3.62
+        3.61
       ]
     },
     "510500": {
@@ -11301,7 +11301,7 @@
         6.49,
         6.3,
         6.46,
-        6.37
+        6.36
       ]
     },
     "512500": {
@@ -14317,7 +14317,7 @@
         2.6,
         2.51,
         2.57,
-        2.54
+        2.53
       ]
     },
     "159845": {
@@ -15825,7 +15825,7 @@
         2.66,
         2.57,
         2.64,
-        2.6
+        2.59
       ]
     },
     "560010": {
@@ -17333,7 +17333,7 @@
         2.66,
         2.57,
         2.64,
-        2.6
+        2.59
       ]
     },
     "159629": {
@@ -18841,7 +18841,7 @@
         2.67,
         2.58,
         2.65,
-        2.61
+        2.6
       ]
     },
     "588000": {
@@ -23365,7 +23365,7 @@
         2.54,
         2.43,
         2.47,
-        2.42
+        2.41
       ]
     },
     "159977": {
