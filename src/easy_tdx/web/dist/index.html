@@ -28877,7 +28877,7 @@
                         }
 
                         // 查找 MACD 背离事件
-                        const matchedMacd = (uc.macd_marks || []).find(m => m.date === dateStr);
+                        const matchedMacd = (_clLayers.macd && uc.macd_marks) ? uc.macd_marks.find(m => m.date === dateStr) : null;
                         let macdHtml = '';
                         if (matchedMacd) {
                             const isBottom = matchedMacd.type === 'bottom';
@@ -28939,32 +28939,35 @@
                         else if (curAmt >= 1e4) amtStr = `${(curAmt / 1e4).toFixed(0)}万`;
                         else if (curAmt > 0) amtStr = `${curAmt.toFixed(0)}元`;
 
-                        const curM250 = ma250Data[idx];
-                        const m250Str = (curM250 != null && curM250 !== '-') ? Number(curM250).toFixed(2) : '--';
-                        const curM5 = ma5Data[idx];
-                        const ma5Str = (curM5 != null && curM5 !== '-') ? Number(curM5).toFixed(2) : '--';
-                        const curM10 = ma10Data[idx];
-                        const ma10Str = (curM10 != null && curM10 !== '-') ? Number(curM10).toFixed(2) : '--';
-                        const curM20 = ma20Data[idx];
-                        const ma20Str = (curM20 != null && curM20 !== '-') ? Number(curM20).toFixed(2) : '--';
-                        const curM30 = ma30Data[idx];
-                        const ma30Str = (curM30 != null && curM30 !== '-') ? Number(curM30).toFixed(2) : '--';
-                        const curM60 = ma60Data[idx];
-                        const ma60Str = (curM60 != null && curM60 !== '-') ? Number(curM60).toFixed(2) : '--';
+                        // 主力净流入 (悬停窗口始终保留主力净流入，去掉均线与 MACD 指标数值)
+                        const amountsData = (uc.amounts && uc.amounts.length > 0)
+                            ? uc.amounts
+                            : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
+                        const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
+                            ? uc.inflow
+                            : calcClientInflow(candles, amountsData);
+                        const flowVal = (inflowData.net_inflow && inflowData.net_inflow[idx] != null) ? inflowData.net_inflow[idx] : 0;
+
+                        const formatFlow = (val) => {
+                            if (val == null || isNaN(val)) return '--';
+                            const absV = Math.abs(val);
+                            const sign = val > 0 ? '+' : (val < 0 ? '-' : '');
+                            if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(2)}亿`;
+                            if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(2)}万`;
+                            return `${sign}${absV.toFixed(0)}元`;
+                        };
+                        const flowColor = flowVal > 0 ? '#ef4444' : (flowVal < 0 ? '#10b981' : (isDark ? '#cbd5e1' : '#64748b'));
+                        const inflowHtml = `
+                            <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: ${fieldLabelColor}; font-weight: 600;">主力净流入:</span>
+                                    <b style="color: ${flowColor}; text-align: right;">${formatFlow(flowVal)}</b>
+                                </div>
+                            </div>
+                        `;
 
                         let subHtml = '';
-                        if (isSubMacd && macdData.dif && macdData.dif[idx] !== undefined) {
-                            const difV = macdData.dif[idx];
-                            const deaV = macdData.dea ? macdData.dea[idx] : undefined;
-                            const histV = macdData.hist ? macdData.hist[idx] : undefined;
-                            subHtml = `
-                                <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <span style="color: ${isDark ? '#00e5ff' : '#0284c7'};">DIF: <b style="color: ${isDark ? '#00e5ff' : '#0284c7'};">${difV != null ? Number(difV).toFixed(2) : '--'}</b></span>
-                                    <span style="color: #cbd5e1;">DEA: <b style="color: #ffd600;">${deaV != null ? Number(deaV).toFixed(2) : '--'}</b></span>
-                                    <span style="color: #cbd5e1;">MACD: <b style="color: ${(histV || 0) >= 0 ? '#ef4444' : '#10b981'};">${histV != null ? Number(histV).toFixed(2) : '--'}</b></span>
-                                </div>
-                            `;
-                        } else if (isSubRsi && rsiData.rsi6) {
+                        if (isSubRsi && rsiData.rsi6) {
                             const r6 = rsiData.rsi6[idx];
                             const r12 = rsiData.rsi12[idx];
                             const r24 = rsiData.rsi24[idx];
@@ -28993,36 +28996,6 @@
                                 <div style="display: flex; gap: 8px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
                                     <span style="color: #38bdf8;">EXP12: <b>${e12 != null ? Number(e12).toFixed(2) : '--'}</b></span>
                                     <span style="color: #f59e0b;">EXP50: <b>${e50 != null ? Number(e50).toFixed(2) : '--'}</b></span>
-                                </div>
-                            `;
-                        } else if (isSubInflow) {
-                            const amountsData = (uc.amounts && uc.amounts.length > 0)
-                                ? uc.amounts
-                                : (volumes.map(v => [v[0], v[1] * (candles[v[0]] ? candles[v[0]][1] : 0), v[2]]));
-                            const inflowData = (uc.inflow && uc.inflow.net_inflow && uc.inflow.net_inflow.length > 0)
-                                ? uc.inflow
-                                : calcClientInflow(candles, amountsData);
-                            const flowVal = (inflowData.net_inflow && inflowData.net_inflow[idx] != null) ? inflowData.net_inflow[idx] : 0;
-                            const m3 = (inflowData.ma3 && inflowData.ma3[idx] != null) ? inflowData.ma3[idx] : null;
-                            const m5 = (inflowData.ma5 && inflowData.ma5[idx] != null) ? inflowData.ma5[idx] : null;
-                            const m10 = (inflowData.ma10 && inflowData.ma10[idx] != null) ? inflowData.ma10[idx] : null;
-
-                            const formatFlow = (val) => {
-                                if (val == null || isNaN(val)) return '--';
-                                const absV = Math.abs(val);
-                                const sign = val > 0 ? '+' : (val < 0 ? '-' : '');
-                                if (absV >= 1e8) return `${sign}${(absV / 1e8).toFixed(2)}亿`;
-                                if (absV >= 1e4) return `${sign}${(absV / 1e4).toFixed(2)}万`;
-                                return `${sign}${absV.toFixed(0)}元`;
-                            };
-                            const flowColor = flowVal > 0 ? '#ef4444' : (flowVal < 0 ? '#10b981' : (isDark ? '#cbd5e1' : '#64748b'));
-                            subHtml = `
-                                <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${splitColor}; font-size: 11px; font-family: 'JetBrains Mono', Consolas, monospace;">
-                                    <div style="display: flex; justify-content: space-between;">
-                                        <span style="color: ${fieldLabelColor}; font-weight: 600;">主力净流入:</span>
-                                        <b style="color: ${flowColor}; text-align: right;">${formatFlow(flowVal)}</b>
-                                    </div>
-
                                 </div>
                             `;
                         }
@@ -29056,6 +29029,7 @@
                                 ${resHtml}
                                 ${macdHtml}
                                 ${td9Html}
+                                ${inflowHtml}
                                 ${subHtml}
                             </div>
                         `;
