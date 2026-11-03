@@ -27012,18 +27012,49 @@
                 else b2[i] = 0;
             }
 
-            const showHigh = new Array(n).fill(0);
-            const showLow = new Array(n).fill(0);
+            // 东方财富/通达信/同花顺神奇九转严密呈现规范：
+            // 1. 1~5 根隐藏不提前显示，连续满足条件到第 6 根才开始显示 1、2、3、4、5、6；
+            // 2. 正在进行中时：第 7 根继续满足追加显示 7，第 8 根追加显示 8；若中间任意中断则前面数字全部消失清零；
+            // 3. 必须连续 9 根全部达标成立，才算有效九转，历史 1~9 完整保留。
+            function calcTdDisplay(counts) {
+                const show = new Array(n).fill(0);
+                let i = 0;
+                while (i < n) {
+                    if (counts[i] === 0) {
+                        i++;
+                        continue;
+                    }
+                    const start = i;
+                    while (i < n && counts[i] > 0) {
+                        i++;
+                    }
+                    const end = i - 1;
+                    const maxCount = counts[end];
+                    const isLatestOngoing = (end === n - 1);
 
-            // 满足条件的数字全部完整呈现 (1~13连续编号呈现，9与13见顶/见底转折点高亮徽章标出)
-            for (let i = 0; i < n; i++) {
-                if (a2[i] > 0) {
-                    showHigh[i] = a2[i] <= 13 ? a2[i] : (((a2[i] - 1) % 13) + 1);
+                    if (isLatestOngoing) {
+                        // 正在进行的最新序列：1~5 隐藏，连续满足到第 6 根才开始显示 1~6，后续 7、8 追加显示
+                        if (maxCount >= 6) {
+                            for (let j = start; j <= end; j++) {
+                                const val = counts[j];
+                                show[j] = val <= 13 ? val : 0;
+                            }
+                        }
+                    } else {
+                        // 历史序列：必须连满 9 根达标成立才算有效九转，完整保留 1~9 (及 10~13)；未满 9 根中断则全部清零擦掉
+                        if (maxCount >= 9) {
+                            for (let j = start; j <= end; j++) {
+                                const val = counts[j];
+                                show[j] = val <= 13 ? val : 0;
+                            }
+                        }
+                    }
                 }
-                if (b2[i] > 0) {
-                    showLow[i] = b2[i] <= 13 ? b2[i] : (((b2[i] - 1) % 13) + 1);
-                }
+                return show;
             }
+
+            const showHigh = calcTdDisplay(a2);
+            const showLow = calcTdDisplay(b2);
 
             const marks = [];
             const map = {};
