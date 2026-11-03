@@ -1298,7 +1298,7 @@ def analyze_multi_period_resonance(
     is_single_period = (high_p == mid_p == low_p)
     # 5F / 30F / 15F / 1F 分钟线动态适配：由调用者传入的 count 驱动（支持缩放动态按需扩充，默认 800 根秒出）
     # 基准周期 (low_p) 严格由 count 驱动
-    req_counts[low_p] = min(max(count, 800), 12000 if low_p in ("5F", "5M", "1F", "1M") else (6000 if low_p in ("30F", "30M", "15F", "15M") else 3200))
+    req_counts[low_p] = min(max(count, 800), 12000 if low_p in ("5F", "5M", "1F", "1M", "15F", "15M", "30F", "30M", "60F", "60M", "120F", "120M") else 3200)
     if not is_single_period:
         # 多周期立体共振组合（如 30F, 5F, 1F）：高/中级别仅需覆盖 low_p 时间跨度 + 缠论指标温和预热缓冲区
         low_cnt = req_counts[low_p]
@@ -1372,8 +1372,8 @@ def analyze_multi_period_resonance(
         elif p_name in ("5F", "5M", "1F", "1M"):
             # 5F / 1F 分钟线动态适配：由前端请求深度或缩放自适应驱动，默认 800 根极速秒出，缩放时按需放大，最大支持 12000 根
             target_cnt = min(max(needed_cnt, 800), 12000)
-        elif p_name in ("30F", "30M", "15F", "15M"):
-            target_cnt = min(max(needed_cnt, 800), 6000)
+        elif p_name in ("30F", "30M", "15F", "15M", "60F", "60M", "120F", "120M"):
+            target_cnt = min(max(needed_cnt, 800), 12000)
         else:
             target_cnt = max(needed_cnt, 800)
 
