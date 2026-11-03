@@ -30647,34 +30647,54 @@
         window._etfChartSingleTheme = null;
         window._etfChartFutures = null;
         window._etfChartFuturesTheme = null;
+        window._lastEtfAutoSyncTs = 0;
+        window._etfIsSyncing = false;
 
         async function initEtfDataView(force = false) {
-            if (window._etfRawData && !force) {
+            // 1. 优先秒级呈现已有数据，防止白屏等待
+            if (window._etfRawData) {
                 renderEtfAllViews();
-                return;
+            } else {
+                try {
+                    await fetchEtfTrackingData(false);
+                } catch (_) {}
             }
-            await fetchEtfTrackingData(force);
+
+            // 2. 打开 ETF 数据页面时自动同步最新数据
+            // 15秒防抖保护：避免用户在不同 Tab 间频繁切换时发起并发冲突
+            const now = Date.now();
+            if (force || !window._lastEtfAutoSyncTs || (now - window._lastEtfAutoSyncTs > 15000)) {
+                refreshEtfData(true, true);
+            }
         }
 
-        async function refreshEtfData(force = true) {
+        async function refreshEtfData(force = true, isAuto = false) {
+            if (window._etfIsSyncing) return;
+            window._etfIsSyncing = true;
             const btn = document.getElementById('etf-refresh-btn');
             if (btn) {
                 btn.disabled = true;
                 btn.classList.add('opacity-60', 'cursor-not-allowed');
-                btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>同步中...</span>`;
-                lucide.createIcons();
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>${isAuto ? '自动同步中...' : '同步中...'}</span>`;
+                if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
             }
             try {
                 await fetchEtfTrackingData(force);
-                showToast('国家队ETF行情已刷新', '已成功从easy_tdx获取真实ETF行情与K线数据');
+                window._lastEtfAutoSyncTs = Date.now();
+                if (window.showToast) {
+                    showToast('国家队ETF动向已更新', isAuto ? '打开页面已自动同步最新行情与动向' : '已成功从easy_tdx获取真实ETF行情与K线数据');
+                }
             } catch (err) {
-                showToast('更新失败', err.message || '网络连接超时');
+                if (window.showToast) {
+                    showToast('更新失败', err.message || '网络连接超时');
+                }
             } finally {
+                window._etfIsSyncing = false;
                 if (btn) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-60', 'cursor-not-allowed');
                     btn.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>同步最新数据</span>`;
-                    lucide.createIcons();
+                    if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
                 }
             }
         }

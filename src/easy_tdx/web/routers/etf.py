@@ -83,7 +83,7 @@ def _fetch_remote_etf_data() -> Dict[str, Any] | None:
                 "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
             )
         }
-        with httpx.Client(timeout=10.0, follow_redirects=True, headers=headers) as client:
+        with httpx.Client(timeout=2.0, follow_redirects=True, headers=headers) as client:
             resp = client.get(f"{_REMOTE_URL}?t={int(time.time())}")
             if resp.status_code == 200:
                 data = resp.json()
@@ -98,11 +98,15 @@ def _fetch_remote_etf_data() -> Dict[str, Any] | None:
 def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
     """Fetch authoritative ETF quotes and daily K-lines via easy_tdx and merge with official share data."""
     try:
+        from concurrent.futures import ThreadPoolExecutor
         from easy_tdx.market_data import fetch_realtime_pool_quotes, fetch_security_kline, KlineCategory
 
-        # 优先尝试从远端获取权威基金公司已披露的历史总份额与期货持仓，若网络受限则优雅降级沿用本地缓存
-        remote_data = _fetch_remote_etf_data()
-        local_data = remote_data if remote_data else (_load_local_etf_data() or {})
+        # 优先读取本地基础数据，仅在本地数据为空时才尝试远端，避免外部远端接口异常时引起长时间等待
+        local_data = _load_local_etf_data() or {}
+        if not local_data or not local_data.get("dates"):
+            remote_data = _fetch_remote_etf_data()
+            if remote_data:
+                local_data = remote_data
 
         symbols = [f"{cfg['code']}.{cfg['exch']}" for cfg in ETF_CONFIGS]
         quotes = fetch_realtime_pool_quotes(symbols)
@@ -117,23 +121,28 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
 
         master_dates = [str(d)[:10] for d in ref_df["datetime"]]
 
+        # 并行拉取各 ETF 的日 K 线，提升同步效率
+        def _fetch_single_etf_kline(cfg: Dict[str, str]) -> tuple[str, Dict[str, float]]:
+            c_code = cfg["code"]
+            c_sym = f"{c_code}.{cfg['exch']}"
+            df = fetch_security_kline(c_sym, category=KlineCategory.DAY, count=len(master_dates))
+            d_to_c: Dict[str, float] = {}
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    d_str = str(row["datetime"])[:10]
+                    c_val = float(row["close"]) if row["close"] is not None else 0.0
+                    d_to_c[d_str] = round(c_val, 3)
+            return c_code, d_to_c
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            kline_dict = dict(executor.map(_fetch_single_etf_kline, ETF_CONFIGS))
+
         new_series: Dict[str, Any] = {}
         enriched_etfs: List[Dict[str, Any]] = []
 
         for cfg in ETF_CONFIGS:
             code = cfg["code"]
-            exch = cfg["exch"]
-            sym = f"{code}.{exch}"
-
-            # Fetch authentic daily K-line
-            df = fetch_security_kline(sym, category=KlineCategory.DAY, count=len(master_dates))
-            date_to_close: Dict[str, float] = {}
-            if df is not None and not df.empty:
-                for _, row in df.iterrows():
-                    d_str = str(row["datetime"])[:10]
-                    c_val = float(row["close"]) if row["close"] is not None else 0.0
-                    date_to_close[d_str] = round(c_val, 3)
-
+            date_to_close = kline_dict.get(code, {})
             closes = [date_to_close.get(d) for d in master_dates]
 
             # Preserve & align shares
