@@ -14,10 +14,12 @@ router = APIRouter(prefix="/api/fundflow", tags=["fundflow"])
 
 
 def _fmt_money(val: float) -> str:
-    """Format money value to readable text with 亿 / 万 units."""
+    """Format money value to readable text with 万亿 / 亿 / 万 units."""
     abs_v = abs(val)
     sign = "+" if val > 0 else ("-" if val < 0 else "")
-    if abs_v >= 100_000_000:
+    if abs_v >= 1_000_000_000_000:
+        return f"{sign}{abs_v / 1_000_000_000_000:.2f}万亿"
+    elif abs_v >= 100_000_000:
         return f"{sign}{abs_v / 100_000_000:.2f}亿"
     elif abs_v >= 10_000:
         return f"{sign}{abs_v / 10_000:.2f}万"
@@ -55,7 +57,7 @@ def scan_fund_flow(
     force_ref = bool(force_refresh if isinstance(force_refresh, bool) else getattr(force_refresh, "default", False))
 
     try:
-        stocks = evaluate_universe(universe_type="core", period="day", force_refresh=force_ref)
+        stocks = evaluate_universe(universe_type="all", period="day", force_refresh=force_ref)
     except Exception as e:
         logger.error(f"Error evaluating universe for fundflow: {e}")
         return {"success": False, "error": str(e), "rows": [], "summary": {}}
@@ -97,10 +99,13 @@ def scan_fund_flow(
     strategy_counts = {k: 0 for k in STRAT_META}
     strategy_counts["all"] = 0
 
+    record_date = str(stocks[0].get("record_date") or "").strip() if stocks else ""
+
     total_market_turnover = 0.0
     total_net_inflow = 0.0
     inflow_count = 0
     outflow_count = 0
+    flat_count = 0
     consec_inflow_count = 0
     sector_inflow_map: Dict[str, float] = {}
 
@@ -130,6 +135,8 @@ def scan_fund_flow(
             inflow_count += 1
         elif dde_net < 0:
             outflow_count += 1
+        else:
+            flat_count += 1
         if c_days >= 2:
             consec_inflow_count += 1
 
@@ -234,38 +241,38 @@ def scan_fund_flow(
         for k, v in sorted_sectors[:5] if v > 0
     ]
 
-    # Water level description
-    if total_market_turnover >= 30_000_000_000:
+    # Water level description (全市场 5200+ 标的资金水位)
+    if total_market_turnover >= 1_500_000_000_000:
         water_level = "活跃放量市"
-        water_level_desc = "市场资金充沛，热点扩散，可积极参与主线龙头与容量中军"
-    elif total_market_turnover >= 15_000_000_000:
+        water_level_desc = "全市场交投活跃超1.5万亿，资金充沛，热点扩散，可积极参与主线龙头与高贝塔标的"
+    elif total_market_turnover >= 1_000_000_000_000:
         water_level = "温和震荡市"
-        water_level_desc = "存量博弈，资金轮动加快，优先选择主力持续潜伏蓄势标的"
+        water_level_desc = "存量博弈万亿级别，板块资金轮动加快，优先选择主力持续潜伏蓄势标的"
     else:
         water_level = "缩量防守市"
-        water_level_desc = "量能收敛，抱团避险为主，重点观察超跌底背离与主力低位承接标的"
+        water_level_desc = "全市场量能收敛不足万亿，抱团避险为主，重点观察超跌底背离与机构低位承接标的"
 
     # Filtering
-    filtered_rows = processed_rows
+    # 1. Search keyword filter (若用户输入搜索词，支持检索全池任何标的)
+    if search_kw:
+        filtered_rows = [r for r in processed_rows if search_kw in r["stock_code"] or search_kw in r["stock_name"].upper()]
+    else:
+        filtered_rows = processed_rows
 
-    # 1. Strategy filter
+    # 2. Strategy filter
     if strat_key and strat_key != "all":
         filtered_rows = [r for r in filtered_rows if strat_key in r["matched_ids"]]
-    else:
-        # Default all: show stocks with positive net inflow or matched strategy
+    elif not search_kw:
+        # 默认全部（未显式搜索时）：展示主力资金净流入或匹配任意策略的标的
         filtered_rows = [r for r in filtered_rows if r["dde_net"] > 0 or len(r["matched_strategies"]) > 0]
 
-    # 2. Minimum inflow filter
+    # 3. Minimum inflow filter
     if min_inf > 0:
         filtered_rows = [r for r in filtered_rows if r["dde_net"] >= min_inf]
 
-    # 3. Industry filter
+    # 4. Industry filter
     if ind_filter:
         filtered_rows = [r for r in filtered_rows if r["industry"] == ind_filter]
-
-    # 4. Search keyword filter
-    if search_kw:
-        filtered_rows = [r for r in filtered_rows if search_kw in r["stock_code"] or search_kw in r["stock_name"].upper()]
 
     # Sorting
     reverse_sort = (sort_d.lower() != "asc")
@@ -288,12 +295,15 @@ def scan_fund_flow(
     return {
         "success": True,
         "summary": {
+            "record_date": record_date,
+            "universe_total": len(stocks),
             "total_market_turnover": total_market_turnover,
             "total_market_turnover_str": _fmt_money(total_market_turnover),
             "total_net_inflow": total_net_inflow,
             "total_net_inflow_str": _fmt_money(total_net_inflow),
             "inflow_count": inflow_count,
             "outflow_count": outflow_count,
+            "flat_count": flat_count,
             "consec_inflow_count": consec_inflow_count,
             "water_level": water_level,
             "water_level_desc": water_level_desc,

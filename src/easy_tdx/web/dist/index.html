@@ -5473,7 +5473,7 @@
                                     <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 font-medium">超大单 / 主力筹码 / 策略共振</span>
                                 </h2>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                                    实时量化追踪 A 股主力资金“潜伏蓄势突破、板块龙头先锋、尾盘抢筹溢价、机构重度建仓、超跌资金抄底”五大实战策略池
+                                    实时量化追踪全市场 5200+ A股标的主力资金“潜伏蓄势突破、板块龙头先锋、尾盘抢筹溢价、机构重度建仓、超跌资金抄底”五大实战策略池
                                 </p>
                             </div>
                         </div>
@@ -5504,7 +5504,7 @@
                 <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">全池主力净流入</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">全市场主力净流入 (5200+)</p>
                             <h3 id="ff-stat-total-inflow" class="text-xl font-bold font-mono mt-1 text-slate-800 dark:text-white">--</h3>
                             <p id="ff-stat-inflow-ratio" class="text-[11px] text-slate-400 mt-1">流入 -- 只 / 流出 -- 只</p>
                         </div>
@@ -12171,6 +12171,130 @@
             el.classList.remove('hidden');
         }
 
+        // 构造通达信风格的原生可视区间最高价与最低价 MarkPoint 标尺数据
+        function buildKpVisibleExtremaMarks(bars, startIdx, endIdx, isDark) {
+            if (!bars || bars.length === 0) return { highMark: null, lowMark: null, maxHighVal: 0, minLowVal: 0, yMin: 0, yMax: 0 };
+            const n = bars.length;
+            const sIdx = Math.max(0, Math.min(n - 1, startIdx));
+            const eIdx = Math.max(0, Math.min(n - 1, endIdx));
+            if (sIdx > eIdx) return { highMark: null, lowMark: null, maxHighVal: 0, minLowVal: 0, yMin: 0, yMax: 0 };
+
+            let maxHighVal = -Infinity;
+            let maxHighIdx = -1;
+            let minLowVal = Infinity;
+            let minLowIdx = -1;
+            let yMin = Infinity;
+            let yMax = -Infinity;
+
+            for (let i = sIdx; i <= eIdx; i++) {
+                const b = bars[i];
+                if (!b) continue;
+                const h = Number(b.high != null ? b.high : (b.close || 0));
+                const l = Number(b.low != null ? b.low : (b.close || 0));
+
+                if (h > 0 && h > maxHighVal) {
+                    maxHighVal = h;
+                    maxHighIdx = i;
+                }
+                if (l > 0 && l < minLowVal) {
+                    minLowVal = l;
+                    minLowIdx = i;
+                }
+
+                if (h > 0) yMax = Math.max(yMax, h);
+                if (l > 0) yMin = Math.min(yMin, l);
+
+                if (b.ma5) { yMin = Math.min(yMin, Number(b.ma5)); yMax = Math.max(yMax, Number(b.ma5)); }
+                if (b.ma10) { yMin = Math.min(yMin, Number(b.ma10)); yMax = Math.max(yMax, Number(b.ma10)); }
+                if (b.ma20) { yMin = Math.min(yMin, Number(b.ma20)); yMax = Math.max(yMax, Number(b.ma20)); }
+                if (b.ma30) { yMin = Math.min(yMin, Number(b.ma30)); yMax = Math.max(yMax, Number(b.ma30)); }
+                if (b.ma60) { yMin = Math.min(yMin, Number(b.ma60)); yMax = Math.max(yMax, Number(b.ma60)); }
+                if (typeof isMa250Period !== 'undefined' && isMa250Period && b.ma250) {
+                    yMin = Math.min(yMin, Number(b.ma250)); yMax = Math.max(yMax, Number(b.ma250));
+                }
+                if (typeof isBollActive !== 'undefined' && isBollActive && b.boll_up && b.boll_low) {
+                    yMax = Math.max(yMax, Number(b.boll_up));
+                    yMin = Math.min(yMin, Number(b.boll_low));
+                }
+            }
+
+            if (maxHighIdx < 0 || minLowIdx < 0 || !isFinite(maxHighVal) || !isFinite(minLowVal)) {
+                return { highMark: null, lowMark: null, maxHighVal: 0, minLowVal: 0, yMin: 0, yMax: 0 };
+            }
+
+            const highStr = maxHighVal.toFixed(2);
+            const lowStr = minLowVal.toFixed(2);
+            const midIdx = (sIdx + eIdx) / 2;
+            const isMaxOnRight = maxHighIdx > midIdx;
+            const isMinOnRight = minLowIdx > midIdx;
+
+            const highMark = {
+                name: '可视最高',
+                coord: [bars[maxHighIdx].datetime, maxHighVal],
+                value: highStr,
+                symbol: 'circle',
+                symbolSize: 5,
+                symbolOffset: [0, 0],
+                itemStyle: {
+                    color: '#ef4444',
+                    borderColor: '#fca5a5',
+                    borderWidth: 1.5,
+                    shadowBlur: 5,
+                    shadowColor: 'rgba(239, 68, 68, 0.7)'
+                },
+                label: {
+                    show: true,
+                    position: isMaxOnRight ? 'left' : 'right',
+                    distance: 3,
+                    formatter: isMaxOnRight ? `${highStr} ──` : `── ${highStr}`,
+                    color: '#f87171',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: 'rgba(239, 68, 68, 0.65)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            const lowMark = {
+                name: '可视最低',
+                coord: [bars[minLowIdx].datetime, minLowVal],
+                value: lowStr,
+                symbol: 'circle',
+                symbolSize: 5,
+                symbolOffset: [0, 0],
+                itemStyle: {
+                    color: '#10b981',
+                    borderColor: '#6ee7b7',
+                    borderWidth: 1.5,
+                    shadowBlur: 5,
+                    shadowColor: 'rgba(16, 185, 129, 0.7)'
+                },
+                label: {
+                    show: true,
+                    position: isMinOnRight ? 'left' : 'right',
+                    distance: 3,
+                    formatter: isMinOnRight ? `${lowStr} ──` : `── ${lowStr}`,
+                    color: '#34d399',
+                    fontWeight: 'bold',
+                    fontSize: 11,
+                    fontFamily: 'JetBrains Mono, Consolas, monospace',
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.90)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: 'rgba(16, 185, 129, 0.65)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                    padding: [1, 5]
+                },
+                z: 110
+            };
+
+            return { highMark, lowMark, maxHighVal, minLowVal, yMin, yMax, maxHighIdx, minLowIdx };
+        }
+
         function renderKpChart(json) {
             if (!kpEchart || !json) return;
             const bars = json.data || [];
@@ -13285,6 +13409,8 @@
                     type: 'value',
                     gridIndex: 0,
                     scale: true,
+                    min: initYMin,
+                    max: initYMax,
                     splitLine: { lineStyle: { color: splitColor } },
                     axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
                     axisLabel: { color: textColor, fontSize: labelFontSize, formatter: v => `¥${v.toFixed(2)}` }
@@ -13317,6 +13443,22 @@
             const initialZoom = getKpZoomRangeForMonths(currentKpMonths, bars, currentKpPeriod);
             const zoomStart = (prevDataZoom && prevDataZoom.start !== undefined) ? prevDataZoom.start : initialZoom.start;
             const zoomEnd = (prevDataZoom && prevDataZoom.end !== undefined) ? prevDataZoom.end : initialZoom.end;
+
+            // 初始计算可视区最高最低价 MarkPoint，确保首帧 0ms 即可在蜡烛图上渲染出高低价标尺
+            const sIdxInit = Math.max(0, Math.floor(bars.length * Number(zoomStart || 0) / 100));
+            const eIdxInit = Math.min(bars.length - 1, Math.max(sIdxInit, Math.ceil(bars.length * Number(zoomEnd || 100) / 100) - 1));
+            const initialExtrema = buildKpVisibleExtremaMarks(bars, sIdxInit, eIdxInit, isDark);
+            const initialExtremaMarks = (initialExtrema && initialExtrema.highMark && initialExtrema.lowMark) ? [initialExtrema.highMark, initialExtrema.lowMark] : [];
+            window._currentKpVisibleMarks = initialExtremaMarks;
+
+            let initYMin = undefined;
+            let initYMax = undefined;
+            if (initialExtrema && isFinite(initialExtrema.yMin) && isFinite(initialExtrema.yMax) && initialExtrema.yMax > initialExtrema.yMin) {
+                const spanInit = Math.max(0.01, initialExtrema.yMax - initialExtrema.yMin);
+                const padInit = spanInit * 0.06;
+                initYMin = Math.max(0, +(initialExtrema.yMin - padInit).toFixed(2));
+                initYMax = +(initialExtrema.yMax + padInit).toFixed(2);
+            }
 
             // 8. K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
             const patternInfo = getKpLatestPatterns(bars, json);
@@ -13554,6 +13696,7 @@
                         },
                         markPoint: {
                             data: [
+                                ...initialExtremaMarks,
                                 ...markPointData,
                                 ...((typeof buildKpWaveMarkPoints === 'function') ? buildKpWaveMarkPoints() : [])
                             ]
@@ -13683,94 +13826,60 @@
         function updateKpVisibleExtrema(bars, zoomParams) {
             if (!kpEchart || !bars || bars.length === 0) return;
             const opt = kpEchart.getOption();
-            if (!opt || !opt.dataZoom || opt.dataZoom.length === 0) return;
+            if (!opt) return;
 
-            let startPct = 40;
-            let endPct = 100;
-            let startVal = undefined;
-            let endVal = undefined;
+            const n = bars.length;
+            let startIdx = 0;
+            let endIdx = n - 1;
 
             let dzParam = zoomParams;
             if (dzParam && dzParam.batch && dzParam.batch.length > 0) {
                 dzParam = dzParam.batch[0];
             }
-            if (dzParam) {
-                if (dzParam.start !== undefined) startPct = dzParam.start;
-                if (dzParam.end !== undefined) endPct = dzParam.end;
-                if (dzParam.startValue !== undefined) startVal = dzParam.startValue;
-                if (dzParam.endValue !== undefined) endVal = dzParam.endValue;
-            } else {
-                const dz = opt.dataZoom[0];
-                if (dz.start !== undefined) startPct = dz.start;
-                if (dz.end !== undefined) endPct = dz.end;
-                if (dz.startValue !== undefined) startVal = dz.startValue;
-                if (dz.endValue !== undefined) endVal = dz.endValue;
-            }
 
-            let startIdx = 0;
-            let endIdx = bars.length - 1;
-
-            if (startVal !== undefined && endVal !== undefined) {
-                if (typeof startVal === 'number' && typeof endVal === 'number') {
-                    startIdx = Math.max(0, Math.min(bars.length - 1, Math.round(startVal)));
-                    endIdx = Math.max(0, Math.min(bars.length - 1, Math.round(endVal)));
-                } else if (typeof startVal === 'string') {
-                    const s = bars.findIndex(b => b.datetime === startVal);
-                    const e = bars.findIndex(b => b.datetime === endVal);
+            if (dzParam && dzParam.start !== undefined && dzParam.end !== undefined) {
+                startIdx = Math.max(0, Math.floor(n * Number(dzParam.start) / 100));
+                endIdx = Math.min(n - 1, Math.max(startIdx, Math.ceil(n * Number(dzParam.end) / 100) - 1));
+            } else if (dzParam && dzParam.startValue !== undefined && dzParam.endValue !== undefined) {
+                if (typeof dzParam.startValue === 'number' && typeof dzParam.endValue === 'number') {
+                    startIdx = Math.max(0, Math.min(n - 1, Math.round(dzParam.startValue)));
+                    endIdx = Math.max(0, Math.min(n - 1, Math.round(dzParam.endValue)));
+                } else if (typeof dzParam.startValue === 'string') {
+                    const s = bars.findIndex(b => b.datetime === dzParam.startValue);
+                    const e = bars.findIndex(b => b.datetime === dzParam.endValue);
                     if (s >= 0) startIdx = s;
                     if (e >= 0) endIdx = e;
                 }
-            } else if (startPct !== undefined && endPct !== undefined) {
-                startIdx = Math.max(0, Math.floor(bars.length * startPct / 100));
-                endIdx = Math.min(bars.length - 1, Math.max(startIdx, Math.ceil(bars.length * endPct / 100) - 1));
+            } else if (opt.dataZoom && opt.dataZoom.length > 0) {
+                const dz = opt.dataZoom[0];
+                // 关键修正：优先使用 start 和 end 百分比计算可视范围！
+                // 因为 opt.dataZoom[0].startValue 通常是 0 全量下限，若使用它会导致统计范围扩大至全数据集 100%
+                if (dz.start !== undefined && dz.end !== undefined) {
+                    startIdx = Math.max(0, Math.floor(n * Number(dz.start) / 100));
+                    endIdx = Math.min(n - 1, Math.max(startIdx, Math.ceil(n * Number(dz.end) / 100) - 1));
+                } else if (dz.startValue !== undefined && dz.endValue !== undefined) {
+                    if (typeof dz.startValue === 'number' && typeof dz.endValue === 'number') {
+                        startIdx = Math.max(0, Math.min(n - 1, Math.round(dz.startValue)));
+                        endIdx = Math.max(0, Math.min(n - 1, Math.round(dz.endValue)));
+                    } else if (typeof dz.startValue === 'string') {
+                        const s = bars.findIndex(b => b.datetime === dz.startValue);
+                        const e = bars.findIndex(b => b.datetime === dz.endValue);
+                        if (s >= 0) startIdx = s;
+                        if (e >= 0) endIdx = e;
+                    }
+                }
             }
 
             if (startIdx > endIdx) {
                 const t = startIdx; startIdx = endIdx; endIdx = t;
             }
 
-            let maxHighVal = -Infinity;
-            let maxHighIdx = -1;
-            let minLowVal = Infinity;
-            let minLowIdx = -1;
+            const isDark = (typeof getTheme === 'function' ? getTheme() : 'dark') === 'dark';
+            const extrema = buildKpVisibleExtremaMarks(bars, startIdx, endIdx, isDark);
+            if (!extrema || !extrema.highMark || !extrema.lowMark) return;
 
-            let yMin = Infinity;
-            let yMax = -Infinity;
-
-            for (let i = startIdx; i <= endIdx; i++) {
-                const b = bars[i];
-                if (!b) continue;
-                const h = Number(b.high != null ? b.high : (b.close || 0));
-                const l = Number(b.low != null ? b.low : (b.close || 0));
-
-                if (h > 0 && h > maxHighVal) {
-                    maxHighVal = h;
-                    maxHighIdx = i;
-                }
-                if (l > 0 && l < minLowVal) {
-                    minLowVal = l;
-                    minLowIdx = i;
-                }
-
-                if (h > 0) yMax = Math.max(yMax, h);
-                if (l > 0) yMin = Math.min(yMin, l);
-
-                if (b.ma5) { yMin = Math.min(yMin, b.ma5); yMax = Math.max(yMax, b.ma5); }
-                if (b.ma10) { yMin = Math.min(yMin, b.ma10); yMax = Math.max(yMax, b.ma10); }
-                if (b.ma20) { yMin = Math.min(yMin, b.ma20); yMax = Math.max(yMax, b.ma20); }
-                if (b.ma30) { yMin = Math.min(yMin, b.ma30); yMax = Math.max(yMax, b.ma30); }
-                if (b.ma60) { yMin = Math.min(yMin, b.ma60); yMax = Math.max(yMax, b.ma60); }
-                if (isMa250Period && b.ma250) { yMin = Math.min(yMin, b.ma250); yMax = Math.max(yMax, b.ma250); }
-                if (isBollActive && b.boll_up && b.boll_low) {
-                    yMax = Math.max(yMax, Number(b.boll_up));
-                    yMin = Math.min(yMin, Number(b.boll_low));
-                }
-            }
-
-            if (maxHighIdx < 0 || minLowIdx < 0 || !isFinite(maxHighVal) || !isFinite(minLowVal)) return;
-
-            currentKpVisHigh = maxHighVal.toFixed(2);
-            currentKpVisLow = minLowVal.toFixed(2);
+            currentKpVisHigh = extrema.maxHighVal.toFixed(2);
+            currentKpVisLow = extrema.minLowVal.toFixed(2);
 
             // 更新顶部 Header 可视极值显示
             const visHighEl = document.getElementById('kp-vis-high');
@@ -13778,77 +13887,21 @@
             const visAmpEl = document.getElementById('kp-vis-amp');
             if (visHighEl) visHighEl.innerText = currentKpVisHigh;
             if (visLowEl) visLowEl.innerText = currentKpVisLow;
-            if (visAmpEl && minLowVal > 0) {
-                const amp = ((maxHighVal - minLowVal) / minLowVal * 100).toFixed(2);
+            if (visAmpEl && extrema.minLowVal > 0) {
+                const amp = ((extrema.maxHighVal - extrema.minLowVal) / extrema.minLowVal * 100).toFixed(2);
                 visAmpEl.innerText = `${amp}%`;
             }
 
-            // 构造通达信风格的原生可视最高价与最低价 MarkPoint 标尺
-            const midIdx = (startIdx + endIdx) / 2;
-            const isMaxOnRight = maxHighIdx > midIdx;
-            const isMinOnRight = minLowIdx > midIdx;
-            const isDark = getTheme() === 'dark';
-
-            const highMark = {
-                name: '可视最高',
-                coord: [bars[maxHighIdx].datetime, maxHighVal],
-                value: currentKpVisHigh,
-                symbol: 'circle',
-                symbolSize: 4,
-                symbolOffset: [0, 0],
-                itemStyle: { color: '#ef4444', borderColor: '#fca5a5', borderWidth: 1.2 },
-                label: {
-                    show: true,
-                    position: isMaxOnRight ? 'left' : 'right',
-                    distance: 4,
-                    formatter: isMaxOnRight ? `${currentKpVisHigh} ──` : `── ${currentKpVisHigh}`,
-                    color: '#f87171',
-                    fontWeight: 'bold',
-                    fontSize: 11,
-                    fontFamily: 'JetBrains Mono, Consolas, monospace',
-                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
-                    borderColor: 'rgba(239, 68, 68, 0.5)',
-                    borderWidth: 1,
-                    borderRadius: 3,
-                    padding: [1, 5]
-                },
-                z: 110
-            };
-
-            const lowMark = {
-                name: '可视最低',
-                coord: [bars[minLowIdx].datetime, minLowVal],
-                value: currentKpVisLow,
-                symbol: 'circle',
-                symbolSize: 4,
-                symbolOffset: [0, 0],
-                itemStyle: { color: '#10b981', borderColor: '#6ee7b7', borderWidth: 1.2 },
-                label: {
-                    show: true,
-                    position: isMinOnRight ? 'left' : 'right',
-                    distance: 4,
-                    formatter: isMinOnRight ? `${currentKpVisLow} ──` : `── ${currentKpVisLow}`,
-                    color: '#34d399',
-                    fontWeight: 'bold',
-                    fontSize: 11,
-                    fontFamily: 'JetBrains Mono, Consolas, monospace',
-                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.92)',
-                    borderColor: 'rgba(16, 185, 129, 0.5)',
-                    borderWidth: 1,
-                    borderRadius: 3,
-                    padding: [1, 5]
-                },
-                z: 110
-            };
+            window._currentKpVisibleMarks = [extrema.highMark, extrema.lowMark];
+            const baseMarks = window._currentKpBaseMarks || [];
+            const waveMarks = (typeof buildKpWaveMarkPoints === 'function') ? buildKpWaveMarkPoints() : [];
+            const combinedMarks = [extrema.highMark, extrema.lowMark, ...baseMarks, ...waveMarks];
 
             // 动态贴合当前可视区间的上下界，给顶部底部留出适量呼吸间距 (6%)，防止蜡烛影线贴边
-            const span = Math.max(0.01, yMax - yMin);
+            const span = Math.max(0.01, extrema.yMax - extrema.yMin);
             const pad = span * 0.06;
-            const finalYMin = Math.max(0, +(yMin - pad).toFixed(2));
-            const finalYMax = +(yMax + pad).toFixed(2);
-
-            const baseMarks = window._currentKpBaseMarks || [];
-            const combinedMarks = [highMark, lowMark, ...baseMarks];
+            const finalYMin = Math.max(0, +(extrema.yMin - pad).toFixed(2));
+            const finalYMax = +(extrema.yMax + pad).toFixed(2);
 
             kpEchart.setOption({
                 yAxis: [
@@ -13864,7 +13917,7 @@
                         }
                     }
                 ]
-            }, { notMerge: false, lazyUpdate: true });
+            }, { notMerge: false, lazyUpdate: false });
         }
 
         // ==================== K-Line Arrow Key Zoom ==================== //
@@ -14275,11 +14328,12 @@
             const markLines = buildKpDrawMarkLines(dates, previewPt);
             const baseMarks = window._currentKpBaseMarks || [];
             const waveMarks = (typeof buildKpWaveMarkPoints === 'function') ? buildKpWaveMarkPoints() : [];
+            const extremaMarks = window._currentKpVisibleMarks || [];
             kpEchart.setOption({
                 series: [
                     {
                         markPoint: {
-                            data: [...baseMarks, ...waveMarks]
+                            data: [...extremaMarks, ...baseMarks, ...waveMarks]
                         },
                         markLine: {
                             silent: true,
@@ -32904,7 +32958,8 @@
                 if (updateEl) {
                     const now = new Date();
                     const timeStr = now.toTimeString().split(' ')[0];
-                    updateEl.innerText = `${timeStr} 更新`;
+                    const recDate = sm.record_date ? `数据基准日:${sm.record_date} · ` : '';
+                    updateEl.innerText = `${recDate}${timeStr} 更新 (全市场${sm.universe_total || 5200}+只)`;
                 }
 
                 // 5. Render Table
