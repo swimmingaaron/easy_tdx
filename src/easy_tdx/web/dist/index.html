@@ -5656,6 +5656,45 @@
             </div>
         </section>
 
+        <!-- ==================== 资金监控策略说明弹窗 (Fund Flow Strategy Detail Modal) ==================== -->
+        <div id="ff-strategy-modal"
+            class="fixed inset-0 z-[80] bg-slate-900/50 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6"
+            onclick="if(event.target === this) closeFundFlowStrategyModal()">
+            <div class="glass-card bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700/80 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                <!-- Header -->
+                <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/90 dark:bg-slate-900/60">
+                    <div class="flex items-center space-x-2.5">
+                        <div id="ff-modal-icon-wrap" class="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <i id="ff-modal-icon" data-lucide="sparkles" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h4 id="ff-modal-title" class="text-base font-bold text-slate-900 dark:text-white">策略详情说明</h4>
+                                <span id="ff-modal-tag" class="text-[11px] px-2 py-0.5 rounded font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">资金核心策略</span>
+                            </div>
+                            <p id="ff-modal-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">A股资金监控量化模型与研判逻辑</p>
+                        </div>
+                    </div>
+                    <button onclick="closeFundFlowStrategyModal()"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <!-- Body -->
+                <div id="ff-modal-body" class="p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-slate-700 dark:text-slate-200 font-sans">
+                    <!-- Dynamic Content -->
+                </div>
+                <!-- Footer -->
+                <div class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex items-center justify-between shrink-0">
+                    <span class="text-[11px] text-slate-400">点击标签即可查看策略底层量化模型</span>
+                    <button onclick="closeFundFlowStrategyModal()"
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition cursor-pointer">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+
 <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
         <div id="sl-board-modal"
             class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6"
@@ -32638,6 +32677,129 @@
         let _fundFlowAutoRefreshTimer = null;
         let _fundFlowIsLoading = false;
 
+        // 策略深度模型说明知识库
+        const FF_STRATEGY_DETAILS = {
+            latent_breakout: {
+                title: '主力潜伏蓄势突破',
+                name: '主力潜伏蓄势',
+                tag: '中线波段 · 胜率型',
+                icon: 'sparkles',
+                iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+                summary: '主力资金在股价窄幅震荡平台期间“暗中吃筹”，连续多日大单呈净流入状态。期间换手率温和不引人注目，随着筹码收集完毕，资金放量引发技术箱体突破。',
+                rules: [
+                    '<strong>资金潜伏期</strong>：主力连续 2~5 天净买入（或区间累计主力净额突破 2000 万元）；',
+                    '<strong>控盘温和性</strong>：换手率处于 1.2% ~ 12.0% 的健康蓄势区间，未出现过热或剧烈博弈；',
+                    '<strong>异动放量点</strong>：量比 >= 1.10，量能温和放大，启动即在当下；',
+                    '<strong>涨幅健康度</strong>：单日涨幅在 0.8% ~ 8.5% 之间，尚未远离起涨成本区。'
+                ],
+                tactics: '适合中线波段低吸或刚放量突破时第一时间跟进，以 20 日均线或箱体下沿作为防守底线，胜率与盈亏比极高。'
+            },
+            closing_surge: {
+                title: '尾盘抢筹次日溢价',
+                name: '尾盘抢筹溢价',
+                tag: '超短博弈 · 隔夜套利',
+                icon: 'zap',
+                iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+                summary: '在交易日 14:30 以后，主力资金加速挂大单抢筹扫筹，推动分时快速翘尾上攻，日 K 线实体饱满并收于全天最高价附近。',
+                rules: [
+                    '<strong>主力大额抢筹</strong>：单日主力净买入额 >= 1500 万元；',
+                    '<strong>净买占比高企</strong>：主力净买额占个股成交总额比例 >= 6.5%；',
+                    '<strong>日K饱满收高</strong>：收盘价收在全天振幅的上半区 (close >= (high + low)/2) 且日K收阳；',
+                    '<strong>溢价博弈区间</strong>：当日涨幅在 1.5% ~ 7.8% 之间，留足次日冲高空间。'
+                ],
+                tactics: '博弈主力尾盘锁仓动机，次日早盘集合竞价或开盘前 15 分钟冲高时择机止盈获利，属于极佳的超短 T+1 套利模型。'
+            },
+            heavy_institution: {
+                title: '机构重度介入建仓',
+                name: '机构重度建仓',
+                tag: '趋势主升 · 资金强控盘',
+                icon: 'building',
+                iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+                summary: '公募基金、外资（北向资金）与百亿险资等超大机构资金重度扫单建仓。呈现单笔成交大、主力净流入极高特征，是趋势波段走强的主发动机。',
+                rules: [
+                    '<strong>单日巨额净买</strong>：单日主力净买额超 4500 万元至数亿元，且净买额占比 >= 6.0%；',
+                    '<strong>或者大成交强吸筹</strong>：单日总成交额 >= 3.5 亿元，且主力净买额超 6000 万元；',
+                    '<strong>机构主导强控盘</strong>：买方多为机构专用席位或外资席位，筹码呈高度集中趋势。'
+                ],
+                tactics: '机构建仓周期通常长达数周至数月，股价回调至 10 日或 20 日生命线时往往是极具安全垫的低吸良机。'
+            },
+            sector_leader: {
+                title: '板块集群龙头先锋',
+                name: '板块龙头先锋',
+                tag: '短线主升 · 情绪标杆',
+                icon: 'crown',
+                iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+                summary: '板块内多只标的同步获资金蜂拥抢筹，个股率先启动封板或大幅领涨，是整个题材板块的主攻手与情绪核心。',
+                rules: [
+                    '<strong>大幅领涨先锋</strong>：当日涨幅 >= 3.8%，在板块内涨幅名列前茅；',
+                    '<strong>单日主力大买</strong>：主力大单净买入额 >= 2000 万元；',
+                    '<strong>换手充分活跃</strong>：日换手率 >= 3.5%，高流动性、高辨识度。'
+                ],
+                tactics: '跟随板块主升浪共振，打龙头做前排，行情分歧时往往具备极强抗跌性与反包预期。'
+            },
+            oversold_reversal: {
+                title: '超跌资金抄底共振',
+                name: '超跌资金抄底',
+                tag: '左侧/右侧拐点 · 反弹博弈',
+                icon: 'trending-up',
+                iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+                summary: '股价经历深度回调回踩后，空头动能衰竭，主力资金率先由负转正翻红抄底，并与底部技术形态产生强共振。',
+                rules: [
+                    '<strong>大单资金翻红</strong>：主力净买入额 >= 500 万元；',
+                    '<strong>技术形态共振</strong>：日线出现底分型、MACD底背驰、超跌筑底形态或主力首日翻红；',
+                    '<strong>企稳收涨确立</strong>：当日收红企稳（涨幅 >= 0.5%）。'
+                ],
+                tactics: '利用大资金先行转向特点，在风险收益比极佳的低位入场，以阶段新低设止损，博弈强劲均线修复反弹。'
+            }
+        };
+
+        function showFundFlowStrategyModal(stratKey) {
+            const item = FF_STRATEGY_DETAILS[stratKey];
+            if (!item) return;
+
+            const modal = document.getElementById('ff-strategy-modal');
+            const titleEl = document.getElementById('ff-modal-title');
+            const tagEl = document.getElementById('ff-modal-tag');
+            const iconWrap = document.getElementById('ff-modal-icon-wrap');
+            const bodyEl = document.getElementById('ff-modal-body');
+
+            if (titleEl) titleEl.innerText = item.title;
+            if (tagEl) tagEl.innerText = item.tag;
+            if (iconWrap) iconWrap.className = `p-2 rounded-xl border ${item.iconBg}`;
+
+            if (bodyEl) {
+                let rulesHtml = item.rules.map(r => `<li class="flex items-start space-x-2"><span class="text-emerald-500 font-bold shrink-0">✓</span><span>${r}</span></li>`).join('');
+                bodyEl.innerHTML = `
+                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+                        <h5 class="font-bold text-slate-900 dark:text-white text-xs mb-1">【核心逻辑】</h5>
+                        <p class="text-slate-600 dark:text-slate-300">${item.summary}</p>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+                        <h5 class="font-bold text-slate-900 dark:text-white text-xs mb-2">【量化模型筛选规则】</h5>
+                        <ul class="space-y-1.5 text-slate-600 dark:text-slate-300">
+                            ${rulesHtml}
+                        </ul>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60">
+                        <h5 class="font-bold text-emerald-800 dark:text-emerald-300 text-xs mb-1">【实战操作锦囊】</h5>
+                        <p class="text-emerald-700 dark:text-emerald-200">${item.tactics}</p>
+                    </div>
+                `;
+            }
+
+            if (modal) modal.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeFundFlowStrategyModal() {
+            const modal = document.getElementById('ff-strategy-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+        window.showFundFlowStrategyModal = showFundFlowStrategyModal;
+        window.closeFundFlowStrategyModal = closeFundFlowStrategyModal;
+
         const FF_STRATEGY_DESCRIPTIONS = {
             all: '💡 <strong>全部资金监控</strong>：综合展示全市场主力资金大单净流入靠前的核心标的，并实时标记多策略共振属性。',
             latent_breakout: '🎯 <strong>主力潜伏蓄势突破</strong>：连续 2~5 日主力资金持续净流入（筹码暗中收集），日内换手率温和（1.2%~12%），量比放大，即将或刚刚突破均线与震荡箱体。',
@@ -32888,13 +33050,19 @@
                     consecHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap">首日翻红</span>`;
                 }
 
-                // Matched Strategies Badges
+                // Matched Strategies Badges (with clickable modal links)
                 let stratsHtml = '<span class="text-slate-400 dark:text-slate-500 text-[10px]">-</span>';
                 if (r.matched_strategies && r.matched_strategies.length > 0) {
                     stratsHtml = `<div class="flex flex-wrap gap-1">` +
-                        r.matched_strategies.map(s =>
-                            `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${s.badge}">${s.name}</span>`
-                        ).join('') +
+                        r.matched_strategies.map(s => {
+                            const stratId = s.id || '';
+                            return `<button type="button" onclick="event.stopPropagation(); showFundFlowStrategyModal('${stratId}')"
+                                class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${s.badge} hover:opacity-85 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center space-x-0.5"
+                                title="点击查看【${s.name}】策略底层量化模型与研判说明">
+                                <span>${s.name}</span>
+                                <i data-lucide="help-circle" class="w-2.5 h-2.5 opacity-60 ml-0.5"></i>
+                            </button>`;
+                        }).join('') +
                         `</div>`;
                 }
 
