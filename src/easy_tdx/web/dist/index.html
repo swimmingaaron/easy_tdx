@@ -951,8 +951,8 @@
         /* ==================== 行业板块列表 护眼与质感配色体系 ==================== */
         .industry-grid-layout {
             display: grid;
-            grid-template-columns: 18px minmax(50px, 1fr) 44px minmax(46px, 0.9fr) minmax(46px, 1fr) minmax(46px, 1fr) minmax(46px, 1fr) 82px;
-            gap: 4px;
+            grid-template-columns: 16px minmax(46px, 1fr) 42px minmax(44px, 0.9fr) minmax(38px, 1fr) minmax(38px, 1fr) minmax(38px, 1fr) 78px;
+            gap: 3px;
             align-items: center;
         }
 
@@ -2896,8 +2896,8 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <!-- 2. 行业板块 与 板块成分股 (更宽布局，全量呈现无横向滚动条) -->
-                <div class="glass-card p-3.5 lg:p-4 rounded-2xl lg:col-span-8 xl:col-span-9 flex flex-col min-w-0">
+                <!-- 2. 行业板块 与 板块成分股 (精炼列名，全信息无滚动条呈现) -->
+                <div class="glass-card p-3.5 lg:p-4 rounded-2xl lg:col-span-8 xl:col-span-8 2xl:col-span-7 flex flex-col min-w-0">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
                         <!-- 板块信息 (占 1/2 of 2/3) -->
                         <div
@@ -2954,17 +2954,17 @@
                                         </div>
                                         <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5"
                                             onclick="toggleIndustrySort('net_inflow_yi')" title="点击按当日主力净流入排序">
-                                            <span>当日净流入</span>
+                                            <span>当日净</span>
                                             <span id="industry-th-sort-1d" class="text-[10px] font-bold"></span>
                                         </div>
                                         <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5"
                                             onclick="toggleIndustrySort('net_inflow_3d_yi')" title="点击按3日主力净流入排序">
-                                            <span>3日净流入</span>
+                                            <span>3日净</span>
                                             <span id="industry-th-sort-3d" class="text-[10px] font-bold"></span>
                                         </div>
                                         <div class="text-right cursor-pointer hover:text-cyan-400 flex items-center justify-end space-x-0.5"
                                             onclick="toggleIndustrySort('net_inflow_5d_yi')" title="点击按5日主力净流入排序">
-                                            <span>5日净流入</span>
+                                            <span>5日净</span>
                                             <span id="industry-th-sort-5d" class="text-[10px] font-bold"></span>
                                         </div>
                                         <div class="text-center">
@@ -3013,15 +3013,15 @@
                                             <th class="pb-1.5 px-1 font-medium text-right cursor-pointer hover:text-cyan-400"
                                                 onclick="toggleSectorStocksSort('main_net_amount')"
                                                 title="点击按当日主力净流入排序">
-                                                当日净流入 <span id="sector-th-sort-1d" class="text-[10px] font-bold"></span>
+                                                当日净 <span id="sector-th-sort-1d" class="text-[10px] font-bold"></span>
                                             </th>
                                             <th class="pb-1.5 px-1 font-medium text-right cursor-pointer hover:text-cyan-400"
                                                 onclick="toggleSectorStocksSort('main_net_3d')" title="点击按3日主力净流入排序">
-                                                3日净流入 <span id="sector-th-sort-3d" class="text-[10px] font-bold"></span>
+                                                3日净 <span id="sector-th-sort-3d" class="text-[10px] font-bold"></span>
                                             </th>
                                             <th class="pb-1.5 px-1 font-medium text-right cursor-pointer hover:text-cyan-400"
                                                 onclick="toggleSectorStocksSort('main_net_5d')" title="点击按5日主力净流入排序">
-                                                5日净流入 <span id="sector-th-sort-5d" class="text-[10px] font-bold"></span>
+                                                5日净 <span id="sector-th-sort-5d" class="text-[10px] font-bold"></span>
                                             </th>
                                             <th class="pb-1.5 px-1 font-medium text-center">操作</th>
                                         </tr>
@@ -3037,8 +3037,8 @@
                     </div>
                 </div>
 
-                <!-- 2. 行业核心成分股 缠论月周日多周期共振 K线窗口 (紧凑呈现，腾出宽度给左侧板块表格) -->
-                <div id="sector-chanlun-card" class="glass-card p-3 sm:p-4 rounded-2xl lg:col-span-4 xl:col-span-3 flex flex-col justify-between relative overflow-hidden min-w-0" style="min-height: 460px;">
+                <!-- 2. 行业核心成分股 缠论月周日多周期共振 K线窗口 (适当增加宽度，开阔呈现) -->
+                <div id="sector-chanlun-card" class="glass-card p-3 sm:p-4 rounded-2xl lg:col-span-4 xl:col-span-4 2xl:col-span-5 flex flex-col justify-between relative overflow-hidden min-w-0" style="min-height: 460px;">
                     <!-- 顶部标题与控制工具栏 -->
                     <div class="flex flex-wrap justify-between items-center gap-2 mb-2 pb-2 border-b border-slate-800/80">
                         <div class="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -4991,7 +4991,7 @@
             <!-- ECharts 主图呈现区 (支持单窗口 / 双窗口 / 四窗口分屏，默认四窗口) -->
             <div id="cl-charts-split-container" class="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
                 <!-- 窗口 1: 季·月·周 (左上窗/第1窗) -->
-                <div id="cl-chart-card-left" ondblclick="handleChanlunCardDblClick('left', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-left" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-purple-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5002,7 +5002,6 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗1: 季·月·周</span>
-                            <button id="cl-max-badge-left" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text">--</span>
                             </div>
@@ -5048,7 +5047,7 @@
                 </div>
 
                 <!-- 窗口 2: 月·周·日 (右上窗/第2窗) -->
-                <div id="cl-chart-card-w2" ondblclick="handleChanlunCardDblClick('w2', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-w2" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w2" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-emerald-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5059,7 +5058,6 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗2: 月·周·日</span>
-                            <button id="cl-max-badge-w2" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w2">--</span>
                             </div>
@@ -5105,7 +5103,7 @@
                 </div>
 
                 <!-- 窗口 3: 周·日·30F (左下窗/第3窗) -->
-                <div id="cl-chart-card-right" ondblclick="handleChanlunCardDblClick('right', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-right" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-right" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-cyan-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5116,7 +5114,6 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗3: 周·日·30F</span>
-                            <button id="cl-max-badge-right" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-right">--</span>
                             </div>
@@ -5165,7 +5162,7 @@
                 </div>
 
                 <!-- 窗口 4: 日·30F·5F (右下窗/第4窗) -->
-                <div id="cl-chart-card-w4" ondblclick="handleChanlunCardDblClick('w4', event)" title="双击空白处最大化 (双击K线回溯历史)" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col cursor-default">
+                <div id="cl-chart-card-w4" class="min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col">
                     <!-- 加载中遮罩 -->
                     <div id="cl-loading-overlay-w4" style="display: none;" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs rounded-2xl z-10 flex flex-col items-center justify-center space-y-2 text-amber-400">
                         <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -5176,7 +5173,6 @@
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗4: 日·30F·5F</span>
-                            <button id="cl-max-badge-w4" onclick="event.stopPropagation(); exitMaximizeChanlunWindow();" class="hidden items-center space-x-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 shadow-xs cursor-pointer transition-colors" title="点击或按 ESC 退出最大化并恢复四窗"><span>⤢ 单窗全宽</span><span class="text-[9.5px] text-purple-400 font-mono">(按ESC退出)</span></button>
                             <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
                                 <span id="cl-chart-title-text-w4">--</span>
                             </div>
@@ -9087,16 +9083,7 @@
                     return;
                 }
             }
-            if (_clMaximizedWindow && (e.key === 'Escape' || e.keyCode === 27)) {
-                const fModal = document.getElementById('ts-fina-modal');
-                const kModal = document.getElementById('kline-preview-modal');
-                if ((!fModal || fModal.classList.contains('hidden')) && (!kModal || kModal.classList.contains('hidden'))) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    exitMaximizeChanlunWindow();
-                    return;
-                }
-            }
+
 
             const finaModal = document.getElementById('ts-fina-modal');
             const klineModal = document.getElementById('kline-preview-modal');
@@ -25187,178 +25174,7 @@
         let _clReplayTimer = null;
         let _clHasInitialized = false;
 
-        let _clMaximizedWindow = null;
-        let _clPrevWindowModeBeforeMax = 'quad';
-        let _lastMaxToggleTs = 0;
 
-        window.toggleMaximizeChanlunWindow = function(side) {
-            const now = Date.now();
-            if (now - (window._lastBarDblClickTs || 0) < 500) return;
-            if (now - _lastMaxToggleTs < 400) return;
-            _lastMaxToggleTs = now;
-
-            if (_clMaximizedWindow === side) {
-                exitMaximizeChanlunWindow();
-            } else {
-                maximizeChanlunWindow(side);
-            }
-        };
-
-        window.handleChanlunCardDblClick = function(side, event) {
-            const now = Date.now();
-            if (now - (window._lastBarDblClickTs || 0) < 500) return;
-            if (event && event.target) {
-                // 忽略下拉、输入框、按钮等交互控件
-                if (event.target.closest('select, input, button, a, option, optgroup, .cl-search-item')) return;
-                // 如果双击的是 canvas 画布内部，交由 canvas 专属的 ZRender/ECharts 监听精确区分 K线与空白
-                if (event.target.tagName === 'CANVAS' || event.target.closest('canvas')) return;
-            }
-            toggleMaximizeChanlunWindow(side);
-        };
-
-        window.maximizeChanlunWindow = function(side) {
-            if (!_clMaximizedWindow) {
-                _clPrevWindowModeBeforeMax = _clWindowMode || 'quad';
-            }
-            _clMaximizedWindow = side;
-
-            const splitContainer = document.getElementById('cl-charts-split-container');
-            if (splitContainer) {
-                splitContainer.className = 'flex flex-col gap-3 w-full';
-            }
-
-            const selectWin = document.getElementById('cl-select-win-mode');
-            if (selectWin) selectWin.value = 'single';
-
-            const cards = {
-                left: document.getElementById('cl-chart-card-left'),
-                w2: document.getElementById('cl-chart-card-w2'),
-                right: document.getElementById('cl-chart-card-right'),
-                w4: document.getElementById('cl-chart-card-w4')
-            };
-
-            const charts = {
-                left: window.chanlunChart,
-                w2: window.chanlunChartW2,
-                right: window.chanlunChartRight,
-                w4: window.chanlunChartW4
-            };
-
-            Object.entries(cards).forEach(([s, card]) => {
-                if (!card) return;
-                const badge = document.getElementById(`cl-max-badge-${s}`);
-                if (s === side) {
-                    card.style.display = '';
-                    card.className = 'w-full min-w-0 glass-card bg-[#0b0f19]/90 border border-purple-500/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
-                    if (badge) {
-                        badge.classList.remove('hidden');
-                        badge.classList.add('inline-flex');
-                    }
-                } else {
-                    card.style.display = 'none';
-                    if (badge) {
-                        badge.classList.add('hidden');
-                        badge.classList.remove('inline-flex');
-                    }
-                }
-            });
-
-            // 立即计算全屏高度并赋予容器
-            adjustChanlunLayoutHeight();
-
-            // 深度性能优化：图表已就绪时仅需执行原生 resize，0ms瞬间响应，彻底消除重新计算与卡顿
-            if (charts[side]) {
-                charts[side].resize();
-            } else {
-                const dataMap = {
-                    left: _clLeftCachedData || _clCachedData,
-                    w2: _clW2CachedData,
-                    right: _clRightCachedData,
-                    w4: _clW4CachedData
-                };
-                if (dataMap[side]) {
-                    renderSingleChanlunChart(side, dataMap[side]);
-                }
-            }
-        };
-
-        window.exitMaximizeChanlunWindow = function() {
-            if (!_clMaximizedWindow) return;
-            const prevMode = _clPrevWindowModeBeforeMax || 'quad';
-            _clMaximizedWindow = null;
-
-            ['left', 'w2', 'right', 'w4'].forEach(s => {
-                const badge = document.getElementById(`cl-max-badge-${s}`);
-                if (badge) {
-                    badge.classList.add('hidden');
-                    badge.classList.remove('inline-flex');
-                }
-                const card = document.getElementById(s === 'left' ? 'cl-chart-card-left' : (s === 'w2' ? 'cl-chart-card-w2' : (s === 'right' ? 'cl-chart-card-right' : 'cl-chart-card-w4')));
-                if (card) {
-                    card.style.minHeight = '';
-                }
-            });
-
-            // 深度性能优化：高速恢复布局，仅调用可见图表的 resize，绝不重新渲染或重新计算
-            fastRestoreChanlunLayout(prevMode);
-        };
-
-        function fastRestoreChanlunLayout(mode) {
-            _clWindowMode = mode;
-            const selectWin = document.getElementById('cl-select-win-mode');
-            if (selectWin) selectWin.value = mode;
-
-            const splitContainer = document.getElementById('cl-charts-split-container');
-            const cardLeft = document.getElementById('cl-chart-card-left');
-            const cardW2 = document.getElementById('cl-chart-card-w2');
-            const cardRight = document.getElementById('cl-chart-card-right');
-            const cardW4 = document.getElementById('cl-chart-card-w4');
-
-            const charts = {
-                left: window.chanlunChart,
-                w2: window.chanlunChartW2,
-                right: window.chanlunChartRight,
-                w4: window.chanlunChartW4
-            };
-
-            const normalClass = 'min-w-0 glass-card bg-[#0b0f19]/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-2 sm:p-2.5 relative shadow-2xl backdrop-blur-xl flex flex-col';
-
-            if (mode === 'quad') {
-                if (splitContainer) splitContainer.className = 'grid grid-cols-1 xl:grid-cols-2 gap-3 w-full';
-                if (cardLeft) { cardLeft.style.display = ''; cardLeft.className = normalClass; }
-                if (cardW2) { cardW2.style.display = ''; cardW2.className = normalClass; }
-                if (cardRight) { cardRight.style.display = ''; cardRight.className = normalClass; }
-                if (cardW4) { cardW4.style.display = ''; cardW4.className = normalClass; }
-            } else if (mode === 'dual_h') {
-                if (splitContainer) splitContainer.className = 'grid grid-cols-1 lg:grid-cols-2 gap-3 w-full';
-                if (cardLeft) { cardLeft.style.display = ''; cardLeft.className = normalClass; }
-                if (cardW2) cardW2.style.display = 'none';
-                if (cardRight) { cardRight.style.display = ''; cardRight.className = normalClass; }
-                if (cardW4) cardW4.style.display = 'none';
-            } else if (mode === 'dual') {
-                if (splitContainer) splitContainer.className = 'flex flex-col gap-3 w-full';
-                if (cardLeft) { cardLeft.style.display = ''; cardLeft.className = 'w-full ' + normalClass; }
-                if (cardW2) cardW2.style.display = 'none';
-                if (cardRight) { cardRight.style.display = ''; cardRight.className = 'w-full ' + normalClass; }
-                if (cardW4) cardW4.style.display = 'none';
-            } else {
-                if (splitContainer) splitContainer.className = 'flex flex-col gap-3 w-full';
-                if (cardLeft) { cardLeft.style.display = ''; cardLeft.className = 'w-full ' + normalClass; }
-                if (cardW2) cardW2.style.display = 'none';
-                if (cardRight) cardRight.style.display = 'none';
-                if (cardW4) cardW4.style.display = 'none';
-            }
-
-            adjustChanlunLayoutHeight();
-
-            // 瞬间 resize 所有可见图表，零重算！
-            ['left', 'w2', 'right', 'w4'].forEach(s => {
-                const card = (s === 'left') ? cardLeft : (s === 'w2') ? cardW2 : (s === 'right') ? cardRight : cardW4;
-                if (card && card.style.display !== 'none' && charts[s]) {
-                    charts[s].resize();
-                }
-            });
-        }
 
         function adjustChanlunLayoutHeight() {
             const splitContainer = document.getElementById('cl-charts-split-container');
@@ -25381,21 +25197,7 @@
             const cardRight = document.getElementById('cl-chart-card-right');
             const cardW4 = document.getElementById('cl-chart-card-w4');
 
-            if (_clMaximizedWindow) {
-                const maxCard = document.getElementById(_clMaximizedWindow === 'left' ? 'cl-chart-card-left' : (_clMaximizedWindow === 'w2' ? 'cl-chart-card-w2' : (_clMaximizedWindow === 'right' ? 'cl-chart-card-right' : 'cl-chart-card-w4')));
-                if (maxCard) {
-                    maxCard.style.height = `${targetH}px`;
-                    maxCard.style.minHeight = `${targetH}px`;
-                }
-                const charts = {
-                    left: window.chanlunChart,
-                    w2: window.chanlunChartW2,
-                    right: window.chanlunChartRight,
-                    w4: window.chanlunChartW4
-                };
-                if (charts[_clMaximizedWindow]) charts[_clMaximizedWindow].resize();
-                return;
-            }
+
 
             if (_clWindowMode === 'quad' || _clWindowMode === 'dual') {
                 const quadH = Math.max(330, Math.floor((targetH - 12) / 2));
@@ -25417,16 +25219,7 @@
         }
 
         window.setChanlunWindowMode = function(mode) {
-            if (_clMaximizedWindow) {
-                _clMaximizedWindow = null;
-                ['left', 'w2', 'right', 'w4'].forEach(s => {
-                    const badge = document.getElementById(`cl-max-badge-${s}`);
-                    if (badge) {
-                        badge.classList.add('hidden');
-                        badge.classList.remove('inline-flex');
-                    }
-                });
-            }
+
             _clWindowMode = mode;
             const selectWin = document.getElementById('cl-select-win-mode');
             if (selectWin) selectWin.value = mode;
@@ -29686,97 +29479,78 @@
                 }
             });
 
-            // 监听鼠标双击事件：精确区分 K线点击 与 空白区域点击
-            // 1. 如果双击落在某根K线蜡烛图上 (或其标记)，触发历史回溯，所有窗口最新K线全部对齐跳到此处的日期
-            // 2. 如果双击落在空白区域上，单屏放大显示 (按ESC退出)
+            // 监听鼠标双击事件：双击 K 线蜡烛图时触发历史回溯，以该K线时间为回溯截断点
             instance.off('dblclick');
-            instance.getZr().off('dblclick');
+            if (instance.getZr()) {
+                instance.getZr().off('dblclick');
+            }
 
             if (['left', 'w2', 'right', 'w4'].includes(side)) {
-                // A. ECharts 图元原生双击监听：直接捕获 K 线蜡烛实体、九转标记、买卖点等
                 instance.on('dblclick', (params) => {
                     let targetDate = null;
-                    if (params) {
-                        if (params.seriesType === 'candlestick' && params.name) {
+                    const hovered = _clHoveredCandle[side];
+
+                    // 1. 优先使用鼠标悬停/十字光标当前高亮命中的当根K线日期（最精准）
+                    if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
+                        if (/^\d{4}[-/]\d{2}/.test(hovered.date)) {
+                            targetDate = hovered.date;
+                        }
+                    }
+
+                    // 2. 从 params.name 提取（ECharts柱子实体或类目轴名称）
+                    if (!targetDate && params && params.name) {
+                        const nStr = String(params.name).trim();
+                        if (/^\d{4}[-/]\d{2}/.test(nStr)) {
+                            targetDate = nStr;
+                        }
+                    }
+
+                    // 3. 从 params.dataIndex
+                    if (!targetDate && params && typeof params.dataIndex === 'number' && dates && dates[params.dataIndex]) {
+                        const dStr = String(dates[params.dataIndex]).trim();
+                        if (/^\d{4}[-/]\d{2}/.test(dStr)) {
+                            targetDate = dStr;
+                        }
+                    }
+
+                    // 4. 从 params.componentType === 'markPoint' (买卖点、九转数字等)
+                    if (!targetDate && params && params.componentType === 'markPoint') {
+                        if (params.data && params.data.coord && params.data.coord[0]) {
+                            targetDate = params.data.coord[0];
+                        } else if (params.name && /^\d{4}/.test(params.name)) {
                             targetDate = params.name;
-                        } else if (params.componentType === 'markPoint') {
-                            if (params.data && params.data.coord && params.data.coord[0]) {
-                                targetDate = params.data.coord[0];
-                            } else if (params.name && /^\d{4}/.test(params.name)) {
-                                targetDate = params.name;
-                            }
-                        } else if (params.dataIndex != null && dates && dates[params.dataIndex]) {
-                            targetDate = dates[params.dataIndex];
                         }
                     }
 
-                    if (targetDate && /^\d{4}[-/]\d{2}/.test(String(targetDate).trim())) {
-                        window._lastBarDblClickTs = Date.now();
-                        if (params.event && typeof params.event.stopPropagation === 'function') {
-                            params.event.stopPropagation();
-                        }
-                        setChanlunBacktrackDateToBar(targetDate, side);
-                    }
-                });
-
-                // B. ZRender 底层画布双击监听：判定击中范围与空白区域
-                instance.getZr().on('dblclick', (e) => {
-                    const now = Date.now();
-                    if (now - (window._lastBarDblClickTs || 0) < 500) return;
-
-                    let targetDate = null;
-                    if (e && e.event) {
-                        const px = (typeof e.zrX === 'number') ? e.zrX : ((typeof e.offsetX === 'number') ? e.offsetX : null);
-                        const py = (typeof e.zrY === 'number') ? e.zrY : ((typeof e.offsetY === 'number') ? e.offsetY : null);
-
-                        if (px != null && py != null && instance.containPixel({ gridIndex: 0 }, [px, py])) {
-                            const pt = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
-                            if (pt && pt.length >= 2) {
-                                const xIdx = Math.round(pt[0]);
-                                if (xIdx >= 0 && xIdx < dates.length && candles && candles[xIdx]) {
-                                    const c = candles[xIdx];
-                                    const low = Number(c[2]);
-                                    const high = Number(c[3]);
-                                    const yPrice = pt[1];
-                                    const span = Math.max(0.01, high - low);
-                                    // 宽松容差判定：上下延伸 80% span，兼顾极小实体及上方买卖点/九转数字
-                                    const yBuffer = Math.max(span * 0.8, (visMaxH - visMinL) * 0.08);
-                                    if (yPrice >= (low - yBuffer) && yPrice <= (high + yBuffer)) {
-                                        targetDate = dates[xIdx];
+                    // 5. 若通过坐标转换命中主图网格
+                    if (!targetDate && params && params.event) {
+                        try {
+                            const zrEvt = params.event;
+                            const px = (zrEvt && typeof zrEvt.zrX === 'number') ? zrEvt.zrX : (zrEvt && typeof zrEvt.offsetX === 'number' ? zrEvt.offsetX : null);
+                            const py = (zrEvt && typeof zrEvt.zrY === 'number') ? zrEvt.zrY : (zrEvt && typeof zrEvt.offsetY === 'number' ? zrEvt.offsetY : null);
+                            if (px != null && py != null) {
+                                const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
+                                if (pointInGrid && typeof pointInGrid[0] === 'number' && !isNaN(pointInGrid[0])) {
+                                    const xIdx = Math.round(pointInGrid[0]);
+                                    if (xIdx >= 0 && xIdx < dates.length && dates[xIdx]) {
+                                        const candidate = String(dates[xIdx]).trim();
+                                        if (/^\d{4}[-/]\d{2}/.test(candidate)) {
+                                            targetDate = candidate;
+                                        }
                                     }
                                 }
                             }
-                        }
+                        } catch (_) {}
                     }
 
-                    // 仅当光标精准悬停在当根K线且时间在 600ms 内时辅助校验
-                    if (!targetDate && _clHoveredCandle[side] && (now - (_clHoveredCandle[side].time || 0) < 600)) {
-                        const py = (typeof e.zrY === 'number') ? e.zrY : ((typeof e.offsetY === 'number') ? e.offsetY : null);
-                        if (py != null && py < (instance.getHeight() * 0.70)) {
-                            targetDate = _clHoveredCandle[side].date;
-                        }
+                    // 6. 兜底当前最新悬停
+                    if (!targetDate && hovered && hovered.date && /^\d{4}[-/]\d{2}/.test(hovered.date)) {
+                        targetDate = hovered.date;
                     }
 
-                    // 兜底：如果直接命中了 markPoint 标记
-                    if (!targetDate && e && e.target && e.target.dataIndex != null && dates[e.target.dataIndex]) {
-                        targetDate = dates[e.target.dataIndex];
-                    }
-
-                    if (targetDate && /^\d{4}[-/]\d{2}/.test(String(targetDate).trim())) {
-                        // 击中某根K线蜡烛图：执行历史回溯，所有窗口最新K线全部对齐跳到该日
-                        window._lastBarDblClickTs = now;
-                        if (e.event && typeof e.event.stopPropagation === 'function') {
-                            e.event.stopPropagation();
-                        }
+                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
                         setChanlunBacktrackDateToBar(targetDate, side);
-                        return;
                     }
-
-                    // 否则点击在空白区域（空白天空/地面、图表间隙、边框等），执行单屏放大
-                    if (e.event && typeof e.event.stopPropagation === 'function') {
-                        e.event.stopPropagation();
-                    }
-                    toggleMaximizeChanlunWindow(side);
                 });
             }
 
@@ -29822,18 +29596,6 @@
         }
 
         function renderChanlunChart(d) {
-            if (_clMaximizedWindow) {
-                const dataMap = {
-                    left: d || _clLeftCachedData || _clCachedData,
-                    w2: _clW2CachedData,
-                    right: _clRightCachedData,
-                    w4: _clW4CachedData
-                };
-                if (dataMap[_clMaximizedWindow]) {
-                    renderSingleChanlunChart(_clMaximizedWindow, dataMap[_clMaximizedWindow]);
-                }
-                return;
-            }
             const leftData = d || _clLeftCachedData || _clCachedData;
             if (leftData) renderSingleChanlunChart('left', leftData);
             if (_clWindowMode === 'quad') {
@@ -30775,24 +30537,13 @@
         }
 
         function zoomChanlunChart(factor) {
-            let chartMap = {};
-            if (_clMaximizedWindow) {
-                const allCharts = {
-                    left: window.chanlunChart,
-                    w2: window.chanlunChartW2,
-                    right: window.chanlunChartRight,
-                    w4: window.chanlunChartW4
-                };
-                if (allCharts[_clMaximizedWindow]) chartMap[_clMaximizedWindow] = allCharts[_clMaximizedWindow];
-            } else {
-                chartMap = { left: window.chanlunChart };
-                if (_clWindowMode === 'quad') {
-                    chartMap.w2 = window.chanlunChartW2;
-                    chartMap.right = window.chanlunChartRight;
-                    chartMap.w4 = window.chanlunChartW4;
-                } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
-                    chartMap.right = window.chanlunChartRight;
-                }
+            const chartMap = { left: window.chanlunChart };
+            if (_clWindowMode === 'quad') {
+                chartMap.w2 = window.chanlunChartW2;
+                chartMap.right = window.chanlunChartRight;
+                chartMap.w4 = window.chanlunChartW4;
+            } else if (_clWindowMode === 'dual' || _clWindowMode === 'dual_h') {
+                chartMap.right = window.chanlunChartRight;
             }
 
             Object.entries(chartMap).forEach(([side, chart]) => {
@@ -30833,12 +30584,7 @@
                     if (typeof closeTdxRangeStatModal === 'function') closeTdxRangeStatModal();
                     return;
                 }
-                if (_clMaximizedWindow) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    exitMaximizeChanlunWindow();
-                    return;
-                }
+
             }
             if (window.currentTab !== 'chanlun') return;
             if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
