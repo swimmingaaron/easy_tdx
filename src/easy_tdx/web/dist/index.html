@@ -4937,7 +4937,7 @@
 
                             <button type="button" onclick="stepChanlunBacktrack(-1, event)" id="cl-btn-prev-bar"
                                 class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 active:scale-90 active:bg-cyan-900 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0 select-none"
-                                title="前移 1 个交易日 (Shift+点击: 前移 1 根K线, 快捷键: ←)">
+                                title="前移 1 根K线 (前移 1 个周期, 快捷键: ←)">
                                 <i data-lucide="chevron-left" class="w-3.5 h-3.5 pointer-events-none"></i>
                             </button>
 
@@ -4949,7 +4949,7 @@
 
                             <button type="button" onclick="stepChanlunBacktrack(1, event)" id="cl-btn-next-bar"
                                 class="h-6 px-1.5 py-0.5 rounded text-slate-300 hover:text-cyan-400 hover:bg-cyan-950/80 active:scale-90 active:bg-cyan-900 border border-transparent hover:border-cyan-800 transition font-sans font-medium flex items-center cursor-pointer text-[11px] shrink-0 select-none"
-                                title="后移 1 个交易日 (Shift+点击: 后移 1 根K线, 快捷键: →)">
+                                title="后移 1 根K线 (后移 1 个周期, 快捷键: →)">
                                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 pointer-events-none"></i>
                             </button>
 
@@ -30081,7 +30081,41 @@
             _clAutoRefresh = false;
             toggleChanlunAutoRefreshState(false);
             _clBacktrackDate = dateVal;
-            loadChanlunData(false);
+
+            const activeData = getActiveWindowData();
+            const timeline = activeData?.backtrack_timeline || _clCachedData?.backtrack_timeline;
+            const dates = timeline?.available_dates || [];
+            if (dates.length > 0) {
+                const d10 = dateVal.slice(0, 10);
+                let matched = -1;
+                for (let i = dates.length - 1; i >= 0; i--) {
+                    if (dates[i].startsWith(d10)) {
+                        matched = i;
+                        break;
+                    }
+                }
+                if (matched < 0) {
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i].slice(0, 10) <= d10) {
+                            matched = i;
+                            break;
+                        }
+                    }
+                }
+                if (matched >= 0) {
+                    _clBacktrackIndex = matched;
+                    _clBacktrackDate = dates[matched];
+                    const slider = document.getElementById('cl-backtrack-slider');
+                    if (slider) {
+                        slider.value = String(_clBacktrackIndex);
+                        updateChanlunSliderTrack(slider.value, slider.max);
+                    }
+                }
+            }
+            const latestBtn = document.getElementById('cl-btn-latest-bar');
+            if (latestBtn) latestBtn.classList.remove('hidden');
+
+            loadChanlunData(true);
         }
 
         function toggleChanlunAutoRefreshState(on) {
@@ -30217,7 +30251,7 @@
             _clAutoRefresh = false;
             toggleChanlunAutoRefreshState(false);
 
-            // 获取当前选中主控窗口的K线时间轴
+            // 获取当前主控激活窗口的K线时间轴
             const activeData = getActiveWindowData();
             const timeline = activeData?.backtrack_timeline || _clCachedData?.backtrack_timeline;
             if (!timeline) return;
@@ -30225,125 +30259,87 @@
             if (!dates || dates.length === 0) return;
 
             // 确保 _clBacktrackIndex 处于当前激活窗口的有效序列范围内
-            if (typeof _clBacktrackIndex !== 'number' || isNaN(_clBacktrackIndex) || _clBacktrackIndex < 0 || _clBacktrackIndex >= dates.length || (_clBacktrackDate && dates[_clBacktrackIndex] !== _clBacktrackDate)) {
-                if (_clBacktrackDate) {
-                    let matched = dates.indexOf(_clBacktrackDate);
+            if (typeof _clBacktrackIndex !== 'number' || isNaN(_clBacktrackIndex) || _clBacktrackIndex < 0 || _clBacktrackIndex >= dates.length) {
+                _clBacktrackIndex = dates.length - 1;
+            }
+            if (_clBacktrackDate) {
+                const curBarDate = dates[_clBacktrackIndex];
+                if (curBarDate !== _clBacktrackDate) {
+                    const d10 = _clBacktrackDate.slice(0, 10);
+                    let matched = -1;
+                    for (let i = dates.length - 1; i >= 0; i--) {
+                        if (dates[i].startsWith(d10)) {
+                            matched = i;
+                            break;
+                        }
+                    }
                     if (matched < 0) {
                         for (let i = dates.length - 1; i >= 0; i--) {
-                            if (dates[i] <= _clBacktrackDate) {
+                            if (dates[i].slice(0, 10) <= d10) {
                                 matched = i;
                                 break;
                             }
                         }
                     }
-                    _clBacktrackIndex = matched >= 0 ? matched : dates.length - 1;
-                } else {
-                    _clBacktrackIndex = dates.length - 1;
-                }
-            }
-
-            // 用户要求：以当前窗口的K线一根一根逐根回溯
-            const isClick = !evt || evt.type === 'click';
-            const byBar = evt ? (!evt.altKey) : true;
-
-            let nextIdx = -1;
-            if (byBar) {
-                nextIdx = _clBacktrackIndex + step;
-                if (nextIdx < 0) {
-                    if (window.showToast) showToast('提示', '已至最早K线数据');
-                    return;
-                }
-                if (nextIdx >= dates.length) {
-                    if (window.showToast) showToast('提示', '已是最新K线数据');
-                    exitChanlunBacktrack();
-                    return;
-                }
-            } else {
-                // 按日切换（Alt键辅助）
-                const curDateStr = _clBacktrackDate || dates[_clBacktrackIndex] || timeline.max_date || '';
-                const curYMD = curDateStr.slice(0, 10);
-
-                if (step < 0) {
-                    for (let i = dates.length - 1; i >= 0; i--) {
-                        if (dates[i].slice(0, 10) < curYMD) {
-                            nextIdx = i;
-                            break;
-                        }
-                    }
-                    if (nextIdx < 0) {
-                        if (window.showToast) showToast('提示', '已至最早历史交易日');
-                        return;
-                    }
-                } else {
-                    let nextDayYMD = null;
-                    for (let i = 0; i < dates.length; i++) {
-                        const ymd = dates[i].slice(0, 10);
-                        if (ymd > curYMD) {
-                            nextDayYMD = ymd;
-                            break;
-                        }
-                    }
-                    if (!nextDayYMD) {
-                        if (window.showToast) showToast('提示', '已是最新交易日');
-                        exitChanlunBacktrack();
-                        return;
-                    }
-                    for (let i = dates.length - 1; i >= 0; i--) {
-                        if (dates[i].slice(0, 10) === nextDayYMD) {
-                            nextIdx = i;
-                            break;
-                        }
+                    if (matched >= 0) {
+                        _clBacktrackIndex = matched;
                     }
                 }
             }
 
-            if (nextIdx >= 0 && nextIdx < dates.length) {
-                _clBacktrackIndex = nextIdx;
-                _clBacktrackDate = dates[nextIdx];
-
-                // 同步滑块与文本
-                const slider = document.getElementById('cl-backtrack-slider');
-                if (slider) {
-                    slider.value = String(_clBacktrackIndex);
-                    updateChanlunSliderTrack(slider.value, slider.max);
-                }
-                const winInfo = getActiveWindowInfo();
-                const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
-                if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (窗${winInfo.winNum}主控: ${_clBacktrackIndex + 1}/${dates.length})`;
-                const cutoffInput = document.getElementById('cl-cutoff-date');
-                if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
-                const latestBtn = document.getElementById('cl-btn-latest-bar');
-                if (latestBtn) latestBtn.classList.remove('hidden');
-
-                // If reached the latest bar, exit backtrack back to live
-                if (_clBacktrackIndex >= dates.length - 1) {
-                    exitChanlunBacktrack();
-                    return;
-                }
-
-                const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
-                const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
-                const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
-                const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
-
-                if (_clBacktrackCache.has(cacheKeyLeft)) {
-                    _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
-                    _clCachedData = _clLeftCachedData;
-                    if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
-                    if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
-                    if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
-                    updateChanlunOverview(_clLeftCachedData);
-                    updateChanlunTimeline(getActiveWindowData());
-                    renderChanlunSignalsTable(_clLeftCachedData);
-                    renderChanlunChart();
-                    return;
-                }
-
-                if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
-                _clBacktrackDebounceTimer = setTimeout(() => {
-                    triggerChanlunBacktrackLoad();
-                }, 100);
+            // 一个周期一个周期按根回溯（1 根 K 线 = 1 个周期）
+            const nextIdx = _clBacktrackIndex + step;
+            if (nextIdx < 0) {
+                if (window.showToast) showToast('提示', '已至最早K线周期');
+                return;
             }
+            if (nextIdx >= dates.length) {
+                if (window.showToast) showToast('提示', '已是最新K线周期');
+                return;
+            }
+
+            _clBacktrackIndex = nextIdx;
+            _clBacktrackDate = dates[nextIdx];
+
+            // 同步滑块与文本
+            const slider = document.getElementById('cl-backtrack-slider');
+            if (slider) {
+                slider.value = String(_clBacktrackIndex);
+                updateChanlunSliderTrack(slider.value, slider.max);
+            }
+            const winInfo = getActiveWindowInfo();
+            const cutoffText = document.getElementById('cl-backtrack-cutoff-text');
+            if (cutoffText) cutoffText.innerText = `截断: ${_clBacktrackDate} (窗${winInfo.winNum}主控: ${_clBacktrackIndex + 1}/${dates.length})`;
+            const cutoffInput = document.getElementById('cl-cutoff-date');
+            if (cutoffInput) cutoffInput.value = _clBacktrackDate.slice(0, 10);
+            const latestBtn = document.getElementById('cl-btn-latest-bar');
+            if (latestBtn) latestBtn.classList.remove('hidden');
+
+            // 检查缓存或防抖触发回溯
+            const activeWins = (_clWindowMode === 'quad') ? ['left', 'w2', 'right', 'w4'] :
+                               ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') ? ['left', 'right'] : ['left']);
+            const allInCache = activeWins.every(w => {
+                const p = (w === 'left') ? _clLeftPeriods : (w === 'w2') ? _clW2Periods : (w === 'right') ? _clRightPeriods : _clW4Periods;
+                return _clBacktrackCache.has(getClBacktrackKey(_clCurrentCode, p, _clBacktrackDate));
+            });
+
+            if (allInCache) {
+                _clLeftCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate));
+                _clCachedData = _clLeftCachedData;
+                if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
+                if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
+                if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
+                updateChanlunOverview(_clLeftCachedData);
+                updateChanlunTimeline(getActiveWindowData());
+                renderChanlunSignalsTable(_clLeftCachedData);
+                renderChanlunChart();
+                return;
+            }
+
+            if (_clBacktrackDebounceTimer) clearTimeout(_clBacktrackDebounceTimer);
+            _clBacktrackDebounceTimer = setTimeout(() => {
+                triggerChanlunBacktrackLoad();
+            }, 80);
         }
 
         function toggleChanlunReplay() {

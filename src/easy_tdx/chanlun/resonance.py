@@ -1227,6 +1227,7 @@ def analyze_multi_period_resonance(
     screener_mode: bool = False,
     precomputed_results: dict[str, ChanlunResult] | None = None,
     precomputed_dfs: dict[str, pd.DataFrame] | None = None,
+    full_timeline_dfs: dict[str, pd.DataFrame] | None = None,
 ) -> dict[str, Any]:
     """执行三周期缠论立体共振分析，支持历史回溯与实时计算。
 
@@ -1497,7 +1498,10 @@ def analyze_multi_period_resonance(
                 raw_dfs[p_target] = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
 
     # 获取完整可用时间跨度（由母数据全量序列提供，供前端滑块稳定自由导航）
-    base_full_df = raw_dfs[low_p]
+    if full_timeline_dfs and low_p in full_timeline_dfs and not full_timeline_dfs[low_p].empty:
+        base_full_df = full_timeline_dfs[low_p]
+    else:
+        base_full_df = raw_dfs[low_p]
     available_dates = (
         base_full_df["datetime"].astype(str).tolist()
         if not base_full_df.empty
@@ -2543,7 +2547,11 @@ def analyze_multi_period_resonance(
             "available_dates": available_dates,
             "current_date": latest_dt,
             "total_bars": len(available_dates),
-            "current_bar_index": len(base_df) - 1 if not base_df.empty else 0,
+            "current_bar_index": (
+                available_dates.index(str(latest_dt))
+                if (latest_dt and str(latest_dt) in available_dates)
+                else (len(base_df) - 1 if not base_df.empty else 0)
+            ),
         },
     }
 
@@ -2632,24 +2640,29 @@ def analyze_quad_resonance(
         for p_name, df in pool.map(_fetch_p, unique_periods):
             raw_dfs[p_name] = df
 
-    # 如果指定了 cutoff_date，进行历史无未来切除，确保 precomputed 结果与各窗口计算严密对齐
+    # 保持全量母序列完整无损，供前端时间轴与逐周期回溯使用
+    cutoff_dfs: dict[str, pd.DataFrame] = {}
     if cutoff_date and str(cutoff_date).strip():
         try:
             cutoff_dt = pd.to_datetime(str(cutoff_date).strip())
-            for p_name in list(raw_dfs.keys()):
-                df_cur = raw_dfs[p_name]
+            for p_name, df_cur in raw_dfs.items():
                 if not df_cur.empty and "datetime" in df_cur.columns:
                     dts = pd.to_datetime(df_cur["datetime"].astype(str))
                     sub_df = df_cur[dts <= cutoff_dt].copy().reset_index(drop=True)
                     if len(sub_df) < 15:
                         sub_df = df_cur.iloc[:min(len(df_cur), 30)].copy().reset_index(drop=True)
-                    raw_dfs[p_name] = sub_df
+                    cutoff_dfs[p_name] = sub_df
+                else:
+                    cutoff_dfs[p_name] = df_cur.copy()
         except Exception as e:
             logger.debug("四窗口截断处理异常 %s: %s", clean_code, e)
+            cutoff_dfs = {k: v.copy() for k, v in raw_dfs.items()}
+    else:
+        cutoff_dfs = {k: v.copy() for k, v in raw_dfs.items()}
 
     # 3. 单次并行解析 6 个唯一周期的 ChanlunAnalyser（消灭跨窗口重复计算！）
     def _ana_p(p_name: str) -> tuple[str, ChanlunResult]:
-        df = raw_dfs.get(p_name)
+        df = cutoff_dfs.get(p_name)
         if df is None:
             df = pd.DataFrame(columns=["datetime", "open", "high", "low", "close", "volume", "amount"])
         res = ChanlunAnalyser(code=clean_code, frequency=PERIOD_SPECS[p_name]["chan_freq"]).process_klines(df)
@@ -2670,7 +2683,8 @@ def analyze_quad_resonance(
             cutoff_date=cutoff_date,
             force_refresh=False,
             precomputed_results=shared_results,
-            precomputed_dfs=raw_dfs,
+            precomputed_dfs=cutoff_dfs,
+            full_timeline_dfs=raw_dfs,
         )
         return win_key, data
 
