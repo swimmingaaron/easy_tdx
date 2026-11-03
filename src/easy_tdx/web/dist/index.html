@@ -5456,7 +5456,8 @@
 
         <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
         <div id="sl-board-modal"
-            class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6">
+            class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6"
+            onclick="if(event.target === this) closeSectorLeaderModal()">
             <div
                 class="glass-card bg-white dark:bg-[#0b0f19]/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
                 <!-- Modal Header -->
@@ -8577,6 +8578,8 @@
                         window._currentKlineNavList = window._cachedSectorLeadersAllStocks;
                     } else if (Array.isArray(window._cachedBoardModalCandidates) && findStockIndexInList(window._cachedBoardModalCandidates, sym, name) !== -1) {
                         window._currentKlineNavList = window._cachedBoardModalCandidates;
+                    } else if (Array.isArray(window._slModalCandidates) && findStockIndexInList(window._slModalCandidates, sym, name) !== -1) {
+                        window._currentKlineNavList = window._slModalCandidates;
                     } else if (MAJOR_INDICES_NAV.some(m => normalizeStockCode(m.symbol || m.code) === normalizeStockCode(sym))) {
                         window._currentKlineNavList = MAJOR_INDICES_NAV;
                     }
@@ -8592,10 +8595,15 @@
                 const pmModal = document.getElementById('tdx-pattern-match-modal');
                 const isPmOpen = pmModal && !pmModal.classList.contains('hidden') && pmModal.style.display !== 'none';
 
+                const slModal = document.getElementById('sl-board-modal');
+                const isSlOpen = slModal && !slModal.classList.contains('hidden');
+
                 if (isPmOpen) {
                     kModal.style.zIndex = '10050'; // 位于形态匹配选股窗口(z-10000)之上，形态匹配窗口在底层保留不关闭
                 } else if (isFinaOpen) {
                     kModal.style.zIndex = String(finaZ + 10);
+                } else if (isSlOpen) {
+                    kModal.style.zIndex = '90'; // 位于板块全景成分股窗口(z-[75])之上，在顶层展示K线
                 } else {
                     kModal.style.zIndex = '70';
                 }
@@ -9105,6 +9113,14 @@
                 e.preventDefault();
                 if (typeof closeTsFinaModal === 'function') closeTsFinaModal();
                 else finaModal.classList.add('hidden');
+                return;
+            }
+
+            const slModal = document.getElementById('sl-board-modal');
+            const isSlOpen = slModal && !slModal.classList.contains('hidden');
+            if (isSlOpen && !isKlineOpen && !isFinaOpen && e.key === 'Escape') {
+                e.preventDefault();
+                closeSectorLeaderModal();
                 return;
             }
 
@@ -24925,6 +24941,8 @@
                 return window._slSortAsc ? vA - vB : vB - vA;
             });
 
+            window._cachedBoardModalCandidates = sorted;
+            window._slModalCandidates = sorted;
             renderSectorLeaderTableRows(sorted);
         }
 
@@ -24987,8 +25005,11 @@
                 return `
                     <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                         <td class="py-2.5 px-2 text-center text-slate-400 dark:text-slate-500 font-mono">${idx + 1}</td>
-                        <td class="py-2.5 px-2 text-left"><a href="${xqUrl}" target="_blank" class="stock-code-link text-slate-800 dark:text-slate-100 hover:text-indigo-500 font-bold font-mono">${code}</a></td>
-                        <td class="py-2.5 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-indigo-500" onclick="openKlineModal('${code}', '${name}')">${name}</td>
+                        <td class="py-2.5 px-2 text-left">
+                            <span onclick="openKlineModal('${code}', '${name}', null, window._slModalCandidates)" class="stock-code-link text-slate-800 dark:text-slate-100 hover:text-cyan-500 font-bold font-mono hover:underline cursor-pointer" title="点击查看【${name}】(${code}) K线行情">${code}</span>
+                            <a href="${xqUrl}" target="_blank" class="text-slate-400 hover:text-indigo-500 ml-1 text-[10px]" title="在雪球中查看">↗</a>
+                        </td>
+                        <td class="py-2.5 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-cyan-500" onclick="openKlineModal('${code}', '${name}', null, window._slModalCandidates)" title="点击查看【${name}】(${code}) K线行情">${name}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${priceClass}" style="${priceStyle}">¥${Number(s.price).toFixed(2)}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${pctClass}" style="${pctStyle}">${pctStr}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${netClass}" style="${netStyle}">${netStr}</td>
@@ -25000,6 +25021,7 @@
                         <td class="py-2.5 px-3 text-left font-sans text-[11px] text-slate-600 dark:text-slate-300">${s.role_tag || '-'}</td>
                         <td class="py-2.5 px-2 pr-2 text-right">
                             <div class="flex items-center justify-end space-x-1">
+                                <button onclick="openKlineModal('${code}', '${name}', null, window._slModalCandidates)" class="px-2 py-0.5 rounded text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="查看【${name}】K线行情">K线</button>
                                 <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer">诊断</button>
                                 <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event)" class="inline-block px-2 py-0.5 rounded text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer no-underline text-center" title="在新的标签页中打开【${name}】(${code}) 缠论K线">缠论</a>
                                 <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer" title="针对【${name}】进入参数寻优">回测</button>
@@ -25036,6 +25058,7 @@
                     if (data.success && data.data && data.data.candidates) {
                         const candidates = data.data.candidates;
                         window._slModalCandidates = candidates;
+                        window._cachedBoardModalCandidates = candidates;
                         window._slSortField = 'leader_score';
                         window._slSortAsc = false;
                         updateSectorLeaderSortIcons('leader_score', false);
