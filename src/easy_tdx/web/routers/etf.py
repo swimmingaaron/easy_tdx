@@ -84,26 +84,43 @@ def _load_local_etf_data() -> Dict[str, Any] | None:
 _REMOTE_URL = "https://etf.maomaoci-a.com/data/data.json"
 
 
-def _fetch_remote_etf_data() -> Dict[str, Any] | None:
-    """Fetch authoritative official historical ETF shares & futures tracking data from remote source."""
-    try:
-        import httpx
+def _fetch_remote_etf_data(timeout: float = 10.0, max_retries: int = 3) -> Dict[str, Any] | None:
+    """Fetch authoritative official historical ETF shares & futures tracking data from remote source with retry and SSL fallback."""
+    import ssl
+    import urllib.request
 
-        headers = {
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.set_ciphers("DEFAULT@SECLEVEL=1")
+    except Exception:
+        pass
+
+    req = urllib.request.Request(
+        f"{_REMOTE_URL}?t={int(time.time())}",
+        headers={
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-            )
-        }
-        with httpx.Client(timeout=2.0, follow_redirects=True, headers=headers) as client:
-            resp = client.get(f"{_REMOTE_URL}?t={int(time.time())}")
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, dict) and "dates" in data and "series" in data:
-                    logger.info("Successfully fetched remote ETF base data, latest date: %s", data.get("dates", [])[-1:])
-                    return data
-    except Exception as e:
-        logger.warning("Remote ETF data source unavailable (%s), falling back to local cached data", e)
+            ),
+            "Accept": "application/json, text/plain, */*",
+        },
+    )
+
+    for attempt in range(max_retries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                if r.status == 200:
+                    data = json.loads(r.read().decode("utf-8"))
+                    if isinstance(data, dict) and "dates" in data and "series" in data:
+                        logger.info("Successfully fetched remote ETF base data on attempt %d, latest date: %s", attempt + 1, data.get("dates", [])[-1:])
+                        return data
+        except Exception as e:
+            logger.debug("Remote ETF data fetch attempt %d failed: %s", attempt + 1, e)
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+
     return None
 
 
@@ -113,12 +130,17 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
         from concurrent.futures import ThreadPoolExecutor
         from easy_tdx.market_data import fetch_realtime_pool_quotes, fetch_security_kline, KlineCategory
 
-        # 优先读取本地基础数据，仅在本地数据为空时才尝试远端，避免外部远端接口异常时引起长时间等待
         local_data = _load_local_etf_data() or {}
-        if not local_data or not local_data.get("dates"):
-            remote_data = _fetch_remote_etf_data()
-            if remote_data:
+        local_dates = local_data.get("dates", [])
+        local_latest = local_dates[-1] if local_dates else ""
+
+        # Fetch remote authoritative shares & futures if local is older or missing recent data
+        remote_data = _fetch_remote_etf_data(timeout=8.0, max_retries=3)
+        if remote_data and remote_data.get("dates"):
+            remote_latest = remote_data["dates"][-1]
+            if remote_latest >= local_latest or not local_latest:
                 local_data = remote_data
+                logger.info("Using updated remote authoritative ETF data up to %s", remote_latest)
 
         symbols = [f"{cfg['code']}.{cfg['exch']}" for cfg in ETF_CONFIGS]
         quotes = fetch_realtime_pool_quotes(symbols)
@@ -126,10 +148,10 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
         logger.info("Successfully fetched %d realtime ETF quotes via easy_tdx", len(quote_map))
 
         # Benchmark K-line for standard trading calendar
-        ref_df = fetch_security_kline("510300.SH", category=KlineCategory.DAY, count=132)
+        ref_df = fetch_security_kline("510300.SH", category=KlineCategory.DAY, count=143)
         if ref_df is None or ref_df.empty:
             logger.error("Failed to fetch reference K-line for 510300.SH via easy_tdx")
-            return local_data if local_data else None
+            return local_data if (local_data and local_data.get("dates")) else None
 
         master_dates = [str(d)[:10] for d in ref_df["datetime"]]
 
@@ -152,20 +174,30 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
         new_series: Dict[str, Any] = {}
         enriched_etfs: List[Dict[str, Any]] = []
 
+        base_dates = local_data.get("dates", [])
+
         for cfg in ETF_CONFIGS:
             code = cfg["code"]
             date_to_close = kline_dict.get(code, {})
             closes = [date_to_close.get(d) for d in master_dates]
 
-            # Preserve & align shares
             base_s = local_data.get("series", {}).get(code, {})
             base_shares = base_s.get("shares", [])
-            base_dates = local_data.get("dates", [])
+            base_flows = base_s.get("flow", [])
             base_date_to_share = {d: s for d, s in zip(base_dates, base_shares) if s is not None}
+            base_date_to_flow = {d: f for d, f in zip(base_dates, base_flows) if f is not None}
 
             shares: List[float | None] = []
             for d in master_dates:
                 shares.append(base_date_to_share.get(d))
+
+            # Forward-fill missing shares so recent days don't become None
+            last_sh = None
+            for i in range(len(shares)):
+                if shares[i] is not None:
+                    last_sh = shares[i]
+                elif last_sh is not None:
+                    shares[i] = last_sh
 
             # Update latest share from real-time quote
             q = quote_map.get(code)
@@ -174,11 +206,14 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
                 if shares:
                     shares[-1] = latest_sh
 
-            # Recalculate inflows strictly: (shares[i] - shares[i-1]) * close[i] in 亿元
+            # Calculate inflows: preserve authoritative flow if available, else delta * close
             flows: List[float | None] = []
             for i in range(len(master_dates)):
-                if i == 0 or shares[i] is None or shares[i - 1] is None or closes[i] is None:
-                    flows.append(None)
+                d = master_dates[i]
+                if d in base_date_to_flow and i < len(master_dates) - 1:
+                    flows.append(base_date_to_flow[d])
+                elif i == 0 or shares[i] is None or shares[i - 1] is None or closes[i] is None:
+                    flows.append(base_date_to_flow.get(d))
                 else:
                     delta_sh = shares[i] - shares[i - 1]
                     flows.append(round(delta_sh * closes[i], 4))
