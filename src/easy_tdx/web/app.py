@@ -254,6 +254,7 @@ def _create_app(
     from easy_tdx.web.routers.quotes import router as quotes_router
     from easy_tdx.web.routers.trading_system import router as trading_system_router
     from easy_tdx.web.routers.sector_leaders import router as sector_leaders_router
+    from easy_tdx.web.routers.fundflow import router as fundflow_router
     from easy_tdx.web.routers.etf import router as etf_router
 
     # Health check
@@ -271,6 +272,7 @@ def _create_app(
     app.include_router(screener_router)
     app.include_router(trading_system_router)
     app.include_router(sector_leaders_router)
+    app.include_router(fundflow_router)
     app.include_router(ai_review_router)
     app.include_router(monitor_router)
     app.include_router(quotes_router)

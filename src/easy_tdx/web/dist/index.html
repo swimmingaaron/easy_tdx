@@ -2023,6 +2023,9 @@
             <button onclick="switchTab('dashboard')" id="tab-dashboard"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i
                     data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
+            <button onclick="switchTab('fundflow')" id="tab-fundflow"
+                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="wallet"
+                    class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>资金监控</button>
             <button onclick="switchTab('backtest')" id="tab-backtest"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i
                     data-lucide="line-chart" class="w-3.5 h-3.5 inline mr-1"></i>单标的回测</button>
@@ -5454,7 +5457,206 @@
             </div>
         </section>
 
-        <!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
+                <!-- ==================== 资金监控视图 (Capital Flow & Strategies View) ==================== -->
+        <section id="view-fundflow" class="hidden space-y-6">
+            <!-- 头部导览卡片 -->
+            <div class="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700/60 shadow-lg relative overflow-hidden bg-white/90 dark:bg-slate-900/60">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <span class="p-2.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30">
+                                <i data-lucide="wallet" class="w-6 h-6"></i>
+                            </span>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+                                    A股市场资金监控 · 核心策略选股
+                                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 font-medium">超大单 / 主力筹码 / 策略共振</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">
+                                    实时量化追踪 A 股主力资金“潜伏蓄势突破、板块龙头先锋、尾盘抢筹溢价、机构重度建仓、超跌资金抄底”五大实战策略池
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 右侧控制区 -->
+                    <div class="flex items-center flex-wrap gap-2.5">
+                        <span id="ff-last-updated" class="text-xs text-slate-500 dark:text-slate-400 font-mono">刚刚更新</span>
+                        <div class="flex items-center space-x-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
+                            <span class="text-[11px] text-slate-400">自动刷新:</span>
+                            <select id="ff-auto-refresh" onchange="onFundFlowAutoRefreshChange()" class="bg-transparent text-xs text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer">
+                                <option value="0">手动</option>
+                                <option value="15">15秒</option>
+                                <option value="30" selected>30秒</option>
+                                <option value="60">60秒</option>
+                            </select>
+                        </div>
+                        <button onclick="loadFundFlowData(true)" class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>实时刷新</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 顶部 4 大资金全景监控卡片 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- 1. 主力净抢筹总额 -->
+                <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">全池主力净流入</p>
+                            <h3 id="ff-stat-total-inflow" class="text-xl font-bold font-mono mt-1 text-slate-800 dark:text-white">--</h3>
+                            <p id="ff-stat-inflow-ratio" class="text-[11px] text-slate-400 mt-1">流入 -- 只 / 流出 -- 只</p>
+                        </div>
+                        <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20">
+                            <i data-lucide="trending-up" class="w-4 h-4"></i>
+                        </span>
+                    </div>
+                </div>
+                <!-- 2. 市场资金水位 -->
+                <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">市场资金水位</p>
+                            <h3 id="ff-stat-water-level" class="text-xl font-bold mt-1 text-amber-500 dark:text-amber-400">温和震荡市</h3>
+                            <p id="ff-stat-water-desc" class="text-[11px] text-slate-400 mt-1 line-clamp-1">存量博弈，资金轮动加快</p>
+                        </div>
+                        <span class="p-2 rounded-lg bg-amber-500/10 text-amber-500 dark:bg-amber-500/20">
+                            <i data-lucide="activity" class="w-4 h-4"></i>
+                        </span>
+                    </div>
+                </div>
+                <!-- 3. 主力持续潜伏池 -->
+                <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">主力持续加仓标的</p>
+                            <h3 id="ff-stat-consec-count" class="text-xl font-bold font-mono mt-1 text-indigo-500 dark:text-indigo-400">-- 只</h3>
+                            <p class="text-[11px] text-slate-400 mt-1">连续 2 天及以上大单抢筹</p>
+                        </div>
+                        <span class="p-2 rounded-lg bg-indigo-500/10 text-indigo-500 dark:bg-indigo-500/20">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        </span>
+                    </div>
+                </div>
+                <!-- 4. 资金集中抱团行业 -->
+                <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">主力净买前列行业</p>
+                            <h3 id="ff-stat-top-sectors" class="text-sm font-bold mt-1 text-slate-800 dark:text-white line-clamp-1">加载中...</h3>
+                            <p class="text-[11px] text-slate-400 mt-1">板块资金集群抱团先锋</p>
+                        </div>
+                        <span class="p-2 rounded-lg bg-purple-500/10 text-purple-500 dark:bg-purple-500/20">
+                            <i data-lucide="building" class="w-4 h-4"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 策略筛选导航标签栏 (Strategy Filter Tab Bar) -->
+            <div class="glass-card rounded-xl p-3 border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 space-y-3">
+                <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                    <button onclick="setFundFlowStrategy('all')" id="ff-btn-strat-all" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950 shadow-sm transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>全部资金异动</span>
+                        <span id="ff-cnt-all" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 text-slate-950 font-mono">0</span>
+                    </button>
+                    <button onclick="setFundFlowStrategy('latent_breakout')" id="ff-btn-strat-latent_breakout" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>🎯 主力潜伏蓄势</span>
+                        <span id="ff-cnt-latent_breakout" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-mono">0</span>
+                    </button>
+                    <button onclick="setFundFlowStrategy('sector_leader')" id="ff-btn-strat-sector_leader" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>👑 板块龙头先锋</span>
+                        <span id="ff-cnt-sector_leader" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">0</span>
+                    </button>
+                    <button onclick="setFundFlowStrategy('closing_surge')" id="ff-btn-strat-closing_surge" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>⚡ 尾盘抢筹溢价</span>
+                        <span id="ff-cnt-closing_surge" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-mono">0</span>
+                    </button>
+                    <button onclick="setFundFlowStrategy('heavy_institution')" id="ff-btn-strat-heavy_institution" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>🏦 机构重度建仓</span>
+                        <span id="ff-cnt-heavy_institution" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-mono">0</span>
+                    </button>
+                    <button onclick="setFundFlowStrategy('oversold_reversal')" id="ff-btn-strat-oversold_reversal" class="ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer">
+                        <span>⛳ 超跌资金抄底</span>
+                        <span id="ff-cnt-oversold_reversal" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono">0</span>
+                    </button>
+                </div>
+
+                <!-- 策略逻辑与选股提示条 -->
+                <div id="ff-strategy-banner" class="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/90 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                    <span id="ff-strat-desc-text">💡 <strong>全部资金监控</strong>：综合展示全市场主力资金大单净流入靠前的核心标的，并实时标记多策略共振属性。</span>
+                    <span id="ff-strat-count-badge" class="px-2.5 py-0.5 rounded-full bg-emerald-100/90 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold font-mono shrink-0 ml-3">共筛选出 0 只标的</span>
+                </div>
+
+                <!-- 细分检索与排序工具栏 -->
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+                    <div class="flex items-center space-x-2 flex-1">
+                        <div class="relative flex-1 sm:max-w-xs">
+                            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
+                            <input id="ff-search-input" oninput="onFundFlowFilterChange()" type="text" placeholder="搜索代码、名称..." class="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-emerald-500 transition">
+                        </div>
+                        <select id="ff-industry-select" onchange="onFundFlowFilterChange()" class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer">
+                            <option value="">全部行业板块</option>
+                        </select>
+                        <select id="ff-inflow-filter" onchange="onFundFlowFilterChange()" class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer">
+                            <option value="0">净流入: 全部</option>
+                            <option value="10000000">> 1000万</option>
+                            <option value="30000000">> 3000万</option>
+                            <option value="50000000">> 5000万</option>
+                            <option value="100000000">> 1亿</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                        <span class="font-medium">排序:</span>
+                        <button onclick="toggleFundFlowSort('dde_net')" id="ff-sort-dde_net" class="px-2 py-1 rounded text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/90 dark:border-emerald-700/80 cursor-pointer shadow-sm">主力净买 ↓</button>
+                        <button onclick="toggleFundFlowSort('dde_ratio')" id="ff-sort-dde_ratio" class="px-2 py-1 rounded text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent cursor-pointer transition">净占比</button>
+                        <button onclick="toggleFundFlowSort('consec_days')" id="ff-sort-consec_days" class="px-2 py-1 rounded text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent cursor-pointer transition">连买天数</button>
+                        <button onclick="toggleFundFlowSort('pct')" id="ff-sort-pct" class="px-2 py-1 rounded text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent cursor-pointer transition">涨跌幅</button>
+                        <button onclick="toggleFundFlowSort('t_rate')" id="ff-sort-t_rate" class="px-2 py-1 rounded text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent cursor-pointer transition">换手率</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 标的列表表格 (Data Table) -->
+            <div class="glass-card rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                                <th class="py-3 px-3 w-10 text-center">#</th>
+                                <th class="py-3 px-3">代码 / 名称</th>
+                                <th class="py-3 px-3 text-right">最新价</th>
+                                <th class="py-3 px-3 text-right">涨跌幅</th>
+                                <th class="py-3 px-3 text-right">主力净流入(今日)</th>
+                                <th class="py-3 px-3 text-right">主力净占比</th>
+                                <th class="py-3 px-3 text-center">连续净流入</th>
+                                <th class="py-3 px-3 text-right">换手率</th>
+                                <th class="py-3 px-3 text-right">量比</th>
+                                <th class="py-3 px-3 text-right">成交额</th>
+                                <th class="py-3 px-3">所属板块</th>
+                                <th class="py-3 px-3">匹配资金策略</th>
+                                <th class="py-3 px-3 min-w-[220px]">选股逻辑与研判理由</th>
+                                <th class="py-3 px-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ff-table-body" class="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
+                            <!-- 动态加载行 -->
+                            <tr>
+                                <td colspan="14" class="text-center py-12 text-slate-400">
+                                    <div class="flex items-center justify-center space-x-2">
+                                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-emerald-500"></i>
+                                        <span>正在扫描全市场主力资金异动与策略标的...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+<!-- ==================== 板块全景成分股弹窗 (Board Detail Modal) ==================== -->
         <div id="sl-board-modal"
             class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6"
             onclick="if(event.target === this) closeSectorLeaderModal()">
@@ -7021,7 +7223,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
+        const VALID_TABS = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
 
         function getActiveTabName() {
             if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
@@ -7118,6 +7320,10 @@
                                 if (window._etfChartSingle) window._etfChartSingle.resize();
                                 if (window._etfChartFutures) window._etfChartFutures.resize();
                             }, 50);
+                        } else if (t === 'fundflow') {
+                            setTimeout(() => {
+                                if (typeof initFundFlowView === 'function') initFundFlowView();
+                            }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
                             runDiagnosis();
@@ -7150,6 +7356,7 @@
 
         const TAB_NAME_MAP = {
             dashboard: '大盘全景',
+            fundflow: '资金监控',
             backtest: '单标的回测',
             optimize: '参数寻优',
             screener: '48大策略选股',
@@ -9318,60 +9525,65 @@
         }
 
         function calcTdSequential(bars, M = 9) {
+            if (!bars || bars.length < 5) return { tdHigh: [], tdLow: [] };
             const n = bars.length;
-            const tdHigh = new Array(n).fill(0);
-            const tdLow = new Array(n).fill(0);
-            if (n < 5) return { tdHigh, tdLow };
-            const N = M - 1;
-
             const a2 = new Array(n).fill(0);
-            for (let i = 4; i < n; i++) {
-                if (bars[i].close > bars[i - 4].close) {
-                    a2[i] = a2[i - 1] + 1;
-                } else {
-                    a2[i] = 0;
-                }
-            }
-            for (let i = 0; i < n; i++) {
-                if (i > 0 && a2[i - 1] === N && a2[i] > a2[i - 1]) {
-                    const start = Math.max(0, i - (N + 1) + 1);
-                    for (let j = start; j <= i; j++) {
-                        tdHigh[j] = a2[j];
-                    }
-                }
-            }
-            const lastA2 = a2[n - 1];
-            if (lastA2 >= 3 && lastA2 <= N) {
-                const start = Math.max(0, n - 1 - lastA2 + 1);
-                for (let j = start; j < n; j++) {
-                    tdHigh[j] = a2[j];
-                }
-            }
-
             const b2 = new Array(n).fill(0);
+
             for (let i = 4; i < n; i++) {
-                if (bars[i].close < bars[i - 4].close) {
-                    b2[i] = b2[i - 1] + 1;
-                } else {
-                    b2[i] = 0;
-                }
-            }
-            for (let i = 0; i < n; i++) {
-                if (i > 0 && b2[i - 1] === N && b2[i] > b2[i - 1]) {
-                    const start = Math.max(0, i - (N + 1) + 1);
-                    for (let j = start; j <= i; j++) {
-                        tdLow[j] = b2[j];
-                    }
-                }
-            }
-            const lastB2 = b2[n - 1];
-            if (lastB2 >= 3 && lastB2 <= N) {
-                const start = Math.max(0, n - 1 - lastB2 + 1);
-                for (let j = start; j < n; j++) {
-                    tdLow[j] = b2[j];
-                }
+                const curC = Number(bars[i].close || 0);
+                const refC = Number(bars[i - 4].close || 0);
+                if (curC > refC) a2[i] = a2[i - 1] + 1;
+                else a2[i] = 0;
+
+                if (curC < refC) b2[i] = b2[i - 1] + 1;
+                else b2[i] = 0;
             }
 
+            // 东方财富/通达信/同花顺神奇九转严密呈现规范：
+            // 1. 1~5 根隐藏不提前显示，连续满足条件到第 6 根才开始显示 1、2、3、4、5、6；
+            // 2. 正在进行中时：第 7 根继续满足追加显示 7，第 8 根追加显示 8；若中间任意中断则前面数字全部消失清零；
+            // 3. 必须连续 9 根全部达标成立，才算有效九转，历史 1~9 完整保留。
+            // 4. 若为 M=13，则 9 转之后延伸至 10~13。
+            function calcTdDisplay(counts) {
+                const show = new Array(n).fill(0);
+                let i = 0;
+                while (i < n) {
+                    if (counts[i] === 0) {
+                        i++;
+                        continue;
+                    }
+                    const start = i;
+                    while (i < n && counts[i] > 0) {
+                        i++;
+                    }
+                    const end = i - 1;
+                    const maxCount = counts[end];
+                    const isLatestOngoing = (end === n - 1);
+
+                    if (isLatestOngoing) {
+                        // 正在进行的最新序列：1~5 隐藏，连续满足到第 6 根才开始显示 1~6，后续 7、8 追加显示
+                        if (maxCount >= 6) {
+                            for (let j = start; j <= end; j++) {
+                                const val = counts[j];
+                                show[j] = val <= M ? val : 0;
+                            }
+                        }
+                    } else {
+                        // 历史序列：必须连满 9 根达标成立才算有效九转，完整保留 1~9 (若 M=13 则保留至 13)；未满 9 根中断则全部清零擦掉
+                        if (maxCount >= 9) {
+                            for (let j = start; j <= end; j++) {
+                                const val = counts[j];
+                                show[j] = val <= M ? val : 0;
+                            }
+                        }
+                    }
+                }
+                return show;
+            }
+
+            const tdHigh = calcTdDisplay(a2);
+            const tdLow = calcTdDisplay(b2);
             return { tdHigh, tdLow };
         }
 
@@ -11985,6 +12197,7 @@
             }
 
             // K线图主图标记点：由顶部【买卖点】按钮控制（默认关闭；开启时在蜡烛图上呈现【顶】、【底】、【买卖点】与【极值】标记）
+            const isDark = (typeof getTheme === 'function' ? getTheme() : 'dark') === 'dark';
             const markPointData = [];
 
             if (showKpZigMarks) {
@@ -12155,17 +12368,9 @@
             // ── 通达信九转 / 十三转序列标记 (TD Sequential) ──
             if (kpTdMode !== 'off') {
                 const mVal = Number(kpTdMode) || 9;
-                let tdHighArr = [];
-                let tdLowArr = [];
-                const hasBackendTd = (mVal === 13) ? (bars[0] && bars[0].td13_high !== undefined) : (bars[0] && bars[0].td9_high !== undefined);
-                if (hasBackendTd) {
-                    tdHighArr = bars.map(b => (mVal === 13 ? b.td13_high : b.td9_high) || 0);
-                    tdLowArr = bars.map(b => (mVal === 13 ? b.td13_low : b.td9_low) || 0);
-                } else {
-                    const fallback = calcTdSequential(bars, mVal);
-                    tdHighArr = fallback.tdHigh;
-                    tdLowArr = fallback.tdLow;
-                }
+                const tdRes = calcTdSequential(bars, mVal);
+                const tdHighArr = tdRes.tdHigh || [];
+                const tdLowArr = tdRes.tdLow || [];
 
                 // Ensure bars have td sequence properties populated for tooltip and indicators
                 bars.forEach((b, i) => {
@@ -12182,54 +12387,61 @@
                     const hVal = tdHighArr[i];
                     const lVal = tdLowArr[i];
 
-                    // 上升九转 (高九/高十三，见顶预警，从第3根日线起标注在顶部)
-                    if (hVal >= 3) {
-                        const isCompleted = (hVal === mVal);
+                    // 上升九转 (高九/高十三，见顶预警，标注在蜡烛顶部)
+                    if (hVal > 0) {
+                        const isCompleted = (hVal === 9 || hVal === 13);
                         if (isCompleted) {
-                            // 第 9 或 13 根：通达信标准绿色高亮徽章图标
+                            // 第 9 或 13 根：通达信标准绿色高亮徽章图标 (见顶警示)
                             markPointData.push({
                                 name: `九转高${hVal}`,
                                 coord: [b.datetime, b.high],
                                 value: String(hVal),
                                 symbol: 'circle',
                                 symbolSize: 18,
-                                symbolOffset: [0, -12],
+                                symbolOffset: [0, -14],
                                 itemStyle: {
-                                    color: '#14532d',
+                                    color: isDark ? '#14532d' : '#15803d',
                                     borderColor: '#22c55e',
                                     borderWidth: 2,
-                                    shadowBlur: 8,
-                                    shadowColor: 'rgba(34, 197, 94, 0.85)'
+                                    shadowBlur: 6,
+                                    shadowColor: 'rgba(34, 197, 94, 0.75)'
                                 },
+                                silent: true,
                                 label: {
                                     show: true,
+                                    position: 'inside',
                                     formatter: String(hVal),
                                     color: '#ffffff',
-                                    fontWeight: 'bold',
-                                    fontSize: 10
+                                    fontWeight: '900',
+                                    fontSize: 10,
+                                    fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
                                 },
-                                z: 90
+                                z: 95
                             });
                         } else {
-                            // 1~12: 通达信洋红数字 (COLORFF00FF)
+                            // 1~8 (及 10~12): 通达信洋红/鲜红序列数字
                             markPointData.push({
                                 name: `高${hVal}`,
                                 coord: [b.datetime, b.high],
                                 value: String(hVal),
                                 symbol: 'circle',
-                                symbolSize: 0.001,
-                                itemStyle: { opacity: 0 },
+                                symbolSize: 14,
+                                symbolOffset: [0, -10],
+                                itemStyle: {
+                                    color: 'transparent',
+                                    borderColor: 'transparent',
+                                    borderWidth: 0
+                                },
                                 silent: true,
                                 label: {
                                     show: true,
-                                    position: 'top',
-                                    distance: 2,
+                                    position: 'inside',
                                     formatter: String(hVal),
-                                    color: '#ff00ff',
+                                    color: isDark ? '#ff00ff' : '#dc2626',
                                     fontWeight: 'bold',
-                                    fontSize: 9.5,
-                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
-                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
+                                    fontSize: 10,
+                                    fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                                    textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
                                     textBorderWidth: 1.5
                                 },
                                 z: 80
@@ -12237,55 +12449,61 @@
                         }
                     }
 
-                    // 下跌九转 (低九/低十三，抄底买点，从第1根起标注在蜡烛下方)
-                    if (lVal >= 1) {
-                        const isCompleted = (lVal === mVal);
+                    // 下跌九转 (低九/低十三，抄底买点，标注在蜡烛下方)
+                    if (lVal > 0) {
+                        const isCompleted = (lVal === 9 || lVal === 13);
                         if (isCompleted) {
-                            // 第 9 或 13 根：通达信标准洋红高亮转折点
+                            // 第 9 或 13 根：通达信标准转折高亮徽章图标 (洋红/玫瑰红底白字，抄底反弹)
                             markPointData.push({
                                 name: `九转低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
                                 symbol: 'circle',
                                 symbolSize: 18,
-                                symbolOffset: [0, 12],
+                                symbolOffset: [0, 14],
                                 itemStyle: {
-                                    color: '#701a75',
+                                    color: isDark ? '#701a75' : '#be185d',
                                     borderColor: '#f43f5e',
                                     borderWidth: 2,
-                                    shadowBlur: 8,
-                                    shadowColor: 'rgba(244, 63, 94, 0.85)'
+                                    shadowBlur: 6,
+                                    shadowColor: 'rgba(244, 63, 94, 0.75)'
                                 },
+                                silent: true,
                                 label: {
                                     show: true,
                                     position: 'inside',
                                     formatter: String(lVal),
                                     color: '#ffffff',
-                                    fontWeight: 'bold',
-                                    fontSize: 10
+                                    fontWeight: '900',
+                                    fontSize: 10,
+                                    fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
                                 },
-                                z: 90
+                                z: 95
                             });
                         } else {
-                            // 1~12: 通达信标准绿色数字 (COLOR00FF00)
+                            // 1~8 (及 10~12): 通达信标准绿色数字
                             markPointData.push({
                                 name: `低${lVal}`,
                                 coord: [b.datetime, b.low],
                                 value: String(lVal),
                                 symbol: 'circle',
-                                symbolSize: 0.001,
-                                itemStyle: { opacity: 0 },
+                                symbolSize: 14,
+                                symbolOffset: [0, 10],
+                                itemStyle: {
+                                    color: 'transparent',
+                                    borderColor: 'transparent',
+                                    borderWidth: 0
+                                },
                                 silent: true,
                                 label: {
                                     show: true,
-                                    position: 'bottom',
-                                    distance: 2,
+                                    position: 'inside',
                                     formatter: String(lVal),
-                                    color: '#00ff00',
+                                    color: isDark ? '#00ff00' : '#16a34a',
                                     fontWeight: 'bold',
                                     fontSize: 9.5,
-                                    fontFamily: "'JetBrains Mono', Consolas, monospace",
-                                    textBorderColor: 'rgba(0, 0, 0, 0.85)',
+                                    fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+                                    textBorderColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)',
                                     textBorderWidth: 1.5
                                 },
                                 z: 80
@@ -12441,7 +12659,7 @@
                 return `${sign}${absV.toFixed(0)}`;
             };
 
-            const isDark = getTheme() === 'dark';
+            // isDark is already declared at start of renderKpChart
             const splitColor = isDark ? '#1e293b' : '#f1f5f9';
             const axisColor = isDark ? '#334155' : '#cbd5e1';
             const textColor = '#64748b';
@@ -13211,18 +13429,18 @@
                                     const mVal = (mode === '13') ? 13 : 9;
                                     const tdH = (mVal === 13) ? (bar.td13_high || 0) : (bar.td9_high || 0);
                                     const tdL = (mVal === 13) ? (bar.td13_low || 0) : (bar.td9_low || 0);
-                                    if (tdH >= 3) {
-                                        if (tdH === mVal) {
-                                            tdHtml += `<div style="color: #22c55e; font-weight: 700; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信${mVal}转：高${tdH} 见顶警示/反转点</div>`;
+                                    if (tdH > 0) {
+                                        if (tdH === 9 || tdH === 13) {
+                                            tdHtml += `<div style="color: ${isDark ? '#4ade80' : '#15803d'}; font-weight: 700; margin-top: 5px; padding-top: 4px; border-top: 1px dashed rgba(34,197,94,0.4);">🎯 通达信九转：高${tdH} 见顶警示/反转点</div>`;
                                         } else {
-                                            tdHtml += `<div style="color: #ff00ff; font-weight: 500; font-size: 11px; margin-top: 3px;">九转高序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
+                                            tdHtml += `<div style="color: ${isDark ? '#f472b6' : '#db2777'}; font-weight: 500; font-size: 11px; margin-top: 3px;">九转上升序列：第 ${tdH} 根 (${tdH}/${mVal})</div>`;
                                         }
                                     }
-                                    if (tdL >= 3) {
-                                        if (tdL === mVal) {
-                                            tdHtml += `<div style="color: #f43f5e; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信${mVal}转：低${tdL} 超跌支撑/抄底买点</div>`;
+                                    if (tdL > 0) {
+                                        if (tdL === 9 || tdL === 13) {
+                                            tdHtml += `<div style="color: ${isDark ? '#f43f5e' : '#be185d'}; font-weight: 700; margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(244,63,94,0.4);">🎯 通达信九转：低${tdL} 超跌支撑/抄底买点</div>`;
                                         } else {
-                                            tdHtml += `<div style="color: #4ade80; font-weight: 500; font-size: 11px; margin-top: 2px;">九转低序列：第 ${tdL} 根 (${tdL}/${mVal})</div>`;
+                                            tdHtml += `<div style="color: ${isDark ? '#4ade80' : '#16a34a'}; font-weight: 500; font-size: 11px; margin-top: 2px;">九转下降序列：第 ${tdL} 根 (${tdL}/${mVal})</div>`;
                                         }
                                     }
                                 }
@@ -32409,7 +32627,397 @@
         window.exportPatternMatchCsv = exportPatternMatchCsv;
         window.updatePmSimSliderUI = updatePmSimSliderUI;
 
-    </script>
+    
+        // ==================== 资金监控模块 (Capital Flow & Strategies Monitor) ==================== //
+        let _fundFlowData = null;
+        let _fundFlowRawRows = [];
+        let _lastFundFlowRows = [];
+        let _currentFfStrategy = 'all';
+        let _currentFfSortCol = 'dde_net';
+        let _currentFfSortDir = 'desc';
+        let _fundFlowAutoRefreshTimer = null;
+        let _fundFlowIsLoading = false;
+
+        const FF_STRATEGY_DESCRIPTIONS = {
+            all: '💡 <strong>全部资金监控</strong>：综合展示全市场主力资金大单净流入靠前的核心标的，并实时标记多策略共振属性。',
+            latent_breakout: '🎯 <strong>主力潜伏蓄势突破</strong>：连续 2~5 日主力资金持续净流入（筹码暗中收集），日内换手率温和（1.2%~12%），量比放大，即将或刚刚突破均线与震荡箱体。',
+            sector_leader: '👑 <strong>板块龙头先锋</strong>：行业板块获大资金集群抱团流入，个股大幅领涨（涨幅>=3.8%），主力单日净买超2000万，高辨识度龙头标杆。',
+            closing_surge: '⚡ <strong>尾盘抢筹次日溢价</strong>：主力净买入占比超 6.5%，日K收盘位于高位且实体饱满收红，尾盘资金加速抢筹，博弈次日集合竞价与冲高溢价。',
+            heavy_institution: '🏦 <strong>机构重度建仓</strong>：单日主力净买入超 4500万 至 数亿元，主力净买占比高，公募、外资与大资金建仓明显，趋势主升浪保障。',
+            oversold_reversal: '⛳ <strong>超跌资金抄底共振</strong>：前期深度回落超跌，主力大单率先转正抄底（净买>=500万），共振神奇九转超跌低位或底分型/底背驰买点。'
+        };
+
+        function initFundFlowView() {
+            loadFundFlowData(false);
+            onFundFlowAutoRefreshChange();
+        }
+
+        function onFundFlowAutoRefreshChange() {
+            if (_fundFlowAutoRefreshTimer) {
+                clearInterval(_fundFlowAutoRefreshTimer);
+                _fundFlowAutoRefreshTimer = null;
+            }
+            const sel = document.getElementById('ff-auto-refresh');
+            const sec = sel ? parseInt(sel.value, 10) : 30;
+            if (sec > 0) {
+                _fundFlowAutoRefreshTimer = setInterval(() => {
+                    const curTab = (typeof getActiveTabName === 'function') ? getActiveTabName() : window.currentTab;
+                    if (curTab === 'fundflow') {
+                        loadFundFlowData(false);
+                    }
+                }, sec * 1000);
+            }
+        }
+
+        async function loadFundFlowData(forceRefresh = false) {
+            if (_fundFlowIsLoading) return;
+            _fundFlowIsLoading = true;
+            const updateEl = document.getElementById('ff-last-updated');
+            if (updateEl && forceRefresh) {
+                updateEl.innerText = '正在刷新...';
+            }
+
+            try {
+                const url = `/api/fundflow/scanner?strategy=all&sort_col=${_currentFfSortCol}&sort_dir=${_currentFfSortDir}&limit=300${forceRefresh ? '&force_refresh=true' : ''}`;
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`HTTP error ${resp.status}`);
+                const json = await resp.json();
+                if (!json || !json.success) throw new Error(json?.error || '返回数据异常');
+
+                _fundFlowData = json;
+                _fundFlowRawRows = json.rows || [];
+
+                // 1. Update Market Summary Cards
+                const sm = json.summary || {};
+                const elInflow = document.getElementById('ff-stat-total-inflow');
+                if (elInflow) {
+                    const netVal = sm.total_net_inflow || 0;
+                    elInflow.innerText = sm.total_net_inflow_str || '0.00元';
+                    elInflow.className = 'text-xl font-bold font-mono mt-1 ' + (netVal >= 0 ? 'text-rose-500' : 'text-emerald-500');
+                }
+
+                const elRatio = document.getElementById('ff-stat-inflow-ratio');
+                if (elRatio) {
+                    elRatio.innerText = `净流入 ${sm.inflow_count || 0} 只 / 净流出 ${sm.outflow_count || 0} 只`;
+                }
+
+                const elWater = document.getElementById('ff-stat-water-level');
+                if (elWater) elWater.innerText = sm.water_level || '温和震荡市';
+                const elWaterDesc = document.getElementById('ff-stat-water-desc');
+                if (elWaterDesc) elWaterDesc.innerText = sm.water_level_desc || '存量博弈，资金轮动加快';
+
+                const elConsec = document.getElementById('ff-stat-consec-count');
+                if (elConsec) elConsec.innerText = `${sm.consec_inflow_count || 0} 只`;
+
+                const elTopSectors = document.getElementById('ff-stat-top-sectors');
+                if (elTopSectors) {
+                    const ts = sm.top_sectors || [];
+                    if (ts.length > 0) {
+                        elTopSectors.innerHTML = ts.slice(0, 3).map(s => `<span class="text-rose-500 font-semibold">${s.industry}</span><span class="text-xs text-slate-400 font-normal">(${s.net_inflow_str})</span>`).join(' · ');
+                    } else {
+                        elTopSectors.innerText = '暂无显著抱团行业';
+                    }
+                }
+
+                // 2. Update Strategy Count Badges
+                const sc = json.strategy_counts || {};
+                Object.keys(sc).forEach(k => {
+                    const badge = document.getElementById(`ff-cnt-${k}`);
+                    if (badge) badge.innerText = String(sc[k] || 0);
+                });
+
+                // 3. Populate Industry Dropdown
+                const indSelect = document.getElementById('ff-industry-select');
+                if (indSelect) {
+                    const currentSelected = indSelect.value;
+                    const industries = Array.from(new Set(_fundFlowRawRows.map(r => r.industry).filter(Boolean))).sort();
+                    let optHtml = '<option value="">全部行业板块</option>';
+                    industries.forEach(ind => {
+                        optHtml += `<option value="${ind}" ${ind === currentSelected ? 'selected' : ''}>${ind}</option>`;
+                    });
+                    indSelect.innerHTML = optHtml;
+                }
+
+                // 4. Update Time
+                if (updateEl) {
+                    const now = new Date();
+                    const timeStr = now.toTimeString().split(' ')[0];
+                    updateEl.innerText = `${timeStr} 更新`;
+                }
+
+                // 5. Render Table
+                renderFundFlowTable();
+
+            } catch (err) {
+                console.error('loadFundFlowData error:', err);
+                const tbody = document.getElementById('ff-table-body');
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="14" class="text-center py-8 text-rose-500">加载失败: ${err.message}</td></tr>`;
+                }
+            } finally {
+                _fundFlowIsLoading = false;
+            }
+        }
+
+        function setFundFlowStrategy(stratId) {
+            _currentFfStrategy = stratId;
+
+            // Update Button Highlights
+            document.querySelectorAll('.ff-strat-btn').forEach(btn => {
+                btn.className = 'ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent transition shrink-0 flex items-center space-x-1 cursor-pointer';
+            });
+            const activeBtn = document.getElementById(`ff-btn-strat-${stratId}`);
+            if (activeBtn) {
+                activeBtn.className = 'ff-strat-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-950 shadow-sm transition shrink-0 flex items-center space-x-1 cursor-pointer';
+            }
+
+            // Update Banner Description
+            const bannerText = document.getElementById('ff-strat-desc-text');
+            if (bannerText && FF_STRATEGY_DESCRIPTIONS[stratId]) {
+                bannerText.innerHTML = FF_STRATEGY_DESCRIPTIONS[stratId];
+            }
+
+            renderFundFlowTable();
+        }
+
+        function toggleFundFlowSort(col) {
+            if (_currentFfSortCol === col) {
+                _currentFfSortDir = (_currentFfSortDir === 'desc') ? 'asc' : 'desc';
+            } else {
+                _currentFfSortCol = col;
+                _currentFfSortDir = 'desc';
+            }
+
+            // Update sort button visual states
+            ['dde_net', 'dde_ratio', 'consec_days', 'pct', 't_rate'].forEach(c => {
+                const btn = document.getElementById(`ff-sort-${c}`);
+                if (!btn) return;
+                if (c === _currentFfSortCol) {
+                    const arrow = _currentFfSortDir === 'desc' ? '↓' : '↑';
+                    btn.className = 'px-2 py-1 rounded text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/90 dark:border-emerald-700/80 cursor-pointer shadow-sm';
+                    btn.innerText = btn.innerText.replace(/[↓↑]/g, '').trim() + ' ' + arrow;
+                } else {
+                    btn.className = 'px-2 py-1 rounded text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent cursor-pointer transition';
+                    btn.innerText = btn.innerText.replace(/[↓↑]/g, '').trim();
+                }
+            });
+
+            renderFundFlowTable();
+        }
+
+        function onFundFlowFilterChange() {
+            renderFundFlowTable();
+        }
+
+        function renderFundFlowTable() {
+            const tbody = document.getElementById('ff-table-body');
+            if (!tbody) return;
+
+            const kw = (document.getElementById('ff-search-input')?.value || '').trim().toUpperCase();
+            const ind = (document.getElementById('ff-industry-select')?.value || '').trim();
+            const minInf = parseFloat(document.getElementById('ff-inflow-filter')?.value || '0');
+
+            let rows = _fundFlowRawRows || [];
+
+            // Filter by Strategy
+            if (_currentFfStrategy !== 'all') {
+                rows = rows.filter(r => r.matched_ids && r.matched_ids.includes(_currentFfStrategy));
+            }
+
+            // Filter by Min Inflow
+            if (minInf > 0) {
+                rows = rows.filter(r => r.dde_net >= minInf);
+            }
+
+            // Filter by Industry
+            if (ind) {
+                rows = rows.filter(r => r.industry === ind);
+            }
+
+            // Filter by Keyword
+            if (kw) {
+                rows = rows.filter(r => r.stock_code.includes(kw) || r.stock_name.toUpperCase().includes(kw));
+            }
+
+            // Client-side Sort
+            rows.sort((a, b) => {
+                let vA = a[_currentFfSortCol] ?? 0;
+                let vB = b[_currentFfSortCol] ?? 0;
+                return _currentFfSortDir === 'desc' ? (vB - vA) : (vA - vB);
+            });
+
+            _lastFundFlowRows = rows;
+            window._lastFundFlowRows = rows;
+
+            const badgeEl = document.getElementById('ff-strat-count-badge');
+            if (badgeEl) {
+                badgeEl.innerText = `共筛选出 ${rows.length} 只标的`;
+            }
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12 text-slate-400">没有找到符合当前资金策略筛选条件的标的</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            rows.forEach((r, idx) => {
+                const isUp = r.pct >= 0;
+                const pctColor = isUp ? 'text-rose-500' : 'text-emerald-500';
+                const pctSign = isUp ? '+' : '';
+                const inflowColor = r.dde_net >= 0 ? 'text-rose-500' : 'text-emerald-500';
+
+                // Turnover badge styling
+                let tRateClass = 'text-slate-600 dark:text-slate-300';
+                let tRateTip = '';
+                if (r.t_rate >= 1.5 && r.t_rate <= 8.0) {
+                    tRateClass = 'text-emerald-600 dark:text-emerald-400 font-semibold';
+                    tRateTip = '温和控盘';
+                } else if (r.t_rate > 8.0 && r.t_rate <= 15.0) {
+                    tRateClass = 'text-amber-600 dark:text-amber-400 font-semibold';
+                    tRateTip = '活跃换手';
+                } else if (r.t_rate > 15.0) {
+                    tRateClass = 'text-rose-600 dark:text-rose-400 font-bold';
+                    tRateTip = '高度博弈';
+                }
+
+                // Consec Days Badge
+                let consecHtml = '<span class="text-slate-400 dark:text-slate-500">-</span>';
+                if (r.consec_days >= 2) {
+                    consecHtml = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 whitespace-nowrap">🔥 连买${r.consec_days}天 (${r.consec_amount_str})</span>`;
+                } else if (r.consec_days === 1) {
+                    consecHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap">首日翻红</span>`;
+                }
+
+                // Matched Strategies Badges
+                let stratsHtml = '<span class="text-slate-400 dark:text-slate-500 text-[10px]">-</span>';
+                if (r.matched_strategies && r.matched_strategies.length > 0) {
+                    stratsHtml = `<div class="flex flex-wrap gap-1">` +
+                        r.matched_strategies.map(s =>
+                            `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${s.badge}">${s.name}</span>`
+                        ).join('') +
+                        `</div>`;
+                }
+
+                // Inflow ratio bar representation
+                const ratioWidth = Math.min(100, Math.max(0, Math.abs(r.dde_ratio) * 4));
+                const ratioBarColor = r.dde_ratio >= 0 ? 'bg-rose-500' : 'bg-emerald-500';
+
+                const optClass = r.is_optional ? 'text-amber-400 fill-amber-400' : 'text-slate-400 hover:text-amber-400';
+
+                const bCode = r.board_code || '';
+
+                html += `
+                    <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition group">
+                        <td class="py-2.5 px-3 text-center text-slate-400 text-[11px]">${idx + 1}</td>
+                        <td class="py-2.5 px-3 whitespace-nowrap">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="font-bold cursor-pointer text-slate-800 dark:text-slate-100 hover:text-emerald-500 transition"
+                                    onclick="openKlineModal('${r.stock_code}', '${r.stock_name}', 'DAY', window._lastFundFlowRows)">
+                                    ${r.stock_name}
+                                </span>
+                                <span class="text-[10px] text-slate-400">${r.stock_code}</span>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3 text-right font-bold text-slate-700 dark:text-slate-200">${r.close.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-right font-bold ${pctColor}">${pctSign}${r.pct.toFixed(2)}%</td>
+                        <td class="py-2.5 px-3 text-right font-bold font-mono ${inflowColor}">${r.dde_net_str}</td>
+                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div class="flex flex-col items-end">
+                                <span class="font-bold ${inflowColor}">${r.dde_ratio > 0 ? '+' : ''}${r.dde_ratio.toFixed(1)}%</span>
+                                <div class="w-12 h-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden mt-0.5">
+                                    <div class="h-full ${ratioBarColor}" style="width: ${ratioWidth}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3 text-center whitespace-nowrap">${consecHtml}</td>
+                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                            <span class="${tRateClass}">${r.t_rate.toFixed(2)}%</span>
+                            ${tRateTip ? `<span class="text-[9px] text-slate-400 dark:text-slate-500 block">${tRateTip}</span>` : ''}
+                        </td>
+                        <td class="py-2.5 px-3 text-right text-slate-600 dark:text-slate-300">${r.v_rate.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">${r.amount_str}</td>
+                        <td class="py-2.5 px-3 whitespace-nowrap">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                    ${r.industry}
+                                </span>
+                                <button onclick="openKlineModal('${bCode}', '${r.industry}', 'DAY', null)"
+                                    class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 dark:border-emerald-800 transition cursor-pointer"
+                                    title="查看【${r.industry}】板块K线行情">
+                                    K线
+                                </button>
+                                <button onclick="openSectorLeaderBoardModal('${bCode}', '${r.industry}')"
+                                    class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 dark:text-indigo-300 dark:border-indigo-800 transition cursor-pointer"
+                                    title="查看【${r.industry}】全量成分股及龙头排位">
+                                    成分股
+                                </button>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3">${stratsHtml}</td>
+                        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] leading-tight font-sans">
+                            ${r.reason}
+                        </td>
+                        <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center space-x-1.5">
+                                <button onclick="openKlineModal('${r.stock_code}', '${r.stock_name}', 'DAY', window._lastFundFlowRows)"
+                                    class="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 dark:text-emerald-300 dark:border-emerald-800 transition cursor-pointer"
+                                    title="查看【${r.stock_name}】(${r.stock_code}) 实时K线行情与多周期指标">
+                                    K线
+                                </button>
+                                <a href="/#chanlun?code=${r.stock_code}" target="_blank" rel="noopener noreferrer"
+                                    onclick="openChanlunKline('${r.stock_code}', '${r.stock_name}', event, '', window._lastFundFlowRows);"
+                                    class="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900 dark:text-purple-300 dark:border-purple-800 transition cursor-pointer no-underline text-center"
+                                    title="在新的标签页中打开【${r.stock_name}】(${r.stock_code}) 缠论K线">
+                                    缠论
+                                </a>
+                                <button onclick="toggleFundFlowWatchlist('${r.stock_code}', '${r.stock_name}', this)"
+                                    class="p-1 rounded text-slate-400 hover:text-amber-400 transition cursor-pointer" title="加入/取消自选">
+                                    <i data-lucide="bookmark" class="w-3.5 h-3.5 ${optClass}"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        }
+
+        async function toggleFundFlowWatchlist(code, name, btnEl) {
+            try {
+                const icon = btnEl.querySelector('svg') || btnEl.querySelector('i');
+                const isOpt = icon && icon.classList.contains('fill-amber-400');
+                const newStatus = !isOpt;
+
+                const resp = await fetch('/api/trading_system/toggle_watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stock_code: code, stock_name: name, status: newStatus })
+                });
+                const res = await resp.json();
+                if (res.success) {
+                    if (icon) {
+                        if (newStatus) {
+                            icon.classList.remove('text-slate-500');
+                            icon.classList.add('text-amber-400', 'fill-amber-400');
+                        } else {
+                            icon.classList.remove('text-amber-400', 'fill-amber-400');
+                            icon.classList.add('text-slate-500');
+                        }
+                    }
+                    if (window.showToast) {
+                        window.showToast('自选股更新', `${newStatus ? '已添加' : '已移除'} [${name}]`);
+                    }
+                }
+            } catch (e) {
+                console.error('toggleFundFlowWatchlist error:', e);
+            }
+        }
+
+</script>
 
 </body>
 
