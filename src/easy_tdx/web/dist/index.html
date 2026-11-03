@@ -13409,8 +13409,6 @@
                     type: 'value',
                     gridIndex: 0,
                     scale: true,
-                    min: initYMin,
-                    max: initYMax,
                     splitLine: { lineStyle: { color: splitColor } },
                     axisPointer: { label: { show: true, backgroundColor: axisPointerBg } },
                     axisLabel: { color: textColor, fontSize: labelFontSize, formatter: v => `¥${v.toFixed(2)}` }
@@ -13451,14 +13449,6 @@
             const initialExtremaMarks = (initialExtrema && initialExtrema.highMark && initialExtrema.lowMark) ? [initialExtrema.highMark, initialExtrema.lowMark] : [];
             window._currentKpVisibleMarks = initialExtremaMarks;
 
-            let initYMin = undefined;
-            let initYMax = undefined;
-            if (initialExtrema && isFinite(initialExtrema.yMin) && isFinite(initialExtrema.yMax) && initialExtrema.yMax > initialExtrema.yMin) {
-                const spanInit = Math.max(0.01, initialExtrema.yMax - initialExtrema.yMin);
-                const padInit = spanInit * 0.06;
-                initYMin = Math.max(0, +(initialExtrema.yMin - padInit).toFixed(2));
-                initYMax = +(initialExtrema.yMax + padInit).toFixed(2);
-            }
 
             // 8. K线蜡烛图左上角：打印当前最新日期（最右侧日期）的形态特征
             const patternInfo = getKpLatestPatterns(bars, json);
