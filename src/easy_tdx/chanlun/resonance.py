@@ -2565,6 +2565,10 @@ def analyze_multi_period_resonance(
     return result_data
 
 
+_QUAD_RESONANCE_CACHE: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
+_QUAD_RESONANCE_CACHE_LOCK = threading.Lock()
+
+
 def analyze_quad_resonance(
     code: str = "000001",
     periods_w1: str = "QUARTER,MONTH,WEEK",
@@ -2580,6 +2584,16 @@ def analyze_quad_resonance(
     将原先4个独立HTTP请求、重复拉取与排队争用优化为单次全并行流水线，大幅提升四分屏看盘出图速度。
     """
     clean_code = str(code).strip().upper().replace("SZ", "").replace("SH", "").replace("BJ", "") or "000001"
+    clean_cutoff = str(cutoff_date).strip() if cutoff_date and str(cutoff_date).strip() else None
+
+    # 高速内存缓存检查：历史回溯或同参数重复请求 0ms 瞬间直出
+    cache_key = (clean_code, periods_w1, periods_w2, periods_w3, periods_w4, count, clean_cutoff)
+    if not force_refresh:
+        with _QUAD_RESONANCE_CACHE_LOCK:
+            if cache_key in _QUAD_RESONANCE_CACHE:
+                cached_time, cached_res = _QUAD_RESONANCE_CACHE[cache_key]
+                if time.time() - cached_time < 300.0:
+                    return cached_res
 
     windows_config = {
         "left": periods_w1,
@@ -2599,6 +2613,12 @@ def analyze_quad_resonance(
     def _fetch_p(p_name: str) -> tuple[str, pd.DataFrame]:
         spec = PERIOD_SPECS[p_name]
         cnt = 60 if p_name in ("SEASON", "QUARTER") else (120 if p_name == "MONTH" else (350 if p_name == "WEEK" else max(count, 800)))
+        if not force_refresh:
+            with _RESONANCE_CACHE_LOCK:
+                if (clean_code, p_name) in _RESONANCE_RAW_KLINE_CACHE:
+                    c_time, c_df = _RESONANCE_RAW_KLINE_CACHE[(clean_code, p_name)]
+                    if (time.time() - c_time < 300.0) and len(c_df) >= cnt:
+                        return p_name, c_df.copy()
         df = fetch_security_kline(clean_code, category=spec["market_cat"], count=cnt, force_refresh=force_refresh)
         if df is not None and not df.empty:
             with _RESONANCE_CACHE_LOCK:
@@ -2659,9 +2679,16 @@ def analyze_quad_resonance(
         for win_key, data in pool.map(_assemble_window, windows_config.items()):
             windows_data[win_key] = data
 
-    return {
+    result_data = {
         "status": "success",
         "code": clean_code,
         "windows": windows_data,
     }
+    with _QUAD_RESONANCE_CACHE_LOCK:
+        if len(_QUAD_RESONANCE_CACHE) > 120:
+            for k in list(_QUAD_RESONANCE_CACHE.keys())[:30]:
+                _QUAD_RESONANCE_CACHE.pop(k, None)
+        _QUAD_RESONANCE_CACHE[cache_key] = (time.time(), result_data)
+
+    return result_data
 
