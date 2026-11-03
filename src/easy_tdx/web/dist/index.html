@@ -25584,6 +25584,7 @@
 
         let _clIsDataLoading = false;
         let _clLoadingTargetCode = null;
+        let _clLoadingTargetDate = null;
         let _clPendingBacktrackDate = null;
         let _clBacktrackDebounceTimer = null;
         const _clBacktrackCache = new Map();
@@ -25644,8 +25645,9 @@
         let _clZoomDebounceTimers = {};
 
         async function loadChanlunData(forceRefresh = false) {
-            if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode) return;
+            if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode && _clLoadingTargetDate === _clBacktrackDate) return;
             _clLoadingTargetCode = _clCurrentCode;
+            _clLoadingTargetDate = _clBacktrackDate;
             const reqCode = _clCurrentCode;
             const reqDate = _clBacktrackDate;
             const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
@@ -29486,70 +29488,83 @@
             }
 
             if (['left', 'w2', 'right', 'w4'].includes(side)) {
+                const triggerBarDblClick = (rawTargetDate) => {
+                    if (!rawTargetDate) return;
+                    const cleanDate = String(rawTargetDate).trim();
+                    if (!/^\d{4}[-/]\d{2}/.test(cleanDate)) return;
+                    const now = Date.now();
+                    if (now - (window._lastChanlunDblClickTime || 0) < 400) return;
+                    window._lastChanlunDblClickTime = now;
+                    if (typeof setChanlunBacktrackDateToBar === 'function') {
+                        setChanlunBacktrackDateToBar(cleanDate, side);
+                    }
+                };
+
+                // 1. ZRender 底层全画布双击监听 (100% 捕获任何双击，无论是柱体、影线、买卖点、九转数字还是K线间隙)
+                if (instance.getZr()) {
+                    instance.getZr().on('dblclick', (e) => {
+                        let targetDate = null;
+                        if (e) {
+                            const px = (typeof e.zrX === 'number') ? e.zrX : (typeof e.offsetX === 'number' ? e.offsetX : (e.event ? e.event.offsetX : null));
+                            const py = (typeof e.zrY === 'number') ? e.zrY : (typeof e.offsetY === 'number' ? e.offsetY : (e.event ? e.event.offsetY : null));
+                            if (px != null) {
+                                let xIdx = null;
+                                if (py != null) {
+                                    try {
+                                        const pt = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
+                                        if (pt && typeof pt[0] === 'number' && !isNaN(pt[0])) {
+                                            xIdx = Math.round(pt[0]);
+                                        }
+                                    } catch (_) {}
+                                }
+                                if (xIdx == null || isNaN(xIdx) || xIdx < 0 || xIdx >= dates.length) {
+                                    try {
+                                        const ptX = instance.convertFromPixel({ xAxisIndex: 0 }, px);
+                                        if (typeof ptX === 'number' && !isNaN(ptX)) {
+                                            xIdx = Math.round(ptX);
+                                        }
+                                    } catch (_) {}
+                                }
+                                if (xIdx != null && xIdx >= 0 && xIdx < dates.length && dates[xIdx]) {
+                                    targetDate = String(dates[xIdx]).trim();
+                                }
+                            }
+                        }
+
+                        // 兜底：若未通过坐标计算出，使用当前高亮悬停的当根K线
+                        if (!targetDate) {
+                            const hovered = _clHoveredCandle[side];
+                            if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
+                                targetDate = hovered.date;
+                            }
+                        }
+
+                        if (targetDate) {
+                            triggerBarDblClick(targetDate);
+                        }
+                    });
+                }
+
+                // 2. ECharts 图元双击监听 (兜底捕获特定 markPoint 或 series 图元)
                 instance.on('dblclick', (params) => {
                     let targetDate = null;
-                    const hovered = _clHoveredCandle[side];
-
-                    // 1. 优先使用鼠标悬停/十字光标当前高亮命中的当根K线日期（最精准）
-                    if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
-                        if (/^\d{4}[-/]\d{2}/.test(hovered.date)) {
+                    if (params) {
+                        if (params.componentType === 'markPoint' && params.data && params.data.coord && params.data.coord[0]) {
+                            targetDate = String(params.data.coord[0]).trim();
+                        } else if (params.name && /^\d{4}[-/]\d{2}/.test(String(params.name).trim())) {
+                            targetDate = String(params.name).trim();
+                        } else if (typeof params.dataIndex === 'number' && dates && dates[params.dataIndex]) {
+                            targetDate = String(dates[params.dataIndex]).trim();
+                        }
+                    }
+                    if (!targetDate) {
+                        const hovered = _clHoveredCandle[side];
+                        if (hovered && hovered.date && (Date.now() - (hovered.time || 0) < 6000)) {
                             targetDate = hovered.date;
                         }
                     }
-
-                    // 2. 从 params.name 提取（ECharts柱子实体或类目轴名称）
-                    if (!targetDate && params && params.name) {
-                        const nStr = String(params.name).trim();
-                        if (/^\d{4}[-/]\d{2}/.test(nStr)) {
-                            targetDate = nStr;
-                        }
-                    }
-
-                    // 3. 从 params.dataIndex
-                    if (!targetDate && params && typeof params.dataIndex === 'number' && dates && dates[params.dataIndex]) {
-                        const dStr = String(dates[params.dataIndex]).trim();
-                        if (/^\d{4}[-/]\d{2}/.test(dStr)) {
-                            targetDate = dStr;
-                        }
-                    }
-
-                    // 4. 从 params.componentType === 'markPoint' (买卖点、九转数字等)
-                    if (!targetDate && params && params.componentType === 'markPoint') {
-                        if (params.data && params.data.coord && params.data.coord[0]) {
-                            targetDate = params.data.coord[0];
-                        } else if (params.name && /^\d{4}/.test(params.name)) {
-                            targetDate = params.name;
-                        }
-                    }
-
-                    // 5. 若通过坐标转换命中主图网格
-                    if (!targetDate && params && params.event) {
-                        try {
-                            const zrEvt = params.event;
-                            const px = (zrEvt && typeof zrEvt.zrX === 'number') ? zrEvt.zrX : (zrEvt && typeof zrEvt.offsetX === 'number' ? zrEvt.offsetX : null);
-                            const py = (zrEvt && typeof zrEvt.zrY === 'number') ? zrEvt.zrY : (zrEvt && typeof zrEvt.offsetY === 'number' ? zrEvt.offsetY : null);
-                            if (px != null && py != null) {
-                                const pointInGrid = instance.convertFromPixel({ seriesIndex: 0 }, [px, py]);
-                                if (pointInGrid && typeof pointInGrid[0] === 'number' && !isNaN(pointInGrid[0])) {
-                                    const xIdx = Math.round(pointInGrid[0]);
-                                    if (xIdx >= 0 && xIdx < dates.length && dates[xIdx]) {
-                                        const candidate = String(dates[xIdx]).trim();
-                                        if (/^\d{4}[-/]\d{2}/.test(candidate)) {
-                                            targetDate = candidate;
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (_) {}
-                    }
-
-                    // 6. 兜底当前最新悬停
-                    if (!targetDate && hovered && hovered.date && /^\d{4}[-/]\d{2}/.test(hovered.date)) {
-                        targetDate = hovered.date;
-                    }
-
-                    if (targetDate && /^\d{4}[-/]\d{2}/.test(targetDate) && typeof setChanlunBacktrackDateToBar === 'function') {
-                        setChanlunBacktrackDateToBar(targetDate, side);
+                    if (targetDate) {
+                        triggerBarDblClick(targetDate);
                     }
                 });
             }
@@ -29960,7 +29975,10 @@
             // 2. 同步时间轴与滑块位置（基于当前激活主控窗口的K线序列）
             const activeData = getActiveWindowData();
             const timeline = activeData?.backtrack_timeline || _clCachedData?.backtrack_timeline;
-            const dates = timeline?.available_dates || [];
+            let dates = timeline?.available_dates || [];
+            if (!dates || dates.length === 0) {
+                dates = activeData?.unified_chart?.dates || _clCachedData?.unified_chart?.dates || [];
+            }
             let matchedIdx = -1;
             if (dates.length > 0) {
                 // 精确匹配
@@ -29982,6 +30000,9 @@
                             break;
                         }
                     }
+                }
+                if (matchedIdx < 0) {
+                    matchedIdx = (cleanDate < dates[0]) ? 0 : dates.length - 1;
                 }
                 if (matchedIdx >= 0) {
                     _clBacktrackIndex = matchedIdx;
@@ -30046,8 +30067,8 @@
                 return;
             }
 
-            // 6. 加载回溯计算结果 (forceRefresh=false 确保充分利用缓存与流式并发)
-            loadChanlunData(false);
+            // 6. 加载回溯计算结果 (forceRefresh=true 确保打断旧请求并发起新回溯)
+            loadChanlunData(true);
         }
 
         function onChanlunCutoffDateChange(dateVal) {
