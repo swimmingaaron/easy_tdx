@@ -4814,7 +4814,8 @@
                                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-purple-400 pointer-events-none"></i>
                                 <input type="text" id="cl-stock-input" value="000001" placeholder="🔍 股票代码/拼音/名称..." autocomplete="off"
                                     oninput="window.triggerChanlunSearchInput(this.value)"
-                                    onfocus="window.triggerChanlunSearchInput(this.value)"
+                                    onfocus="setTimeout(() => this.select(), 0); window.triggerChanlunSearchInput(this.value);"
+                                    onclick="this.select()"
                                     onkeydown="window.handleChanlunSearchKeydown(event)"
                                     class="w-40 sm:w-52 bg-slate-900/90 border border-slate-700/80 hover:border-purple-500 focus:border-purple-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
                                     title="搜索股票代码、拼音首字母或中文名称快速切股 (支持键盘上下键与回车切换)">
@@ -5804,6 +5805,8 @@
                             <i data-lucide="search"
                                 class="w-3.5 h-3.5 absolute left-2 text-cyan-400/80 pointer-events-none"></i>
                             <input type="text" id="kp-search-input" placeholder="🔍 股票代码/名称/拼音..." autocomplete="off"
+                                onfocus="setTimeout(() => this.select(), 0)"
+                                onclick="this.select()"
                                 class="w-36 sm:w-48 bg-slate-900/90 border border-slate-700/80 hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg pl-7 pr-6 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-mono transition shadow-inner"
                                 title="搜索股票代码、拼音或中文名称快速切股 (快捷键: / 或 Ctrl+K)">
                             <button id="kp-search-clear" onclick="clearKpSearch()"
@@ -26854,6 +26857,33 @@
         function initChanlunStockSearch() {
             // 事件已通过 HTML 内联 oninput/onkeydown 全面绑定，此函数保持幂等无害
         }
+
+        // 全局查找/标的输入框：鼠标点击或聚焦时自动全选文本，可直接键盘输入新代码，无需手动按删除键
+        document.addEventListener('focusin', function (e) {
+            const el = e.target;
+            if (el && el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || !el.type)) {
+                const id = (el.id || '').toLowerCase();
+                const placeholder = (el.placeholder || '');
+                if (id.includes('search') || id.includes('symbol') || id.includes('stock-input') || id.includes('add-input') || placeholder.includes('代码') || placeholder.includes('🔍')) {
+                    setTimeout(() => {
+                        if (document.activeElement === el) {
+                            try { el.select(); } catch (err) { }
+                        }
+                    }, 0);
+                }
+            }
+        }, true);
+
+        document.addEventListener('click', function (e) {
+            const el = e.target;
+            if (el && el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || !el.type)) {
+                const id = (el.id || '').toLowerCase();
+                const placeholder = (el.placeholder || '');
+                if (id.includes('search') || id.includes('symbol') || id.includes('stock-input') || id.includes('add-input') || placeholder.includes('代码') || placeholder.includes('🔍')) {
+                    try { el.select(); } catch (err) { }
+                }
+            }
+        }, true);
 
         // 全局点击外部自动关闭下拉框
         document.addEventListener('click', (e) => {
