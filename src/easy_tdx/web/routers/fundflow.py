@@ -6,11 +6,20 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query
 
 from easy_tdx.trading_system.engine import evaluate_universe
+from easy_tdx.screener.universe import get_universe_symbols
 from easy_tdx.watchlist_store import load_watchlist
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/fundflow", tags=["fundflow"])
+
+UNIV_NAMES = {
+    "core": "核心龙头 (159只)",
+    "hs300": "沪深 300 (300只)",
+    "zz500": "中证 500 (500只)",
+    "zz1000": "中证 1000 (1000只)",
+    "all": "全市场 (5000+全量A股)",
+}
 
 
 def _fmt_money(val: float) -> str:
@@ -30,6 +39,7 @@ def _fmt_money(val: float) -> str:
 @router.get("/scanner")
 def scan_fund_flow(
     strategy: str = Query("all", description="策略筛选: all, latent_breakout, sector_leader, closing_surge, heavy_institution, oversold_reversal"),
+    universe: str = Query("all", description="选股范围: core, hs300, zz500, zz1000, all"),
     min_inflow: float = Query(0.0, description="最低主力净流入金额(元)"),
     industry: str = Query("", description="行业板块过滤"),
     search: str = Query("", description="代码或名称搜索关键词"),
@@ -48,6 +58,9 @@ def scan_fund_flow(
     """
     # Safe normalization of parameters
     strat_key = (strategy if isinstance(strategy, str) else getattr(strategy, "default", "all") or "all").strip().lower()
+    univ_key = (universe if isinstance(universe, str) else getattr(universe, "default", "all") or "all").strip().lower()
+    if univ_key not in UNIV_NAMES:
+        univ_key = "all"
     min_inf = float(min_inflow if isinstance(min_inflow, (int, float)) else getattr(min_inflow, "default", 0.0) or 0.0)
     ind_filter = (industry if isinstance(industry, str) else getattr(industry, "default", "") or "").strip()
     search_kw = (search if isinstance(search, str) else getattr(search, "default", "") or "").strip().upper()
@@ -57,7 +70,12 @@ def scan_fund_flow(
     force_ref = bool(force_refresh if isinstance(force_refresh, bool) else getattr(force_refresh, "default", False))
 
     try:
-        stocks = evaluate_universe(universe_type="all", period="day", force_refresh=force_ref)
+        all_stocks = evaluate_universe(universe_type="all", period="day", force_refresh=force_ref)
+        if univ_key in ("core", "hs300", "zz500", "zz1000"):
+            target_symbols = set(get_universe_symbols(univ_key))
+            stocks = [s for s in all_stocks if s.get("stock_code") in target_symbols]
+        else:
+            stocks = all_stocks
     except Exception as e:
         logger.error(f"Error evaluating universe for fundflow: {e}")
         return {"success": False, "error": str(e), "rows": [], "summary": {}}
@@ -241,16 +259,33 @@ def scan_fund_flow(
         for k, v in sorted_sectors[:5] if v > 0
     ]
 
-    # Water level description (全市场 5200+ 标的资金水位)
-    if total_market_turnover >= 1_500_000_000_000:
+    # Water level description (根据所选选股范围动态设定量能基准)
+    if univ_key == "core":
+        threshold_high = 70_000_000_000
+        threshold_mid = 45_000_000_000
+    elif univ_key == "hs300":
+        threshold_high = 250_000_000_000
+        threshold_mid = 160_000_000_000
+    elif univ_key == "zz500":
+        threshold_high = 200_000_000_000
+        threshold_mid = 120_000_000_000
+    elif univ_key == "zz1000":
+        threshold_high = 280_000_000_000
+        threshold_mid = 180_000_000_000
+    else:
+        threshold_high = 1_500_000_000_000
+        threshold_mid = 1_000_000_000_000
+
+    u_label = UNIV_NAMES.get(univ_key, "全市场")
+    if total_market_turnover >= threshold_high:
         water_level = "活跃放量市"
-        water_level_desc = "全市场交投活跃超1.5万亿，资金充沛，热点扩散，可积极参与主线龙头与高贝塔标的"
-    elif total_market_turnover >= 1_000_000_000_000:
+        water_level_desc = f"{u_label}交投活跃达{_fmt_money(total_market_turnover)}，资金充沛，热点扩散，可积极参与主线龙头与高贝塔标的"
+    elif total_market_turnover >= threshold_mid:
         water_level = "温和震荡市"
-        water_level_desc = "存量博弈万亿级别，板块资金轮动加快，优先选择主力持续潜伏蓄势标的"
+        water_level_desc = f"{u_label}存量博弈达{_fmt_money(total_market_turnover)}，板块资金轮动加快，优先选择主力持续潜伏蓄势标的"
     else:
         water_level = "缩量防守市"
-        water_level_desc = "全市场量能收敛不足万亿，抱团避险为主，重点观察超跌底背离与机构低位承接标的"
+        water_level_desc = f"{u_label}量能收敛({_fmt_money(total_market_turnover)})，抱团避险为主，重点观察超跌底背离与机构低位承接标的"
 
     # Filtering
     # 1. Search keyword filter (若用户输入搜索词，支持检索全池任何标的)
@@ -295,6 +330,8 @@ def scan_fund_flow(
     return {
         "success": True,
         "summary": {
+            "universe": univ_key,
+            "universe_name": UNIV_NAMES.get(univ_key, "全市场 (5000+全量A股)"),
             "record_date": record_date,
             "universe_total": len(stocks),
             "total_market_turnover": total_market_turnover,

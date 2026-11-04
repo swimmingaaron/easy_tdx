@@ -5504,7 +5504,7 @@
                 <div class="glass-card p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">全市场主力净流入 (5200+)</p>
+                            <p id="ff-stat-inflow-title" class="text-xs text-slate-500 dark:text-slate-400 font-medium">主力净流入 (核心龙头 159只)</p>
                             <h3 id="ff-stat-total-inflow" class="text-xl font-bold font-mono mt-1 text-slate-800 dark:text-white">--</h3>
                             <p id="ff-stat-inflow-ratio" class="text-[11px] text-slate-400 mt-1">流入 -- 只 / 流出 -- 只</p>
                         </div>
@@ -5591,7 +5591,30 @@
 
                 <!-- 细分检索与排序工具栏 -->
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-                    <div class="flex items-center space-x-2 flex-1">
+                    <div class="flex items-center space-x-2 flex-1 flex-wrap sm:flex-nowrap">
+                        <!-- 选股范围 (对齐交易系统标准样式) -->
+                        <div
+                            class="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg shadow-sm shrink-0">
+                            <span class="text-xs text-slate-600 dark:text-slate-400 select-none">选股范围:</span>
+                            <select id="ff-universe-select" onchange="onFundFlowUniverseChange(this.value)"
+                                class="bg-transparent text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none cursor-pointer">
+                                <option value="core" selected
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">核心龙头 (159只)
+                                </option>
+                                <option value="hs300"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">沪深 300 (300只)
+                                </option>
+                                <option value="zz500"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 500 (500只)
+                                </option>
+                                <option value="zz1000"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">中证 1000 (1000只)
+                                </option>
+                                <option value="all"
+                                    class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">全市场 (5000+全量A股)
+                                </option>
+                            </select>
+                        </div>
                         <div class="relative flex-1 sm:max-w-xs">
                             <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
                             <input id="ff-search-input" oninput="onFundFlowFilterChange()" type="text" placeholder="搜索代码、名称..." class="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-emerald-500 transition">
@@ -32720,6 +32743,16 @@
         let _currentFfSortDir = 'desc';
         let _fundFlowAutoRefreshTimer = null;
         let _fundFlowIsLoading = false;
+        let _currentFfUniverse = (function() {
+            try { return localStorage.getItem('ff_universe') || 'core'; } catch (e) { return 'core'; }
+        })();
+
+        function onFundFlowUniverseChange(val) {
+            _currentFfUniverse = val || 'core';
+            try { localStorage.setItem('ff_universe', _currentFfUniverse); } catch (e) { }
+            loadFundFlowData(false);
+        }
+        window.onFundFlowUniverseChange = onFundFlowUniverseChange;
 
         // 策略深度模型说明知识库
         const FF_STRATEGY_DETAILS = {
@@ -32854,6 +32887,10 @@
         };
 
         function initFundFlowView() {
+            const uSel = document.getElementById('ff-universe-select');
+            if (uSel && _currentFfUniverse) {
+                uSel.value = _currentFfUniverse;
+            }
             loadFundFlowData(false);
             onFundFlowAutoRefreshChange();
         }
@@ -32884,7 +32921,7 @@
             }
 
             try {
-                const url = `/api/fundflow/scanner?strategy=all&sort_col=${_currentFfSortCol}&sort_dir=${_currentFfSortDir}&limit=300${forceRefresh ? '&force_refresh=true' : ''}`;
+                const url = `/api/fundflow/scanner?universe=${encodeURIComponent(_currentFfUniverse)}&strategy=all&sort_col=${_currentFfSortCol}&sort_dir=${_currentFfSortDir}&limit=300${forceRefresh ? '&force_refresh=true' : ''}`;
                 const resp = await fetch(url);
                 if (!resp.ok) throw new Error(`HTTP error ${resp.status}`);
                 const json = await resp.json();
@@ -32895,6 +32932,15 @@
 
                 // 1. Update Market Summary Cards
                 const sm = json.summary || {};
+                const uLabel = sm.universe_name || (_currentFfUniverse === 'all' ? '全市场 (5000+全量A股)' : (_currentFfUniverse === 'core' ? '核心龙头 (159只)' : _currentFfUniverse));
+                const titleEl = document.getElementById('ff-stat-inflow-title');
+                if (titleEl) {
+                    if (_currentFfUniverse === 'all') {
+                        titleEl.innerText = `全市场主力净流入 (${sm.universe_total || 5200}+)`;
+                    } else {
+                        titleEl.innerText = `主力净流入 (${uLabel})`;
+                    }
+                }
                 const elInflow = document.getElementById('ff-stat-total-inflow');
                 if (elInflow) {
                     const netVal = sm.total_net_inflow || 0;
@@ -32949,7 +32995,7 @@
                     const now = new Date();
                     const timeStr = now.toTimeString().split(' ')[0];
                     const recDate = sm.record_date ? `数据基准日:${sm.record_date} · ` : '';
-                    updateEl.innerText = `${recDate}${timeStr} 更新 (全市场${sm.universe_total || 5200}+只)`;
+                    updateEl.innerText = `${recDate}${timeStr} 更新 (${uLabel})`;
                 }
 
                 // 5. Render Table
