@@ -255,7 +255,7 @@ def _create_app(
     from easy_tdx.web.routers.trading_system import router as trading_system_router
     from easy_tdx.web.routers.sector_leaders import router as sector_leaders_router
     from easy_tdx.web.routers.fundflow import router as fundflow_router
-    from easy_tdx.web.routers.etf import router as etf_router
+    from easy_tdx.web.routers.etf import router as etf_router, hq_router as etf_hq_router
 
     # Health check
     @app.get("/api/health")
@@ -281,6 +281,7 @@ def _create_app(
     app.include_router(server_router)
     app.include_router(chanlun_router)
     app.include_router(etf_router)
+    app.include_router(etf_hq_router)
 
     app.include_router(market_router, prefix="/api/v1")
     app.include_router(bars_router, prefix="/api/v1")

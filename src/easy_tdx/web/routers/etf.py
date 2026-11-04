@@ -315,3 +315,145 @@ def refresh_etf_tracking_data() -> Dict[str, Any]:
         return {"success": True, "updated": data.get("updated", ""), "message": "ETF数据刷新成功 (easy_tdx行情)"}
     return {"success": False, "message": "easy_tdx数据源通信暂不可用，继续沿用本地数据"}
 
+
+# ==============================================================================
+
+# ==============================================================================
+# 重点ETF资金看板专用实时行情与分时网关 (100%基于 easy_tdx 本项目自带原生接口)
+# ==============================================================================
+
+hq_router = APIRouter(prefix="/api", tags=["etf_board"])
+
+_HQ_MEM_CACHE: dict[str, tuple[float, dict]] = {}
+_TRENDS_MEM_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def _parse_to_easy_tdx_symbol(token: str) -> tuple[str, str]:
+    """Parse symbol token (e.g. sh000001, sz159915, 1.510050, 510050.SH) to (code, easy_sym)."""
+    token = token.strip()
+    token_lower = token.lower()
+    if token_lower.startswith("sh"):
+        code = token[2:]
+        return code, f"{code}.SH"
+    if token_lower.startswith("sz"):
+        code = token[2:]
+        return code, f"{code}.SZ"
+    if token_lower.startswith("bj"):
+        code = token[2:]
+        return code, f"{code}.BJ"
+    if "." in token:
+        parts = token.split(".")
+        if parts[0] in ("1", "SH", "sh"):
+            code = parts[1]
+            return code, f"{code}.SH"
+        elif parts[0] in ("0", "SZ", "sz"):
+            code = parts[1]
+            return code, f"{code}.SZ"
+        elif parts[1] in ("SH", "sh", "SZ", "sz", "BJ", "bj"):
+            code = parts[0]
+            return code, f"{code}.{parts[1].upper()}"
+    market = "SH" if token.startswith(("5", "6", "000001")) else "SZ"
+    return token, f"{token}.{market}"
+
+
+@hq_router.get("/hq")
+def get_easy_tdx_hq(codes: str = Query(...)):
+    """Fetch real-time snapshot quotes for ETF & index using easy_tdx native fetch_realtime_pool_quotes."""
+    now = time.time()
+    if codes in _HQ_MEM_CACHE and (now - _HQ_MEM_CACHE[codes][0] < 3.0):
+        return _HQ_MEM_CACHE[codes][1]
+
+    from easy_tdx.market_data import fetch_realtime_pool_quotes
+    from easy_tdx.stock_lookup import get_stock_name
+
+    sym_pairs = [_parse_to_easy_tdx_symbol(c) for c in codes.split(",") if c.strip()]
+    easy_symbols = [pair[1] for pair in sym_pairs]
+
+    try:
+        quotes = fetch_realtime_pool_quotes(easy_symbols)
+        q_map = {q["code"]: q for q in quotes}
+    except Exception as e:
+        logger.warning("easy_tdx fetch_realtime_pool_quotes failed: %s", e)
+        q_map = {}
+
+    diff = []
+    for code, _ in sym_pairs:
+        q = q_map.get(code)
+        if q:
+            name = "上证指数" if code == "000001" else (get_stock_name(code) or q.get("name", code))
+            price = float(q.get("price") or 0.0)
+            pre_close = float(q.get("pre_close") or 0.0)
+            pct = float(q.get("change_pct") or 0.0)
+            amount = float(q.get("turnover_wan") or 0.0) * 10000.0  # 万元 -> 元
+            diff.append({
+                "f12": code,
+                "f14": name,
+                "f2": price,
+                "f3": pct,
+                "f6": amount,
+                "f18": pre_close,
+            })
+
+    result = {"rc": 0, "data": {"total": len(diff), "diff": diff}}
+    _HQ_MEM_CACHE[codes] = (now, result)
+    return result
+
+
+def _fetch_native_minute_bars(symbol_token: str, count: int = 245) -> tuple[str, list[dict]]:
+    """Fetch 1-minute bars using easy_tdx fetch_security_kline."""
+    from easy_tdx.market_data import fetch_security_kline, KlineCategory
+
+    code, easy_sym = _parse_to_easy_tdx_symbol(symbol_token)
+    try:
+        df = fetch_security_kline(easy_sym, category=KlineCategory.MIN_1, count=count)
+        rows = []
+        if df is not None and not df.empty:
+            for _, r in df.iterrows():
+                dt = str(r["datetime"])
+                if len(dt) == 16:
+                    dt += ":00"
+                rows.append({
+                    "day": dt,
+                    "open": str(r.get("open", 0.0)),
+                    "close": str(r.get("close", 0.0)),
+                    "high": str(r.get("high", 0.0)),
+                    "low": str(r.get("low", 0.0)),
+                    "volume": str(r.get("vol", 0.0)),
+                    "amount": str(r.get("amount", 0.0)),
+                })
+        return symbol_token, rows
+    except Exception as e:
+        logger.debug("easy_tdx fetch_security_kline for %s failed: %s", easy_sym, e)
+        return symbol_token, []
+
+
+@hq_router.get("/ktrends")
+def get_easy_tdx_ktrends(symbols: str = Query(...), scale: int = 1, datalen: int = 260):
+    """Fetch multi-symbol 1-minute trend bars concurrently using easy_tdx native socket engine."""
+    now = time.time()
+    cache_key = f"{symbols}_{scale}_{datalen}"
+    if cache_key in _TRENDS_MEM_CACHE and (now - _TRENDS_MEM_CACHE[cache_key][0] < 8.0):
+        return _TRENDS_MEM_CACHE[cache_key][1]
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()]
+    pull_count = max(min(datalen, 260), 60)
+
+    with ThreadPoolExecutor(max_workers=min(12, len(sym_list) or 1)) as ex:
+        results = dict(ex.map(lambda s: _fetch_native_minute_bars(s, pull_count), sym_list))
+
+    out: dict[str, list[dict]] = {}
+    for s, rows in results.items():
+        out[s] = [{"day": r["day"], "close": r["close"], "amount": r["amount"]} for r in rows]
+
+    _TRENDS_MEM_CACHE[cache_key] = (now, out)
+    return out
+
+
+@hq_router.get("/kline")
+def get_easy_tdx_kline(symbol: str = Query(...), scale: int = 1, datalen: int = 260):
+    """Fetch single symbol 1-minute K-line bars using easy_tdx native socket engine."""
+    pull_count = max(min(datalen, 260), 60)
+    _, rows = _fetch_native_minute_bars(symbol, pull_count)
+    return rows

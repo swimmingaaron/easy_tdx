@@ -1,0 +1,315 @@
+/* 重点ETF资金看板专用样式 (完全参考 workbuddy host) */
+.etf-board-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  color: #1c2330;
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+}
+.dark .etf-board-wrap {
+  color: #e2e8f0;
+}
+.etf-board-wrap header.top {
+  margin-bottom: 20px;
+}
+.etf-board-wrap header.top h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+}
+.dark .etf-board-wrap header.top h1 {
+  color: #f8fafc;
+}
+.etf-board-wrap header.top .sub {
+  font-size: 15px;
+  font-weight: 600;
+  color: #5a6472;
+  margin-top: 6px;
+}
+.dark .etf-board-wrap header.top .sub {
+  color: #94a3b8;
+}
+.etf-board-wrap nav.etf-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.etf-board-wrap nav.etf-nav a {
+  color: #2b5fd9;
+  text-decoration: none;
+  background: #e9eefb;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.etf-board-wrap nav.etf-nav a:hover {
+  background: #dbe5fa;
+}
+.dark .etf-board-wrap nav.etf-nav a {
+  color: #93c5fd;
+  background: rgba(30, 58, 138, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.dark .etf-board-wrap nav.etf-nav a:hover {
+  background: rgba(30, 58, 138, 0.6);
+}
+.etf-board-wrap .part {
+  margin-top: 26px;
+}
+.etf-board-wrap .part .pt {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.dark .etf-board-wrap .part .pt {
+  color: #f1f5f9;
+}
+.etf-board-wrap .part .sub {
+  font-size: 13px;
+  color: #5a6472;
+  margin-top: 4px;
+}
+.dark .etf-board-wrap .part .sub {
+  color: #94a3b8;
+}
+.etf-board-wrap .status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #5a6472;
+}
+.dark .etf-board-wrap .status {
+  color: #94a3b8;
+}
+.etf-board-wrap .status .tag {
+  background: #e8ebf0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.dark .etf-board-wrap .status .tag {
+  background: #334155;
+  color: #cbd5e1;
+}
+.etf-board-wrap .status .tag.err {
+  background: #fdeceb;
+  color: #b0342c;
+}
+.dark .etf-board-wrap .status .tag.err {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+.etf-board-wrap .status .tag.ok,
+.etf-board-wrap .status .tag.live {
+  background: #e7f5ee;
+  color: #0c7a4d;
+}
+.dark .etf-board-wrap .status .tag.ok,
+.dark .etf-board-wrap .status .tag.live {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+.etf-board-wrap .status .tag.warn {
+  background: #fff4e0;
+  color: #9a5b00;
+}
+.dark .etf-board-wrap .status .tag.warn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+.etf-board-wrap button.etf-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid #c9cfd8;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c2330;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.etf-board-wrap button.etf-btn:hover {
+  background: #eef1f5;
+}
+.dark .etf-board-wrap button.etf-btn {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+.dark .etf-board-wrap button.etf-btn:hover {
+  background: #334155;
+}
+.etf-board-wrap .chart-wrap {
+  background: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 14px;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.dark .etf-board-wrap .chart-wrap {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.etf-board-wrap .chart {
+  width: 100%;
+  height: 420px;
+}
+.etf-board-wrap #chart {
+  height: 380px;
+}
+.etf-board-wrap #chartAmt,
+.etf-board-wrap #chartNf,
+.etf-board-wrap #chartDAmt,
+.etf-board-wrap #chartDNf {
+  height: 420px;
+}
+.etf-board-wrap #chartTypCase,
+.etf-board-wrap #chartTypNorm {
+  height: 340px;
+}
+.etf-board-wrap #chartCum {
+  height: 380px;
+}
+.etf-board-wrap .brush-band {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  z-index: 4;
+  background: rgba(240, 180, 41, 0.16);
+  border-left: 1px solid #b07a1a;
+  border-right: 1px solid #b07a1a;
+}
+.etf-board-wrap .brush-tip {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  z-index: 6;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e0c48a;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
+  color: #8a5a00;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.15);
+}
+.etf-board-wrap .table-wrap {
+  background: #fff;
+  border: 1px solid #e3e6ec;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.dark .etf-board-wrap .table-wrap {
+  background: #1e293b;
+  border-color: #334155;
+}
+.etf-board-wrap .table-wrap h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1e293b;
+}
+.dark .etf-board-wrap .table-wrap h2 {
+  color: #f1f5f9;
+}
+.etf-board-wrap .tscroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.etf-board-wrap table.etf-board-tbl {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 560px;
+  font-size: 12px;
+}
+.etf-board-wrap table.etf-board-tbl th,
+.etf-board-wrap table.etf-board-tbl td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef0f4;
+  white-space: nowrap;
+}
+.dark .etf-board-wrap table.etf-board-tbl th,
+.dark .etf-board-wrap table.etf-board-tbl td {
+  border-bottom-color: #334155;
+}
+.etf-board-wrap table.etf-board-tbl th {
+  color: #5a6472;
+  font-weight: 500;
+}
+.dark .etf-board-wrap table.etf-board-tbl th {
+  color: #94a3b8;
+}
+.etf-board-wrap table.etf-board-tbl td.num,
+.etf-board-wrap table.etf-board-tbl th.num {
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.etf-board-wrap .up {
+  color: #d93630;
+}
+.etf-board-wrap .down {
+  color: #0aa06e;
+}
+.etf-board-wrap .pct-cell {
+  border-radius: 3px;
+  color: #1c2330;
+  font-weight: 600;
+}
+.dark .etf-board-wrap .pct-cell {
+  color: #f8fafc;
+}
+.etf-board-wrap .amt-cell {
+  position: relative;
+  text-align: right;
+}
+.etf-board-wrap .amt-bg {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  background: #fde9d9;
+  z-index: 0;
+  border-radius: 2px;
+}
+.dark .etf-board-wrap .amt-bg {
+  background: rgba(251, 146, 60, 0.25);
+}
+.etf-board-wrap .amt-val {
+  position: relative;
+  z-index: 1;
+}
+.etf-board-wrap footer {
+  font-size: 12px;
+  color: #7a8494;
+  line-height: 1.8;
+  margin-top: 10px;
+}
+@media (max-width: 640px) {
+  .etf-board-wrap .chart,
+  .etf-board-wrap #chart,
+  .etf-board-wrap #chartAmt,
+  .etf-board-wrap #chartNf,
+  .etf-board-wrap #chartDAmt,
+  .etf-board-wrap #chartDNf,
+  .etf-board-wrap #chartTypCase,
+  .etf-board-wrap #chartTypNorm,
+  .etf-board-wrap #chartCum {
+    height: 260px;
+  }
+  .etf-board-wrap .part .pt {
+    font-size: 16px;
+  }
+}
