@@ -11442,7 +11442,6 @@
 
             try {
                 const wasAtLatest = (currentKpCutoffIndex < 0 || (currentKpFullBars.length > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1));
-                const tasks = [loadKlinePreviewData()];
                 // 核心优化4：严禁随 K 线实时刷新获取资料/财务数据；K 线分时轮询仅更新行情量价
                 const tasks = [loadKlinePreviewData()];
                 await Promise.allSettled(tasks);
