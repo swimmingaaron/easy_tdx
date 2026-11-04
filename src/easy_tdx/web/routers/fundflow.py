@@ -399,38 +399,19 @@ def scan_fund_flow(
     return res_payload
 
 
-# ==================== Intraday Sector Flow Curves API ====================
+# ==================== Intraday Sector & Constituent Flow Curves API ====================
 _SECTOR_FLOW_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_CONSTITUENT_FLOW_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
-@router.get("/sectors_intraday")
-def get_sectors_intraday_flows(
-    limit: int = Query(26, ge=10, le=60, description="板块数量(流入+流出)"),
-    force_refresh: bool = Query(False, description="是否强制刷新"),
-) -> Dict[str, Any]:
-    """
-    全天分钟级板块资金流向走势图数据接口 (09:30~15:00 241个时间节点)
-    返回各主流行业板块从早盘开盘至收盘/当前分钟的累计主力净流入走势曲线 (单位: 亿元)。
-    """
+
+def _generate_intraday_timeline() -> Tuple[List[str], int, str]:
+    """Generate 241 minute timestamps (09:30~11:30, 13:01~15:00) and current progress index."""
     import datetime
-    from concurrent.futures import ThreadPoolExecutor
     import numpy as np
-
-    now_ts = time.time()
-    cache_key = f"intraday_sectors_{limit}"
-    from easy_tdx.market_overview import is_trading_time
-    ttl = 3.0 if is_trading_time() else 60.0
-    if not force_refresh and cache_key in _SECTOR_FLOW_CACHE:
-        c_time, c_data = _SECTOR_FLOW_CACHE[cache_key]
-        if now_ts - c_time < ttl:
-            return c_data
-
-    from easy_tdx.market_data import fetch_security_kline
-    from easy_tdx.market_overview import fetch_realtime_market_summary
 
     now = datetime.datetime.now()
     cur_hm = now.strftime("%H:%M")
 
-    # 241 minute timestamps (09:30~11:30, 13:01~15:00)
     times: List[str] = []
     for h in [9, 10, 11]:
         start_m = 30 if h == 9 else 0
@@ -460,6 +441,87 @@ def get_sectors_intraday_flows(
         else:
             cur_idx = max(0, min(num_points - 1, int(np.searchsorted(times, cur_hm))))
         display_time = times[cur_idx]
+
+    return times, cur_idx, display_time
+
+
+def _compute_intraday_flow_series(code: str, name: str, final_yi: float, num_points: int = 241) -> List[float]:
+    """Compute volume-weighted Brownian bridge cumulative flow series constrained to start at 0 and end at final_yi."""
+    import numpy as np
+    from easy_tdx.market_data import fetch_security_kline
+
+    series_yi = None
+    try:
+        df = fetch_security_kline(code, category="1m", count=num_points)
+        if df is not None and len(df) >= 30:
+            spread = df["high"] - df["low"]
+            ratio = np.where(
+                spread > 0,
+                ((df["close"] - df["low"]) - (df["high"] - df["close"])) / spread,
+                np.where(df["close"] >= df["open"], 0.5, -0.5),
+            )
+            raw_flow = df["amount"] * ratio
+            cum_raw = np.cumsum(raw_flow)
+            cum_amt = np.cumsum(df["amount"])
+            total_amt = cum_amt.iloc[-1] if cum_amt.iloc[-1] > 0 else 1.0
+
+            progress = cum_amt / total_amt
+            target_final = final_yi * 1e8
+
+            trend = target_final * progress
+            bridge = cum_raw - cum_raw.iloc[-1] * progress
+            max_bridge = np.max(np.abs(bridge)) if np.max(np.abs(bridge)) > 0 else 1.0
+
+            osc_weight = min(0.35, abs(target_final) / max_bridge) if abs(target_final) > 0 else 0.05
+            curve = trend + bridge * osc_weight
+
+            cap = max(abs(final_yi) * 1.5, 2.0)
+            vals = np.clip(curve / 1e8, -cap, cap).tolist()
+
+            vals[0] = 0.0
+            if len(vals) < num_points:
+                vals.extend([vals[-1]] * (num_points - len(vals)))
+            elif len(vals) > num_points:
+                vals = vals[:num_points]
+            vals[-1] = round(final_yi, 2)
+            series_yi = [round(v, 2) for v in vals]
+    except Exception:
+        pass
+
+    if not series_yi:
+        x = np.linspace(0, 1, num_points)
+        seed = sum(ord(c) for c in name) % 100
+        noise = 0.12 * np.sin(x * np.pi * 3 + seed) * (1 - np.exp(-3 * x))
+        base_curve = (np.power(x, 0.8) + noise) * final_yi
+        base_curve[0] = 0.0
+        base_curve[-1] = final_yi
+        series_yi = [round(float(v), 2) for v in base_curve]
+
+    return series_yi
+
+
+@router.get("/sectors_intraday")
+def get_sectors_intraday_flows(
+    limit: int = Query(26, ge=10, le=60, description="板块数量(流入+流出)"),
+    force_refresh: bool = Query(False, description="是否强制刷新"),
+) -> Dict[str, Any]:
+    """
+    全天分钟级板块资金流向走势图数据接口 (09:30~15:00 241个时间节点)
+    返回各主流行业板块从早盘开盘至收盘/当前分钟的累计主力净流入走势曲线 (单位: 亿元)。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from easy_tdx.market_overview import fetch_realtime_market_summary, is_trading_time
+
+    now_ts = time.time()
+    cache_key = f"intraday_sectors_{limit}"
+    ttl = 3.0 if is_trading_time() else 60.0
+    if not force_refresh and cache_key in _SECTOR_FLOW_CACHE:
+        c_time, c_data = _SECTOR_FLOW_CACHE[cache_key]
+        if now_ts - c_time < ttl:
+            return c_data
+
+    times, cur_idx, display_time = _generate_intraday_timeline()
+    num_points = len(times)
 
     summary = fetch_realtime_market_summary()
     industries = summary.get("industries", [])
@@ -491,52 +553,7 @@ def get_sectors_intraday_flows(
         amt_yi = float(s.get("amount_yi", 0.0))
         chg_pct = float(s.get("change_pct", 0.0))
 
-        series_yi = None
-        try:
-            df = fetch_security_kline(code, category="1m", count=num_points)
-            if df is not None and len(df) >= 30:
-                spread = df["high"] - df["low"]
-                ratio = np.where(
-                    spread > 0,
-                    ((df["close"] - df["low"]) - (df["high"] - df["close"])) / spread,
-                    np.where(df["close"] >= df["open"], 0.5, -0.5),
-                )
-                raw_flow = df["amount"] * ratio
-                cum_raw = np.cumsum(raw_flow)
-                cum_amt = np.cumsum(df["amount"])
-                total_amt = cum_amt.iloc[-1] if cum_amt.iloc[-1] > 0 else 1.0
-
-                progress = cum_amt / total_amt
-                target_final = final_yi * 1e8
-
-                trend = target_final * progress
-                bridge = cum_raw - cum_raw.iloc[-1] * progress
-                max_bridge = np.max(np.abs(bridge)) if np.max(np.abs(bridge)) > 0 else 1.0
-
-                osc_weight = min(0.35, abs(target_final) / max_bridge) if abs(target_final) > 0 else 0.05
-                curve = trend + bridge * osc_weight
-
-                cap = max(abs(final_yi) * 1.5, 5.0)
-                vals = np.clip(curve / 1e8, -cap, cap).tolist()
-
-                vals[0] = 0.0
-                if len(vals) < num_points:
-                    vals.extend([vals[-1]] * (num_points - len(vals)))
-                elif len(vals) > num_points:
-                    vals = vals[:num_points]
-                vals[-1] = round(final_yi, 2)
-                series_yi = [round(v, 2) for v in vals]
-        except Exception:
-            pass
-
-        if not series_yi:
-            x = np.linspace(0, 1, num_points)
-            seed = sum(ord(c) for c in name) % 100
-            noise = 0.12 * np.sin(x * np.pi * 3 + seed) * (1 - np.exp(-3 * x))
-            base_curve = (np.power(x, 0.8) + noise) * final_yi
-            base_curve[0] = 0.0
-            base_curve[-1] = final_yi
-            series_yi = [round(float(v), 2) for v in base_curve]
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, num_points=num_points)
 
         return {
             "code": code,
@@ -556,7 +573,115 @@ def get_sectors_intraday_flows(
         "current_index": cur_idx,
         "current_time": display_time,
         "sectors": sector_results,
+        "stocks": sector_results,
         "update_time": summary.get("update_time", ""),
     }
     _SECTOR_FLOW_CACHE[cache_key] = (now_ts, res_payload)
+    return res_payload
+
+
+@router.get("/constituents_intraday")
+def get_constituents_intraday_flows(
+    board_code: Optional[str] = Query(None, description="板块代码, 如 881319"),
+    board_name: Optional[str] = Query(None, description="板块名称, 如 半导体"),
+    limit: int = Query(26, ge=10, le=50, description="成分股数量"),
+    force_refresh: bool = Query(False, description="是否强制刷新"),
+) -> Dict[str, Any]:
+    """
+    全天分钟级板块核心成分股资金流向走势图数据接口 (09:30~15:00 241个时间节点)
+    返回指定板块核心成分股的实时/全天累计主力资金净流入曲线 (单位: 亿元)。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from easy_tdx.market_overview import fetch_realtime_market_summary, fetch_board_members, is_trading_time
+
+    summary = fetch_realtime_market_summary()
+    industries = summary.get("industries", [])
+
+    if not board_code:
+        if industries:
+            board_code = str(industries[0].get("code", "881319"))
+            if not board_name:
+                board_name = industries[0].get("name", "半导体")
+        else:
+            board_code = "881319"
+            if not board_name:
+                board_name = "半导体"
+
+    if not board_name:
+        for ind in industries:
+            if str(ind.get("code", "")).strip() == str(board_code).strip():
+                board_name = ind.get("name", "")
+                break
+        if not board_name:
+            board_name = f"板块 {board_code}"
+
+    now_ts = time.time()
+    cache_key = f"intraday_constituents_{board_code}_{limit}"
+    ttl = 3.0 if is_trading_time() else 60.0
+    if not force_refresh and cache_key in _CONSTITUENT_FLOW_CACHE:
+        c_time, c_data = _CONSTITUENT_FLOW_CACHE[cache_key]
+        if now_ts - c_time < ttl:
+            return c_data
+
+    times, cur_idx, display_time = _generate_intraday_timeline()
+    num_points = len(times)
+
+    members = fetch_board_members(board_code, count=max(limit * 2, 40))
+    if not members:
+        return {
+            "status": "error",
+            "message": f"未获取到板块【{board_name} ({board_code})】成分股数据",
+            "board_code": board_code,
+            "board_name": board_name,
+            "times": times,
+            "current_index": cur_idx,
+            "current_time": display_time,
+            "sectors": [],
+            "stocks": [],
+        }
+
+    pos_stocks = [s for s in members if float(s.get("main_net_amount", 0.0)) > 0]
+    neg_stocks = [s for s in members if float(s.get("main_net_amount", 0.0)) <= 0]
+
+    pos_stocks.sort(key=lambda s: float(s.get("main_net_amount", 0.0)), reverse=True)
+    neg_stocks.sort(key=lambda s: float(s.get("main_net_amount", 0.0)))
+
+    n_pos = min(len(pos_stocks), limit // 2)
+    n_neg = min(len(neg_stocks), limit - n_pos)
+    selected = pos_stocks[:n_pos] + neg_stocks[:n_neg]
+    selected.sort(key=lambda s: float(s.get("main_net_amount", 0.0)), reverse=True)
+
+    def process_stock(s: Dict[str, Any]) -> Dict[str, Any]:
+        code = str(s.get("code", "")).strip()
+        name = str(s.get("name", "")).strip()
+        final_yi = round(float(s.get("main_net_amount", 0.0)) / 1e8, 2)
+        amt_yi = round(float(s.get("amount_yi", 0.0)), 2)
+        chg_pct = round(float(s.get("change_pct", 0.0)), 2)
+
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, num_points=num_points)
+
+        return {
+            "code": code,
+            "name": name,
+            "final_net_yi": final_yi,
+            "amount_yi": amt_yi,
+            "change_pct": chg_pct,
+            "series": series_yi,
+        }
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        stock_results = list(ex.map(process_stock, selected))
+
+    res_payload = {
+        "status": "success",
+        "board_code": board_code,
+        "board_name": board_name,
+        "times": times,
+        "current_index": cur_idx,
+        "current_time": display_time,
+        "sectors": stock_results,  # Unified with sectors so frontend can render directly
+        "stocks": stock_results,
+        "update_time": summary.get("update_time", ""),
+    }
+    _CONSTITUENT_FLOW_CACHE[cache_key] = (now_ts, res_payload)
     return res_payload

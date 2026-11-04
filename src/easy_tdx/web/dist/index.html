@@ -2994,7 +2994,13 @@
                             <div class="flex justify-between items-center mb-3">
                                 <h4 class="text-sm font-semibold text-slate-200 flex items-center">
                                     <i data-lucide="list-tree" class="w-4 h-4 mr-2 text-amber-400"></i>
-                                    <span id="sector-stocks-title">板块成分股</span>
+                                    <span id="sector-stocks-title">核心成分股</span>
+                                    <button type="button" onclick="openConstituentFlowTrendModal()"
+                                        class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-gradient-to-r from-amber-500/15 to-rose-500/15 hover:from-amber-500/25 hover:to-rose-500/25 text-amber-400 hover:text-amber-300 border border-amber-500/30 hover:border-amber-500/60 transition cursor-pointer ml-2 select-none shadow-sm"
+                                        title="点击查看当前板块核心成分股全天资金走势动态图">
+                                        <i data-lucide="trending-up" class="w-3.5 h-3.5 mr-0.5 text-amber-400"></i>
+                                        <span>成分股走势</span>
+                                    </button>
                                 </h4>
                                 <span id="sector-stocks-count"
                                     class="text-[11px] font-mono text-cyan-400">点击左侧板块查看</span>
@@ -7127,8 +7133,8 @@
                     </div>
                     <div>
                         <div class="flex items-center space-x-2">
-                            <h3 class="text-sm font-bold text-slate-900 dark:text-white">板块资金走势动态图</h3>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80">全天分钟级净流入走势</span>
+                            <h3 id="sf-modal-title" class="text-sm font-bold text-slate-900 dark:text-white">板块资金走势动态图</h3>
+                            <span id="sf-modal-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-300 border border-rose-300 dark:border-rose-800/80">全天分钟级净流入走势</span>
                         </div>
                     </div>
                 </div>
@@ -33297,6 +33303,9 @@ let _sfPlaySpeed = 2; // 1x, 2x, 5x, 10x
 let _sfHoveredSector = null;
 let _sfTagPositions = [];
 let _sfResizeObserver = null;
+let _sfMode = 'sector'; // 'sector' or 'constituent'
+let _sfActiveBoardCode = null;
+let _sfActiveBoardName = null;
 
 // 交易时段自动刷新配置 (多档可选，默认10s)
 let _sfRefreshSec = 10;
@@ -33388,6 +33397,21 @@ function stopSectorFlowAutoRefresh() {
 }
 
 async function openSectorFlowTrendModal() {
+    const prevMode = _sfMode;
+    _sfMode = 'sector';
+
+    // Update modal title and badge
+    const titleEl = document.getElementById('sf-modal-title');
+    const badgeEl = document.getElementById('sf-modal-badge');
+    const filterAllBtn = document.getElementById('sf-filter-all');
+    if (titleEl) titleEl.textContent = '板块资金走势动态图';
+    if (badgeEl) badgeEl.textContent = '全天分钟级净流入走势';
+    if (filterAllBtn) filterAllBtn.textContent = '核心板块';
+
+    if (prevMode !== 'sector') {
+        _sfData = null;
+    }
+
     const modal = document.getElementById('sector-flow-modal');
     if (!modal) return;
     modal.style.display = 'flex';
@@ -33415,6 +33439,63 @@ async function openSectorFlowTrendModal() {
 }
 window.openSectorFlowTrendModal = openSectorFlowTrendModal;
 
+async function openConstituentFlowTrendModal(boardCode = null, boardName = null) {
+    if (!boardCode) {
+        boardCode = window.CURRENT_INDUSTRY_CODE || '';
+        boardName = window.CURRENT_SECTOR_NAME || '';
+        if (!boardCode && window.ALL_INDUSTRIES && window.ALL_INDUSTRIES.length > 0) {
+            boardCode = window.ALL_INDUSTRIES[0].code;
+            boardName = window.ALL_INDUSTRIES[0].name;
+        }
+    }
+    if (!boardCode) boardCode = '881319';
+    if (!boardName) boardName = '半导体';
+
+    const prevMode = _sfMode;
+    const prevCode = _sfActiveBoardCode;
+    _sfMode = 'constituent';
+    _sfActiveBoardCode = boardCode;
+    _sfActiveBoardName = boardName;
+
+    // Update modal title and badge
+    const titleEl = document.getElementById('sf-modal-title');
+    const badgeEl = document.getElementById('sf-modal-badge');
+    const filterAllBtn = document.getElementById('sf-filter-all');
+    if (titleEl) titleEl.textContent = `【${boardName}】核心成分股资金走势动态图`;
+    if (badgeEl) badgeEl.textContent = '核心成分股全天分时净流入走势 (09:30 - 15:00)';
+    if (filterAllBtn) filterAllBtn.textContent = '核心成分股';
+
+    if (prevMode !== 'constituent' || prevCode !== boardCode) {
+        _sfData = null;
+    }
+
+    const modal = document.getElementById('sector-flow-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    if (window.lucide) lucide.createIcons();
+
+    setupSectorFlowCanvasEvents();
+
+    const loadingEl = document.getElementById('sector-flow-loading');
+    if (!_sfData && loadingEl) {
+        loadingEl.classList.remove('hidden');
+    }
+
+    requestAnimationFrame(async () => {
+        initSectorFlowCanvas();
+        if (!_sfData) {
+            await loadSectorFlowData(false);
+        } else {
+            drawSectorFlowChart();
+        }
+        if (loadingEl) loadingEl.classList.add('hidden');
+        startSectorFlowAutoRefresh();
+    });
+}
+window.openConstituentFlowTrendModal = openConstituentFlowTrendModal;
+
 function closeSectorFlowTrendModal() {
     const modal = document.getElementById('sector-flow-modal');
     if (modal) {
@@ -33437,10 +33518,21 @@ async function loadSectorFlowData(force = false, silent = false) {
     if (refreshBtnIcon) refreshBtnIcon.classList.add('animate-spin');
 
     try {
-        const resp = await fetch(`/api/fundflow/sectors_intraday?limit=26${force ? '&force_refresh=true' : ''}`);
+        let apiUrl = '';
+        if (_sfMode === 'constituent') {
+            const bCode = _sfActiveBoardCode || window.CURRENT_INDUSTRY_CODE || '881319';
+            const bName = _sfActiveBoardName || window.CURRENT_SECTOR_NAME || '当前板块';
+            apiUrl = `/api/fundflow/constituents_intraday?board_code=${encodeURIComponent(bCode)}&board_name=${encodeURIComponent(bName)}&limit=26${force ? '&force_refresh=true' : ''}`;
+        } else {
+            apiUrl = `/api/fundflow/sectors_intraday?limit=26${force ? '&force_refresh=true' : ''}`;
+        }
+
+        const resp = await fetch(apiUrl);
         if (!resp.ok) return;
         const res = await resp.json();
-        if (res.status === 'success' && res.sectors) {
+        if (res.status === 'success' && (res.sectors || res.stocks)) {
+            const items = res.sectors || res.stocks;
+            res.sectors = items;
             const wasAtEnd = (!_sfData || _sfScrubIndex >= _sfData.times.length - 1 || _sfScrubIndex === _sfData.current_index);
             _sfData = res;
 
@@ -33457,7 +33549,7 @@ async function loadSectorFlowData(force = false, silent = false) {
             drawSectorFlowChart();
         }
     } catch (e) {
-        console.error('Failed to load sector intraday flow data:', e);
+        console.error('Failed to load intraday flow data:', e);
     } finally {
         if (!silent && loadingEl) loadingEl.classList.add('hidden');
         if (refreshBtnIcon) refreshBtnIcon.classList.remove('animate-spin');
@@ -33619,6 +33711,9 @@ function setupSectorFlowCanvasEvents() {
                 const s = found.sector;
                 const sign = found.curVal > 0 ? '+' : '';
                 const colorCls = found.curVal >= 0 ? 'text-rose-400' : 'text-emerald-400';
+                const actionHint = _sfMode === 'constituent'
+                    ? `点击查看【${s.name} (${s.code})】K线`
+                    : `点击查看【${s.name}】板块K线`;
                 tooltip.innerHTML = `
                     <div class="font-bold text-sm mb-1 flex items-center justify-between">
                         <span>${s.name} (${s.code})</span>
@@ -33629,7 +33724,7 @@ function setupSectorFlowCanvasEvents() {
                         <div>全天总成交额: <strong>${s.amount_yi.toFixed(1)} 亿元</strong></div>
                         <div>涨跌幅: <strong class="${s.change_pct >= 0 ? 'text-rose-400' : 'text-emerald-400'}">${s.change_pct >= 0 ? '+' : ''}${s.change_pct.toFixed(2)}%</strong></div>
                     </div>
-                    <div class="mt-1 pt-1 border-t border-slate-700/80 text-[10px] text-slate-400">点击查看【${s.name}】板块K线</div>
+                    <div class="mt-1 pt-1 border-t border-slate-700/80 text-[10px] text-slate-400">${actionHint}</div>
                 `;
                 tooltip.classList.remove('hidden');
                 
@@ -33645,7 +33740,7 @@ function setupSectorFlowCanvasEvents() {
             return;
         }
 
-        // Check if mouse near any curve endpoint
+        // Check if mouse leaves tag
         if (_sfHoveredSector !== null) {
             _sfHoveredSector = null;
             canvas.style.cursor = 'crosshair';
@@ -33685,7 +33780,7 @@ function drawSectorFlowChart() {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    // Filter active sectors
+    // Filter active sectors/stocks
     let sectors = [..._sfData.sectors];
     if (_sfFilter === 'inflow') {
         sectors = sectors.filter(s => s.final_net_yi > 0);
@@ -33693,7 +33788,7 @@ function drawSectorFlowChart() {
         sectors = sectors.filter(s => s.final_net_yi <= 0);
     }
 
-    // Limit sectors to max 26 so tags fit comfortably on right
+    // Limit to max 26 so tags fit comfortably on right
     sectors = sectors.slice(0, 26);
     if (sectors.length === 0) {
         ctx.restore();
@@ -33702,7 +33797,7 @@ function drawSectorFlowChart() {
 
     // Layout margins
     const padL = 55;
-    const padR = 150; // Space for right tags
+    const padR = 155; // Space for right tags
     const padT = 38;
     const padB = 35;
     const plotW = width - padL - padR;
@@ -33713,7 +33808,7 @@ function drawSectorFlowChart() {
         return;
     }
 
-    // Find min and max across all active sectors
+    // Find min and max across all active items
     let maxVal = -Infinity;
     let minVal = Infinity;
     sectors.forEach(s => {
@@ -33723,12 +33818,15 @@ function drawSectorFlowChart() {
         });
     });
 
-    if (maxVal < 10) maxVal = 10;
-    if (minVal > -10) minVal = -10;
-    // Add margin
-    maxVal = Math.ceil(maxVal * 1.1 / 10) * 10;
-    minVal = Math.floor(minVal * 1.1 / 10) * 10;
-    const range = maxVal - minVal;
+    if (maxVal < 1.0) maxVal = 1.0;
+    if (minVal > -1.0) minVal = -1.0;
+    
+    // Scale ticks nicely depending on magnitude
+    const absPeak = Math.max(Math.abs(maxVal), Math.abs(minVal));
+    const step = absPeak > 50 ? 10 : (absPeak > 10 ? 5 : (absPeak > 2 ? 1 : 0.5));
+    maxVal = Math.ceil(maxVal * 1.1 / step) * step;
+    minVal = Math.floor(minVal * 1.1 / step) * step;
+    const range = (maxVal - minVal) || 1.0;
 
     // Helper functions
     const getX = (idx) => padL + (idx / (_sfData.times.length - 1)) * plotW;
@@ -33775,7 +33873,7 @@ function drawSectorFlowChart() {
 
             ctx.fillStyle = '#94a3b8';
             ctx.font = '11px sans-serif';
-            ctx.fillText(Math.round(tick).toString(), padL - 8, y);
+            ctx.fillText(Number.isInteger(tick) ? tick.toString() : tick.toFixed(1), padL - 8, y);
         }
     });
 
@@ -33933,7 +34031,7 @@ function drawSectorFlowChart() {
         ctx.fillStyle = ep.isPositive ? '#e11d48' : '#059669';
         ctx.fill();
 
-        // Sector Name
+        // Sector / Stock Name
         ctx.fillStyle = '#334155';
         ctx.font = '10.5px sans-serif';
         ctx.textAlign = 'left';
@@ -33952,7 +34050,6 @@ function drawSectorFlowChart() {
     ctx.restore();
 }
 // ==================== End of Sector Flow Trend Modal ====================
-
 </script>
 </body>
 
