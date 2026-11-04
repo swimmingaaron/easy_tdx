@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 import pandas as pd
 import numpy as np
@@ -636,17 +637,32 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
             + FieldBit.VOL_RATIO
         )
         mac_pairs = [(int(_get_market(s).value), s) for s in symbols]
-        BATCH_SIZE = 70
-        for i in range(0, len(mac_pairs), BATCH_SIZE):
-            chunk = mac_pairs[i : i + BATCH_SIZE]
-            df = mac.get_stock_quotes(chunk, fields=fields)
-            if on_progress:
-                try:
-                    on_progress(min(len(symbols), i + len(chunk)), len(symbols))
-                except Exception:
-                    pass
+        BATCH_SIZE = 80
+        chunks = [mac_pairs[i : i + BATCH_SIZE] for i in range(0, len(mac_pairs), BATCH_SIZE)]
+
+        def _fetch_one_chunk(c):
+            try:
+                m = _get_or_create_mac_client()
+                return m.get_stock_quotes(c, fields=fields)
+            except Exception:
+                return None
+
+        if len(chunks) > 1:
+            workers = min(6, len(chunks))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                dfs = list(pool.map(_fetch_one_chunk, chunks))
+        else:
+            dfs = [_fetch_one_chunk(chunks[0])] if chunks else []
+
+        if on_progress:
+            try:
+                on_progress(len(symbols), len(symbols))
+            except Exception:
+                pass
+
+        for df in dfs:
             if df is not None and not df.empty:
-                for _, row in df.iterrows():
+                for row in df.to_dict('records'):
                     code = str(row.get("code", ""))
                     price = float(row.get("close") or 0.0)
                     pre_close = float(row.get("pre_close") or price)

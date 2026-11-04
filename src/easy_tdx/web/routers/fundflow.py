@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, Query
 
 from easy_tdx.trading_system.engine import evaluate_universe
+from easy_tdx.market_data import fetch_realtime_pool_quotes
 from easy_tdx.screener.universe import get_universe_symbols
 from easy_tdx.watchlist_store import load_watchlist
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/fundflow", tags=["fundflow"])
+
+_FF_MEM_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 UNIV_NAMES = {
     "core": "核心龙头 (159只)",
@@ -69,13 +73,54 @@ def scan_fund_flow(
     lim = int(limit if isinstance(limit, (int, float)) else getattr(limit, "default", 200) or 200)
     force_ref = bool(force_refresh if isinstance(force_refresh, bool) else getattr(force_refresh, "default", False))
 
+    now_ts = time.time()
+    cache_key = f"{univ_key}_{strat_key}_{min_inf}_{ind_filter}_{search_kw}_{sort_c}_{sort_d}_{lim}"
+    if not force_ref and cache_key in _FF_MEM_CACHE:
+        c_time, c_data = _FF_MEM_CACHE[cache_key]
+        if now_ts - c_time < 5.0:
+            return c_data
+
     try:
-        all_stocks = evaluate_universe(universe_type="all", period="day", force_refresh=force_ref)
+        all_stocks = evaluate_universe(universe_type="all", period="day", force_refresh=False)
         if univ_key in ("core", "hs300", "zz500", "zz1000"):
-            target_symbols = set(get_universe_symbols(univ_key))
-            stocks = [s for s in all_stocks if s.get("stock_code") in target_symbols]
+            target_symbols = get_universe_symbols(univ_key)
+            target_set = set(target_symbols)
+            stocks = [dict(s) for s in all_stocks if s.get("stock_code") in target_set]
         else:
-            stocks = all_stocks
+            stocks = [dict(s) for s in all_stocks]
+            target_symbols = [s.get("stock_code") for s in stocks if s.get("stock_code")]
+
+        if force_ref and target_symbols:
+            try:
+                quotes = fetch_realtime_pool_quotes(target_symbols)
+                q_map = {q["code"]: q for q in quotes if "code" in q}
+                for s in stocks:
+                    sc = s.get("stock_code")
+                    if sc in q_map:
+                        q = q_map[sc]
+                        p = float(q.get("price") or q.get("close") or s.get("close", 0))
+                        if p > 0:
+                            s["close"] = p
+                        if "change_pct" in q:
+                            s["pct"] = float(q["change_pct"])
+                        if "high" in q and float(q["high"]) > 0:
+                            s["high"] = float(q["high"])
+                        if "low" in q and float(q["low"]) > 0:
+                            s["low"] = float(q["low"])
+                        if "open" in q and float(q["open"]) > 0:
+                            s["open"] = float(q["open"])
+                        if "turnover_wan" in q:
+                            s["amount"] = float(q["turnover_wan"]) * 10000.0
+                        elif "amount" in q:
+                            s["amount"] = float(q["amount"])
+                        if "turnover_rate" in q:
+                            s["t_rate"] = float(q["turnover_rate"])
+                        if "vol_ratio" in q:
+                            s["v_rate"] = float(q["vol_ratio"])
+                        if "main_net_amount" in q:
+                            s["dde_net"] = float(q["main_net_amount"])
+            except Exception as q_err:
+                logger.warning(f"Failed to fetch realtime quotes on fundflow refresh: {q_err}")
     except Exception as e:
         logger.error(f"Error evaluating universe for fundflow: {e}")
         return {"success": False, "error": str(e), "rows": [], "summary": {}}
@@ -327,7 +372,7 @@ def scan_fund_flow(
     total_filtered = len(filtered_rows)
     final_rows = filtered_rows[:lim]
 
-    return {
+    res_payload = {
         "success": True,
         "summary": {
             "universe": univ_key,
@@ -350,3 +395,5 @@ def scan_fund_flow(
         "total": total_filtered,
         "rows": final_rows,
     }
+    _FF_MEM_CACHE[cache_key] = (now_ts, res_payload)
+    return res_payload

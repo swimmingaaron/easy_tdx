@@ -5490,9 +5490,9 @@
                                 <option value="60">60秒</option>
                             </select>
                         </div>
-                        <button onclick="loadFundFlowData(true)" class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
-                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                            <span>实时刷新</span>
+                        <button id="ff-refresh-btn" onclick="loadFundFlowData(true)" class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+                            <i id="ff-refresh-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span id="ff-refresh-text">实时刷新</span>
                         </button>
                     </div>
                 </div>
@@ -32916,8 +32916,12 @@
             if (_fundFlowIsLoading) return;
             _fundFlowIsLoading = true;
             const updateEl = document.getElementById('ff-last-updated');
-            if (updateEl && forceRefresh) {
-                updateEl.innerText = '正在刷新...';
+            const refreshIcon = document.getElementById('ff-refresh-icon');
+            const refreshText = document.getElementById('ff-refresh-text');
+            if (forceRefresh) {
+                if (refreshIcon) refreshIcon.classList.add('animate-spin');
+                if (refreshText) refreshText.innerText = '刷新中...';
+                if (updateEl) updateEl.innerText = '正在同步最新行情...';
             }
 
             try {
@@ -33008,6 +33012,10 @@
                     tbody.innerHTML = `<tr><td colspan="14" class="text-center py-8 text-rose-500">加载失败: ${err.message}</td></tr>`;
                 }
             } finally {
+                const refreshIcon = document.getElementById('ff-refresh-icon');
+                const refreshText = document.getElementById('ff-refresh-text');
+                if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+                if (refreshText) refreshText.innerText = '实时刷新';
                 _fundFlowIsLoading = false;
             }
         }
@@ -33241,7 +33249,11 @@
 
             tbody.innerHTML = html;
             if (window.lucide && typeof lucide.createIcons === 'function') {
-                lucide.createIcons();
+                try {
+                    lucide.createIcons({ root: tbody });
+                } catch (e) {
+                    lucide.createIcons();
+                }
             }
         }
 
