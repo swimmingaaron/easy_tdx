@@ -1999,14 +1999,22 @@ def generate_llm_fina_analysis(
             {"role": "user", "content": prompt}
         ]
     }
-    if "reasoner" not in model_endpoint.lower() and "r1" not in model_endpoint.lower():
-        req_body["max_tokens"] = 2400
+    # 豆包推理模型 (ep-...) 及 DeepSeek-R1 等深度思考模型生成完整长篇研报包含思维链耗时较长
+    is_reasoning_model = any(k in model_endpoint.lower() for k in ("reasoner", "r1", "thinking", "ep-"))
+    if not is_reasoning_model:
+        req_body["max_tokens"] = 3000
         req_body["temperature"] = 0.3
+    else:
+        # 推理模型允许更充裕的 max_tokens (避免推理链截断正文)
+        req_body["max_tokens"] = 4096
 
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
     }
+
+    # 深度推理模型给予充裕的网络超时时间 (180秒，避免 60s 截断)
+    llm_timeout = 180.0 if (is_reasoning_model or provider_clean == "doubao") else 90.0
 
     try:
         req = urllib.request.Request(
@@ -2015,9 +2023,13 @@ def generate_llm_fina_analysis(
             headers=headers,
             method="POST"
         )
-        with urlopen_safe(req, timeout=60.0) as resp:
+        with urlopen_safe(req, timeout=llm_timeout) as resp:
             resp_data = json.loads(resp.read().decode("utf-8"))
-            analysis_text = resp_data["choices"][0]["message"]["content"]
+            choice_msg = resp_data["choices"][0]["message"]
+            analysis_text = choice_msg.get("content", "")
+            # 若正文为空但有 reasoning_content (个别极端情况)，做安全兜底
+            if not analysis_text and "reasoning_content" in choice_msg:
+                analysis_text = choice_msg["reasoning_content"]
 
             # 写入磁盘缓存
             try:
@@ -2039,9 +2051,12 @@ def generate_llm_fina_analysis(
             }
     except Exception as e:
         logger.exception(f"Failed to generate LLM analysis via {provider_clean} for {clean_code}: {e}")
+        err_msg = str(e)
+        if "timed out" in err_msg.lower():
+            err_msg = f"{model_name} 接口响应超时（深度推理生成耗时超过 {int(llm_timeout)} 秒），请点击「🔄 重新分析」重试或检查模型网络状态。"
         return {
             "success": False,
-            "error": f"调用 {model_name} 接口失败: {str(e)}",
+            "error": f"调用 {model_name} 接口失败: {err_msg}",
             "provider": provider_clean
         }
 

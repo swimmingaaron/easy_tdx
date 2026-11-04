@@ -17,7 +17,7 @@ class LLMClient:
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = 30.0
+        timeout: float = 120.0
     ):
         self.provider = provider or os.getenv("LLM_PROVIDER", "deepseek")
         self.api_key = api_key or os.getenv("LLM_API_KEY", "")
