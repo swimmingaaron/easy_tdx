@@ -417,9 +417,11 @@ def get_sectors_intraday_flows(
 
     now_ts = time.time()
     cache_key = f"intraday_sectors_{limit}"
+    from easy_tdx.market_overview import is_trading_time
+    ttl = 3.0 if is_trading_time() else 60.0
     if not force_refresh and cache_key in _SECTOR_FLOW_CACHE:
         c_time, c_data = _SECTOR_FLOW_CACHE[cache_key]
-        if now_ts - c_time < 15.0:
+        if now_ts - c_time < ttl:
             return c_data
 
     from easy_tdx.market_data import fetch_security_kline

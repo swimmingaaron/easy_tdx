@@ -7141,8 +7141,23 @@
                         <button type="button" onclick="setSectorFlowFilter('outflow')" id="sf-filter-outflow" class="px-2 py-0.5 rounded-md font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition">仅看流出</button>
                     </div>
 
-                    <button type="button" onclick="loadSectorFlowData(true)" class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="刷新最新数据">
-                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <!-- 交易时段 多档刷新选择器 (默认10s) -->
+                    <div class="flex items-center space-x-1.5 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300 select-none">
+                        <span id="sf-refresh-indicator" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="交易时段自动刷新运行中"></span>
+                        <span class="text-[10px] text-slate-400 hidden sm:inline">刷新:</span>
+                        <select id="sf-refresh-interval" onchange="onSectorFlowRefreshIntervalChange(this.value)" class="bg-transparent text-[11px] font-medium text-slate-700 dark:text-slate-200 border-none outline-none cursor-pointer pr-0.5">
+                            <option value="3">3秒</option>
+                            <option value="5">5秒</option>
+                            <option value="10" selected>10秒 (默认)</option>
+                            <option value="30">30秒</option>
+                            <option value="60">60秒</option>
+                            <option value="0">关闭</option>
+                        </select>
+                        <span id="sf-refresh-countdown" class="text-[10px] font-mono text-cyan-500 w-3 text-center" title="倒计时">10</span>
+                    </div>
+
+                    <button type="button" onclick="loadSectorFlowData(true)" class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition" title="立即刷新最新数据">
+                        <i data-lucide="refresh-cw" class="w-4 h-4" id="sf-refresh-btn-icon"></i>
                     </button>
                     <button type="button" onclick="closeSectorFlowTrendModal()" class="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:border-rose-400 text-slate-500 hover:text-rose-500 transition" title="关闭弹窗">
                         <i data-lucide="x" class="w-4 h-4"></i>
@@ -33263,6 +33278,95 @@ let _sfHoveredSector = null;
 let _sfTagPositions = [];
 let _sfResizeObserver = null;
 
+// 交易时段自动刷新配置 (多档可选，默认10s)
+let _sfRefreshSec = 10;
+try {
+    const savedSec = localStorage.getItem('sf_refresh_sec');
+    if (savedSec !== null) {
+        const parsed = parseInt(savedSec);
+        if (!isNaN(parsed)) _sfRefreshSec = parsed;
+    }
+} catch (e) {}
+let _sfRefreshCountdown = _sfRefreshSec;
+let _sfAutoRefreshTimer = null;
+
+function isChinaTradingTime() {
+    const now = new Date();
+    const day = now.getDay();
+    if (day === 0 || day === 6) return false;
+    const hm = now.getHours() * 100 + now.getMinutes();
+    return (hm >= 915 && hm <= 1130) || (hm >= 1300 && hm <= 1502);
+}
+
+function onSectorFlowRefreshIntervalChange(val) {
+    _sfRefreshSec = parseInt(val);
+    if (isNaN(_sfRefreshSec)) _sfRefreshSec = 10;
+    try {
+        localStorage.setItem('sf_refresh_sec', _sfRefreshSec.toString());
+    } catch (e) {}
+    _sfRefreshCountdown = _sfRefreshSec;
+    startSectorFlowAutoRefresh();
+}
+window.onSectorFlowRefreshIntervalChange = onSectorFlowRefreshIntervalChange;
+
+function startSectorFlowAutoRefresh() {
+    stopSectorFlowAutoRefresh();
+
+    const indicator = document.getElementById('sf-refresh-indicator');
+    const countdownEl = document.getElementById('sf-refresh-countdown');
+    const selectEl = document.getElementById('sf-refresh-interval');
+
+    if (selectEl && selectEl.value !== _sfRefreshSec.toString()) {
+        selectEl.value = _sfRefreshSec.toString();
+    }
+
+    if (_sfRefreshSec <= 0) {
+        if (indicator) {
+            indicator.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+            indicator.title = '自动刷新已关闭';
+        }
+        if (countdownEl) countdownEl.innerText = '--';
+        return;
+    }
+
+    const inTrading = isChinaTradingTime();
+    if (indicator) {
+        indicator.className = inTrading 
+            ? 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse'
+            : 'w-1.5 h-1.5 rounded-full bg-amber-400';
+        indicator.title = inTrading ? '交易时段自动刷新运行中' : '非交易时段 (已休市/待开盘)';
+    }
+
+    _sfRefreshCountdown = _sfRefreshSec;
+    if (countdownEl) countdownEl.innerText = _sfRefreshCountdown.toString();
+
+    _sfAutoRefreshTimer = setInterval(() => {
+        const modal = document.getElementById('sector-flow-modal');
+        if (!modal || modal.style.display === 'none' || modal.classList.contains('hidden')) {
+            stopSectorFlowAutoRefresh();
+            return;
+        }
+
+        if (_sfRefreshSec <= 0) return;
+
+        _sfRefreshCountdown -= 1;
+        if (_sfRefreshCountdown <= 0) {
+            _sfRefreshCountdown = _sfRefreshSec;
+            loadSectorFlowData(true, /* silent= */ true);
+        }
+
+        const cdEl = document.getElementById('sf-refresh-countdown');
+        if (cdEl) cdEl.innerText = _sfRefreshCountdown.toString();
+    }, 1000);
+}
+
+function stopSectorFlowAutoRefresh() {
+    if (_sfAutoRefreshTimer) {
+        clearInterval(_sfAutoRefreshTimer);
+        _sfAutoRefreshTimer = null;
+    }
+}
+
 async function openSectorFlowTrendModal() {
     const modal = document.getElementById('sector-flow-modal');
     if (!modal) return;
@@ -33286,6 +33390,7 @@ async function openSectorFlowTrendModal() {
             drawSectorFlowChart();
         }
         if (loadingEl) loadingEl.classList.add('hidden');
+        startSectorFlowAutoRefresh();
     });
 }
 window.openSectorFlowTrendModal = openSectorFlowTrendModal;
@@ -33298,21 +33403,31 @@ function closeSectorFlowTrendModal() {
     }
     document.body.style.overflow = '';
     stopSectorFlowPlay();
+    stopSectorFlowAutoRefresh();
     const tt = document.getElementById('sector-flow-tooltip');
     if (tt) tt.classList.add('hidden');
 }
 window.closeSectorFlowTrendModal = closeSectorFlowTrendModal;
 
-async function loadSectorFlowData(force = false) {
+async function loadSectorFlowData(force = false, silent = false) {
     const loadingEl = document.getElementById('sector-flow-loading');
-    if (loadingEl) loadingEl.classList.remove('hidden');
+    const refreshBtnIcon = document.getElementById('sf-refresh-btn-icon');
+
+    if (!silent && loadingEl) loadingEl.classList.remove('hidden');
+    if (refreshBtnIcon) refreshBtnIcon.classList.add('animate-spin');
+
     try {
         const resp = await fetch(`/api/fundflow/sectors_intraday?limit=26${force ? '&force_refresh=true' : ''}`);
         if (!resp.ok) return;
         const res = await resp.json();
         if (res.status === 'success' && res.sectors) {
+            const wasAtEnd = (!_sfData || _sfScrubIndex >= _sfData.times.length - 1 || _sfScrubIndex === _sfData.current_index);
             _sfData = res;
-            _sfScrubIndex = (typeof res.current_index === 'number') ? res.current_index : (res.times.length - 1);
+
+            if (!_sfPlaying && wasAtEnd) {
+                _sfScrubIndex = (typeof res.current_index === 'number') ? res.current_index : (res.times.length - 1);
+            }
+
             const scrubber = document.getElementById('sector-flow-scrubber');
             if (scrubber) {
                 scrubber.max = (res.times.length - 1).toString();
@@ -33324,7 +33439,8 @@ async function loadSectorFlowData(force = false) {
     } catch (e) {
         console.error('Failed to load sector intraday flow data:', e);
     } finally {
-        if (loadingEl) loadingEl.classList.add('hidden');
+        if (!silent && loadingEl) loadingEl.classList.add('hidden');
+        if (refreshBtnIcon) refreshBtnIcon.classList.remove('animate-spin');
     }
 }
 window.loadSectorFlowData = loadSectorFlowData;
