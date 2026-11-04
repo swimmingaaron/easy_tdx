@@ -7971,9 +7971,12 @@
                 if (isKpProfileOpen) {
                     btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500');
                     btn.classList.remove('bg-indigo-950/80', 'text-indigo-300', 'border-indigo-700/60');
-                    // 展开时若数据为空或处于降级状态，自动触发加载/刷新
-                    const countEl = document.getElementById('kp-sector-count');
-                    if (!countEl || countEl.innerText.includes('0') || countEl.innerText === '--') {
+                    // 核心优化1：资料·财务 只有 enable 时才获取数据，并且获取一次数据（有缓存直接复用，无缓存拉取一次）
+                    const digitMatch = String(currentKpSymbol || '').match(/\d{6}/);
+                    const qSym = digitMatch ? digitMatch[0] : String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+                    if (qSym && _KP_PROFILE_CACHE.has(qSym)) {
+                        renderStockProfileData(_KP_PROFILE_CACHE.get(qSym).data, qSym);
+                    } else if (qSym) {
                         loadStockProfile(currentKpSymbol, false);
                     }
                 } else {
@@ -7987,6 +7990,7 @@
         }
 
         const _KP_PROFILE_CACHE = new Map();
+        const _KP_PROFILE_INFLIGHT = new Map();
 
         async function loadStockProfile(symbol, forceRefresh = false) {
             try {
@@ -7995,48 +7999,57 @@
                 const querySym = digitMatch ? digitMatch[0] : rawSym.replace(/[^0-9a-zA-Z]/g, '');
                 if (!querySym) return;
 
-                const now = Date.now();
+                // 核心优化2：资料·财务获取一次数据后永久有效，严禁重复请求；仅支持用户手动点击卡片内刷新按钮强制刷新
                 if (!forceRefresh && _KP_PROFILE_CACHE.has(querySym)) {
                     const cached = _KP_PROFILE_CACHE.get(querySym);
-                    // 智能降级判断：若缓存中板块为空或主营业务为空，不使用旧降级缓存，允许重新补全拉取
-                    const isDegraded = !cached.data || !cached.data.sectors || cached.data.sectors.length === 0 || !(cached.data.company_info && cached.data.company_info.main_business);
-                    if (!isDegraded && (now - cached.ts < 3600000)) { // 1小时缓存 (财务与资料是季度数据，低频稳定)
+                    if (cached && cached.data) {
                         renderStockProfileData(cached.data, querySym);
                         return;
                     }
                 }
 
+                // 防并发防重复：同一标的正处于网络请求中时，直接复用已有的 Promise
+                if (!forceRefresh && _KP_PROFILE_INFLIGHT.has(querySym)) {
+                    await _KP_PROFILE_INFLIGHT.get(querySym);
+                    return;
+                }
+
                 const tbody = document.getElementById('kp-financials-tbody');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 财务指标数据...</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 财务指标...</td></tr>`;
 
                 const shTbody = document.getElementById('kp-shareholders-tbody');
                 if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-slate-500 font-sans">正在获取 ${querySym} 股东历史变动...</td></tr>`;
 
                 const url = `/api/quotes/stock_profile?symbol=${querySym}${forceRefresh ? '&force_refresh=true' : ''}`;
-                const resp = await fetch(url);
-                if (!resp.ok) {
-                    if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-amber-500/80 font-sans">股东数据获取异常 (HTTP ${resp.status})</td></tr>`;
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-amber-500/80 font-sans">财报数据获取异常 (HTTP ${resp.status})</td></tr>`;
-                    return;
-                }
-                const json = await resp.json();
-                const d = json.data;
-                if (!d) return;
+                const fetchPromise = (async () => {
+                    const resp = await fetch(url);
+                    if (!resp.ok) {
+                        if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-amber-500/80 font-sans">股东数据获取异常 (HTTP ${resp.status})</td></tr>`;
+                        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-amber-500/80 font-sans">财务指标获取异常 (HTTP ${resp.status})</td></tr>`;
+                        return;
+                    }
+                    const json = await resp.json();
+                    const d = json.data;
+                    if (!d) return;
 
-                _KP_PROFILE_CACHE.set(querySym, { ts: now, data: d });
-                renderStockProfileData(d, querySym);
-                if (window.lucide) {
-                    try { lucide.createIcons(); } catch (e) { }
-                }
+                    _KP_PROFILE_CACHE.set(querySym, { ts: Date.now(), data: d });
+                    renderStockProfileData(d, querySym);
+                    if (window.lucide) {
+                        try { lucide.createIcons(); } catch (e) { }
+                    }
+                })();
+
+                _KP_PROFILE_INFLIGHT.set(querySym, fetchPromise);
+                await fetchPromise;
+                _KP_PROFILE_INFLIGHT.delete(querySym);
             } catch (err) {
                 console.error('loadStockProfile err:', err);
                 const shTbody = document.getElementById('kp-shareholders-tbody');
-                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东数据获取异常，请重试</td></tr>`;
+                if (shTbody) shTbody.innerHTML = `<tr><td colspan="6" class="py-2 text-center text-rose-400/80 font-sans">股东数据获取异常。</td></tr>`;
                 const tbody = document.getElementById('kp-financials-tbody');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-rose-400/80 font-sans">财报数据获取异常，请重试</td></tr>`;
+                if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="py-2 text-center text-rose-400/80 font-sans">财务指标获取异常。</td></tr>`;
             }
         }
-
         function renderStockProfileData(d, querySym) {
             try {
                 const tbody = document.getElementById('kp-financials-tbody');
@@ -9007,10 +9020,20 @@
             loadKlinePreviewData();
 
             // 资料财务优先权控制：仅当用户已展开资料财务面板时才拉取，折叠时绝不抢占K线网络与计算资源
+            // 核心优化3：资料·财务 只有 enable 时才获取数据，并且获取一次数据；严禁阻塞 K 线秒开
             if (isKpProfileOpen) {
-                loadStockProfile(currentKpSymbol);
+                const digitMatch = String(currentKpSymbol || '').match(/\d{6}/);
+                const qSym = digitMatch ? digitMatch[0] : String(currentKpSymbol || '').replace(/[^0-9a-zA-Z]/g, '');
+                if (qSym && _KP_PROFILE_CACHE.has(qSym)) {
+                    renderStockProfileData(_KP_PROFILE_CACHE.get(qSym).data, qSym);
+                } else if (qSym) {
+                    setTimeout(() => {
+                        if (isKpProfileOpen && currentKpSymbol === newSym) {
+                            loadStockProfile(currentKpSymbol, false);
+                        }
+                    }, 80);
+                }
             }
-
             // Ensure context menu and hover prefetch are initialized
             initKpContextMenu();
             initKpPeriodHover();
@@ -11420,10 +11443,8 @@
             try {
                 const wasAtLatest = (currentKpCutoffIndex < 0 || (currentKpFullBars.length > 0 && currentKpCutoffIndex >= currentKpFullBars.length - 1));
                 const tasks = [loadKlinePreviewData()];
-                // 用户主动刷新或资料财务面板已打开时，同步执行多源数据补全刷新
-                if (refreshProfile || isKpProfileOpen) {
-                    tasks.push(loadStockProfile(currentKpSymbol, true));
-                }
+                // 核心优化4：严禁随 K 线实时刷新获取资料/财务数据；K 线分时轮询仅更新行情量价
+                const tasks = [loadKlinePreviewData()];
                 await Promise.allSettled(tasks);
 
                 if (wasAtLatest && currentKpFullBars.length > 0) {
