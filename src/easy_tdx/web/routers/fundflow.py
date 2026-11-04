@@ -475,9 +475,16 @@ def get_sectors_intraday_flows(
     selected = pos_sectors[:n_pos] + neg_sectors[:n_neg]
     selected.sort(key=lambda s: s.get("net_inflow_yi", 0), reverse=True)
 
+    from easy_tdx.screener.industry import load_industry_universe
+    try:
+        univ_data = load_industry_universe()
+        code_to_name = {item["code"]: item["name"] for item in univ_data.get("industries", []) if isinstance(item, dict) and "code" in item and "name" in item}
+    except Exception:
+        code_to_name = {}
+
     def process_sector(s: Dict[str, Any]) -> Dict[str, Any]:
         code = s.get("code", "")
-        name = s.get("name", "")
+        name = code_to_name.get(code) or s.get("name", "")
         final_yi = float(s.get("net_inflow_yi", 0.0))
         amt_yi = float(s.get("amount_yi", 0.0))
         chg_pct = float(s.get("change_pct", 0.0))
@@ -490,22 +497,32 @@ def get_sectors_intraday_flows(
                 ratio = np.where(
                     spread > 0,
                     ((df["close"] - df["low"]) - (df["high"] - df["close"])) / spread,
-                    0.0,
+                    np.where(df["close"] >= df["open"], 0.5, -0.5),
                 )
                 raw_flow = df["amount"] * ratio
-                cum_flow = np.cumsum(raw_flow)
+                cum_raw = np.cumsum(raw_flow)
+                cum_amt = np.cumsum(df["amount"])
+                total_amt = cum_amt.iloc[-1] if cum_amt.iloc[-1] > 0 else 1.0
 
-                if abs(cum_flow.iloc[-1]) > 1e-6:
-                    scale = (final_yi * 1e8) / cum_flow.iloc[-1]
-                    vals = (cum_flow * scale / 1e8).tolist()
-                else:
-                    vals = np.linspace(0, final_yi, len(df)).tolist()
+                progress = cum_amt / total_amt
+                target_final = final_yi * 1e8
+
+                trend = target_final * progress
+                bridge = cum_raw - cum_raw.iloc[-1] * progress
+                max_bridge = np.max(np.abs(bridge)) if np.max(np.abs(bridge)) > 0 else 1.0
+
+                osc_weight = min(0.35, abs(target_final) / max_bridge) if abs(target_final) > 0 else 0.05
+                curve = trend + bridge * osc_weight
+
+                cap = max(abs(final_yi) * 1.5, 5.0)
+                vals = np.clip(curve / 1e8, -cap, cap).tolist()
 
                 vals[0] = 0.0
                 if len(vals) < num_points:
                     vals.extend([vals[-1]] * (num_points - len(vals)))
                 elif len(vals) > num_points:
                     vals = vals[:num_points]
+                vals[-1] = round(final_yi, 2)
                 series_yi = [round(v, 2) for v in vals]
         except Exception:
             pass
@@ -513,7 +530,7 @@ def get_sectors_intraday_flows(
         if not series_yi:
             x = np.linspace(0, 1, num_points)
             seed = sum(ord(c) for c in name) % 100
-            noise = 0.15 * np.sin(x * np.pi * 3 + seed) * (1 - np.exp(-3 * x))
+            noise = 0.12 * np.sin(x * np.pi * 3 + seed) * (1 - np.exp(-3 * x))
             base_curve = (np.power(x, 0.8) + noise) * final_yi
             base_curve[0] = 0.0
             base_curve[-1] = final_yi
