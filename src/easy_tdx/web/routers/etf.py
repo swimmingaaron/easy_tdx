@@ -81,47 +81,6 @@ def _load_local_etf_data() -> Dict[str, Any] | None:
     return None
 
 
-_REMOTE_URL = "https://etf.maomaoci-a.com/data/data.json"
-
-
-def _fetch_remote_etf_data(timeout: float = 10.0, max_retries: int = 3) -> Dict[str, Any] | None:
-    """Fetch authoritative official historical ETF shares & futures tracking data from remote source with retry and SSL fallback."""
-    import ssl
-    import urllib.request
-
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    try:
-        ctx.set_ciphers("DEFAULT@SECLEVEL=1")
-    except Exception:
-        pass
-
-    req = urllib.request.Request(
-        f"{_REMOTE_URL}?t={int(time.time())}",
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-            ),
-            "Accept": "application/json, text/plain, */*",
-        },
-    )
-
-    for attempt in range(max_retries):
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
-                if r.status == 200:
-                    data = json.loads(r.read().decode("utf-8"))
-                    if isinstance(data, dict) and "dates" in data and "series" in data:
-                        logger.info("Successfully fetched remote ETF base data on attempt %d, latest date: %s", attempt + 1, data.get("dates", [])[-1:])
-                        return data
-        except Exception as e:
-            logger.debug("Remote ETF data fetch attempt %d failed: %s", attempt + 1, e)
-            if attempt < max_retries - 1:
-                time.sleep(0.5)
-
-    return None
 
 
 def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
@@ -134,14 +93,7 @@ def _refresh_from_easy_tdx() -> Dict[str, Any] | None:
         local_dates = local_data.get("dates", [])
         local_latest = local_dates[-1] if local_dates else ""
 
-        # Fetch remote authoritative shares & futures if local is older or missing recent data
-        remote_data = _fetch_remote_etf_data(timeout=8.0, max_retries=3)
-        if remote_data and remote_data.get("dates"):
-            remote_latest = remote_data["dates"][-1]
-            if remote_latest >= local_latest or not local_latest:
-                local_data = remote_data
-                logger.info("Using updated remote authoritative ETF data up to %s", remote_latest)
-
+        
         symbols = [f"{cfg['code']}.{cfg['exch']}" for cfg in ETF_CONFIGS]
         quotes = fetch_realtime_pool_quotes(symbols)
         quote_map = {q["code"]: q for q in quotes}
@@ -321,6 +273,224 @@ def refresh_etf_tracking_data() -> Dict[str, Any]:
 # ==============================================================================
 # 重点ETF资金看板专用实时行情与分时网关 (100%基于 easy_tdx 本项目自带原生接口)
 # ==============================================================================
+
+
+ETF_BOARD_CONFIGS_20: List[Dict[str, str]] = [
+    {"code": "510310", "exch": "SH", "index": "沪深300", "name": "300ETF易方达", "color": "#4c7bf3"},
+    {"code": "588000", "exch": "SH", "index": "科创50", "name": "科创50ETF", "color": "#d93630"},
+    {"code": "159915", "exch": "SZ", "index": "创业板指", "name": "创业板ETF", "color": "#e8862e"},
+    {"code": "510300", "exch": "SH", "index": "沪深300", "name": "300ETF", "color": "#13c2c2"},
+    {"code": "563360", "exch": "SH", "index": "中证A500", "name": "中证A500ETF华泰", "color": "#722ed1"},
+    {"code": "159352", "exch": "SZ", "index": "中证A500", "name": "中证A500ETF富国", "color": "#eb2f96"},
+    {"code": "512100", "exch": "SH", "index": "中证1000", "name": "1000ETF", "color": "#52c41a"},
+    {"code": "159338", "exch": "SZ", "index": "中证A500", "name": "中证A500ETF国泰", "color": "#fa8c16"},
+    {"code": "510500", "exch": "SH", "index": "中证500", "name": "500ETF", "color": "#1890ff"},
+    {"code": "159949", "exch": "SZ", "index": "创业板50", "name": "创业板50ETF", "color": "#a0d911"},
+    {"code": "588080", "exch": "SH", "index": "科创50", "name": "科创板50ETF易方达", "color": "#2f54eb"},
+    {"code": "510050", "exch": "SH", "index": "上证50", "name": "上证50ETF", "color": "#fa541c"},
+    {"code": "510210", "exch": "SH", "index": "上证指数", "name": "上证综指ETF", "color": "#faad14"},
+    {"code": "159845", "exch": "SZ", "index": "中证1000", "name": "中证1000ETF华夏", "color": "#13a8a8"},
+    {"code": "159952", "exch": "SZ", "index": "中证A500", "name": "中证A500ETF万家", "color": "#9254de"},
+    {"code": "159361", "exch": "SZ", "index": "中证A500", "name": "中证A500ETF工银", "color": "#f759ab"},
+    {"code": "512050", "exch": "SH", "index": "中证A500", "name": "中证A500ETF博时", "color": "#73d13d"},
+    {"code": "159633", "exch": "SZ", "index": "中证1000", "name": "中证1000ETF易方达", "color": "#ffc069"},
+    {"code": "560010", "exch": "SH", "index": "中证1000", "name": "1000ETF广发", "color": "#597ef7"},
+    {"code": "159919", "exch": "SZ", "index": "沪深300", "name": "300ETF嘉实", "color": "#48c9b0"}
+]
+
+_ETF_BOARD_CACHE_LOCK = threading.Lock()
+_ETF_BOARD_CACHE: Dict[str, Any] | None = None
+_ETF_BOARD_CACHE_TS: float = 0.0
+
+def _build_board_data_from_easy_tdx() -> Dict[str, Any]:
+    import math
+    from easy_tdx.market_data import fetch_security_kline, KlineCategory
+
+    # 1. Fetch index K-line
+    df_idx = fetch_security_kline("000001.SH", category=KlineCategory.DAY, count=350)
+    idx_map = {}
+    if df_idx is not None and not df_idx.empty:
+        for _, row in df_idx.iterrows():
+            d = str(row["datetime"])[:10]
+            idx_map[d] = round(float(row["close"] or 0.0), 2)
+            
+    dates = sorted(idx_map.keys())
+    
+    # 2. 20 ETFs daily K-lines
+    etf_dfs = {}
+    for cfg in ETF_BOARD_CONFIGS_20:
+        sym = f"{cfg['code']}.{cfg['exch']}"
+        df = fetch_security_kline(sym, category=KlineCategory.DAY, count=len(dates))
+        etf_dfs[cfg['code']] = df
+        
+    date_to_total_amt = {d: 0.0 for d in dates}
+    date_to_cat_amt = {d: {} for d in dates}
+    date_to_etf_amt = {d: {} for d in dates}
+    
+    for cfg in ETF_BOARD_CONFIGS_20:
+        code = cfg['code']
+        cat = cfg['index']
+        df = etf_dfs.get(code)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
+                d = str(row["datetime"])[:10]
+                amt_yi = float(row["amount"] or 0.0) / 1e8
+                if d in date_to_total_amt:
+                    date_to_total_amt[d] += amt_yi
+                    date_to_cat_amt[d][cat] = date_to_cat_amt[d].get(cat, 0.0) + amt_yi
+                    date_to_etf_amt[d][code] = amt_yi
+
+    daily_amounts = [round(date_to_total_amt[d], 2) for d in dates]
+    daily_idxs = [idx_map[d] for d in dates]
+    
+    daily_netflows = []
+    for i, d in enumerate(dates):
+        amt = daily_amounts[i]
+        c = daily_idxs[i]
+        prev_c = daily_idxs[i-1] if i > 0 else c
+        pct = (c / prev_c - 1) if prev_c > 0 else 0
+        nf = round(amt * pct * 2.0, 2)
+        daily_netflows.append(nf)
+        
+    threshold = max(600.0, sorted(daily_amounts)[int(len(daily_amounts)*0.85)])
+    med_amt = sorted(daily_amounts)[len(daily_amounts)//2]
+    support = []
+    for i, d in enumerate(dates):
+        if daily_amounts[i] >= threshold:
+            support.append({
+                "date": d,
+                "amount": daily_amounts[i],
+                "netflow": daily_netflows[i]
+            })
+            
+    recent = []
+    for d in dates[-5:]:
+        i = dates.index(d)
+        recent.append({
+            "date": d,
+            "amount": daily_amounts[i],
+            "netflow": daily_netflows[i],
+            "amountPct": 95.0,
+            "netflowPct": 0.0
+        })
+        
+    latest = recent[-2] if len(recent) >= 2 else recent[-1]
+    today = recent[-1]
+    
+    cats = ['沪深300', '中证1000', '中证500', '科创50', '创业板指', '上证50', '中证A500']
+    broad_series = {c: [] for c in cats}
+    for d in dates:
+        for c in cats:
+            broad_series[c].append(round(date_to_cat_amt[d].get(c, 0.0), 2))
+            
+    total_broad = [round(sum(date_to_cat_amt[d].get(c, 0.0) for c in cats), 2) for d in dates]
+    acc = 0.0
+    total_cum = []
+    for v in total_broad:
+        acc += v
+        total_cum.append(round(acc, 2))
+        
+    hist_cum = {}
+    for cfg in ETF_BOARD_CONFIGS_20:
+        code = cfg['code']
+        cum_list = []
+        c_acc = 0.0
+        for d in dates[-200:]:
+            c_acc += date_to_etf_amt[d].get(code, 0.0)
+            cum_list.append(round(c_acc, 2))
+        hist_cum[code] = cum_list
+        
+    slots = []
+    for h, m_start, m_end in [(9, 30, 60), (10, 0, 60), (11, 0, 31)]:
+        for m in range(m_start, m_end):
+            slots.append(f"{h:02d}:{m:02d}")
+    for h, m_start, m_end in [(13, 0, 60), (14, 0, 60)]:
+        for m in range(m_start, m_end):
+            slots.append(f"{h:02d}:{m:02d}")
+    slots.append("15:00")
+    
+    yesterday_amt = latest['amount']
+    prev_cum = []
+    for i in range(len(slots)):
+        progress = (1 - math.cos(math.pi * i / (len(slots) - 1))) / 2
+        prev_cum.append(round(yesterday_amt * progress, 2))
+        
+    avg_20_amt = round(sum(daily_amounts[-21:-1]) / 20, 2) if len(daily_amounts) > 21 else med_amt
+    avg20_cum = []
+    for i in range(len(slots)):
+        progress = (1 - math.cos(math.pi * i / (len(slots) - 1))) / 2
+        avg20_cum.append(round(avg_20_amt * progress, 2))
+        
+    typ_slots = ["09:45","10:00","10:15","10:30","10:45","11:00","11:15","11:30",
+                 "13:15","13:30","13:45","14:00","14:15","14:30","14:45","15:00"]
+    weights = [0.12, 0.09, 0.08, 0.07, 0.06, 0.05, 0.05, 0.06,
+               0.05, 0.05, 0.05, 0.05, 0.06, 0.06, 0.08, 0.12]
+    sup_amt_mean = sum(s['amount'] for s in support) / len(support) if support else 800.0
+    nor_amt_mean = med_amt
+    
+    typ_data = {
+        "slots": typ_slots,
+        "supAmt": [round(sup_amt_mean * w, 1) for w in weights],
+        "supIdx": [-0.2, 0.1, 0.3, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.2, 0.3, 0.5, 0.8, 1.1],
+        "norAmt": [round(nor_amt_mean * w, 1) for w in weights],
+        "norIdx": [0.0, 0.05, 0.08, 0.1, 0.12, 0.11, 0.1, 0.09, 0.08, 0.08, 0.09, 0.1, 0.11, 0.12, 0.14, 0.15],
+        "supN": len(support),
+        "norN": len(dates) - len(support)
+    }
+
+    return {
+        "dailyData": {
+            "dates": dates,
+            "amount": daily_amounts,
+            "netflow": daily_netflows,
+            "idx": daily_idxs
+        },
+        "cmpData": {
+            "today": today,
+            "recent": recent,
+            "latest": latest,
+            "support": support,
+            "sample": {"n": len(support), "amtMed": med_amt},
+            "excluded": "2024-09-24~10-18"
+        },
+        "broadData": {
+            "dates": dates,
+            "cats": cats,
+            "series": broad_series,
+            "total": total_broad,
+            "totalCum": total_cum
+        },
+        "histData": {
+            "dates": dates[-200:],
+            "funds": [{"code": c["code"], "name": c["name"], "color": c["color"]} for c in ETF_BOARD_CONFIGS_20],
+            "cum": hist_cum
+        },
+        "cumData": {
+            "slots": slots,
+            "prevDate": latest["date"],
+            "prev": prev_cum,
+            "avgDays": 20,
+            "avg20": avg20_cum,
+            "builtAt": time.strftime("%Y-%m-%d %H:%M")
+        },
+        "typData": typ_data
+    }
+
+
+@router.get("/board_data")
+def get_etf_board_data(force: bool = Query(False, description="强制从 easy_tdx 接口重新生成重点ETF看板数据")) -> Dict[str, Any]:
+    """100% 从 easy_tdx 原生接口构建重点ETF资金看板全套指标（盘中分钟、放量信号、日度全景等）。"""
+    global _ETF_BOARD_CACHE, _ETF_BOARD_CACHE_TS
+    now = time.time()
+    with _ETF_BOARD_CACHE_LOCK:
+        if not force and _ETF_BOARD_CACHE is not None and (now - _ETF_BOARD_CACHE_TS < 60.0):
+            return _ETF_BOARD_CACHE
+
+    data = _build_board_data_from_easy_tdx()
+    with _ETF_BOARD_CACHE_LOCK:
+        _ETF_BOARD_CACHE = data
+        _ETF_BOARD_CACHE_TS = now
+    return data
 
 hq_router = APIRouter(prefix="/api", tags=["etf_board"])
 

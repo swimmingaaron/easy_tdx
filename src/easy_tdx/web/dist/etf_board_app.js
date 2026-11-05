@@ -531,7 +531,7 @@
   setInterval(tick, 1000);
 })();
 
-(function () {
+window.renderEtfPart2 = function renderEtfPart2() {
   "use strict";
   var D = (window.__ISLANDS && window.__ISLANDS.cmpData) || {};
   var support = D.support || [], today = D.today || {}, recent = D.recent || [], latest = D.latest || {};
@@ -552,7 +552,7 @@
   var nfTag = document.getElementById("tagNf");
   nfTag.textContent = "最新净流入（" + latest.date + "，T-1）：" + fmt(latest.netflow, 1) +
     "亿 ｜ 成交额 " + fmt(latest.amount, 1) + "亿" +
-    (stale ? " ｜ 待更新：应为 " + expect + "（重跑 tools/fetch_netflow.py）" : "");
+    (stale ? " ｜ 待更新：应为 " + expect + "（重跑 easy_tdx 接口同步中…）" : "");
   if (stale) nfTag.className = "tag warn";
 
   var c1 = null, c2 = null;
@@ -660,7 +660,7 @@
   }
 
   /* 从 dailyData 取最近 N 个「去重」交易日作为境外黄柱 —— dailyData 是唯一真源，每日由
-     tools/fetch_netflow.py 追加。早前用 cmpData.recent + cmpData.today 拼接：dailyData 一旦
+     easy_tdx 接口同步中… 追加。早前用 cmpData.recent + cmpData.today 拼接：dailyData 一旦
      已含当日，两者同日期会被 buildSeries 去重，标题写「最近3个交易日」却只画出 2 根。 */
   var dailyD = (window.__ISLANDS && window.__ISLANDS.dailyData) || {};
   var TRAIL_AMT = 3, TRAIL_NF = 2;
@@ -806,10 +806,11 @@
       loopRefresh();
     }, 60000 + Math.floor(Math.random() * 15000));
   })();
-  on(window, "resize", function () { c1.resize(); c2.resize(); });
-})();
+  on(window, "resize", function () { if (c1 && c1.resize) c1.resize(); if (c2 && c2.resize) c2.resize(); });
+};
+renderEtfPart2();
 
-(function () {
+window.renderEtfPart3 = function renderEtfPart3() {
   "use strict";
   var D = (window.__ISLANDS && window.__ISLANDS.dailyData) || {};
   var dates = D.dates || [], amount = D.amount || [], netflow = D.netflow || [], idx = D.idx || [];
@@ -869,9 +870,10 @@
   c2.setOption(baseOption("20只ETF日度净流入（申赎口径）与上证综指", "20只ETF日度净流入", nfData(), tooltipFmt("nf")), true);
   charts = [c1, c2];
   on(window, "resize", function () { charts.forEach(function (c) { if (c && c.resize) c.resize(); }); });
-})();
+};
+renderEtfPart3();
 
-(function () {
+window.renderEtfTyp = function renderEtfTyp() {
   "use strict";
   var D = (window.__ISLANDS && window.__ISLANDS.typData) || {};
   var slots = D.slots || [], supAmt = D.supAmt || [], norAmt = D.norAmt || [], supIdx = D.supIdx || [], norIdx = D.norIdx || [];
@@ -912,14 +914,15 @@
 
   var c1 = draw("chartTypCase", "放量案例日 · 20大ETF量能与上证综指（15分钟均值）", "放量案例日成交额均值", supAmt, supIdx, "#d93630");
   var c2 = draw("chartTypNorm", "常态交易日 · 20大ETF量能与上证综指（15分钟均值）", "常态日成交额均值", norAmt, norIdx, "#4c7bf3");
-  on(window, "resize", function () { c1.resize(); c2.resize(); });
-})();
+  on(window, "resize", function () { if (c1 && c1.resize) c1.resize(); if (c2 && c2.resize) c2.resize(); });
+};
+renderEtfTyp();
 
 /* ==========================================================================
    第三部分补充图（2026-10-15 换仓后新增）
    全市场宽基ETF日度净流入（按跟踪指数分类堆积）+ 累计净流入线（右轴）
    ========================================================================== */
-(function () {
+window.renderEtfBroad = function renderEtfBroad() {
   "use strict";
   var I = (window.__ISLANDS) || {};
   var BR = I.broadData || {};
@@ -1016,7 +1019,8 @@
     html += "</tbody>";
     document.getElementById("broadTable").innerHTML = html;
   }
-})();
+};
+renderEtfBroad();
 
 /* ==========================================================================
    区间框选求和
@@ -1169,3 +1173,39 @@ window.addEventListener('resize', function () {
     window.resizeEtfBoardCharts();
   }
 });
+
+
+window.renderAllEtfSections = function () {
+  if (typeof window.renderEtfPart2 === "function") window.renderEtfPart2();
+  if (typeof window.renderEtfPart3 === "function") window.renderEtfPart3();
+  if (typeof window.renderEtfTyp === "function") window.renderEtfTyp();
+  if (typeof window.renderEtfBroad === "function") window.renderEtfBroad();
+  if (typeof window.loadEtfMinuteLive === "function") window.loadEtfMinuteLive(true);
+  if (typeof window.refreshEtfToday === "function") window.refreshEtfToday();
+};
+
+window.initEtfBoardFromEasyTdx = function (force) {
+  return fetch("/api/etf/board_data" + (force ? "?force=true" : ""))
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      if (data && typeof data === "object") {
+        window.__ISLANDS = data;
+        window.renderAllEtfSections();
+      }
+      return data;
+    })
+    .catch(function (err) {
+      console.warn("[easy_tdx] 获取重点ETF看板数据失败:", err);
+    });
+};
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", function () {
+    window.initEtfBoardFromEasyTdx();
+  });
+} else {
+  window.initEtfBoardFromEasyTdx();
+}

@@ -7395,6 +7395,7 @@
                             setTimeout(() => {
                                 if (typeof resizeEtfBoardCharts === 'function') resizeEtfBoardCharts();
                                 if (typeof initEtfDataView === 'function') initEtfDataView();
+                                if (typeof window.initEtfBoardFromEasyTdx === 'function') window.initEtfBoardFromEasyTdx();
                                 if (typeof window.loadEtfMinuteLive === 'function') window.loadEtfMinuteLive(true);
                                 if (typeof window.refreshEtfToday === 'function') window.refreshEtfToday();
                                 if (window._etfChartTotal) window._etfChartTotal.resize();
@@ -33432,8 +33433,7 @@
 
 </script>
 
-    <script src="/etf_board_data.js"></script>
-    <script src="/etf_board_app.js"></script>
+        <script src="/etf_board_app.js"></script>
 
 <script>
 
