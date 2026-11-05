@@ -4746,9 +4746,9 @@
                 <!-- Row 1: Stock Symbol, Name, Live Price, Strategy/Resonance Status, Visible Extrema, Valuation & Tools -->
                 <div class="border-b border-slate-200 dark:border-slate-800/80 pb-2 space-y-2 relative z-40 overflow-visible">
                     <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap gap-y-1.5">
-                        <span id="cl-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">主</span>
-                        <span id="cl-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">000001.SZ</span>
-                        <span id="cl-stock-name" class="text-sm sm:text-base font-semibold text-slate-200 whitespace-nowrap">平安银行</span>
+                        <span id="cl-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">--</span>
+                        <span id="cl-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">--</span>
+                        <span id="cl-stock-name" class="text-sm sm:text-base font-semibold text-slate-200 whitespace-nowrap">正在载入K线...</span>
 
                         <div class="flex items-baseline space-x-1 font-mono ml-1">
                             <span id="cl-price" class="text-base sm:text-lg font-black text-rose-500">--</span>
@@ -4838,7 +4838,7 @@
                         <div class="relative shrink-0 z-50">
                             <div class="relative flex items-center">
                                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2 text-purple-400 pointer-events-none"></i>
-                                <input type="text" id="cl-stock-input" value="000001" placeholder="🔍 股票代码/拼音/名称..." autocomplete="off"
+                                <input type="text" id="cl-stock-input" value="" placeholder="🔍 股票代码/拼音/名称..." autocomplete="off"
                                     oninput="window.triggerChanlunSearchInput(this.value)"
                                     onfocus="setTimeout(() => this.select(), 0); window.triggerChanlunSearchInput(this.value);"
                                     onclick="this.select()"
@@ -7558,6 +7558,35 @@
             }, { passive: true });
         })();
 
+        function syncChanlunTargetUI(code, name) {
+            if (!code) return;
+            const cleanCode = String(code).trim().replace(/[^0-9]/g, '');
+            if (!cleanCode) return;
+            const isSectorIndex = cleanCode.startsWith('88');
+            const isBJ = cleanCode.startsWith('8') || cleanCode.startsWith('4') || cleanCode.startsWith('9');
+            const fullSym = isSectorIndex ? `${cleanCode}.HY` : `${cleanCode}.${cleanCode.startsWith('6') ? 'SH' : isBJ ? 'BJ' : 'SZ'}`;
+            const sName = name || cleanCode;
+            
+            const fullSymEl = document.getElementById('cl-full-symbol');
+            if (fullSymEl) fullSymEl.innerText = fullSym;
+            
+            const nameEl = document.getElementById('cl-stock-name');
+            if (nameEl) nameEl.innerText = sName;
+            
+            const inp = document.getElementById('cl-stock-input');
+            if (inp) inp.value = cleanCode;
+            
+            const badgeEl = document.getElementById('cl-board-badge');
+            if (badgeEl) {
+                if (isSectorIndex) badgeEl.innerText = '板';
+                else if (cleanCode.startsWith('688')) badgeEl.innerText = '科';
+                else if (cleanCode.startsWith('30')) badgeEl.innerText = '创';
+                else if (isBJ) badgeEl.innerText = '北';
+                else badgeEl.innerText = '主';
+            }
+        }
+        window.syncChanlunTargetUI = syncChanlunTargetUI;
+
         function restoreInitialTab() {
             let targetTab = window.__RESOLVED_INITIAL_TAB__ || 'dashboard';
             const rawHash = (window.location.hash || '').replace('#', '').trim();
@@ -7573,15 +7602,18 @@
             if (targetTab === 'chanlun') {
                 const params = new URLSearchParams(queryStr || window.location.search || '');
                 const sym = params.get('symbol') || params.get('code');
+                const symName = params.get('name');
                 if (sym) {
                     const cleanCode = sym.trim().replace(/[^0-9]/g, '');
                     if (cleanCode) {
                         window._clCurrentCode = cleanCode;
                         window._clCurrentCodeChangedByUser = true;
+                        if (symName) window._clCurrentName = symName;
                         if (typeof _clCurrentCode !== 'undefined') {
                             _clCurrentCode = cleanCode;
                             _clCurrentCodeChangedByUser = true;
                         }
+                        syncChanlunTargetUI(cleanCode, symName);
                     }
                 }
             }
@@ -7602,8 +7634,12 @@
                     updateOptimizeKlineHint();
                 }
             } else if (targetTab === 'chanlun') {
-                const clInp = document.getElementById('cl-stock-input');
-                if (clInp && window._clCurrentCode) clInp.value = window._clCurrentCode;
+                const params = new URLSearchParams(queryStr || window.location.search || '');
+                const sym = params.get('symbol') || params.get('code') || window._clCurrentCode;
+                const symName = params.get('name') || window._clCurrentName;
+                if (sym) {
+                    syncChanlunTargetUI(sym, symName);
+                }
             }
         }
 
@@ -7647,7 +7683,8 @@
             const cleanCode = code.toString().trim().replace(/[^0-9]/g, '');
             if (!cleanCode) return;
             const pParam = periods ? `&periods=${encodeURIComponent(periods)}` : '';
-            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${pParam}`;
+            const nParam = name ? `&name=${encodeURIComponent(name)}` : '';
+            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${nParam}${pParam}`;
 
             // 保存来源标的池（自选监控池、交易系统行情池、选股策略等）至 localStorage，以便在新标签页中可直接上下切换
             let foundNavList = (Array.isArray(navList) && navList.length > 0) ? navList : null;
@@ -8981,7 +9018,8 @@
             const cleanCode = String(currentKpSymbol || '').replace(/[^0-9]/g, '');
             const clLink = document.getElementById('kp-chanlun-link');
             if (clLink) {
-                clLink.href = cleanCode ? `/#chanlun?code=${cleanCode}` : '/#chanlun';
+                const nParam = currentKpStockName ? `&name=${encodeURIComponent(currentKpStockName)}` : '';
+                clLink.href = cleanCode ? `/#chanlun?code=${cleanCode}${nParam}` : '/#chanlun';
                 clLink.title = `在新的标签页中打开【${currentKpStockName || cleanCode}】(${cleanCode}) 缠论K线`;
             }
             updateKlineNavButtons();
@@ -11554,7 +11592,9 @@
             const raw = String(currentKpSymbol || '').trim();
             const cleanCode = raw.replace(/[^0-9]/g, '');
             if (!cleanCode) return;
-            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}`;
+            const rawName = String(currentKpStockName || '').trim();
+            const nParam = rawName ? `&name=${encodeURIComponent(rawName)}` : '';
+            const targetUrl = `${window.location.origin}/#chanlun?code=${cleanCode}${nParam}`;
             window.open(targetUrl, '_blank');
             if (event) {
                 try { event.preventDefault(); } catch (e) { }
@@ -25565,11 +25605,21 @@
             const m = raw.match(/[?&#](?:code|symbol)=([0-9a-zA-Z]+)/i);
             return m && m[1] ? m[1].trim().replace(/[^0-9a-zA-Z]/g, '') : null;
         }
+        function getChanlunUrlName() {
+            const raw = (window.location.hash || '') + '&' + (window.location.search || '');
+            const m = raw.match(/[?&#]name=([^&#]+)/i);
+            return m && m[1] ? decodeURIComponent(m[1].trim()) : null;
+        }
         const _initUrlCode = getChanlunUrlCode();
+        const _initUrlName = getChanlunUrlName();
         let _clCurrentCode = _initUrlCode || window._clCurrentCode || '000001';
         let _clCurrentCodeChangedByUser = !!_initUrlCode || window._clCurrentCodeChangedByUser || false;
         window._clCurrentCode = _clCurrentCode;
+        if (_initUrlName) window._clCurrentName = _initUrlName;
         window._clCurrentCodeChangedByUser = _clCurrentCodeChangedByUser;
+        if (_initUrlCode) {
+            syncChanlunTargetUI(_initUrlCode, _initUrlName);
+        }
         let _clWindowMode = 'quad'; // 'quad' (四窗口) | 'dual' (双窗口) | 'single' (单窗口全屏)
         let _clLeftPeriods = 'SEASON,MONTH,WEEK';   // 窗口 1: 季·月·周
         let _clW2Periods = 'MONTH,WEEK,DAY';      // 窗口 2: 月·周·日
@@ -25950,12 +26000,15 @@
             setActiveChanlunWindow(_clActiveWindow || 'left');
 
             // 若 URL 中携带了股票代码，始终强制同步并置为用户主动指定
-            const urlCode = getChanlunUrlCode();
+            const urlCode = getChanlunUrlCode() || window._clCurrentCode;
+            const urlName = getChanlunUrlName() || window._clCurrentName;
             if (urlCode) {
                 _clCurrentCode = urlCode;
                 window._clCurrentCode = urlCode;
                 _clCurrentCodeChangedByUser = true;
                 window._clCurrentCodeChangedByUser = true;
+                if (urlName) window._clCurrentName = urlName;
+                syncChanlunTargetUI(urlCode, urlName);
             }
             if (typeof updateChanlunNavButtons === 'function') {
                 updateChanlunNavButtons();
@@ -30068,11 +30121,13 @@
             selectChanlunStock(codeVal.trim());
         }
 
-        function selectChanlunStock(codeVal) {
+        function selectChanlunStock(codeVal, nameVal = '') {
             _clCurrentCode = codeVal;
             window._clCurrentCode = codeVal;
             _clCurrentCodeChangedByUser = true;
             window._clCurrentCodeChangedByUser = true;
+            if (nameVal) window._clCurrentName = nameVal;
+            syncChanlunTargetUI(codeVal, nameVal || window._clCurrentName);
             _clWindowCustomCounts = { left: 800, w2: 800, right: 800, w4: 800 };
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
