@@ -5042,7 +5042,7 @@
                     </div>
 
                     <!-- 顶部条：第1窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0 flex-nowrap overflow-hidden h-7.5 min-h-[30px] max-h-[30px]">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-left" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗1: 季·月·周</span>
                             <div id="cl-chart-title-tag" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
@@ -5098,7 +5098,7 @@
                     </div>
 
                     <!-- 顶部条：第2窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0 flex-nowrap overflow-hidden h-7.5 min-h-[30px] max-h-[30px]">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w2" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗2: 月·周·日</span>
                             <div id="cl-chart-title-tag-w2" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
@@ -5154,7 +5154,7 @@
                     </div>
 
                     <!-- 顶部条：第3窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0 flex-nowrap overflow-hidden h-7.5 min-h-[30px] max-h-[30px]">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-right" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗3: 周·日·30F</span>
                             <div id="cl-chart-title-tag-right" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
@@ -5213,7 +5213,7 @@
                     </div>
 
                     <!-- 顶部条：第4窗标识 + 预设切换 + 形态胶囊 -->
-                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-1.5 mb-1 px-1 shrink-0 flex-nowrap overflow-hidden h-7.5 min-h-[30px] max-h-[30px]">
                         <div class="flex items-center space-x-2">
                             <span id="cl-pill-w4" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shrink-0 shadow-xs">窗4: 日·30F·5F</span>
                             <div id="cl-chart-title-tag-w4" class="text-[11.5px] font-bold font-mono text-slate-800 dark:text-slate-200 tracking-wide flex items-center">
@@ -29286,6 +29286,7 @@
                     alwaysShowContent: false,
                     axisPointer: {
                         type: 'cross',
+                        snap: true,
                         lineStyle: { color: isDark ? 'rgba(255, 255, 255, 0.35)' : 'rgba(0, 0, 0, 0.35)', type: 'dashed' },
                         label: { backgroundColor: axisPointerBg }
                     },
@@ -29536,8 +29537,8 @@
                     }
                 },
                 grid: [
-                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 24 : 32), top: (side === 'sector' ? 28 : 38), bottom: isSubNone ? 28 : '24%' },
-                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 24 : 32), height: isSubNone ? 0 : '14%', bottom: 25, show: !isSubNone }
+                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 28 : 48), top: (side === 'sector' ? 28 : 38), bottom: isSubNone ? 28 : '24%' },
+                    { left: (side === 'sector' ? 38 : 52), right: (side === 'sector' ? 28 : 48), height: isSubNone ? 0 : '14%', bottom: 25, show: !isSubNone }
                 ],
                 xAxis: [
                     {
@@ -29546,7 +29547,7 @@
                         gridIndex: 0,
                         axisLine: { lineStyle: { color: axisColor } },
                         axisLabel: { show: isSubNone, color: textColor, fontSize: 10 },
-                        axisPointer: { label: { show: isSubNone, backgroundColor: axisPointerBg } },
+                        axisPointer: { snap: true, label: { show: isSubNone, backgroundColor: axisPointerBg } },
                         splitLine: { show: true, lineStyle: { color: splitColor, type: 'dashed' } }
                     },
                     {
@@ -29556,7 +29557,7 @@
                         show: !isSubNone,
                         axisLine: { lineStyle: { color: axisColor } },
                         axisLabel: { show: !isSubNone, color: textColor, fontSize: 10 },
-                        axisPointer: { label: { show: !isSubNone, backgroundColor: axisPointerBg } },
+                        axisPointer: { snap: true, label: { show: !isSubNone, backgroundColor: axisPointerBg } },
                         splitLine: { show: !isSubNone, lineStyle: { color: splitColor, type: 'dashed' } }
                     }
                 ],
@@ -29570,7 +29571,16 @@
                         max: finalYMax,
                         splitLine: { lineStyle: { color: splitColor } },
                         axisLine: { lineStyle: { color: axisColor } },
-                        axisLabel: { color: textColor, fontSize: 10, formatter: v => `¥${v.toFixed(2)}` }
+                        axisLabel: { color: textColor, fontSize: 10, align: 'left', formatter: v => `¥${v.toFixed(2)}` },
+                        axisPointer: {
+                            show: true,
+                            snap: false,
+                            label: {
+                                show: true,
+                                backgroundColor: axisPointerBg,
+                                formatter: (params) => `¥${Number(params.value).toFixed(2)}`
+                            }
+                        }
                     },
                     subYAxis
                 ],
@@ -29701,10 +29711,10 @@
             const chgStr = `${chgSign}${numChg.toFixed(2)}%`;
 
             priceEl.textContent = priceStr;
-            priceEl.className = `stock-title-price font-bold font-mono text-[12px] ml-2 ${colorClass}`;
+            priceEl.className = `stock-title-price font-bold font-mono text-[12px] ml-2 shrink-0 whitespace-nowrap ${colorClass}`;
 
             chgEl.textContent = chgStr;
-            chgEl.className = `stock-title-chg font-bold font-mono text-[11px] ml-1.5 ${colorClass}`;
+            chgEl.className = `stock-title-chg font-bold font-mono text-[11px] ml-1.5 shrink-0 whitespace-nowrap ${colorClass}`;
         }
 
         function renderSingleChanlunChart(side, d, customPrevZoom = null) {
@@ -29759,11 +29769,7 @@
                 }
             }
             if (!instance) {
-                instance = echarts.init(chartDom, isDark ? 'dark' : null, {
-                    renderer: 'canvas',
-                    useDirtyRect: true, // 启用局部脏矩形重绘算法：鼠标移动时仅重绘发生变化的局部区域，CPU/GPU开销骤降70%~85%
-                    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5) // 控制高分屏超采样DPI，大幅减轻显存与画布填充负载
-                });
+                instance = echarts.init(chartDom, isDark ? 'dark' : null);
                 instance._clThemeMode = isDark ? 'dark' : 'light';
                 instance.on('dataZoom', (params) => {
                     updateChanlunVisibleExtrema(side, params);
@@ -29810,9 +29816,9 @@
                 const chgStr = `${chgSign}${lastChgPct.toFixed(2)}%`;
 
                 titleEl.innerHTML = `
-                    <span class="stock-title-name font-bold tracking-tight">${d.code} | ${d.name}</span>
-                    <span id="${titleElId}-price" class="stock-title-price font-bold font-mono text-[12px] ml-2 ${colorClass}">${priceStr}</span>
-                    <span id="${titleElId}-chg" class="stock-title-chg font-bold font-mono text-[11px] ml-1.5 ${colorClass}">${chgStr}</span>
+                    <span class="stock-title-name font-bold tracking-tight whitespace-nowrap">${d.code} | ${d.name}</span>
+                    <span id="${titleElId}-price" class="stock-title-price font-bold font-mono text-[12px] ml-2 shrink-0 whitespace-nowrap ${colorClass}">${priceStr}</span>
+                    <span id="${titleElId}-chg" class="stock-title-chg font-bold font-mono text-[11px] ml-1.5 shrink-0 whitespace-nowrap ${colorClass}">${chgStr}</span>
                 `;
             }
             const patternOverlay = document.getElementById(patternElId);
