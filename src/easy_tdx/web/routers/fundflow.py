@@ -468,57 +468,101 @@ def _generate_intraday_timeline() -> Tuple[List[str], int, str]:
     return times, cur_idx, display_time
 
 
-def _compute_intraday_flow_series(code: str, name: str, final_yi: float, num_points: int = 241) -> List[float]:
-    """Compute volume-weighted Brownian bridge cumulative flow series constrained to start at 0 and end at final_yi."""
+def _compute_intraday_flow_series(
+    code: str,
+    name: str,
+    final_yi: float,
+    cur_idx: int = 240,
+    times: Optional[List[str]] = None,
+    num_points: int = 241,
+) -> List[float]:
+    """
+    Compute volume-weighted Brownian bridge cumulative flow series.
+    Constrained to start at 0.0 at index 0 (09:30) and reach final_yi at cur_idx (the current minute).
+    Only 1-minute bars belonging to the latest trading session (today) are used.
+    """
     import numpy as np
     from easy_tdx.market_data import fetch_security_kline
 
+    cur_idx = max(0, min(num_points - 1, cur_idx))
     series_yi = None
+
+    if cur_idx == 0:
+        return [0.0] * num_points
+
     try:
         df = fetch_security_kline(code, category="1m", count=num_points)
-        if df is not None and len(df) >= 30:
-            spread = df["high"] - df["low"]
-            ratio = np.where(
-                spread > 0,
-                ((df["close"] - df["low"]) - (df["high"] - df["close"])) / spread,
-                np.where(df["close"] >= df["open"], 0.5, -0.5),
-            )
-            raw_flow = df["amount"] * ratio
-            cum_raw = np.cumsum(raw_flow)
-            cum_amt = np.cumsum(df["amount"])
-            total_amt = cum_amt.iloc[-1] if cum_amt.iloc[-1] > 0 else 1.0
+        if df is not None and len(df) >= 2:
+            latest_date = str(df["datetime"].iloc[-1])[:10]
+            df_today = df[df["datetime"].astype(str).str.startswith(latest_date)].copy()
+            if len(df_today) >= 2:
+                spread = df_today["high"] - df_today["low"]
+                ratio = np.where(
+                    spread > 0,
+                    ((df_today["close"] - df_today["low"]) - (df_today["high"] - df_today["close"])) / spread,
+                    np.where(df_today["close"] >= df_today["open"], 0.5, -0.5),
+                )
+                raw_flow = df_today["amount"] * ratio
+                cum_raw = np.cumsum(raw_flow).values
+                cum_amt = np.cumsum(df_today["amount"]).values
+                total_amt = cum_amt[-1] if cum_amt[-1] > 0 else 1.0
 
-            progress = cum_amt / total_amt
-            target_final = final_yi * 1e8
+                progress = cum_amt / total_amt
+                target_final = final_yi * 1e8
 
-            trend = target_final * progress
-            bridge = cum_raw - cum_raw.iloc[-1] * progress
-            max_bridge = np.max(np.abs(bridge)) if np.max(np.abs(bridge)) > 0 else 1.0
+                trend = target_final * progress
+                bridge = cum_raw - cum_raw[-1] * progress
+                max_bridge = np.max(np.abs(bridge)) if np.max(np.abs(bridge)) > 0 else 1.0
 
-            osc_weight = min(0.35, abs(target_final) / max_bridge) if abs(target_final) > 0 else 0.05
-            curve = trend + bridge * osc_weight
+                osc_weight = min(0.35, abs(target_final) / max_bridge) if abs(target_final) > 0 else 0.05
+                curve = (trend + bridge * osc_weight) / 1e8
 
-            cap = max(abs(final_yi) * 1.5, 2.0)
-            vals = np.clip(curve / 1e8, -cap, cap).tolist()
+                cap = max(abs(final_yi) * 1.5, 2.0)
+                vals_today = np.clip(curve, -cap, cap).tolist()
 
-            vals[0] = 0.0
-            if len(vals) < num_points:
-                vals.extend([vals[-1]] * (num_points - len(vals)))
-            elif len(vals) > num_points:
-                vals = vals[:num_points]
-            vals[-1] = round(final_yi, 2)
-            series_yi = [round(v, 2) for v in vals]
+                series = [0.0] * num_points
+                if times and len(times) == num_points:
+                    time_to_idx = {t: i for i, t in enumerate(times)}
+                    for dt_val, v in zip(df_today["datetime"], vals_today):
+                        t_str = str(dt_val)[-5:]
+                        if t_str in time_to_idx:
+                            idx = time_to_idx[t_str]
+                            if idx <= cur_idx:
+                                series[idx] = round(float(v), 2)
+                else:
+                    mapped_indices = np.linspace(0, cur_idx, len(vals_today), dtype=int)
+                    for idx, v in zip(mapped_indices, vals_today):
+                        series[idx] = round(float(v), 2)
+
+                running_val = 0.0
+                for i in range(1, cur_idx + 1):
+                    if series[i] == 0.0 and running_val != 0.0:
+                        series[i] = running_val
+                    elif series[i] != 0.0:
+                        running_val = series[i]
+
+                series[0] = 0.0
+                series[cur_idx] = round(final_yi, 2)
+                for i in range(cur_idx + 1, num_points):
+                    series[i] = series[cur_idx]
+
+                series_yi = series
     except Exception:
         pass
 
     if not series_yi:
-        x = np.linspace(0, 1, num_points)
+        series = [0.0] * num_points
+        x = np.linspace(0, 1, cur_idx + 1)
         seed = sum(ord(c) for c in name) % 100
         noise = 0.12 * np.sin(x * np.pi * 3 + seed) * (1 - np.exp(-3 * x))
         base_curve = (np.power(x, 0.8) + noise) * final_yi
         base_curve[0] = 0.0
         base_curve[-1] = final_yi
-        series_yi = [round(float(v), 2) for v in base_curve]
+        for i, v in enumerate(base_curve):
+            series[i] = round(float(v), 2)
+        for i in range(cur_idx + 1, num_points):
+            series[i] = series[cur_idx]
+        series_yi = series
 
     return series_yi
 
@@ -576,7 +620,7 @@ def get_sectors_intraday_flows(
         amt_yi = float(s.get("amount_yi", 0.0))
         chg_pct = float(s.get("change_pct", 0.0))
 
-        series_yi = _compute_intraday_flow_series(code, name, final_yi, num_points=num_points)
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points)
 
         return {
             "code": code,
@@ -681,7 +725,7 @@ def get_constituents_intraday_flows(
         amt_yi = round(float(s.get("amount_yi", 0.0)), 2)
         chg_pct = round(float(s.get("change_pct", 0.0)), 2)
 
-        series_yi = _compute_intraday_flow_series(code, name, final_yi, num_points=num_points)
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points)
 
         return {
             "code": code,
