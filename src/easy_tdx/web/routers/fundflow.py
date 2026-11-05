@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, Query
 
@@ -10,12 +11,14 @@ from easy_tdx.trading_system.engine import evaluate_universe
 from easy_tdx.market_data import fetch_realtime_pool_quotes
 from easy_tdx.screener.universe import get_universe_symbols
 from easy_tdx.watchlist_store import load_watchlist
+from easy_tdx.market_overview import is_trading_time
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/fundflow", tags=["fundflow"])
 
 _FF_MEM_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_FF_QUOTES_CACHE: Dict[str, Tuple[float, Dict[str, Dict[str, Any]]]] = {}
 
 UNIV_NAMES = {
     "core": "核心龙头 (159只)",
@@ -74,10 +77,12 @@ def scan_fund_flow(
     force_ref = bool(force_refresh if isinstance(force_refresh, bool) else getattr(force_refresh, "default", False))
 
     now_ts = time.time()
+    today_str = date.today().strftime("%Y-%m-%d")
     cache_key = f"{univ_key}_{strat_key}_{min_inf}_{ind_filter}_{search_kw}_{sort_c}_{sort_d}_{lim}"
     if not force_ref and cache_key in _FF_MEM_CACHE:
         c_time, c_data = _FF_MEM_CACHE[cache_key]
-        if now_ts - c_time < 5.0:
+        mem_ttl = 3.0 if is_trading_time() else 30.0
+        if now_ts - c_time < mem_ttl:
             return c_data
 
     try:
@@ -90,37 +95,53 @@ def scan_fund_flow(
             stocks = [dict(s) for s in all_stocks]
             target_symbols = [s.get("stock_code") for s in stocks if s.get("stock_code")]
 
-        if force_ref and target_symbols:
+        # 实时行情与主力资金流叠加 (开盘交易时段、强制刷新或行情缓存超时后自动拉取)
+        q_ttl = 4.0 if is_trading_time() else 60.0
+        cached_quotes = _FF_QUOTES_CACHE.get(univ_key)
+        need_fetch_quotes = force_ref or (cached_quotes is None) or (now_ts - cached_quotes[0] >= q_ttl)
+
+        if need_fetch_quotes and target_symbols:
             try:
                 quotes = fetch_realtime_pool_quotes(target_symbols)
-                q_map = {q["code"]: q for q in quotes if "code" in q}
-                for s in stocks:
-                    sc = s.get("stock_code")
-                    if sc in q_map:
-                        q = q_map[sc]
-                        p = float(q.get("price") or q.get("close") or s.get("close", 0))
-                        if p > 0:
-                            s["close"] = p
-                        if "change_pct" in q:
-                            s["pct"] = float(q["change_pct"])
-                        if "high" in q and float(q["high"]) > 0:
-                            s["high"] = float(q["high"])
-                        if "low" in q and float(q["low"]) > 0:
-                            s["low"] = float(q["low"])
-                        if "open" in q and float(q["open"]) > 0:
-                            s["open"] = float(q["open"])
-                        if "turnover_wan" in q:
-                            s["amount"] = float(q["turnover_wan"]) * 10000.0
-                        elif "amount" in q:
-                            s["amount"] = float(q["amount"])
-                        if "turnover_rate" in q:
-                            s["t_rate"] = float(q["turnover_rate"])
-                        if "vol_ratio" in q:
-                            s["v_rate"] = float(q["vol_ratio"])
-                        if "main_net_amount" in q:
-                            s["dde_net"] = float(q["main_net_amount"])
+                if quotes:
+                    q_map = {q["code"]: q for q in quotes if "code" in q}
+                    _FF_QUOTES_CACHE[univ_key] = (now_ts, q_map)
             except Exception as q_err:
-                logger.warning(f"Failed to fetch realtime quotes on fundflow refresh: {q_err}")
+                logger.warning(f"Failed to fetch realtime quotes on fundflow refresh ({univ_key}): {q_err}")
+
+        q_map = _FF_QUOTES_CACHE.get(univ_key, (0, {}))[1]
+        has_realtime = bool(q_map)
+
+        if has_realtime:
+            record_date = today_str
+            for s in stocks:
+                sc = s.get("stock_code")
+                if sc in q_map:
+                    q = q_map[sc]
+                    p = float(q.get("price") or q.get("close") or s.get("close", 0))
+                    if p > 0:
+                        s["close"] = p
+                    if "change_pct" in q:
+                        s["pct"] = float(q["change_pct"])
+                    if "high" in q and float(q["high"]) > 0:
+                        s["high"] = float(q["high"])
+                    if "low" in q and float(q["low"]) > 0:
+                        s["low"] = float(q["low"])
+                    if "open" in q and float(q["open"]) > 0:
+                        s["open"] = float(q["open"])
+                    if "turnover_wan" in q:
+                        s["amount"] = float(q["turnover_wan"]) * 10000.0
+                    elif "amount" in q:
+                        s["amount"] = float(q["amount"])
+                    if "turnover_rate" in q:
+                        s["t_rate"] = float(q["turnover_rate"])
+                    if "vol_ratio" in q:
+                        s["v_rate"] = float(q["vol_ratio"])
+                    if "main_net_amount" in q:
+                        s["dde_net"] = float(q["main_net_amount"])
+                    s["record_date"] = today_str
+        else:
+            record_date = str(stocks[0].get("record_date") or today_str).strip() if stocks else today_str
     except Exception as e:
         logger.error(f"Error evaluating universe for fundflow: {e}")
         return {"success": False, "error": str(e), "rows": [], "summary": {}}
@@ -162,7 +183,7 @@ def scan_fund_flow(
     strategy_counts = {k: 0 for k in STRAT_META}
     strategy_counts["all"] = 0
 
-    record_date = str(stocks[0].get("record_date") or "").strip() if stocks else ""
+    # record_date already resolved above based on realtime quotes / base cache
 
     total_market_turnover = 0.0
     total_net_inflow = 0.0
@@ -295,6 +316,7 @@ def scan_fund_flow(
             "matched_ids": [m["id"] for m in matched_strats],
             "reason": primary_reason,
             "is_optional": code in wl_set,
+            "record_date": record_date,
         })
 
     # Top 5 sectors by net inflow
@@ -378,6 +400,7 @@ def scan_fund_flow(
             "universe": univ_key,
             "universe_name": UNIV_NAMES.get(univ_key, "全市场 (5000+全量A股)"),
             "record_date": record_date,
+            "is_realtime": has_realtime,
             "universe_total": len(stocks),
             "total_market_turnover": total_market_turnover,
             "total_market_turnover_str": _fmt_money(total_market_turnover),
