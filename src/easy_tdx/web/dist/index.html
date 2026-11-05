@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>easy_tdx 量化投研与监控工作台</title>
-    <!-- Pre-hydration theme detection: avoids FOUC -->
+    <!-- Pre-hydration theme detection & Tab routing: avoids FOUC and dashboard flashing -->
     <script>
         window.lucide = window.lucide || { createIcons: function () { } };
         (function () {
@@ -18,6 +18,32 @@
                 } else {
                     document.documentElement.classList.add('dark');
                     document.documentElement.classList.remove('light');
+                }
+
+                // Pre-resolve initial tab before DOM paints to prevent dashboard flashing on jump or refresh
+                var validTabs = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
+                var rawHash = (window.location.hash || '').replace('#', '').trim();
+                var hashTab = rawHash.split('?')[0].toLowerCase();
+                var targetTab = 'dashboard';
+                if (validTabs.indexOf(hashTab) !== -1) {
+                    targetTab = hashTab;
+                } else {
+                    var savedTab = localStorage.getItem('easy_tdx_active_tab');
+                    if (savedTab && validTabs.indexOf(savedTab) !== -1) {
+                        targetTab = savedTab;
+                    }
+                }
+                window.__RESOLVED_INITIAL_TAB__ = targetTab;
+                if (targetTab !== 'dashboard') {
+                    var style = document.createElement('style');
+                    style.id = 'tab-fouc-guard';
+                    style.textContent = '#view-dashboard { display: none !important; } ' +
+                        '#view-' + targetTab + ' { display: block !important; } ' +
+                        '#header-market-panorama { display: none !important; } ' +
+                        '#btn-manual-refresh-dashboard { display: none !important; } ' +
+                        '#tab-' + targetTab + ' { background: linear-gradient(to right, #06b6d4, #2563eb) !important; color: #000 !important; font-weight: 600 !important; } ' +
+                        '#tab-dashboard { background: transparent !important; color: #94a3b8 !important; font-weight: normal !important; box-shadow: none !important; }';
+                    document.head.appendChild(style);
                 }
             } catch (e) { }
         })();
@@ -2022,7 +2048,7 @@
         <!-- 全局功能导航面板 (PC 与移动端统一：默认隐藏，点击后展开) -->
         <nav id="main-nav-bar" class="hidden flex-wrap items-center space-x-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
             <button onclick="switchTab('dashboard')" id="tab-dashboard"
-                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-md"><i
+                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i
                     data-lucide="layout-dashboard" class="w-3.5 h-3.5 inline mr-1"></i>大盘全景</button>
             <button onclick="switchTab('fundflow')" id="tab-fundflow"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="wallet"
@@ -2720,7 +2746,7 @@
         </section>
 
         <!-- 2. Dashboard View -->
-        <section id="view-dashboard" class="space-y-6">
+        <section id="view-dashboard" class="space-y-6 hidden">
             <!-- 核心交易所与主要指数一览 (上交所·上证指数, 深交所·深证成指, 创业板·创业板指, 科创板·科创50, 核心宽基·沪深300) -->
             <div id="exchange-indices-row" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
 
@@ -7396,7 +7422,25 @@
                 }
             } catch (e) { }
 
-            // 移动端活动模块名称联动更新
+                        // 顶栏大盘全景标题行与手动刷新按钮仅在“大盘全景 (dashboard)”模块激活时展示，其他模块下保持顶栏精简
+            const headerPanorama = document.getElementById('header-market-panorama');
+            if (headerPanorama) {
+                if (tId === 'dashboard') {
+                    headerPanorama.classList.remove('hidden');
+                } else {
+                    headerPanorama.classList.add('hidden');
+                }
+            }
+            const btnManualRefresh = document.getElementById('btn-manual-refresh-dashboard');
+            if (btnManualRefresh) {
+                if (tId === 'dashboard') {
+                    btnManualRefresh.classList.remove('hidden');
+                } else {
+                    btnManualRefresh.classList.add('hidden');
+                }
+            }
+
+// 移动端活动模块名称联动更新
             const mobileActiveName = document.getElementById('mobile-active-tab-name');
             if (mobileActiveName && TAB_NAME_MAP[tId]) {
                 mobileActiveName.textContent = TAB_NAME_MAP[tId];
@@ -7515,11 +7559,16 @@
         })();
 
         function restoreInitialTab() {
-            let targetTab = 'dashboard';
+            let targetTab = window.__RESOLVED_INITIAL_TAB__ || 'dashboard';
             const rawHash = (window.location.hash || '').replace('#', '').trim();
             const [hashTab, queryStr] = rawHash.split('?');
             if (VALID_TABS.includes(hashTab)) {
                 targetTab = hashTab;
+            } else if (!window.__RESOLVED_INITIAL_TAB__) {
+                const saved = localStorage.getItem('easy_tdx_active_tab');
+                if (saved && VALID_TABS.includes(saved)) {
+                    targetTab = saved;
+                }
             }
             if (targetTab === 'chanlun') {
                 const params = new URLSearchParams(queryStr || window.location.search || '');
@@ -7537,6 +7586,13 @@
                 }
             }
             switchTab(targetTab, false);
+
+            // 清理 pre-hydration 注入的临时 style 守卫
+            const foucGuard = document.getElementById('tab-fouc-guard');
+            if (foucGuard) {
+                foucGuard.remove();
+            }
+
             if (targetTab === 'optimize') {
                 const params = new URLSearchParams(queryStr || window.location.search || '');
                 const sym = params.get('symbol') || params.get('code');
@@ -18027,12 +18083,14 @@
             if (!_statusClockTimer) {
                 _statusClockTimer = setInterval(updateTradingStatusUI, 1000);
             }
-            // 首次启动时无论是否开市均加载一次最新盘后或盘中数据
+                        // 首次启动时仅在当前处于“大盘全景”模块时加载全景数据，避免跳转到其他模块时产生不必要的大盘计算与请求
             try {
-                await Promise.allSettled([
-                    loadDashboardData(),
-                    loadRealtimeQuotes()
-                ]);
+                if (window.currentTab === 'dashboard') {
+                    await Promise.allSettled([
+                        loadDashboardData(),
+                        loadRealtimeQuotes()
+                    ]);
+                }
             } catch (_) { }
 
             if (_masterBgTimer) return;
@@ -21326,7 +21384,8 @@
             initECharts();
             restoreInitialTab();
             await populateInitialData();
-            const activeTab = (window.location.hash || '').replace('#', '').trim() || 'dashboard';
+            const rawActiveTab = (window.location.hash || '').replace('#', '').trim().split('?')[0];
+            const activeTab = rawActiveTab || localStorage.getItem('easy_tdx_active_tab') || 'dashboard';
             if (activeTab === 'backtest') {
                 runBacktest();
             }
