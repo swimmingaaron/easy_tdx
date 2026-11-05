@@ -7395,6 +7395,8 @@
                             setTimeout(() => {
                                 if (typeof resizeEtfBoardCharts === 'function') resizeEtfBoardCharts();
                                 if (typeof initEtfDataView === 'function') initEtfDataView();
+                                if (typeof window.loadEtfMinuteLive === 'function') window.loadEtfMinuteLive(true);
+                                if (typeof window.refreshEtfToday === 'function') window.refreshEtfToday();
                                 if (window._etfChartTotal) window._etfChartTotal.resize();
                                 if (window._etfChartSingle) window._etfChartSingle.resize();
                                 if (window._etfChartFutures) window._etfChartFutures.resize();

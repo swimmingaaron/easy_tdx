@@ -165,6 +165,9 @@
   }
 
   function drawMinuteChart() {
+    var c = ensureChart();
+    if (!c) return;
+    try { c.resize(); } catch (e) {}
     var al = alignToFull(minuteTimes, minuteBars, minuteCloses);
     var shownBars = al.bars;
     var shownCloses = al.closes;
@@ -176,7 +179,7 @@
       label: { formatter: "昨收 " + preClose.toFixed(2), position: "insideEndTop" },
       data: [{ yAxis: preClose }]
     } : undefined;
-    ensureChart().setOption({
+    c.setOption({
       title: { text: "20只ETF分钟成交额与上证综指分时", left: 8, top: 6, padding: 0, textStyle: { fontSize: 14 } },
       legend: { data: [BAR_LABEL, IDX_LABEL], left: 8, top: 26, type: "scroll", height: 24, itemWidth: 16, itemHeight: 10 },
       grid: { top: 76, left: 16, right: 8, bottom: 54, containLabel: true },
@@ -222,6 +225,7 @@
   function drawCumChart() {
     var c = ensureCumChart();
     if (!c) return;
+    try { c.resize(); } catch (e) {}
     /* 只有分钟数据确实是「今天」的，才画今日线。
        开盘前（9:30 之前）与周末，行情接口最新一根仍是上一交易日的数据，
        此时 minuteBars 与「昨日线」是同一份数据 —— 画出来两条线会完全重合，
@@ -450,8 +454,8 @@
     }
   }
 
-  function loadAll() {
-    if (state.loading) return;
+  function loadAll(force) {
+    if (state.loading && !force) return;
     state.loading = true;
     document.getElementById("tagUpdate").textContent = "加载中…";
     document.getElementById("tagUpdate").className = "tag";
@@ -520,6 +524,7 @@
   });
   on(window, "resize", function () { if (chart) chart.resize(); if (cumChart) cumChart.resize(); });
 
+  window.loadEtfMinuteLive = loadAll;
   renderStatic();
   /* 首屏也错峰：0~4 秒随机，避免所有访客在打开页面后同一秒一起拉 21 条 K 线 */
   setTimeout(loadAll, 1500 + Math.floor(Math.random() * 4000));
@@ -792,6 +797,7 @@
       });
     }).catch(function (e) {});
   }
+  window.refreshEtfToday = refreshToday;
   refreshToday();
   /* 与第一部分同理，错峰到 60~75 秒，避免两个定时器在同一秒叠加形成惊群 */
   (function loopRefresh() {
@@ -874,7 +880,10 @@
   function fmt(v, n) { return Number(v).toFixed(n == null ? 1 : n); }
 
   function draw(containerId, title, barName, bars, idxPath, barColor) {
-    var chart = echarts.init(document.getElementById(containerId));
+    var el = document.getElementById(containerId);
+    if (!el) return null;
+    var chart = (window.echarts && echarts.getInstanceByDom(el)) || echarts.init(el);
+    try { chart.resize(); } catch (e) {}
     chart.setOption({
       title: { text: title, left: 8, top: 6, padding: 0, textStyle: { fontSize: 14 } },
       legend: { data: [barName, "上证综指"], left: 8, top: 26, type: "scroll", height: 24, itemWidth: 16, itemHeight: 10 },
