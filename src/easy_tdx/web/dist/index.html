@@ -27812,6 +27812,7 @@
                             {
                                 name: '基准K线',
                                 markPoint: {
+                                    silent: true,
                                     data: [
                                         ...visMarks,
                                         ...newExtrema
@@ -27823,6 +27824,7 @@
                             updateSeries.push({
                                 name: 'DIF',
                                 markPoint: {
+                                    silent: true,
                                     data: displayMacd
                                 }
                             });
@@ -29614,7 +29616,7 @@
                         barWidth: '55%',
                         barMaxWidth: 14,
                         large: true,
-                        largeThreshold: 1200,
+                        largeThreshold: 400,
                         xAxisIndex: 0,
                         yAxisIndex: 0,
                         data: candles,
@@ -29625,6 +29627,7 @@
                             borderColor0: '#089981'
                         },
                         markPoint: {
+                            silent: true,
                             data: [
                                 ...initialVisMarks,
                                 ...extremaMarkPoints
@@ -30393,6 +30396,7 @@
             _clRefreshInterval = getChanlunLowestPeriodSeconds();
             _clRefreshTimer = setInterval(() => {
                 if (!_clIsBacktracking && window.currentTab === 'chanlun') {
+                    if (typeof document !== 'undefined' && document.hidden) return;
                     const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
                     if (inSession && _clAutoRefresh) {
                         loadChanlunData(true);
