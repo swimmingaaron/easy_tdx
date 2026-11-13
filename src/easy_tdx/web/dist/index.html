@@ -603,6 +603,15 @@
             flex: 1 1 0%;
             min-height: 0;
             height: auto;
+            contain: layout paint size;
+            will-change: transform;
+        }
+
+        /* 缠论多窗口高能效渲染加速：剔除高负荷背景模糊滤镜，极大降低GPU/CPU合成带宽 */
+        #view-chanlun .glass-card {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
         }
 
         /* 缠论回溯时间轴进度条样式 (亮色/暗色全适配，进度条轨迹与滑块清晰醒目) */
@@ -28011,6 +28020,7 @@
                 {
                     name: 'MA5',
                     type: 'line',
+                    silent: true,
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma5Data,
@@ -28025,6 +28035,7 @@
                 {
                     name: 'MA10',
                     type: 'line',
+                    silent: true,
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma10Data,
@@ -28042,6 +28053,7 @@
                 {
                     name: 'MA20',
                     type: 'line',
+                    silent: true,
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma20Data,
@@ -28056,6 +28068,7 @@
                 {
                     name: 'MA30',
                     type: 'line',
+                    silent: true,
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma30Data,
@@ -28070,6 +28083,7 @@
                 {
                     name: 'MA60',
                     type: 'line',
+                    silent: true,
                     xAxisIndex: 0,
                     yAxisIndex: 0,
                     data: ma60Data,
@@ -29276,6 +29290,17 @@
             };
             const initialVisMarks = getVisibleChanlunMarkPoints(window._clInstanceData[side], sIdx, eIdx, visibleBarCount, isDark);
 
+            // 预构建日期哈希索引字典，彻底消除高频 mousemove 时的大量 O(N) .filter/.find 迭代开销
+            const mmdMap = {};
+            (uc.mmd_marks || []).forEach(m => {
+                if (!mmdMap[m.date]) mmdMap[m.date] = [];
+                mmdMap[m.date].push(m);
+            });
+            const resMap = {};
+            (uc.res_marks || []).forEach(r => { resMap[r.date] = r; });
+            const macdMap = {};
+            (uc.macd_marks || []).forEach(m => { macdMap[m.date] = m; });
+
             const option = {
                 backgroundColor: 'transparent',
                 animation: false,
@@ -29286,6 +29311,8 @@
                 tooltip: {
                     trigger: 'axis',
                     alwaysShowContent: false,
+                    transitionDuration: 0,
+                    confine: true,
                     axisPointer: {
                         type: 'cross',
                         snap: true,
@@ -29296,7 +29323,7 @@
                     borderColor: tooltipBorder,
                     borderWidth: 1,
                     padding: [5, 8],
-                    extraCssText: 'box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32); border-radius: 6px; z-index: 99999; backdrop-blur: 8px; width: 200px; max-width: 200px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
+                    extraCssText: 'box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border-radius: 6px; z-index: 99999; width: 200px; max-width: 200px; box-sizing: border-box; white-space: normal; word-break: break-word; overflow-wrap: anywhere;',
                     formatter: function (params) {
                         if (!Array.isArray(params) || params.length === 0) return '';
                         const dateStr = params[0].name;
@@ -29333,8 +29360,8 @@
                         const lowColor = low > prevC ? '#ef4444' : (low < prevC ? '#10b981' : (isDark ? '#e2e8f0' : '#1e293b'));
                         const ampVal = prevC > 0 ? (Math.abs(high - low) / prevC * 100) : 0;
 
-                        // 查找缠论买卖点事件 (区间套极值买卖点、次级别稳健买卖点、大级别趋势买卖点)
-                        const matchedMmds = (uc.mmd_marks || []).filter(m => m.date === dateStr);
+                        // 查找缠论买卖点事件 (O(1) 哈希快速检索)
+                        const matchedMmds = mmdMap[dateStr] || [];
                         let mmdHtml = '';
                         if (matchedMmds.length > 0) {
                             mmdHtml = matchedMmds.map(m => {
@@ -29360,8 +29387,8 @@
                             }).join('');
                         }
 
-                        // 查找共振事件
-                        const matchedRes = (uc.res_marks || []).find(r => r.date === dateStr);
+                        // 查找共振事件 (O(1) 字典快速检索)
+                        const matchedRes = resMap[dateStr];
                         let resHtml = '';
                         if (matchedRes) {
                             const isBuy = matchedRes.direction === 'BUY';
@@ -29379,8 +29406,8 @@
                             `;
                         }
 
-                        // 查找 MACD 背离事件
-                        const matchedMacd = (_clLayers.macd && uc.macd_marks) ? uc.macd_marks.find(m => m.date === dateStr) : null;
+                        // 查找 MACD 背离事件 (O(1) 字典快速检索)
+                        const matchedMacd = (_clLayers.macd && macdMap) ? macdMap[dateStr] : null;
                         let macdHtml = '';
                         if (matchedMacd) {
                             const isBottom = matchedMacd.type === 'bottom';
@@ -29635,17 +29662,19 @@
                         },
                         markLine: {
                             silent: true,
+                            animation: false,
                             data: [
                                 ...resVerticalLines,
                                 ...lowBiLines,     // 小周期底层
                                 ...midBiLines,     // 中周期中间层
                                 ...highBiLines     // 大周期最顶层（线段重合时大周期的颜色显示为主！）
                             ],
-                            symbol: visibleBarCount > 400 ? ['none', 'none'] : ['circle', 'circle'],
-                            symbolSize: visibleBarCount > 400 ? 0 : 3.5
+                            symbol: (_clWindowMode === 'quad' || visibleBarCount > 250) ? ['none', 'none'] : ['circle', 'circle'],
+                            symbolSize: (_clWindowMode === 'quad' || visibleBarCount > 250) ? 0 : 3
                         },
                         markArea: {
                             silent: true,
+                            animation: false,
                             data: [
                                 ...lowZsAreas,     // 小中枢底层
                                 ...midZsAreas,     // 中中枢中间层
@@ -29658,14 +29687,15 @@
                     {
                         name: 'MA250',
                         type: 'line',
+                        silent: true,
                         data: ma250Data,
                         sampling: 'lttb',
-                        smooth: true,
+                        smooth: false,
                         showSymbol: false,
                         symbol: 'none',
                         lineStyle: {
                             color: '#ff1f1f',
-                            width: 2.6,
+                            width: 2,
                             type: 'solid'
                         },
                         itemStyle: {
@@ -29772,7 +29802,10 @@
                 }
             }
             if (!instance) {
-                instance = echarts.init(chartDom, isDark ? 'dark' : null);
+                const dpr = (_clWindowMode === 'quad') ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.25);
+                instance = echarts.init(chartDom, isDark ? 'dark' : null, {
+                    devicePixelRatio: dpr
+                });
                 instance._clThemeMode = isDark ? 'dark' : 'light';
                 instance.on('dataZoom', (params) => {
                     updateChanlunVisibleExtrema(side, params);
@@ -30050,9 +30083,7 @@
                 const ov = document.getElementById(overlayId);
                 if (ov) ov.style.display = 'none';
             }
-            setTimeout(() => {
-                updateChanlunVisibleExtrema(side);
-            }, 100);
+            // 移除冷启动多余的 100ms 重复 setOption 触发，初始 option 已精确内嵌可视极值
             // 同步绑定通达信右键拖选
             if (chartDom) {
                 chartDom._tdxGetChart = () => window[instanceProp] || (window.echarts && window.echarts.getInstanceByDom(chartDom));
