@@ -5062,7 +5062,8 @@
                             <!-- 窗口 1 动态扩大K线根数组件 -->
                             <div id="cl-tier-box-left" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
                                 <select id="cl-tier-select-left" onchange="changeWindowKlineCount('left', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
-                                    <option value="800" selected>800根 (初)</option>
+                                    <option value="400" selected>400根 (初)</option>
+                                    <option value="800">800根</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根 (满)</option>
                                 </select>
@@ -5118,7 +5119,8 @@
                             <!-- 窗口 2 动态扩大K线根数组件 -->
                             <div id="cl-tier-box-w2" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
                                 <select id="cl-tier-select-w2" onchange="changeWindowKlineCount('w2', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
-                                    <option value="800" selected>800根 (初)</option>
+                                    <option value="400" selected>400根 (初)</option>
+                                    <option value="800">800根</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根 (满)</option>
                                 </select>
@@ -5174,7 +5176,8 @@
                             <!-- 窗口 3 动态扩大K线根数组件 -->
                             <div id="cl-tier-box-right" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
                                 <select id="cl-tier-select-right" onchange="changeWindowKlineCount('right', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
-                                    <option value="800" selected>800根 (初)</option>
+                                    <option value="400" selected>400根 (初)</option>
+                                    <option value="800">800根</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根</option>
                                     <option value="4800">4800根</option>
@@ -5233,7 +5236,8 @@
                             <!-- 窗口 4 动态扩大K线根数组件 -->
                             <div id="cl-tier-box-w4" class="flex items-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 rounded h-5 overflow-hidden text-[11px] shadow-xs transition-colors shrink-0">
                                 <select id="cl-tier-select-w4" onchange="changeWindowKlineCount('w4', Number(this.value))" class="h-full bg-transparent text-slate-700 dark:text-slate-300 text-[10.5px] px-1 outline-none cursor-pointer" title="选择K线根数扩大等级">
-                                    <option value="800" selected>800根 (初)</option>
+                                    <option value="400" selected>400根 (初)</option>
+                                    <option value="800">800根</option>
                                     <option value="1600">1600根</option>
                                     <option value="3200">3200根</option>
                                     <option value="4800">4800根</option>
@@ -25840,7 +25844,7 @@
                 if (sPreset) sPreset.value = presetStr;
             }
             const winKey = (target === 'w1' ? 'left' : (target === 'w3' ? 'right' : target));
-            _clWindowCustomCounts[winKey] = 800;
+            _clWindowCustomCounts[winKey] = 400;
             if (typeof updateWindowKlineTierUI === 'function') {
                 updateWindowKlineTierUI(winKey);
             }
@@ -26122,7 +26126,7 @@
         }
 
         let _clBacktrackAbortController = null;
-        let _clWindowCustomCounts = { left: 800, w2: 800, right: 800, w4: 800 };
+        let _clWindowCustomCounts = { left: 400, w2: 400, right: 400, w4: 400 };
         let _clExpandingWindows = new Set();
         let _clZoomDebounceTimers = {};
 
@@ -26138,7 +26142,7 @@
             const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
 
             // 0. 实时模式四窗口内存高速缓存（切换已看过的标的0毫秒瞬间成图，无任何白屏与网络等待）
-            const quadKey = `${_clCurrentCode}__${_clLeftPeriods}__${_clW2Periods}__${_clRightPeriods}__${_clW4Periods}__${_clWindowCustomCounts['left'] || 800}_${_clWindowCustomCounts['w2'] || 800}_${_clWindowCustomCounts['right'] || 800}_${_clWindowCustomCounts['w4'] || 800}`;
+            const quadKey = `${_clCurrentCode}__${_clLeftPeriods}__${_clW2Periods}__${_clRightPeriods}__${_clW4Periods}__${_clWindowCustomCounts['left'] || 400}_${_clWindowCustomCounts['w2'] || 400}_${_clWindowCustomCounts['right'] || 400}_${_clWindowCustomCounts['w4'] || 400}`;
             if (_clWindowMode === 'quad' && !_clIsBacktracking && !forceRefresh && _clRealtimeCache.has(quadKey)) {
                 const cached = _clRealtimeCache.get(quadKey);
                 if (cached && (Date.now() - cached.time < _clRealtimeCacheTTL)) {
@@ -26217,7 +26221,7 @@
                     const query = new URLSearchParams();
                     query.set('code', _clCurrentCode);
                     query.set('periods', periods);
-                    const reqCount = customCount || 800;
+                    const reqCount = customCount || 400;
                     query.set('count', String(reqCount));
                     if (_clIsBacktracking && _clBacktrackDate) {
                         query.set('cutoff_date', _clBacktrackDate);
@@ -26234,7 +26238,7 @@
 
                 // 单窗口渲染器：数据一旦就绪立即渲染上屏并隐藏该窗口遮罩，出图优先级最高！
                 async function renderWindowProgressive(key, periods, isPrimary = false) {
-                    const targetCount = _clWindowCustomCounts[key] || 800;
+                    const targetCount = _clWindowCustomCounts[key] || 400;
                     const winRealtimeKey = `${_clCurrentCode}_${key}_${periods}_${targetCount}`;
                     let data = null;
                     if (!_clIsBacktracking && !forceRefresh && _clRealtimeCache.has(winRealtimeKey)) {
@@ -26308,10 +26312,10 @@
                     qQuery.set('periods_w3', _clRightPeriods);
                     qQuery.set('periods_w4', _clW4Periods);
                     const maxCount = Math.max(
-                        _clWindowCustomCounts['left'] || 800,
-                        _clWindowCustomCounts['w2'] || 800,
-                        _clWindowCustomCounts['right'] || 800,
-                        _clWindowCustomCounts['w4'] || 800
+                        _clWindowCustomCounts['left'] || 400,
+                        _clWindowCustomCounts['w2'] || 400,
+                        _clWindowCustomCounts['right'] || 400,
+                        _clWindowCustomCounts['w4'] || 400
                     );
                     qQuery.set('count', String(maxCount));
                     if (_clIsBacktracking && _clBacktrackDate) {
@@ -30171,7 +30175,7 @@
             window._clCurrentCodeChangedByUser = true;
             if (nameVal) window._clCurrentName = nameVal;
             syncChanlunTargetUI(codeVal, nameVal || window._clCurrentName);
-            _clWindowCustomCounts = { left: 800, w2: 800, right: 800, w4: 800 };
+            _clWindowCustomCounts = { left: 400, w2: 400, right: 400, w4: 400 };
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = codeVal;
             renderChanlunPopularStocks();
@@ -30891,9 +30895,9 @@
         function getWindowKlineTiers(side) {
             const lowest = getWindowLowestPeriod(side);
             if (lowest === '30F' || lowest === '30M' || lowest === '5F' || lowest === '5M' || lowest === '1F' || lowest === '1M' || lowest === '15F' || lowest === '15M' || lowest === '60F' || lowest === '60M' || lowest === '120F' || lowest === '120M') {
-                return [800, 1600, 3200, 4800, 9600, 12000];
+                return [400, 800, 1600, 3200, 4800, 9600, 12000];
             } else {
-                return [800, 1600, 3200];
+                return [400, 800, 1600, 3200];
             }
         }
 
@@ -30903,8 +30907,8 @@
             if (!box || !sel) return;
 
             const tiers = getWindowKlineTiers(side);
-            const curCount = _clWindowCustomCounts[side] || 800;
-            const isExpanded = curCount > 800;
+            const curCount = _clWindowCustomCounts[side] || 400;
+            const isExpanded = curCount > 400;
             const maxTier = tiers[tiers.length - 1] || 3200;
             const isMax = curCount >= maxTier;
             const isLoading = _clExpandingWindows.has(side);
@@ -30926,7 +30930,7 @@
 
             sel.innerHTML = tiers.map(t => {
                 let tag = '';
-                if (t === 800) tag = ' (初)';
+                if (t === 400) tag = ' (初)';
                 else if (t === tiers[tiers.length - 1]) tag = ' (满)';
                 return `<option value="${t}" ${t === curCount ? 'selected' : ''} class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">${t}根${tag}</option>`;
             }).join('');
@@ -31014,7 +31018,7 @@
 
         window.cycleNextKlineCount = function(side) {
             const tiers = getWindowKlineTiers(side);
-            const cur = _clWindowCustomCounts[side] || 800;
+            const cur = _clWindowCustomCounts[side] || 400;
             const idx = tiers.indexOf(cur);
             const next = (idx === -1 || idx >= tiers.length - 1) ? tiers[0] : tiers[idx + 1];
             window.changeWindowKlineCount(side, next);
@@ -31024,7 +31028,7 @@
             if (_clExpandingWindows.has(side)) return;
 
             const tiers = getWindowKlineTiers(side);
-            const curCount = _clWindowCustomCounts[side] || 800;
+            const curCount = _clWindowCustomCounts[side] || 400;
             const maxTier = tiers[tiers.length - 1] || 3200;
             if (curCount >= maxTier) return;
 
