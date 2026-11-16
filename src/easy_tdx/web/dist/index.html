@@ -21456,9 +21456,9 @@
 
     <!-- ==================== 交易系统：业绩分析诊断弹窗 (Fina Modal) ==================== -->
     <div id="ts-fina-modal"
-        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5"
+        class="fixed inset-0 z-[80] bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4"
         onclick="if(event.target === this) closeTsFinaModal()">
-        <div class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-5xl w-full h-[85vh] min-h-[580px] max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+        <div id="ts-fina-modal-dialog" class="bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl w-[96vw] max-w-[1560px] 2xl:max-w-[1680px] h-[88vh] min-h-[600px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
             onclick="event.stopPropagation()">
             <!-- Modal Header -->
             <div
@@ -21582,7 +21582,7 @@
                                 class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-semibold shadow-xs select-none">
                                 <tr>
                                     <th onclick="sortTsPeers('code')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按股票代码排序">
                                         <div class="flex items-center space-x-1">
                                             <span>股票代码</span>
@@ -21590,7 +21590,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('name')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按股票名称排序">
                                         <div class="flex items-center space-x-1">
                                             <span>股票名称</span>
@@ -21598,10 +21598,10 @@
                                         </div>
                                     </th>
                                     <th
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-center">
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-center">
                                         最新报告期</th>
                                     <th onclick="sortTsPeers('total_cap_yi')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按总市值排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>总市值</span>
@@ -21610,7 +21610,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('price')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按最新价排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>最新价</span>
@@ -21618,7 +21618,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('change_pct')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按涨跌幅排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>涨跌幅</span>
@@ -21627,7 +21627,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('total_operate_income')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按营业总收入排序">
                                         <div class="flex items-center space-x-1">
                                             <span>营业总收入</span>
@@ -21636,7 +21636,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('ystz')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按营收同比增速排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>营收同比</span>
@@ -21644,7 +21644,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('parent_netprofit')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按净利润金额排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>净利润</span>
@@ -21653,7 +21653,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('sjltz')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按净利润同比增速排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>净利同比</span>
@@ -21661,7 +21661,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('weightavg_roe')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按ROE净资产收益率排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>ROE %</span>
@@ -21670,7 +21670,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('xsmll')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按销售毛利率排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>毛利率 %</span>
@@ -21678,7 +21678,7 @@
                                         </div>
                                     </th>
                                     <th onclick="sortTsPeers('pe_percentile')"
-                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 p-2.5 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
+                                        class="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 px-2.5 py-2 border-b border-slate-200 dark:border-slate-800 text-right cursor-pointer hover:text-indigo-600 dark:hover:text-cyan-400 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition"
                                         title="点击按历史3年PE估值百分位排序">
                                         <div class="flex items-center justify-end space-x-1">
                                             <span>PE(3年分位)</span>
@@ -22922,26 +22922,26 @@
 
                 peerRowsHtml += `
                 <tr class="${rowCls}">
-                    <td class="p-2.5 font-mono">
+                    <td class="px-2.5 py-2 font-mono">
                         <a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="${codeCls} hover:underline cursor-pointer" title="在雪球查看 ${p.code} ${p.name}">${p.code}</a>
                     </td>
-                    <td class="p-2.5 font-sans whitespace-nowrap">${nameHtml}</td>
-                    <td class="p-2.5 text-center font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400'}">${p.qdate || '--'}</td>
-                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${p.total_cap_yi ? Number(p.total_cap_yi).toFixed(2) + '亿' : '--'}</td>
-                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${p.price ? '¥' + Number(p.price).toFixed(2) : '--'}</td>
-                    <td class="p-2.5 text-right font-mono">${p.change_pct !== null && p.change_pct !== undefined ? `<span class="${Number(p.change_pct) > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (Number(p.change_pct) < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500')}">${Number(p.change_pct) > 0 ? '+' : ''}${Number(p.change_pct).toFixed(2)}%</span>` : '--'}</td>
-                    <td class="p-2.5 font-mono">
+                    <td class="px-2.5 py-2 font-sans whitespace-nowrap">${nameHtml}</td>
+                    <td class="px-2.5 py-2 text-center font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400'}">${p.qdate || '--'}</td>
+                    <td class="px-2.5 py-2 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${p.total_cap_yi ? Number(p.total_cap_yi).toFixed(2) + '亿' : '--'}</td>
+                    <td class="px-2.5 py-2 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${p.price ? '¥' + Number(p.price).toFixed(2) : '--'}</td>
+                    <td class="px-2.5 py-2 text-right font-mono">${p.change_pct !== null && p.change_pct !== undefined ? `<span class="${Number(p.change_pct) > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (Number(p.change_pct) < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-500')}">${Number(p.change_pct) > 0 ? '+' : ''}${Number(p.change_pct).toFixed(2)}%</span>` : '--'}</td>
+                    <td class="px-2.5 py-2 font-mono">
                         <div class="flex items-center space-x-2">
                             <span class="w-16 ${isTarget ? 'font-bold' : ''}">${revYi}</span>
                             ${barWidth > 0 ? `<div class="h-2 rounded-full bg-blue-500/90 shrink-0" style="width: ${barWidth}px;" title="营收体量对比"></div>` : ''}
                         </div>
                     </td>
-                    <td class="p-2.5 text-right font-mono">${ystzHtml}</td>
-                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${npYi}</td>
-                    <td class="p-2.5 text-right font-mono">${sjltzHtml}</td>
-                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${roeHtml}</td>
-                    <td class="p-2.5 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${mllHtml}</td>
-                    <td class="p-2.5 text-right font-mono whitespace-nowrap">${peHtml}</td>
+                    <td class="px-2.5 py-2 text-right font-mono">${ystzHtml}</td>
+                    <td class="px-2.5 py-2 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${npYi}</td>
+                    <td class="px-2.5 py-2 text-right font-mono">${sjltzHtml}</td>
+                    <td class="px-2.5 py-2 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${roeHtml}</td>
+                    <td class="px-2.5 py-2 text-right font-mono ${isTarget ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}">${mllHtml}</td>
+                    <td class="px-2.5 py-2 text-right font-mono whitespace-nowrap">${peHtml}</td>
                 </tr>
             `;
             });
