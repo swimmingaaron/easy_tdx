@@ -603,8 +603,6 @@
             flex: 1 1 0%;
             min-height: 0;
             height: auto;
-            contain: layout paint size;
-            will-change: transform;
         }
 
         /* 缠论多窗口高能效渲染加速：剔除高负荷背景模糊滤镜，极大降低GPU/CPU合成带宽 */
@@ -29806,7 +29804,7 @@
                 }
             }
             if (!instance) {
-                const dpr = (_clWindowMode === 'quad') ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.25);
+                const dpr = window.devicePixelRatio || 1;
                 instance = echarts.init(chartDom, isDark ? 'dark' : null, {
                     devicePixelRatio: dpr
                 });
