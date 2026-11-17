@@ -54,15 +54,38 @@ FORCE_MODE="$1"
 # 下午交易时段:   12:55 ~ 15:00 -> 775 ~ 900 分钟
 
 # ==============================================================================
-# 分支 A: 09:25 / 11:30 / 14:30 / 15:00 全市场扫描 (30F / DAY / WEEK 的 3买 策略)
-# (不发送缠论K线图至微信)
+# 分支 1: 命令行显式指定 --watchlist 时，无条件优先执行自选股缠论K线微信推送
+# （彻底解决 11:30、14:30、15:00 定时推送被全市场扫描窗口抢占拦截的 Bug）
 # ==============================================================================
-if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--tri-scan" ] || \
-   [ "$FORCE_MODE" = "--30f-scan" ] || [ "$FORCE_MODE" = "--day-scan" ] || [ "$FORCE_MODE" = "--week-scan" ] || \
-   ( [ "$CURRENT_MINUTES" -ge 565 ] && [ "$CURRENT_MINUTES" -le 569 ] ) || \
-   ( [ "$CURRENT_MINUTES" -ge 690 ] && [ "$CURRENT_MINUTES" -le 695 ] ) || \
-   ( [ "$CURRENT_MINUTES" -ge 870 ] && [ "$CURRENT_MINUTES" -le 874 ] ) || \
-   ( [ "$CURRENT_MINUTES" -ge 900 ] && [ "$CURRENT_MINUTES" -le 905 ] ); then
+if [ "$FORCE_MODE" = "--watchlist" ]; then
+
+    LOG_FILE="$PROJECT_DIR/output/watchlist_wecom_${LOG_DATE}.log"
+    echo "============================================================" >> "$LOG_FILE"
+    echo "【盘中自选股缠论K线微信推送启动】 $CURRENT_TIME" >> "$LOG_FILE"
+    echo "============================================================" >> "$LOG_FILE"
+
+    if command -v caffeinate >/dev/null 2>&1; then
+        caffeinate -i "$PYTHON_BIN" send_watchlist_chanlun_wecom.py >> "$LOG_FILE" 2>&1
+    else
+        "$PYTHON_BIN" send_watchlist_chanlun_wecom.py >> "$LOG_FILE" 2>&1
+    fi
+
+    EXIT_CODE=$?
+    echo "【自选股缠论K线微信推送完成】 $(date '+%Y-%m-%d %H:%M:%S') Exit Code: $EXIT_CODE" >> "$LOG_FILE"
+    exit $EXIT_CODE
+
+# ==============================================================================
+# 分支 2: 09:25 / 11:30 / 14:30 / 15:00 全市场扫描 (30F / DAY / WEEK 的 3买 策略)
+# (命令行显式指定 --full-scan 等，或未传参时命中定时扫描窗口；不发送缠论K线图至微信)
+# ==============================================================================
+elif [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--tri-scan" ] || \
+     [ "$FORCE_MODE" = "--30f-scan" ] || [ "$FORCE_MODE" = "--day-scan" ] || [ "$FORCE_MODE" = "--week-scan" ] || \
+     ( [ -z "$FORCE_MODE" ] && ( \
+         ( [ "$CURRENT_MINUTES" -ge 565 ] && [ "$CURRENT_MINUTES" -le 569 ] ) || \
+         ( [ "$CURRENT_MINUTES" -ge 690 ] && [ "$CURRENT_MINUTES" -le 695 ] ) || \
+         ( [ "$CURRENT_MINUTES" -ge 870 ] && [ "$CURRENT_MINUTES" -le 874 ] ) || \
+         ( [ "$CURRENT_MINUTES" -ge 900 ] && [ "$CURRENT_MINUTES" -le 905 ] ) \
+     ) ); then
 
     SCAN_TAG="定时全量"
     if [ "$CURRENT_MINUTES" -ge 565 ] && [ "$CURRENT_MINUTES" -le 569 ]; then
@@ -200,10 +223,9 @@ if [ "$FORCE_MODE" = "--full-scan" ] || [ "$FORCE_MODE" = "--tri-scan" ] || \
     exit $OVERALL_EXIT_CODE
 
 # ==============================================================================
-# 分支 B: 交易时间内 (09:25-11:30, 12:55-15:00) 盘中推送 watchlist 缠论K线至微信
+# 分支 3: 交易时间内 (09:25-11:30, 12:55-15:00) 未指定参数时默认推送自选股微信
 # ==============================================================================
-elif [ "$FORCE_MODE" = "--watchlist" ] || \
-     ( [ "$CURRENT_MINUTES" -ge 565 ] && [ "$CURRENT_MINUTES" -le 690 ] ) || \
+elif ( [ "$CURRENT_MINUTES" -ge 565 ] && [ "$CURRENT_MINUTES" -le 690 ] ) || \
      ( [ "$CURRENT_MINUTES" -ge 775 ] && [ "$CURRENT_MINUTES" -le 900 ] ); then
 
     LOG_FILE="$PROJECT_DIR/output/watchlist_wecom_${LOG_DATE}.log"
