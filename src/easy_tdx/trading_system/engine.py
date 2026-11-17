@@ -1857,7 +1857,7 @@ def generate_llm_fina_analysis(
     if provider_clean not in ("deepseek", "doubao"):
         provider_clean = "deepseek"
 
-    cache_file = os.path.join(_CACHE_DIR, f"llm_fina_v3_{clean_code}_{provider_clean}.json")
+    cache_file = os.path.join(_CACHE_DIR, f"llm_fina_v4_{clean_code}_{provider_clean}.json")
     now = time.time()
 
     # 检查磁盘缓存 (24小时有效期)
@@ -1928,15 +1928,36 @@ def generate_llm_fina_analysis(
         notices_summary = "暂未检索到近期重大公告事项。\n"
 
     peers_summary = ""
-    for pd in peers_data[:6]:
-        if pd.get('is_target'):
-            continue
-        peers_summary += (
-            f"- 同行 {pd.get('stock_name')} ({pd.get('stock_code')}): "
-            f"营收 {_fmt_money_txt(pd.get('total_operate_income'))} (同比 {float(pd.get('ystz') or 0):.2f}%), "
-            f"净利 {_fmt_money_txt(pd.get('parent_netprofit'))} (同比 {float(pd.get('sjltz') or 0):.2f}%), "
-            f"ROE {float(pd.get('weightavg_roe') or 0):.2f}%, 毛利率 {float(pd.get('xsmll') or 0):.2f}%\n"
-        )
+    peer_names = []
+    if peers_data:
+        # 挑选同行业头部龙头标的
+        leader_peers = [p for p in peers_data if not p.get('is_target')][:3]
+        target_idx = -1
+        for i, p in enumerate(peers_data):
+            if p.get('is_target') or p.get('code') == clean_code:
+                target_idx = i
+                break
+
+        selected_peers = list(leader_peers)
+        if target_idx != -1:
+            # 挑选与目标股票体量/身位最接近的邻近直接竞对
+            adj_peers = [p for p in peers_data[max(0, target_idx-2):min(len(peers_data), target_idx+3)] if not p.get('is_target') and p not in selected_peers]
+            selected_peers.extend(adj_peers)
+
+        for pd in selected_peers[:8]:
+            p_name = pd.get('name') or pd.get('stock_name') or get_stock_name(pd.get('code')) or pd.get('code')
+            p_code = pd.get('code') or pd.get('stock_code')
+            if p_name and p_code:
+                peer_names.append(f"【{p_name}】({p_code})")
+                p_cap = f", 总市值 {float(pd.get('total_cap_yi') or 0):.2f}亿元" if pd.get('total_cap_yi') else ""
+                peers_summary += (
+                    f"- 同行竞对 【{p_name}】({p_code}){p_cap}: "
+                    f"营业总收入 {_fmt_money_txt(pd.get('total_operate_income'))} (同比 {float(pd.get('ystz') or 0):.2f}%), "
+                    f"归母净利润 {_fmt_money_txt(pd.get('parent_netprofit'))} (同比 {float(pd.get('sjltz') or 0):.2f}%), "
+                    f"加权ROE {float(pd.get('weightavg_roe') or 0):.2f}%, 销售毛利率 {float(pd.get('xsmll') or 0):.2f}%\n"
+                )
+
+    peer_example_str = "、".join(peer_names[:4]) if peer_names else "具体同行公司"
 
     prompt = f"""你是一位顶级A股买方基金经理与资深投研总监，专注于基本面深度排雷、盈利含金量拆解与跨期预期差定价。
 请根据以下标的股票的关键财务报表、近期重大公告动态及行业竞对数据，撰写一篇完整、优质、结构严谨的机构投研研判报告。
@@ -1968,8 +1989,8 @@ def generate_llm_fina_analysis(
 - 预期差与市场定价核心：强调业绩数字本身不是定价核心，深入剖析当期业绩表现与市场先前预期之间的“预期差”（超预期利好、符合预期还是不及预期暴雷），当前股价对业绩是已充分消化还是存在认知偏差。
 
 👥 三、【同行横向对比及行业身位】
-- 同行横向对比：对比行业主要竞对（如三峡能源、太阳能等）的营收规模、盈利能力、成长性及ROE、毛利率差距；
-- 行业身位与核心壁垒：明确分析该公司在行业中所处的身位梯队（头部领跑、中游稳健还是后排落后），其核心竞争优势与劣势各在哪里。
+- 核心同行竞对横向对比（【必须明确列出具体的公司名称与股票代码】）：严禁使用“行业龙头”、“某头部竞对”等模糊代称，必须直接指名道姓对比上述同行主要竞对的具体公司名称（如对比{peer_example_str}等真实公司），逐一比对其营业总收入体量、归母净利润、成长增速（营收同比/净利同比）以及盈利能力（加权ROE、销售毛利率）的绝对差距与相对优势；
+- 行业身位梯队定位：明确该标的在全行业中所处的身位梯队（头部领跑、中游区域中坚还是后排追赶），指出该公司相对于所列同行具体竞对的核心壁垒/特色优势在哪里，落后的劣势与短板在哪里。
 
 📰 四、【公司重要新闻与公告深度研判】
 - 深度梳理分类分析近期披露的重大事项：
