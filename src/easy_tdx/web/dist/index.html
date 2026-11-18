@@ -2096,6 +2096,18 @@
             <button onclick="switchTab('etfdata')" id="tab-etfdata"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layers"
                     class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>ETF数据</button>
+            <!-- 区间统计 · 起始时间 -->
+            <div id="nav-range-stat-box" class="flex items-center space-x-1.5 px-3 py-1 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 rounded-lg text-xs transition ml-1">
+                <span class="text-slate-300 font-medium flex items-center whitespace-nowrap">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>区间统计
+                </span>
+                <span class="text-slate-500 font-normal">|</span>
+                <label for="wl-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">起始时间</label>
+                <input type="date" id="wl-range-start-date" onchange="onRangeStatDateChange(this.value)"
+                    class="bg-slate-900 border border-slate-700/80 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
+                    title="设置区间统计起始时间，计算自该日起至最新价的累计涨跌幅">
+                <button onclick="clearRangeStatDate()" class="text-[11px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-700/60 transition whitespace-nowrap" title="清空起始时间">重置</button>
+            </div>
         </nav>
     </header>
 
@@ -3173,8 +3185,19 @@
                         </span>
                     </div>
 
-                    <!-- Watchlist Actions: Search/Add Stock -->
+                    <!-- Watchlist Actions: Search/Add Stock & 区间统计 -->
                     <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center space-x-1.5 px-2.5 py-1 bg-slate-900/90 border border-slate-700/80 rounded-lg text-xs">
+                            <span class="text-slate-300 font-medium flex items-center whitespace-nowrap text-[11px]">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>区间统计
+                            </span>
+                            <span class="text-slate-600 font-normal">|</span>
+                            <label for="table-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">起始时间</label>
+                            <input type="date" id="table-range-start-date" onchange="onRangeStatDateChange(this.value)"
+                                class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
+                                title="选择区间统计起始日期">
+                            <button onclick="clearRangeStatDate()" class="text-[10.5px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-800 transition whitespace-nowrap" title="清空起始时间">重置</button>
+                        </div>
                         <div class="relative flex items-center">
                             <div class="relative">
                                 <input type="text" id="watchlist-add-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
@@ -3221,6 +3244,10 @@
                                 <th onclick="changeWatchlistSort('close')"
                                     class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
                                     最新价 <span id="wl-sort-close" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeWatchlistSort('range_pct')"
+                                    class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400"
+                                    title="所选起始时间至今的区间涨跌幅">
+                                    区间涨跌幅 <span id="wl-sort-range_pct" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('pct')"
                                     class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
                                     涨幅% <span id="wl-sort-pct" class="text-[10px] text-slate-500">↕</span></th>
@@ -17201,6 +17228,45 @@
         let _watchlistSortAsc = false;
         let _cachedWatchlistRows = []; window._cachedWatchlistRows = _cachedWatchlistRows;
 
+        let _wlRangeStartDate = '';
+        try {
+            _wlRangeStartDate = localStorage.getItem('easy_tdx_wl_start_date') || '';
+        } catch (e) { }
+        window._wlRangeStartDate = _wlRangeStartDate;
+
+        function syncRangeDateInputs() {
+            const navInput = document.getElementById('wl-range-start-date');
+            if (navInput && navInput.value !== window._wlRangeStartDate) {
+                navInput.value = window._wlRangeStartDate;
+            }
+            const tblInput = document.getElementById('table-range-start-date');
+            if (tblInput && tblInput.value !== window._wlRangeStartDate) {
+                tblInput.value = window._wlRangeStartDate;
+            }
+        }
+
+        function onRangeStatDateChange(val) {
+            window._wlRangeStartDate = (val || '').trim();
+            try {
+                if (window._wlRangeStartDate) {
+                    localStorage.setItem('easy_tdx_wl_start_date', window._wlRangeStartDate);
+                } else {
+                    localStorage.removeItem('easy_tdx_wl_start_date');
+                }
+            } catch (e) { }
+            syncRangeDateInputs();
+            loadRealtimeQuotes();
+        }
+
+        function clearRangeStatDate() {
+            window._wlRangeStartDate = '';
+            try {
+                localStorage.removeItem('easy_tdx_wl_start_date');
+            } catch (e) { }
+            syncRangeDateInputs();
+            loadRealtimeQuotes();
+        }
+
         function changeWatchlistSort(col) {
             if (_watchlistSortCol === col) {
                 _watchlistSortAsc = !_watchlistSortAsc;
@@ -17216,7 +17282,7 @@
             if (!tableEl) return;
 
             // Update sort indicators on thead
-            const sortFields = ['stock_code', 'stock_name', 'industry', 'buy_score', 'sell_score', 'mkt_capt', 'close', 'pct', 'amplitude', 'dde_net', 'consec_amount', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'];
+            const sortFields = ['stock_code', 'stock_name', 'industry', 'buy_score', 'sell_score', 'mkt_capt', 'close', 'range_pct', 'pct', 'amplitude', 'dde_net', 'consec_amount', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'];
             sortFields.forEach(f => {
                 const el = document.getElementById(`wl-sort-${f}`);
                 if (el) {
@@ -17233,7 +17299,7 @@
             if (!_cachedWatchlistRows || _cachedWatchlistRows.length === 0) {
                 tableEl.innerHTML = `
                     <tr>
-                        <td colspan="23" class="py-10 text-center text-slate-400 font-sans">
+                        <td colspan="24" class="py-10 text-center text-slate-400 font-sans">
                             <div class="flex flex-col items-center justify-center space-y-2">
                                 <i data-lucide="inbox" class="w-8 h-8 text-slate-400 dark:text-slate-500 stroke-1"></i>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">当前自选监控池为空，请在上方输入代码/名称添加，或点击「恢复默认」</p>
@@ -17338,6 +17404,19 @@
                     const price = Number(q.close != null ? q.close : (q.price != null ? q.price : 0));
                     const priceStr = price > 0 ? `¥${price.toFixed(2)}` : '--';
                     const priceTd = `<td class="py-2.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">${priceStr}</td>`;
+
+                    // 7.5 区间涨跌幅
+                    let rangePctTd = '';
+                    if (q.range_pct !== undefined && q.range_pct !== null) {
+                        const rPct = Number(q.range_pct);
+                        const rPctColor = rPct > 0 ? 'text-rose-600 dark:text-rose-500' : (rPct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
+                        const rPctStr = (rPct > 0 ? '+' : '') + rPct.toFixed(2) + '%';
+                        const startPStr = q.start_price ? `¥${Number(q.start_price).toFixed(2)}` : '--';
+                        const actDateStr = q.start_date || (window._wlRangeStartDate || '');
+                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${rPctColor}" title="基准日: ${actDateStr} (基准价: ${startPStr}) -> 最新: ${priceStr} (累计涨幅: ${rPctStr})">${rPctStr}</td>`;
+                    } else {
+                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap" title="未设置起始时间或暂无区间数据">--</td>`;
+                    }
 
                     // 8. 涨幅%
                     const pct = Number(q.pct != null ? q.pct : (q.change_pct != null ? q.change_pct : 0));
@@ -17484,6 +17563,7 @@
                             ${sellTd}
                             ${mvTd}
                             ${priceTd}
+                            ${rangePctTd}
                             ${pctTd}
                             ${ampTd}
                             ${ddeTd}
@@ -17513,6 +17593,7 @@
 
         async function loadRealtimeQuotes() {
             try {
+                syncRangeDateInputs();
                 const symbols = getWatchlistSymbols();
                 const countBadge = document.getElementById('watchlist-count-badge');
                 if (countBadge) countBadge.innerText = `${symbols.length} 只标的`;
@@ -17530,7 +17611,7 @@
                 if (!_cachedWatchlistRows || _cachedWatchlistRows.length === 0) {
                     tableEl.innerHTML = `
                         <tr>
-                            <td colspan="23" class="py-8 text-center text-slate-400 font-sans">
+                            <td colspan="24" class="py-8 text-center text-slate-400 font-sans">
                                 <div class="flex items-center justify-center space-x-2">
                                     <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i>
                                     <span class="text-xs text-slate-500 dark:text-slate-400">正在实时计算自选池行情与多因子打分...</span>
@@ -17541,7 +17622,11 @@
                     if (window.lucide) lucide.createIcons();
                 }
 
-                const resp = await fetch(`/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`);
+                let dashUrl = `/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`;
+                if (window._wlRangeStartDate) {
+                    dashUrl += `&start_date=${encodeURIComponent(window._wlRangeStartDate)}`;
+                }
+                const resp = await fetch(dashUrl);
                 if (resp.ok) {
                     const json = await resp.json();
                     const rows = json.rows || [];
@@ -21435,6 +21520,7 @@
 
 
         window.addEventListener('DOMContentLoaded', async () => {
+            syncRangeDateInputs();
             initECharts();
             restoreInitialTab();
             await populateInitialData();
