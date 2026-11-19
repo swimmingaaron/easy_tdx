@@ -287,7 +287,18 @@ class KlineDiskCache:
                 return False
             if is_min_bar:
                 # 分钟线收盘时必须覆盖到 15:00 附近
-                return ("15:00" in latest_str) or ("14:55" in latest_str)
+                has_close = ("15:00" in latest_str) or ("14:55" in latest_str)
+                if not has_close:
+                    return False
+                # 针对 1分钟K线，还必须校验今日开盘数据是否完整（必须包含早盘 09:35 前的数据，防止早盘断档）
+                if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+                    today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
+                    if len(today_bars) < 200:
+                        return False
+                    first_t = str(today_bars[dt_col].iloc[0])[-5:]
+                    if first_t > "09:35":
+                        return False
+                return True
             return True
 
         # 5.2 工作日中午休市 (11:35 - 12:55)
@@ -295,13 +306,33 @@ class KlineDiskCache:
             if not is_today:
                 return False
             if is_min_bar:
-                return ("11:30" in latest_str) or ("11:25" in latest_str)
+                has_noon = ("11:30" in latest_str) or ("11:25" in latest_str)
+                if not has_noon:
+                    return False
+                if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+                    today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
+                    if len(today_bars) < 100:
+                        return False
+                    first_t = str(today_bars[dt_col].iloc[0])[-5:]
+                    if first_t > "09:35":
+                        return False
+                return True
             return True
 
         # 5.3 周末或盘前
         # 只要最新日期已经达到预期收盘交易日且分钟线已经收在 15:00
         if is_min_bar:
-            return ("15:00" in latest_str) or ("14:55" in latest_str)
+            has_close = ("15:00" in latest_str) or ("14:55" in latest_str)
+            if not has_close:
+                return False
+            if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+                today_bars = df[df[dt_col].astype(str).str.startswith(latest_date_str)]
+                if len(today_bars) < 200:
+                    return False
+                first_t = str(today_bars[dt_col].iloc[0])[-5:]
+                if first_t > "09:35":
+                    return False
+            return True
         return True
 
 

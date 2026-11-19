@@ -378,9 +378,23 @@ def fetch_security_kline(
         pull_count = max(count, 800)
 
     # 1.1 若已有本地缓存，检查是否已满足需求（针对新股 full_history 容错：历史已拉满时不因不足 12000 根而重复全量拉取）
+    is_min1 = category in (KlineCategory.MIN_1, "1m", "1M", "1F") or str(category).upper() in ("MIN_1", "1M", "1F", "7")
+    is_min5 = category in (KlineCategory.MIN_5, "5m", "5M", "5F") or str(category).upper() in ("MIN_5", "5M", "5F", "0")
     if cached_df is not None and not cached_df.empty and not force_refresh:
         is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
         is_satisfied = (len(cached_df) >= effective_req_count) or is_full_history
+        # 针对 1分钟K线进行完整性检查：如果缓存中今日的数据存在但严重残缺（例如开盘在09:35之后），视为未满足，直接全量拉取
+        if is_satisfied and is_min1 and len(cached_df) > 0:
+            dt_col = "date" if "date" in cached_df.columns else "datetime"
+            if dt_col in cached_df.columns:
+                last_dt_str = str(cached_df[dt_col].iloc[-1]).strip()
+                last_d_str = last_dt_str[:10]
+                today_sub = cached_df[cached_df[dt_col].astype(str).str.startswith(last_d_str)]
+                if len(today_sub) > 0:
+                    first_hm = str(today_sub[dt_col].iloc[0])[-5:]
+                    if first_hm > "09:35" and str(today_sub[dt_col].iloc[-1])[-5:] >= "11:30":
+                        is_satisfied = False
+
         if is_satisfied:
             # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
             if disk_cache.is_up_to_date(cached_df, cache_suffix):
@@ -388,9 +402,14 @@ def fetch_security_kline(
                 _CACHE[cache_key] = (now, res)
                 return res
 
-            # B. 若处于交易时段或需要同步最新数据：仅向 TDX 请求最新微量增量（60~80 根）！
+            # B. 若处于交易时段或需要同步最新数据：根据周期自适应拉取覆盖增量
             try:
-                delta_cnt = min(80, effective_req_count)
+                if is_min1:
+                    delta_cnt = max(effective_req_count, 300)
+                elif is_min5:
+                    delta_cnt = max(effective_req_count, 100)
+                else:
+                    delta_cnt = min(80, effective_req_count)
                 delta_df = _fetch_raw_tdx_kline(symbol, category, clean_sym, is_120m, adj_val, delta_cnt, force_refresh=True)
                 if delta_df is not None and not delta_df.empty:
                     merged_df = disk_cache.merge_and_update(cache_sym, cache_suffix, cached_df, delta_df, adj_val.name)

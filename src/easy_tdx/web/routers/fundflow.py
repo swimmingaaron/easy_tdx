@@ -491,10 +491,18 @@ def _compute_intraday_flow_series(
         return [0.0] * num_points
 
     try:
-        df = fetch_security_kline(code, category="1m", count=num_points)
+        df = fetch_security_kline(code, category="1m", count=max(num_points, 480))
         if df is not None and len(df) >= 2:
             latest_date = str(df["datetime"].iloc[-1])[:10]
             df_today = df[df["datetime"].astype(str).str.startswith(latest_date)].copy()
+            # 容错：如果今日条数不足 120 且开盘在 09:35 之后，强制拉取 800 根全量修复早盘数据
+            if len(df_today) > 0 and str(df_today["datetime"].iloc[0])[-5:] > "09:35":
+                df_full = fetch_security_kline(code, category="1m", count=800, force_refresh=True)
+                if df_full is not None and len(df_full) >= 2:
+                    sub_today = df_full[df_full["datetime"].astype(str).str.startswith(latest_date)].copy()
+                    if len(sub_today) > len(df_today):
+                        df_today = sub_today
+
             if len(df_today) >= 2:
                 spread = df_today["high"] - df_today["low"]
                 ratio = np.where(
@@ -535,11 +543,20 @@ def _compute_intraday_flow_series(
                         series[idx] = round(float(v), 2)
 
                 running_val = 0.0
+                first_valid_idx = None
                 for i in range(1, cur_idx + 1):
-                    if series[i] == 0.0 and running_val != 0.0:
-                        series[i] = running_val
-                    elif series[i] != 0.0:
+                    if series[i] != 0.0:
                         running_val = series[i]
+                        if first_valid_idx is None:
+                            first_valid_idx = i
+                    elif running_val != 0.0:
+                        series[i] = running_val
+
+                # 若早盘开头前几分钟有微小间隙，向前平滑回推，避免突变
+                if first_valid_idx is not None and first_valid_idx > 1:
+                    first_val = series[first_valid_idx]
+                    for i in range(1, first_valid_idx):
+                        series[i] = round(first_val * (i / first_valid_idx), 2)
 
                 series[0] = 0.0
                 series[cur_idx] = round(final_yi, 2)
@@ -550,7 +567,9 @@ def _compute_intraday_flow_series(
     except Exception:
         pass
 
-    if not series_yi:
+    # 检查是否整段早盘均无数据 (例如指数完全没有1分钟成交)
+    is_morning_empty = sum(1 for v in (series_yi or [])[:121] if v != 0.0) == 0
+    if not series_yi or is_morning_empty:
         series = [0.0] * num_points
         x = np.linspace(0, 1, cur_idx + 1)
         seed = sum(ord(c) for c in name) % 100
