@@ -2644,7 +2644,14 @@ def analyze_quad_resonance(
     cutoff_dfs: dict[str, pd.DataFrame] = {}
     if cutoff_date and str(cutoff_date).strip():
         try:
-            cutoff_dt = pd.to_datetime(str(cutoff_date).strip())
+            cutoff_str = str(cutoff_date).strip()
+            parsed_dt = pd.to_datetime(cutoff_str)
+            # 若只提供了日期部分 (例如 '2026-11-19' 或长度 <= 10)，需将截断时点扩展至当天 23:59:59，
+            # 避免分钟级子周期 (30F, 5F, 1F 等) 因 00:00:00 早于 09:30 开盘时间而被全部错误过滤。
+            if len(cutoff_str) <= 10 or (" " not in cutoff_str and "T" not in cutoff_str):
+                cutoff_dt = parsed_dt.replace(hour=23, minute=59, second=59)
+            else:
+                cutoff_dt = parsed_dt
             for p_name, df_cur in raw_dfs.items():
                 if not df_cur.empty and "datetime" in df_cur.columns:
                     dts = pd.to_datetime(df_cur["datetime"].astype(str))

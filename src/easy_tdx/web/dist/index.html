@@ -27146,7 +27146,7 @@
             if (wins[primaryKey]) {
                 renderSingleChanlunChart(primaryKey, wins[primaryKey]);
             }
-            const overviewData = wins.left || wins[primaryKey];
+            const overviewData = wins[primaryKey] || wins.left;
             if (overviewData) {
                 updateChanlunOverview(overviewData);
                 updateChanlunTimeline(overviewData);
@@ -27194,30 +27194,37 @@
                 }
             }
 
-            // 1. 回溯模式下且非强制刷新，优先检查客户端内存缓存（0毫秒瞬时切换且绝无网络请求）
-            if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && _clBacktrackCache.has(cacheKeyLeft)) {
+            // 1. 回溯模式下且非强制刷新，检查所有激活窗口是否均已在客户端缓存（必须全部命中，防止窗口4等副窗断档脱节）
+            const activeWins = (_clWindowMode === 'quad') ? ['left', 'w2', 'right', 'w4'] :
+                               ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') ? ['left', 'right'] : ['left']);
+            const allInCache = activeWins.every(w => {
+                const p = (w === 'left') ? _clLeftPeriods : (w === 'w2') ? _clW2Periods : (w === 'right') ? _clRightPeriods : _clW4Periods;
+                return _clBacktrackCache.has(getClBacktrackKey(_clCurrentCode, p, _clBacktrackDate));
+            });
+
+            if (_clIsBacktracking && _clBacktrackDate && !forceRefresh && allInCache) {
                 _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
                 _clCachedData = _clLeftCachedData;
-                updateChanlunOverview(_clLeftCachedData);
-                updateChanlunTimeline(_clLeftCachedData);
-                renderChanlunSignalsTable(_clLeftCachedData);
-                renderSingleChanlunChart('left', _clLeftCachedData);
-
                 if (_clWindowMode === 'quad') {
-                    if (_clBacktrackCache.has(cacheKeyW2)) {
-                        _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
-                        renderSingleChanlunChart('w2', _clW2CachedData);
-                    }
-                    if (_clBacktrackCache.has(cacheKeyRight)) {
-                        _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
-                        renderSingleChanlunChart('right', _clRightCachedData);
-                    }
-                    if (_clBacktrackCache.has(cacheKeyW4)) {
-                        _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
-                        renderSingleChanlunChart('w4', _clW4CachedData);
-                    }
+                    if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
+                    if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                    if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
                 } else if ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') && _clBacktrackCache.has(cacheKeyRight)) {
                     _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
+                }
+
+                const primaryKey = (_clActiveWindow && ['left', 'w2', 'right', 'w4'].includes(_clActiveWindow)) ? _clActiveWindow : 'left';
+                const primaryData = getActiveWindowData() || _clLeftCachedData;
+                updateChanlunOverview(primaryData);
+                updateChanlunTimeline(primaryData);
+                renderChanlunSignalsTable(primaryData);
+
+                renderSingleChanlunChart('left', _clLeftCachedData);
+                if (_clWindowMode === 'quad') {
+                    if (_clW2CachedData) renderSingleChanlunChart('w2', _clW2CachedData);
+                    if (_clRightCachedData) renderSingleChanlunChart('right', _clRightCachedData);
+                    if (_clW4CachedData) renderSingleChanlunChart('w4', _clW4CachedData);
+                } else if ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') && _clRightCachedData) {
                     renderSingleChanlunChart('right', _clRightCachedData);
                 }
                 const l1 = document.getElementById('cl-loading-overlay');
@@ -28333,6 +28340,9 @@
                     if (foundIdx >= 0) {
                         _clBacktrackIndex = foundIdx;
                         slider.value = String(foundIdx);
+                        if (dates[foundIdx]) {
+                            _clBacktrackDate = dates[foundIdx];
+                        }
                     }
                 }
                 updateChanlunSliderTrack(slider.value, slider.max);
@@ -28340,7 +28350,7 @@
 
             if (cutoffText) {
                 const curDate = _clBacktrackDate || tl.max_date || '--';
-                cutoffText.innerText = `截断: ${curDate.slice(0, 10)} (${_clBacktrackIndex + 1}/${total})`;
+                cutoffText.innerText = `截断: ${curDate} (${_clBacktrackIndex + 1}/${total})`;
             }
 
             if (cutoffInput && tl.current_date) {
@@ -31601,9 +31611,10 @@
                 if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
                 if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
                 if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
-                updateChanlunOverview(_clLeftCachedData);
-                updateChanlunTimeline(getActiveWindowData());
-                renderChanlunSignalsTable(_clLeftCachedData);
+                const activeWinData = getActiveWindowData() || _clLeftCachedData;
+                updateChanlunOverview(activeWinData);
+                updateChanlunTimeline(activeWinData);
+                renderChanlunSignalsTable(activeWinData);
                 renderChanlunChart();
                 return;
             }
@@ -31719,21 +31730,24 @@
                     const latestBtn = document.getElementById('cl-btn-latest-bar');
                     if (latestBtn) latestBtn.classList.remove('hidden');
 
-                    // 2. 检查客户端内存缓存：若已命中，直接 0ms 顺畅刷新图表，完全不向服务器发请求
-                    const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
-                    const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
-                    const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
-                    const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+                    // 2. 检查客户端内存缓存：若当前四窗口均已命中，直接 0ms 顺畅刷新图表
+                    const activeWins = (_clWindowMode === 'quad') ? ['left', 'w2', 'right', 'w4'] :
+                                       ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') ? ['left', 'right'] : ['left']);
+                    const allInCache = activeWins.every(w => {
+                        const p = (w === 'left') ? _clLeftPeriods : (w === 'w2') ? _clW2Periods : (w === 'right') ? _clRightPeriods : _clW4Periods;
+                        return _clBacktrackCache.has(getClBacktrackKey(_clCurrentCode, p, _clBacktrackDate));
+                    });
 
-                    if (_clBacktrackCache.has(cacheKeyLeft)) {
-                        _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                    if (allInCache) {
+                        _clLeftCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate));
                         _clCachedData = _clLeftCachedData;
-                        if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
-                        if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
-                        if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
-                        updateChanlunOverview(_clLeftCachedData);
-                        updateChanlunTimeline(getActiveWindowData());
-                        renderChanlunSignalsTable(_clLeftCachedData);
+                        if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
+                        if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
+                        if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
+                        const activeWinData = getActiveWindowData() || _clLeftCachedData;
+                        updateChanlunOverview(activeWinData);
+                        updateChanlunTimeline(activeWinData);
+                        renderChanlunSignalsTable(activeWinData);
                         renderChanlunChart();
                         return;
                     }
@@ -31764,20 +31778,23 @@
                         clearTimeout(_clBacktrackDebounceTimer);
                         _clBacktrackDebounceTimer = null;
                     }
-                    const cacheKeyLeft = getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate);
-                    const cacheKeyW2 = getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate);
-                    const cacheKeyRight = getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate);
-                    const cacheKeyW4 = getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate);
+                    const activeWins = (_clWindowMode === 'quad') ? ['left', 'w2', 'right', 'w4'] :
+                                       ((_clWindowMode === 'dual' || _clWindowMode === 'dual_h') ? ['left', 'right'] : ['left']);
+                    const allInCache = activeWins.every(w => {
+                        const p = (w === 'left') ? _clLeftPeriods : (w === 'w2') ? _clW2Periods : (w === 'right') ? _clRightPeriods : _clW4Periods;
+                        return _clBacktrackCache.has(getClBacktrackKey(_clCurrentCode, p, _clBacktrackDate));
+                    });
 
-                    if (_clBacktrackCache.has(cacheKeyLeft)) {
-                        _clLeftCachedData = _clBacktrackCache.get(cacheKeyLeft);
+                    if (allInCache) {
+                        _clLeftCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clLeftPeriods, _clBacktrackDate));
                         _clCachedData = _clLeftCachedData;
-                        if (_clBacktrackCache.has(cacheKeyW2)) _clW2CachedData = _clBacktrackCache.get(cacheKeyW2);
-                        if (_clBacktrackCache.has(cacheKeyRight)) _clRightCachedData = _clBacktrackCache.get(cacheKeyRight);
-                        if (_clBacktrackCache.has(cacheKeyW4)) _clW4CachedData = _clBacktrackCache.get(cacheKeyW4);
-                        updateChanlunOverview(_clLeftCachedData);
-                        updateChanlunTimeline(getActiveWindowData());
-                        renderChanlunSignalsTable(_clLeftCachedData);
+                        if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
+                        if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
+                        if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
+                        const activeWinData = getActiveWindowData() || _clLeftCachedData;
+                        updateChanlunOverview(activeWinData);
+                        updateChanlunTimeline(activeWinData);
+                        renderChanlunSignalsTable(activeWinData);
                         renderChanlunChart();
                         return;
                     }
@@ -31870,9 +31887,10 @@
                 if (activeWins.includes('w2')) _clW2CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW2Periods, _clBacktrackDate));
                 if (activeWins.includes('right')) _clRightCachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clRightPeriods, _clBacktrackDate));
                 if (activeWins.includes('w4')) _clW4CachedData = _clBacktrackCache.get(getClBacktrackKey(_clCurrentCode, _clW4Periods, _clBacktrackDate));
-                updateChanlunOverview(_clLeftCachedData);
-                updateChanlunTimeline(getActiveWindowData());
-                renderChanlunSignalsTable(_clLeftCachedData);
+                const activeWinData = getActiveWindowData() || _clLeftCachedData;
+                updateChanlunOverview(activeWinData);
+                updateChanlunTimeline(activeWinData);
+                renderChanlunSignalsTable(activeWinData);
                 renderChanlunChart();
                 return;
             }
