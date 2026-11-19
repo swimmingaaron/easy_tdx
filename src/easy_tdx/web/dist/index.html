@@ -3176,23 +3176,8 @@
                         </span>
                     </div>
 
-                    <!-- Watchlist Actions: Search/Add Stock & 区间统计 -->
-                    <div class="flex flex-wrap items-center gap-2">
-                        <div class="flex items-center space-x-1.5 px-2.5 py-1 bg-slate-900/90 border border-slate-700/80 rounded-lg text-xs">
-                            <span class="text-slate-300 font-medium flex items-center whitespace-nowrap text-[11px]">
-                                <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>区间统计
-                            </span>
-                            <span class="text-slate-600 font-normal">|</span>
-                            <label for="table-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">开始时间</label>
-                            <input type="date" id="table-range-start-date" onchange="onWatchlistRangeDateChange()"
-                                class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                                title="选择区间统计开始日期">
-                            <label for="table-range-end-date" class="text-slate-400 whitespace-nowrap text-[11px]">截至时间</label>
-                            <input type="date" id="table-range-end-date" onchange="onWatchlistRangeDateChange()"
-                                class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                                title="选择区间统计截至日期（默认留空即表示至今）">
-                            <button onclick="clearWatchlistRangeDate()" class="text-[10.5px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-800 transition whitespace-nowrap" title="重置为默认至今">重置</button>
-                        </div>
+                    <!-- Watchlist Actions: Search/Add Stock -->
+                    <div class="flex items-center">
                         <div class="relative flex items-center">
                             <div class="relative">
                                 <input type="text" id="watchlist-add-input" placeholder="输入代码/名称 (如 300750 或 宁德时代)"
@@ -3239,10 +3224,6 @@
                                 <th onclick="changeWatchlistSort('close')"
                                     class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
                                     最新价 <span id="wl-sort-close" class="text-[10px] text-slate-500">↕</span></th>
-                                <th onclick="changeWatchlistSort('range_pct')"
-                                    class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400"
-                                    title="所选起始时间至今的区间涨跌幅">
-                                    区间涨跌幅 <span id="wl-sort-range_pct" class="text-[10px] text-slate-500">↕</span></th>
                                 <th onclick="changeWatchlistSort('pct')"
                                     class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
                                     涨幅% <span id="wl-sort-pct" class="text-[10px] text-slate-500">↕</span></th>
@@ -5494,7 +5475,7 @@
                     <div class="lg:col-span-3 flex items-center space-x-2 pt-3 lg:pt-0">
                         <div class="w-1/2 space-y-1">
                             <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">板块行业</label>
-                            <select id="rs-industry-select" onchange="applyRangeStatFilter()"
+                            <select id="rs-industry-select" onchange="applyRangeStatFilter(true)"
                                 class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium focus:border-cyan-500 outline-none">
                                 <option value="">全部行业</option>
                             </select>
@@ -5502,7 +5483,7 @@
                         <div class="w-1/2 space-y-1">
                             <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">代码 / 名称</label>
                             <div class="relative">
-                                <input type="text" id="rs-search-input" placeholder="搜索标的..." oninput="applyRangeStatFilter()"
+                                <input type="text" id="rs-search-input" placeholder="搜索标的..." oninput="applyRangeStatFilter(true)"
                                     class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-2 pr-6 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-cyan-500 outline-none font-mono">
                                 <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
                             </div>
@@ -5621,6 +5602,52 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- 区间统计分页控制栏 -->
+                <div id="rs-pagination-bar"
+                    class="p-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                    <div id="rs-pagination-summary" class="font-mono text-slate-600 dark:text-slate-400">
+                        共 0 只标的 · 显示第 0 - 0 条
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- 每页行数选择 -->
+                        <div class="flex items-center space-x-1.5 mr-2">
+                            <span class="text-[11px]">每页</span>
+                            <select id="rs-page-size-select" onchange="changeRangeStatPageSize(this.value)"
+                                class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-slate-800 dark:text-slate-200 font-mono focus:border-cyan-500 outline-none cursor-pointer">
+                                <option value="25">25 条</option>
+                                <option value="50" selected>50 条</option>
+                                <option value="100">100 条</option>
+                                <option value="200">200 条</option>
+                                <option value="500">500 条</option>
+                            </select>
+                        </div>
+
+                        <!-- 翻页按钮组 -->
+                        <div class="flex items-center gap-1.5">
+                            <button id="rs-page-first" onclick="goToRangeStatPage(1)"
+                                class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">首页</button>
+                            <button id="rs-page-prev" onclick="goToRangeStatPage(rsCurrentPage - 1)"
+                                class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">上一页</button>
+                            <span id="rs-page-info" class="font-mono font-semibold text-slate-800 dark:text-slate-200 px-1">第 1 / 1 页</span>
+                            <button id="rs-page-next" onclick="goToRangeStatPage(rsCurrentPage + 1)"
+                                class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">下一页</button>
+                            <button id="rs-page-last" onclick="goToRangeStatPage(rsTotalPages)"
+                                class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition cursor-pointer">尾页</button>
+                        </div>
+
+                        <!-- 跳转输入 -->
+                        <div class="flex items-center gap-1 ml-2">
+                            <span>跳至</span>
+                            <input id="rs-page-input" type="number" min="1" value="1"
+                                class="w-14 px-1.5 py-0.5 text-center font-mono rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
+                                onkeydown="if(event.key==='Enter') jumpToRangeStatPage()">
+                            <span>页</span>
+                            <button onclick="jumpToRangeStatPage()"
+                                class="px-2 py-1 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 font-medium transition cursor-pointer">确定</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -17455,66 +17482,6 @@
         let _watchlistSortAsc = false;
         let _cachedWatchlistRows = []; window._cachedWatchlistRows = _cachedWatchlistRows;
 
-        let _wlRangeStartDate = '';
-        let _wlRangeEndDate = '';
-        try {
-            _wlRangeStartDate = localStorage.getItem('easy_tdx_wl_start_date') || '';
-            _wlRangeEndDate = localStorage.getItem('easy_tdx_wl_end_date') || '';
-        } catch (e) { }
-        window._wlRangeStartDate = _wlRangeStartDate;
-        window._wlRangeEndDate = _wlRangeEndDate;
-
-        function syncWatchlistRangeInputs() {
-            const startInput = document.getElementById('table-range-start-date');
-            if (startInput && startInput.value !== window._wlRangeStartDate) {
-                startInput.value = window._wlRangeStartDate;
-            }
-            const endInput = document.getElementById('table-range-end-date');
-            if (endInput && endInput.value !== window._wlRangeEndDate) {
-                endInput.value = window._wlRangeEndDate;
-            }
-            const legacyNav = document.getElementById('wl-range-start-date');
-            if (legacyNav && legacyNav.value !== window._wlRangeStartDate) {
-                legacyNav.value = window._wlRangeStartDate;
-            }
-        }
-
-        function onWatchlistRangeDateChange() {
-            const startInput = document.getElementById('table-range-start-date');
-            const endInput = document.getElementById('table-range-end-date');
-            window._wlRangeStartDate = (startInput ? startInput.value : '').trim();
-            window._wlRangeEndDate = (endInput ? endInput.value : '').trim();
-            try {
-                if (window._wlRangeStartDate) {
-                    localStorage.setItem('easy_tdx_wl_start_date', window._wlRangeStartDate);
-                } else {
-                    localStorage.removeItem('easy_tdx_wl_start_date');
-                }
-                if (window._wlRangeEndDate) {
-                    localStorage.setItem('easy_tdx_wl_end_date', window._wlRangeEndDate);
-                } else {
-                    localStorage.removeItem('easy_tdx_wl_end_date');
-                }
-            } catch (e) { }
-            syncWatchlistRangeInputs();
-            loadRealtimeQuotes();
-        }
-
-        function clearWatchlistRangeDate() {
-            window._wlRangeStartDate = '';
-            window._wlRangeEndDate = '';
-            try {
-                localStorage.removeItem('easy_tdx_wl_start_date');
-                localStorage.removeItem('easy_tdx_wl_end_date');
-            } catch (e) { }
-            syncWatchlistRangeInputs();
-            loadRealtimeQuotes();
-        }
-
-        function syncRangeDateInputs() { syncWatchlistRangeInputs(); }
-        function onRangeStatDateChange(val) { onWatchlistRangeDateChange(); }
-        function clearRangeStatDate() { clearWatchlistRangeDate(); }
-
         function changeWatchlistSort(col) {
             if (_watchlistSortCol === col) {
                 _watchlistSortAsc = !_watchlistSortAsc;
@@ -17530,7 +17497,7 @@
             if (!tableEl) return;
 
             // Update sort indicators on thead
-            const sortFields = ['stock_code', 'stock_name', 'industry', 'buy_score', 'sell_score', 'mkt_capt', 'close', 'range_pct', 'pct', 'amplitude', 'dde_net', 'consec_amount', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'];
+            const sortFields = ['stock_code', 'stock_name', 'industry', 'buy_score', 'sell_score', 'mkt_capt', 'close', 'pct', 'amplitude', 'dde_net', 'consec_amount', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'];
             sortFields.forEach(f => {
                 const el = document.getElementById(`wl-sort-${f}`);
                 if (el) {
@@ -17547,7 +17514,7 @@
             if (!_cachedWatchlistRows || _cachedWatchlistRows.length === 0) {
                 tableEl.innerHTML = `
                     <tr>
-                        <td colspan="24" class="py-10 text-center text-slate-400 font-sans">
+                        <td colspan="23" class="py-10 text-center text-slate-400 font-sans">
                             <div class="flex flex-col items-center justify-center space-y-2">
                                 <i data-lucide="inbox" class="w-8 h-8 text-slate-400 dark:text-slate-500 stroke-1"></i>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">当前自选监控池为空，请在上方输入代码/名称添加，或点击「恢复默认」</p>
@@ -17653,21 +17620,6 @@
                     const priceStr = price > 0 ? `¥${price.toFixed(2)}` : '--';
                     const priceTd = `<td class="py-2.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">${priceStr}</td>`;
 
-                    // 7.5 区间涨跌幅
-                    let rangePctTd = '';
-                    if (q.range_pct !== undefined && q.range_pct !== null) {
-                        const rPct = Number(q.range_pct);
-                        const rPctColor = rPct > 0 ? 'text-rose-600 dark:text-rose-500' : (rPct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
-                        const rPctStr = (rPct > 0 ? '+' : '') + rPct.toFixed(2) + '%';
-                        const startPStr = q.start_price ? `¥${Number(q.start_price).toFixed(2)}` : '--';
-                        const actStartDateStr = q.start_date || (window._wlRangeStartDate || '');
-                        const endPStr = q.end_price ? `¥${Number(q.end_price).toFixed(2)}` : (priceStr || '--');
-                        const actEndDateStr = q.end_date || (window._wlRangeEndDate || '至今');
-                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${rPctColor}" title="基准日: ${actStartDateStr} (${startPStr}) -> 截至日: ${actEndDateStr} (${endPStr}) | 累计涨幅: ${rPctStr}">${rPctStr}</td>`;
-                    } else {
-                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap" title="未设置起始时间或暂无区间数据">--</td>`;
-                    }
-
                     // 8. 涨幅%
                     const pct = Number(q.pct != null ? q.pct : (q.change_pct != null ? q.change_pct : 0));
                     const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-500' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
@@ -17731,7 +17683,7 @@
                     }
                     const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
 
-                    // 16. 营业同比
+                    // 17. 营业同比
                     const ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;
                     let ystzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
                     if (q.ystz !== undefined && q.ystz !== null && q.ystz !== 0) {
@@ -17740,7 +17692,7 @@
                     }
                     const ystzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${ystzHtml}</td>`;
 
-                    // 17. 净利润同比
+                    // 18. 净利润同比
                     const sjltzLink = `https://a.13145188.xyz/sina_html/sina_${code}.html`;
                     let sjltzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
                     if (q.sjltz !== undefined && q.sjltz !== null && q.sjltz !== 0) {
@@ -17749,7 +17701,7 @@
                     }
                     const sjltzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${sjltzHtml}</td>`;
 
-                    // 18. PE(3年分位)
+                    // 19. PE(3年分位)
                     let peHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
                     if (q.pe_percentile !== undefined && q.pe_percentile !== null) {
                         const pVal = Number(q.pe_percentile);
@@ -17758,7 +17710,7 @@
                     }
                     const peTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${peHtml}</td>`;
 
-                    // 19. 股东集中度 (统一格式: 70.5% 🔥 或 36.1% 或 -)
+                    // 20. 股东集中度 (统一格式: 70.5% 🔥 或 36.1% 或 -)
                     let hRatioVal = (q.holder_ratio !== undefined && q.holder_ratio !== null) ? Number(q.holder_ratio) : 0;
                     let holderRatioHtml = '<span class="text-slate-400 font-mono">-</span>';
                     if (hRatioVal > 0) {
@@ -17768,7 +17720,7 @@
                     const hTitle = `股东户数: ${q.holders_str || '-'}, 十大股东集中度: ${hRatioVal > 0 ? hRatioVal.toFixed(1) + '%' : '-'}, 评价: ${q.holder_focus || '-'}`;
                     const holderRatioTd = `<td class="py-2.5 px-2 text-center font-mono text-xs whitespace-nowrap" title="${hTitle}">${holderRatioHtml}</td>`;
 
-                    // 20. 股东人数 (统一格式: 58.55万(+1.9% +2.6%  +10.7% ))
+                    // 21. 股东人数 (统一格式: 58.55万(+1.9% +2.6%  +10.7% ))
                     const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
                     const holdersNumText = (q.holders_str && q.holders_str !== '--') ? q.holders_str : (q.holders_num ? (q.holders_num >= 10000 ? (q.holders_num / 10000).toFixed(2) + '万' : q.holders_num + '户') : '-');
                     let holdersChangesHtml = '';
@@ -17788,11 +17740,11 @@
                     </div>`;
                     const holdersNumTd = `<td class="py-2.5 px-3 text-left whitespace-nowrap">${holdersNumHtml}</td>`;
 
-                    // 21. 形态特征
+                    // 22. 形态特征
                     const patNames = (q.pattern_names && q.pattern_names.length > 0) ? q.pattern_names : (q.patterns || []);
                     const patternTd = `<td class="py-2.5 px-2 text-center font-sans whitespace-nowrap">${renderPatternBadges(patNames, q.status)}</td>`;
 
-                    // 22. 操作
+                    // 23. 操作
                     const opTd = `
                         <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
                             <div class="flex items-center justify-end space-x-1.5">
@@ -17813,7 +17765,6 @@
                             ${sellTd}
                             ${mvTd}
                             ${priceTd}
-                            ${rangePctTd}
                             ${pctTd}
                             ${ampTd}
                             ${ddeTd}
@@ -17843,7 +17794,6 @@
 
         async function loadRealtimeQuotes() {
             try {
-                syncRangeDateInputs();
                 const symbols = getWatchlistSymbols();
                 const countBadge = document.getElementById('watchlist-count-badge');
                 if (countBadge) countBadge.innerText = `${symbols.length} 只标的`;
@@ -17861,7 +17811,7 @@
                 if (!_cachedWatchlistRows || _cachedWatchlistRows.length === 0) {
                     tableEl.innerHTML = `
                         <tr>
-                            <td colspan="24" class="py-8 text-center text-slate-400 font-sans">
+                            <td colspan="23" class="py-8 text-center text-slate-400 font-sans">
                                 <div class="flex items-center justify-center space-x-2">
                                     <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-500"></i>
                                     <span class="text-xs text-slate-500 dark:text-slate-400">正在实时计算自选池行情与多因子打分...</span>
@@ -17872,13 +17822,7 @@
                     if (window.lucide) lucide.createIcons();
                 }
 
-                let dashUrl = `/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`;
-                if (window._wlRangeStartDate) {
-                    dashUrl += `&start_date=${encodeURIComponent(window._wlRangeStartDate)}`;
-                }
-                if (window._wlRangeEndDate) {
-                    dashUrl += `&end_date=${encodeURIComponent(window._wlRangeEndDate)}`;
-                }
+                const dashUrl = `/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`;
                 const resp = await fetch(dashUrl);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -17907,6 +17851,9 @@
         let _rangeStatSortCol = 'range_pct';
         let _rangeStatSortAsc = false;
         let _rangeStatLoading = false;
+        let rsCurrentPage = 1;
+        let rsPageSize = 50;
+        let rsTotalPages = 1;
 
         function initRangeStatDatesIfNeeded() {
             const endInput = document.getElementById('rs-end-date');
@@ -17963,6 +17910,7 @@
             if (indSelect) indSelect.value = '';
             _rangeStatSortCol = 'range_pct';
             _rangeStatSortAsc = false;
+            rsCurrentPage = 1;
             runRangeStatQuery(true);
         }
 
@@ -18000,7 +17948,7 @@
                     const symbols = getWatchlistSymbols();
                     if (!symbols || symbols.length === 0) {
                         _rangeStatRawRows = [];
-                        applyRangeStatFilter();
+                        applyRangeStatFilter(true);
                         _rangeStatLoading = false;
                         if (btnText) btnText.textContent = '开始统计';
                         return;
@@ -18043,7 +17991,7 @@
                     }
 
                     updateRangeStatKPIs(_rangeStatRawRows);
-                    applyRangeStatFilter();
+                    applyRangeStatFilter(true);
                 } else {
                     console.error('Failed to load range stats, status:', resp.status);
                     showToast('区间统计错误', '加载区间统计数据失败，请重试');
@@ -18106,10 +18054,10 @@
                 _rangeStatSortCol = col;
                 _rangeStatSortAsc = (col === 'stock_code' || col === 'stock_name' || col === 'sell_score');
             }
-            applyRangeStatFilter();
+            applyRangeStatFilter(false);
         }
 
-        function applyRangeStatFilter() {
+        function applyRangeStatFilter(resetPage = false) {
             const indSelect = document.getElementById('rs-industry-select');
             const searchInput = document.getElementById('rs-search-input');
             const indFilter = indSelect ? indSelect.value.trim() : '';
@@ -18163,7 +18111,81 @@
             }
 
             _rangeStatFilteredRows = filtered;
-            renderRangeStatTable(filtered);
+            if (resetPage) {
+                rsCurrentPage = 1;
+            }
+            renderCurrentRangeStatPage();
+        }
+
+        function renderCurrentRangeStatPage() {
+            const total = (_rangeStatFilteredRows || []).length;
+            rsTotalPages = Math.max(1, Math.ceil(total / rsPageSize));
+            if (rsCurrentPage > rsTotalPages) rsCurrentPage = rsTotalPages;
+            if (rsCurrentPage < 1) rsCurrentPage = 1;
+
+            const startIdx = total === 0 ? 0 : (rsCurrentPage - 1) * rsPageSize;
+            const endIdx = total === 0 ? 0 : Math.min(startIdx + rsPageSize, total);
+            const pageRows = total === 0 ? [] : _rangeStatFilteredRows.slice(startIdx, endIdx);
+
+            renderRangeStatTable(pageRows);
+            updateRangeStatPagination(total, startIdx, endIdx);
+        }
+
+        function updateRangeStatPagination(totalCount, startIdx, endIdx) {
+            const summaryEl = document.getElementById('rs-pagination-summary');
+            if (summaryEl) {
+                if (totalCount === 0) {
+                    summaryEl.textContent = '共 0 只标的 · 显示第 0 - 0 条';
+                } else {
+                    summaryEl.textContent = `共 ${totalCount} 只标的 · 显示第 ${startIdx + 1} - ${endIdx} 条`;
+                }
+            }
+            const infoEl = document.getElementById('rs-page-info');
+            if (infoEl) infoEl.textContent = `第 ${rsCurrentPage} / ${rsTotalPages} 页`;
+
+            const btnFirst = document.getElementById('rs-page-first');
+            const btnPrev = document.getElementById('rs-page-prev');
+            const btnNext = document.getElementById('rs-page-next');
+            const btnLast = document.getElementById('rs-page-last');
+            if (btnFirst) btnFirst.disabled = (rsCurrentPage <= 1);
+            if (btnPrev) btnPrev.disabled = (rsCurrentPage <= 1);
+            if (btnNext) btnNext.disabled = (rsCurrentPage >= rsTotalPages);
+            if (btnLast) btnLast.disabled = (rsCurrentPage >= rsTotalPages);
+
+            const inputEl = document.getElementById('rs-page-input');
+            if (inputEl) {
+                inputEl.value = rsCurrentPage;
+                inputEl.max = rsTotalPages;
+            }
+        }
+
+        function goToRangeStatPage(page) {
+            const target = Math.max(1, Math.min(page, rsTotalPages));
+            if (target === rsCurrentPage) return;
+            rsCurrentPage = target;
+            renderCurrentRangeStatPage();
+            const tblSection = document.getElementById('range-stat-table');
+            if (tblSection) {
+                tblSection.closest('.overflow-x-auto')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function jumpToRangeStatPage() {
+            const inputEl = document.getElementById('rs-page-input');
+            if (!inputEl) return;
+            const val = parseInt(inputEl.value, 10);
+            if (!isNaN(val)) {
+                goToRangeStatPage(val);
+            }
+        }
+
+        function changeRangeStatPageSize(size) {
+            const val = parseInt(size, 10);
+            if (!isNaN(val) && val > 0) {
+                rsPageSize = val;
+                rsCurrentPage = 1;
+                renderCurrentRangeStatPage();
+            }
         }
 
         function renderRangeStatTable(rows) {
