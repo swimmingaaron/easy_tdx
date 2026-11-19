@@ -5438,12 +5438,12 @@
                         </label>
                         <select id="rs-universe-select" onchange="runRangeStatQuery()"
                             class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium focus:border-cyan-500 outline-none">
-                            <option value="core" selected>核心龙头 (159只)</option>
+                            <option value="all" selected>全市场 A股 (5000+)</option>
+                            <option value="core">核心龙头 (159只)</option>
                             <option value="hs300">沪深 300 (300只)</option>
                             <option value="zz500">中证 500 (500只)</option>
                             <option value="zz1000">中证 1000 (1000只)</option>
                             <option value="watchlist">我的自选池</option>
-                            <option value="all">全市场 A股 (5000+)</option>
                         </select>
                     </div>
 
@@ -7712,6 +7712,10 @@
                     } else {
                         btn.className = 'tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white';
                         view.classList.add('hidden');
+                        if (t === 'rangestat' && typeof rsProgressTimer !== 'undefined' && rsProgressTimer) {
+                            clearInterval(rsProgressTimer);
+                            rsProgressTimer = null;
+                        }
                     }
                 }
             });
@@ -17921,6 +17925,7 @@
             const startInput = document.getElementById('rs-start-date');
             const searchInput = document.getElementById('rs-search-input');
             const indSelect = document.getElementById('rs-industry-select');
+            const uniSelect = document.getElementById('rs-universe-select');
             const todayStr = new Date().toISOString().split('T')[0];
             if (endInput) endInput.value = todayStr;
             if (startInput) {
@@ -17929,10 +17934,58 @@
             }
             if (searchInput) searchInput.value = '';
             if (indSelect) indSelect.value = '';
+            if (uniSelect) uniSelect.value = 'all';
             _rangeStatSortCol = 'range_pct';
             _rangeStatSortAsc = false;
             rsCurrentPage = 1;
             runRangeStatQuery(true);
+        }
+
+        let rsProgressTimer = null;
+        function pollRangeStatProgress(universe, startDate, endDate) {
+            if (rsProgressTimer) clearInterval(rsProgressTimer);
+            const tableEl = document.getElementById('range-stat-table');
+            const btnText = document.getElementById('rs-query-btn-text');
+            if (btnText) btnText.textContent = '重算中...';
+
+            rsProgressTimer = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/trading_system/progress?universe=${encodeURIComponent(universe)}&period=day`);
+                    if (!res.ok) return;
+                    const pData = await res.json();
+                    if (tableEl && pData) {
+                        const pct = Number(pData.pct || 0).toFixed(1);
+                        const comp = pData.completed || 0;
+                        const tot = pData.total || 5000;
+                        const stockDesc = pData.stock ? `(${pData.stock})` : '';
+                        tableEl.innerHTML = `
+                            <tr>
+                                <td colspan="24" class="py-12 text-center text-slate-400 font-sans">
+                                    <div class="flex flex-col items-center justify-center space-y-2.5">
+                                        <div class="flex items-center space-x-2">
+                                            <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-cyan-500"></i>
+                                            <span class="text-xs font-semibold text-slate-300">全市场股票池后台并行重算中 ${pct}% ${stockDesc}</span>
+                                        </div>
+                                        <div class="w-64 bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+                                            <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                                        </div>
+                                        <span class="text-[11px] text-slate-500">${comp} / ${tot} 标的已就绪</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                        if (window.lucide) lucide.createIcons();
+                    }
+                    if (pData && pData.status === 'done') {
+                        clearInterval(rsProgressTimer);
+                        rsProgressTimer = null;
+                        _rangeStatLoading = false;
+                        runRangeStatQuery(false);
+                    }
+                } catch (e) {
+                    console.error('Progress poll error:', e);
+                }
+            }, 500);
         }
 
         async function runRangeStatQuery(force = false) {
@@ -17958,7 +18011,7 @@
 
             try {
                 const universeSelect = document.getElementById('rs-universe-select');
-                const universe = universeSelect ? universeSelect.value : 'core';
+                const universe = universeSelect ? universeSelect.value : 'all';
                 const startInput = document.getElementById('rs-start-date');
                 const endInput = document.getElementById('rs-end-date');
                 const startDate = (startInput ? startInput.value : '').trim();
@@ -17983,9 +18036,17 @@
                 if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
                 if (force) url += `&force_refresh=true`;
 
-                const resp = await fetch(url);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 45000);
+                const resp = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
                 if (resp.ok) {
                     const data = await resp.json();
+                    if (data && data.status === 'running') {
+                        pollRangeStatProgress(universe, startDate, endDate);
+                        return;
+                    }
                     _rangeStatRawRows = data.rows || [];
 
                     // Populate industry dropdown
@@ -18019,10 +18080,12 @@
                 }
             } catch (e) {
                 console.error('Error in runRangeStatQuery:', e);
-                showToast('区间统计错误', '网络或服务端异常');
+                showToast('区间统计错误', e.name === 'AbortError' ? '请求超时，请重试' : '网络或服务端异常');
             } finally {
-                _rangeStatLoading = false;
-                if (btnText) btnText.textContent = '开始统计';
+                if (!rsProgressTimer) {
+                    _rangeStatLoading = false;
+                    if (btnText) btnText.textContent = '开始统计';
+                }
             }
         }
 

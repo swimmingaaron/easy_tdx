@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import json
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, Query, HTTPException
@@ -114,12 +116,58 @@ def get_evaluation_progress(
 
 _RANGE_PRICE_CACHE: Dict[Tuple[str, str, str], Tuple[Optional[float], Optional[str], Optional[float], Optional[str]]] = {}
 _RANGE_CACHE_LOCK = threading.Lock()
+_SNAPSHOT_DATE_MAP: Dict[str, Dict[str, float]] = {}
+_SNAPSHOT_MAP_LOCK = threading.Lock()
 
 
-def _get_range_prices(code: str, start_date: str, end_date: Optional[str] = None) -> Tuple[Optional[float], Optional[str], Optional[float], Optional[str]]:
+def _ensure_snapshot_map() -> Dict[str, Dict[str, float]]:
+    """加载历史全市场量化快照底表数据，用于全量标的秒级区间基准价对齐。"""
+    global _SNAPSHOT_DATE_MAP
+    with _SNAPSHOT_MAP_LOCK:
+        if _SNAPSHOT_DATE_MAP:
+            return _SNAPSHOT_DATE_MAP
+        import glob
+        import re
+        from easy_tdx.trading_system.engine import _CACHE_DIR
+        pattern = os.path.join(_CACHE_DIR, "universe_all_*.json")
+        files = glob.glob(pattern)
+        m_map: Dict[str, Dict[str, float]] = {}
+        for f in files:
+            m = re.search(r"2026\d{4}", f)
+            if not m:
+                continue
+            raw_d = m.group(0)
+            fmt_d = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}"
+            try:
+                with open(f, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+                    c_map: Dict[str, float] = {}
+                    for item in data:
+                        c = item.get("stock_code")
+                        p = float(item.get("close") or 0.0)
+                        if c and p > 0:
+                            c_map[c] = p
+                    if c_map:
+                        m_map[fmt_d] = c_map
+            except Exception:
+                pass
+        _SNAPSHOT_DATE_MAP = m_map
+        return _SNAPSHOT_DATE_MAP
+
+
+def _get_range_prices(
+    code: str,
+    start_date: str,
+    end_date: Optional[str] = None,
+    allow_network: bool = False,
+) -> Tuple[Optional[float], Optional[str], Optional[float], Optional[str]]:
     """
     获取标的在 start_date 当天或其后首个交易日的收盘基准价，以及在 end_date 当天或其前最后交易日的收盘价。
-    若 end_date 为空，则截至价使用最后收盘价。
+    多级高速缓存设计：
+      1. 内存高速缓存 (_RANGE_PRICE_CACHE)
+      2. 本地磁盘持久化 K 线库 (KlineDiskCache) 极速秒读 (无网络开销与锁争用)
+      3. 历史全市场量化快照底表 (_SNAPSHOT_DATE_MAP) O(1) 瞬时补齐
+      4. 仅在小型自选/核心池 (allow_network=True) 且确实无缓存时，才发起网络兜底
     返回: (start_price, act_start_date, end_price, act_end_date)
     """
     clean_sd = start_date.strip()[:10] if start_date else ""
@@ -132,35 +180,111 @@ def _get_range_prices(code: str, start_date: str, end_date: Optional[str] = None
         if cache_key in _RANGE_PRICE_CACHE:
             return _RANGE_PRICE_CACHE[cache_key]
 
+    # 1. 优先从本地磁盘持久化 K 线缓存直接读取 (无需网络交互，并行极速)
     try:
-        from easy_tdx.market_data import fetch_security_kline
-        df = fetch_security_kline(code, count=600, period="DAY")
+        from easy_tdx.kline_cache import get_global_kline_disk_cache
+        from easy_tdx.market_data import _get_market, Market
+        disk_cache = get_global_kline_disk_cache()
+        market = _get_market(code)
+        cache_sym = f"SH_{code}" if (market == Market.SH and code.startswith("00")) else code
+        df = disk_cache.read_cached(cache_sym, "DAY", "QFQ")
         if df is not None and not df.empty and "datetime" in df.columns:
             sub_start = df[df["datetime"] >= clean_sd]
-            if sub_start.empty:
-                return None, None, None, None
-            start_row = sub_start.iloc[0]
-            start_price = float(start_row["close"])
-            act_sd = str(start_row["datetime"])[:10]
+            if not sub_start.empty:
+                start_row = sub_start.iloc[0]
+                start_price = float(start_row["close"])
+                act_sd = str(start_row["datetime"])[:10]
 
-            if clean_ed:
-                sub_end = df[df["datetime"] <= clean_ed]
-                if sub_end.empty:
-                    return None, None, None, None
-                end_row = sub_end.iloc[-1]
-                end_price = float(end_row["close"])
-                act_ed = str(end_row["datetime"])[:10]
-            else:
-                end_row = df.iloc[-1]
-                end_price = float(end_row["close"])
-                act_ed = str(end_row["datetime"])[:10]
+                if clean_ed:
+                    sub_end = df[df["datetime"] <= clean_ed]
+                    if not sub_end.empty:
+                        end_row = sub_end.iloc[-1]
+                        end_price = float(end_row["close"])
+                        act_ed = str(end_row["datetime"])[:10]
+                    else:
+                        end_price = None
+                        act_ed = None
+                else:
+                    end_row = df.iloc[-1]
+                    end_price = float(end_row["close"])
+                    act_ed = str(end_row["datetime"])[:10]
 
-            res = (start_price, act_sd, end_price, act_ed)
-            with _RANGE_CACHE_LOCK:
-                _RANGE_PRICE_CACHE[cache_key] = res
-            return res
+                res = (start_price, act_sd, end_price, act_ed)
+                with _RANGE_CACHE_LOCK:
+                    _RANGE_PRICE_CACHE[cache_key] = res
+                return res
     except Exception as ex:
-        logger.debug(f"_get_range_prices failed for {code}: {ex}")
+        logger.debug(f"disk_cache lookup failed for {code}: {ex}")
+
+    # 2. 查阅历史全市场量化快照底表数据对齐基准价
+    try:
+        snap_map = _ensure_snapshot_map()
+        if snap_map:
+            avail_dates = sorted(snap_map.keys())
+            target_sd = None
+            for d in avail_dates:
+                if d >= clean_sd:
+                    target_sd = d
+                    break
+            if not target_sd and avail_dates:
+                target_sd = avail_dates[-1]
+
+            sp = snap_map.get(target_sd, {}).get(code) if target_sd else None
+            act_sd = target_sd if sp else None
+
+            ep = None
+            act_ed = None
+            if clean_ed:
+                target_ed = None
+                for d in reversed(avail_dates):
+                    if d <= clean_ed:
+                        target_ed = d
+                        break
+                if target_ed:
+                    ep = snap_map.get(target_ed, {}).get(code)
+                    act_ed = target_ed if ep else None
+
+            if sp:
+                res = (sp, act_sd, ep, act_ed)
+                with _RANGE_CACHE_LOCK:
+                    _RANGE_PRICE_CACHE[cache_key] = res
+                return res
+    except Exception as ex:
+        logger.debug(f"snapshot map lookup failed for {code}: {ex}")
+
+    # 3. 仅在允许网络请求（标的数量 <= 200）且以上两层均未命中时发起网络兜底
+    if allow_network:
+        try:
+            from easy_tdx.market_data import fetch_security_kline
+            df = fetch_security_kline(code, count=300, period="DAY")
+            if df is not None and not df.empty and "datetime" in df.columns:
+                sub_start = df[df["datetime"] >= clean_sd]
+                if not sub_start.empty:
+                    start_row = sub_start.iloc[0]
+                    start_price = float(start_row["close"])
+                    act_sd = str(start_row["datetime"])[:10]
+
+                    if clean_ed:
+                        sub_end = df[df["datetime"] <= clean_ed]
+                        if not sub_end.empty:
+                            end_row = sub_end.iloc[-1]
+                            end_price = float(end_row["close"])
+                            act_ed = str(end_row["datetime"])[:10]
+                        else:
+                            end_price = None
+                            act_ed = None
+                    else:
+                        end_row = df.iloc[-1]
+                        end_price = float(end_row["close"])
+                        act_ed = str(end_row["datetime"])[:10]
+
+                    res = (start_price, act_sd, end_price, act_ed)
+                    with _RANGE_CACHE_LOCK:
+                        _RANGE_PRICE_CACHE[cache_key] = res
+                    return res
+        except Exception as ex:
+            logger.debug(f"fetch_security_kline network failed for {code}: {ex}")
+
     return None, None, None, None
 
 
@@ -333,9 +457,11 @@ def get_signal_dashboard(
             clean_ed = str(end_date).strip()[:10] if (end_date and str(end_date).strip()) else ""
             from concurrent.futures import ThreadPoolExecutor
 
+            allow_net = len(filtered) <= 200
+
             def _attach_range_stats(s_item: Dict[str, Any]) -> None:
                 sc = str(s_item.get("stock_code") or "")
-                sp, act_sd, ep, act_ed = _get_range_prices(sc, clean_sd, clean_ed)
+                sp, act_sd, ep, act_ed = _get_range_prices(sc, clean_sd, clean_ed, allow_network=allow_net)
                 curr_p = float(s_item.get("close") or s_item.get("price") or 0.0)
                 # 若无指定截至日或截至日即今日，采用实时最新价；若指定了历史截至日，采用该截至日收盘价
                 effective_end_p = ep if (clean_ed and ep is not None and ep > 0) else curr_p
@@ -353,7 +479,8 @@ def get_signal_dashboard(
                     s_item["end_price"] = None
                     s_item["end_date"] = None
 
-            with ThreadPoolExecutor(max_workers=min(16, max(1, len(filtered)))) as executor:
+            max_workers = min(32, max(1, len(filtered)))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 list(executor.map(_attach_range_stats, filtered))
         else:
             for s_item in filtered:
