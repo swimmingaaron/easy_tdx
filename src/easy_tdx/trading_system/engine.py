@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import json
+import re
 import time
 import threading
 import gzip
@@ -99,6 +100,7 @@ os.makedirs(_CACHE_DIR, exist_ok=True)
 _MEM_CACHE: Dict[str, Tuple[float, Any]] = {}
 _FINA_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _HOLDERS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_BIZ_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _EVAL_PROGRESS: Dict[str, Dict[str, Any]] = {}
 _EVAL_LOCK = threading.Lock()
 _ACTIVE_EVAL_EVENTS: Dict[str, threading.Event] = {}
@@ -1094,7 +1096,7 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
         if (now - ts < 3600):
             if quick and data.get("fina_data"):
                 return data
-            if data.get("peers_data") and len(data["peers_data"]) > 0 and data.get("holders_data"):
+            if data.get("peers_data") and len(data["peers_data"]) > 0 and data.get("holders_data") and data.get("biz_data"):
                 return data
 
     fina_list = []
@@ -1435,11 +1437,21 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
     # 获取股东人数及历史集中度变动
     holders_info = fetch_stock_holders(clean_code)
 
+    # 获取主营业务及主营收入构成占比
+    biz_info = fetch_stock_business_composition(clean_code)
+
     # 获取同行业横向对比与所属行业
     industry, peers_list = fetch_stock_peers_data(clean_code, fallback_industry=industry)
 
-    # 智能诊断文本生成 (传入 holders_info 以在顶部报告条显示股东人数)
-    analysis_html = _generate_fina_diagnosis(clean_code, get_stock_name(clean_code), industry, fina_list, holders_info=holders_info)
+    # 智能诊断文本生成 (传入 holders_info 与 biz_info)
+    analysis_html = _generate_fina_diagnosis(
+        clean_code,
+        get_stock_name(clean_code),
+        industry,
+        fina_list,
+        holders_info=holders_info,
+        biz_info=biz_info,
+    )
 
     result = {
         "success": True,
@@ -1450,6 +1462,7 @@ def fetch_stock_financials(code: str, quick: bool = False) -> Dict[str, Any]:
         "fina_data": fina_list,
         "peers_data": peers_list,
         "holders_data": holders_info,
+        "biz_data": biz_info,
         "analysis_html": str(analysis_html),
         "model_name": "StockQuant 智能投研系统",
     }
@@ -1540,6 +1553,121 @@ def _fetch_peers_batch_quotes(stock_codes: List[str]) -> Dict[str, Dict[str, Any
             quotes_map.update(r)
 
     return quotes_map
+
+
+def fetch_stock_business_composition(code: str) -> Dict[str, Any]:
+    """
+    获取上市公司核心主营业务简介及主营构成（按产品/业务分类占比、收入及毛利率）。
+    多源融合机制：
+      1. 核心主营业务简述：同花顺 basic.10jqka.com.cn 精炼提取 / 本地股票资料库兜底
+      2. 各产品/业务细分板块及收入所占比例：东方财富权威数据中心 RPT_F10_FN_MAINOP
+    """
+    clean_code = str(code).strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "")
+    now = time.time()
+    if clean_code in _BIZ_CACHE:
+        ts, data = _BIZ_CACHE[clean_code]
+        if (now - ts < 43200) and (data.get("composition") or data.get("main_business") != "暂无主营业务简介"):
+            return data
+
+    main_biz_desc = ""
+    clean_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    # 1. 优先尝试从同花顺抓取最精炼准确的一句话主营业务描述
+    try:
+        url_ths = f"http://basic.10jqka.com.cn/{clean_code}/company.html"
+        req_ths = urllib.request.Request(url_ths, headers=clean_headers)
+        with urlopen_safe(req_ths, timeout=3.5) as resp:
+            b_data = resp.read()
+            if b_data.startswith(b"\x1f\x8b"):
+                import gzip
+                b_data = gzip.decompress(b_data)
+            html = b_data.decode("gbk", errors="ignore")
+            m = re.search(r"主营业务：</strong>\s*<span>([^<]+)</span>", html)
+            if m:
+                main_biz_desc = m.group(1).strip()
+    except Exception:
+        pass
+
+    # 兜底：从 easy_tdx.stock_profile 提取公司资料
+    if not main_biz_desc:
+        try:
+            from easy_tdx.stock_profile import get_stock_full_profile
+            prof = get_stock_full_profile(clean_code)
+            main_biz_desc = prof.get("company_info", {}).get("main_business", "")
+            if len(main_biz_desc) > 120:
+                main_biz_desc = main_biz_desc[:120].strip() + "..."
+        except Exception:
+            pass
+
+    # 2. 从东方财富 Datacenter 提取主营构成列表及所占比例
+    composition_list = []
+    report_date = ""
+    try:
+        url_em = (
+            f"https://datacenter.eastmoney.com/securities/api/data/v1/get?"
+            f"reportName=RPT_F10_FN_MAINOP&"
+            f"columns=SECURITY_CODE,REPORT_DATE,MAINOP_TYPE,ITEM_NAME,MAIN_BUSINESS_INCOME,MBI_RATIO,MAIN_BUSINESS_COST,MBC_RATIO,MAIN_BUSINESS_RPOFIT,MBR_RATIO,GROSS_RPOFIT_RATIO&"
+            f"filter=(SECURITY_CODE%3D%22{clean_code}%22)&pageNumber=1&pageSize=50&sortTypes=-1&sortColumns=REPORT_DATE"
+        )
+        req_em = urllib.request.Request(url_em, headers=clean_headers)
+        with urlopen_safe(req_em, timeout=4.0) as resp:
+            b_data = resp.read()
+            if b_data.startswith(b"\x1f\x8b"):
+                import gzip
+                b_data = gzip.decompress(b_data)
+            data = json.loads(b_data.decode("utf-8"))
+            raw_list = data.get("result", {}).get("data") or []
+            if raw_list:
+                latest_date = raw_list[0].get("REPORT_DATE")
+                report_date = str(latest_date)[:10]
+
+                # 优先类型 2 (按产品/业务)，次选类型 1 (按行业)，兜底类型 3 (按地区)
+                t2_items = [it for it in raw_list if it.get("REPORT_DATE") == latest_date and str(it.get("MAINOP_TYPE")) == "2"]
+                t1_items = [it for it in raw_list if it.get("REPORT_DATE") == latest_date and str(it.get("MAINOP_TYPE")) == "1"]
+                t3_items = [it for it in raw_list if it.get("REPORT_DATE") == latest_date and str(it.get("MAINOP_TYPE")) == "3"]
+                chosen = t2_items if t2_items else (t1_items if t1_items else t3_items)
+
+                # 过滤掉 ITEM_NAME 为空或合计/总计项
+                filtered = [it for it in chosen if it.get("ITEM_NAME") and it.get("ITEM_NAME") not in ("合计", "总计")]
+                filtered.sort(key=lambda x: float(x.get("MBI_RATIO") or 0.0), reverse=True)
+
+                for it in filtered:
+                    inc = float(it.get("MAIN_BUSINESS_INCOME") or 0.0)
+                    ratio = float(it.get("MBI_RATIO") or 0.0) * 100
+                    gross = float(it.get("GROSS_RPOFIT_RATIO") or 0.0) * 100 if it.get("GROSS_RPOFIT_RATIO") is not None else None
+                    profit = float(it.get("MAIN_BUSINESS_RPOFIT") or 0.0) if it.get("MAIN_BUSINESS_RPOFIT") is not None else None
+
+                    if abs(inc) >= 1e8:
+                        inc_str = f"{inc / 1e8:.2f}亿元"
+                    elif abs(inc) >= 1e4:
+                        inc_str = f"{inc / 1e4:.2f}万元"
+                    else:
+                        inc_str = f"{inc:.2f}元"
+
+                    composition_list.append({
+                        "name": str(it.get("ITEM_NAME", "")),
+                        "income": inc,
+                        "income_str": inc_str,
+                        "ratio": round(ratio, 2),
+                        "gross_margin": round(gross, 2) if gross is not None else None,
+                        "profit": profit
+                    })
+    except Exception as e:
+        logger.debug(f"Failed to fetch business composition for {clean_code}: {e}")
+
+    result = {
+        "main_business": main_biz_desc or "暂无主营业务简介",
+        "report_date": report_date,
+        "composition": composition_list
+    }
+    _BIZ_CACHE[clean_code] = (now, result)
+    return result
 
 
 def fetch_stock_peers_data(clean_code: str, fallback_industry: str = "通用行业") -> Tuple[str, List[Dict[str, Any]]]:
@@ -1857,7 +1985,7 @@ def generate_llm_fina_analysis(
     if provider_clean not in ("deepseek", "doubao"):
         provider_clean = "deepseek"
 
-    cache_file = os.path.join(_CACHE_DIR, f"llm_fina_v4_{clean_code}_{provider_clean}.json")
+    cache_file = os.path.join(_CACHE_DIR, f"llm_fina_v5_{clean_code}_{provider_clean}.json")
     now = time.time()
 
     # 检查磁盘缓存 (24小时有效期)
@@ -1885,12 +2013,28 @@ def generate_llm_fina_analysis(
             "provider": provider_clean
         }
 
-    # 获取该股财务数据与同行对手
+    # 获取该股财务数据与同行对手及主营业务构成
     fina_dict = fetch_stock_financials(clean_code)
     stock_name = fina_dict.get("stock_name") or get_stock_name(clean_code) or clean_code
     industry = fina_dict.get("industry") or "通用行业"
     fina_data = fina_dict.get("fina_data") or []
     peers_data = fina_dict.get("peers_data") or []
+    biz_data = fina_dict.get("biz_data") or fetch_stock_business_composition(clean_code)
+
+    # 提炼公司核心主营业务与分产品/业务收入构成占比
+    biz_desc = (biz_data.get("main_business") or "暂无主营业务简介").strip()
+    biz_date = biz_data.get("report_date", "")
+    biz_comp = biz_data.get("composition") or []
+
+    biz_summary = f"- 核心主营业务：{biz_desc}\n"
+    if biz_comp:
+        date_txt = f"（截至 {biz_date} 财报）" if biz_date else ""
+        biz_summary += f"- 最新主营业务/产品收入构成及占比明细{date_txt}：\n"
+        for it in biz_comp:
+            gross_txt = f", 销售毛利率 {it['gross_margin']}%" if it.get("gross_margin") is not None else ""
+            biz_summary += f"  * 【{it.get('name')}】：主营收入 {it.get('income_str')}, 占总收入比例 {it.get('ratio')}%{gross_txt}\n"
+    else:
+        biz_summary += "- 主营业务构成：暂未披露分产品细分比例\n"
 
     # 获取公司近期重要公告与新闻
     recent_notices = fetch_stock_recent_announcements(clean_code, count=25)
@@ -1960,12 +2104,15 @@ def generate_llm_fina_analysis(
     peer_example_str = "、".join(peer_names[:4]) if peer_names else "具体同行公司"
 
     prompt = f"""你是一位顶级A股买方基金经理与资深投研总监，专注于基本面深度排雷、盈利含金量拆解与跨期预期差定价。
-请根据以下标的股票的关键财务报表、近期重大公告动态及行业竞对数据，撰写一篇完整、优质、结构严谨的机构投研研判报告。
+请根据以下标的股票的关键财务报表、主营业务与产品构成占比、近期重大公告动态及行业竞对数据，撰写一篇完整、优质、结构严谨的机构投研研判报告。
 
 【目标标的】
 股票名称：{stock_name}
 股票代码：{clean_code}
 所属行业：{industry if industry else '通用行业'}
+
+【公司核心主营业务与收入构成占比】
+{biz_summary}
 
 【近期关键财务数据（含现金流、扣非与毛利率）】
 {fina_summary if fina_summary else '暂无历史数据'}
@@ -1979,6 +2126,7 @@ def generate_llm_fina_analysis(
 【必须严格包含的 5 大完整分析板块】
 
 🎯 一、【业绩深度分析与利润“含金量”】
+- 主营业务与产品构成剖析：结合上述核心主营业务及最新各业务/产品收入构成占比与毛利率，深度拆解核心支柱产品与新兴增长点的贡献与分化，研判主营业务的护城河、产品壁垒及业务集中度风险；
 - 核心财务诊断：诊断营收与净利润变动特征、毛利率水平和ROE获利能力的亮点与隐忧；
 - 扣非与真实主业质量：比对归母净利与扣非净利润/扣非EPS，剖析净利润中主营业务真实贡献占比，甄别是否存在依赖政府补助、资产处置或投资收益等一次性非经常收益虚增利润；
 - 量价动能与毛利拆解：结合营收变动与销售毛利率走势，拆解是源于主营业务量价齐升，还是以价换量、亦或是受上游原材料成本挤压导致毛利率下滑；
@@ -2087,6 +2235,7 @@ def _generate_fina_diagnosis(
     industry: str,
     fina_data: List[Dict[str, Any]],
     holders_info: Optional[Dict[str, Any]] = None,
+    biz_info: Optional[Dict[str, Any]] = None,
 ) -> str:
     """基于财务报表与核心基本面指标的多维度量化智能诊断算法（4大维度：成长动力、资本回报、持续性、策略映射）。"""
     if not fina_data:
@@ -2244,6 +2393,65 @@ def _generate_fina_diagnosis(
         chg_span = f' (较上期 {chg_text})' if chg_text else ''
         holders_badge = f'<span class="text-xs text-slate-600 dark:text-slate-400 border-l border-slate-300 dark:border-slate-700 pl-2.5">股东人数: <strong class="text-slate-900 dark:text-slate-100 font-semibold font-mono">{h_str}</strong>{chg_span}</span>'
 
+    # 解析公司主营业务与收入构成占比卡片
+    if biz_info is None:
+        biz_info = fetch_stock_business_composition(code)
+
+    biz_desc = (biz_info.get("main_business") or "暂无主营业务简介").strip()
+    biz_date = biz_info.get("report_date", "")
+    biz_comp = biz_info.get("composition") or []
+
+    biz_date_badge = f'<span class="text-[11px] font-normal text-slate-500 dark:text-slate-400 font-mono">（截至 {biz_date} 财报）</span>' if biz_date else ""
+
+    if biz_comp:
+        rows_html = ""
+        for it in biz_comp:
+            ratio_val = float(it.get("ratio") or 0.0)
+            bar_pct = min(max(ratio_val, 2.0), 100.0)
+            gm = it.get("gross_margin")
+            if gm is not None:
+                gm_color = "text-rose-600 dark:text-rose-400 font-semibold" if gm >= 30 else ("text-slate-700 dark:text-slate-300" if gm >= 15 else "text-emerald-600 dark:text-emerald-400")
+                gm_str = f"{gm:.2f}%"
+            else:
+                gm_color = "text-slate-400 dark:text-slate-500"
+                gm_str = "--"
+
+            rows_html += f"""
+            <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-750/50 transition">
+                <td class="py-2 px-2.5 font-medium text-slate-800 dark:text-slate-200">{it.get('name', '--')}</td>
+                <td class="py-2 px-2.5 text-right font-mono text-slate-700 dark:text-slate-300">{it.get('income_str', '--')}</td>
+                <td class="py-2 px-2.5">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="font-mono font-bold w-12 text-slate-900 dark:text-slate-100 text-right">{ratio_val:.2f}%</span>
+                        <div class="flex-1 bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden min-w-[60px]">
+                            <div class="bg-indigo-500 dark:bg-cyan-400 h-2 rounded-full" style="width: {bar_pct}%"></div>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-2 px-2.5 text-right font-mono {gm_color}">{gm_str}</td>
+            </tr>
+            """
+
+        biz_table_html = f"""
+        <div class="overflow-x-auto pt-1">
+            <table class="w-full text-left border-collapse text-[11px]">
+                <thead>
+                    <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-semibold bg-slate-50/50 dark:bg-slate-800/50">
+                        <th class="py-1.5 px-2.5">核心业务 / 产品分类</th>
+                        <th class="py-1.5 px-2.5 text-right">主营收入</th>
+                        <th class="py-1.5 px-2.5 w-48 text-center">收入占比与分布</th>
+                        <th class="py-1.5 px-2.5 text-right">销售毛利率</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {rows_html}
+                </tbody>
+            </table>
+        </div>
+        """
+    else:
+        biz_table_html = '<div class="text-[11px] text-slate-400 dark:text-slate-500 py-2 text-center">暂未获取到细分产品收入比例数据</div>'
+
     html = f"""
     <div class="space-y-3.5 text-xs text-slate-700 dark:text-slate-300 font-sans">
         <!-- 顶部信息摘要胶囊 (温和护眼蓝灰色调) -->
@@ -2258,6 +2466,21 @@ def _generate_fina_diagnosis(
                 <span class="text-base font-extrabold text-indigo-600 dark:text-cyan-400 font-mono">{total_score} 分</span>
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold {tag_class}">{level_tag}</span>
             </div>
+        </div>
+
+        <!-- 卡片 0: 公司核心主营业务与收入构成占比 -->
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 shadow-xs space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <div class="flex items-center space-x-2 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span class="w-2 h-2 rounded-full bg-blue-500 dark:bg-sky-400"></span>
+                    <span>🏢 公司核心主营业务与收入构成占比 {biz_date_badge}</span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">细分板块: {len(biz_comp)} 项</span>
+            </div>
+            <div class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50/80 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-750">
+                <span class="font-semibold text-slate-900 dark:text-slate-100">【主营业务】：</span>{biz_desc}
+            </div>
+            {biz_table_html}
         </div>
 
         <!-- 卡片 1: 核心成长能力与经营杠杆 -->
