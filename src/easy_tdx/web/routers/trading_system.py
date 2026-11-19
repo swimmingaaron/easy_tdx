@@ -112,19 +112,22 @@ def get_evaluation_progress(
     return get_universe_eval_progress(universe, period=period)
 
 
-_RANGE_PRICE_CACHE: Dict[Tuple[str, str], Tuple[Optional[float], Optional[str]]] = {}
+_RANGE_PRICE_CACHE: Dict[Tuple[str, str, str], Tuple[Optional[float], Optional[str], Optional[float], Optional[str]]] = {}
 _RANGE_CACHE_LOCK = threading.Lock()
 
 
-def _get_start_date_price(code: str, start_date: str) -> Tuple[Optional[float], Optional[str]]:
+def _get_range_prices(code: str, start_date: str, end_date: Optional[str] = None) -> Tuple[Optional[float], Optional[str], Optional[float], Optional[str]]:
     """
-    获取标的在 start_date 当天或其后首个交易日的收盘基准价和实际日期。
-    内存线程安全缓存，避免重复请求行情。
+    获取标的在 start_date 当天或其后首个交易日的收盘基准价，以及在 end_date 当天或其前最后交易日的收盘价。
+    若 end_date 为空，则截至价使用最后收盘价。
+    返回: (start_price, act_start_date, end_price, act_end_date)
     """
-    clean_date = start_date.strip()[:10]
-    if not clean_date:
-        return None, None
-    cache_key = (code, clean_date)
+    clean_sd = start_date.strip()[:10] if start_date else ""
+    clean_ed = end_date.strip()[:10] if (end_date and str(end_date).strip()) else ""
+    if not clean_sd:
+        return None, None, None, None
+
+    cache_key = (code, clean_sd, clean_ed)
     with _RANGE_CACHE_LOCK:
         if cache_key in _RANGE_PRICE_CACHE:
             return _RANGE_PRICE_CACHE[cache_key]
@@ -133,17 +136,32 @@ def _get_start_date_price(code: str, start_date: str) -> Tuple[Optional[float], 
         from easy_tdx.market_data import fetch_security_kline
         df = fetch_security_kline(code, count=600, period="DAY")
         if df is not None and not df.empty and "datetime" in df.columns:
-            sub = df[df["datetime"] >= clean_date]
-            if not sub.empty:
-                row = sub.iloc[0]
-                price = float(row["close"])
-                act_d = str(row["datetime"])[:10]
-                with _RANGE_CACHE_LOCK:
-                    _RANGE_PRICE_CACHE[cache_key] = (price, act_d)
-                return price, act_d
+            sub_start = df[df["datetime"] >= clean_sd]
+            if sub_start.empty:
+                return None, None, None, None
+            start_row = sub_start.iloc[0]
+            start_price = float(start_row["close"])
+            act_sd = str(start_row["datetime"])[:10]
+
+            if clean_ed:
+                sub_end = df[df["datetime"] <= clean_ed]
+                if sub_end.empty:
+                    return None, None, None, None
+                end_row = sub_end.iloc[-1]
+                end_price = float(end_row["close"])
+                act_ed = str(end_row["datetime"])[:10]
+            else:
+                end_row = df.iloc[-1]
+                end_price = float(end_row["close"])
+                act_ed = str(end_row["datetime"])[:10]
+
+            res = (start_price, act_sd, end_price, act_ed)
+            with _RANGE_CACHE_LOCK:
+                _RANGE_PRICE_CACHE[cache_key] = res
+            return res
     except Exception as ex:
-        logger.debug(f"_get_start_date_price failed for {code}: {ex}")
-    return None, None
+        logger.debug(f"_get_range_prices failed for {code}: {ex}")
+    return None, None, None, None
 
 
 @router.get("/dashboard")
@@ -161,6 +179,7 @@ def get_signal_dashboard(
     force_refresh: bool = Query(False, description="强制刷新缓存"),
     symbols: Optional[str] = Query(None, description="逗号分隔的个股代码列表"),
     start_date: Optional[str] = Query(None, description="区间统计起始时间 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="区间统计截至时间 YYYY-MM-DD"),
 ) -> Dict[str, Any]:
     """
     信号看板：包含 18 项买入打分、9 项卖出预警打分、量价红星/绿星、ZIG转向与战法识别。
@@ -311,21 +330,28 @@ def get_signal_dashboard(
         # 区间统计计算
         if start_date and str(start_date).strip():
             clean_sd = str(start_date).strip()[:10]
+            clean_ed = str(end_date).strip()[:10] if (end_date and str(end_date).strip()) else ""
             from concurrent.futures import ThreadPoolExecutor
 
             def _attach_range_stats(s_item: Dict[str, Any]) -> None:
                 sc = str(s_item.get("stock_code") or "")
+                sp, act_sd, ep, act_ed = _get_range_prices(sc, clean_sd, clean_ed)
                 curr_p = float(s_item.get("close") or s_item.get("price") or 0.0)
-                sp, act_d = _get_start_date_price(sc, clean_sd)
-                if sp and sp > 0 and curr_p > 0:
-                    r_pct = round(((curr_p - sp) / sp) * 100.0, 2)
+                # 若无指定截至日或截至日即今日，采用实时最新价；若指定了历史截至日，采用该截至日收盘价
+                effective_end_p = ep if (clean_ed and ep is not None and ep > 0) else curr_p
+                if sp and sp > 0 and effective_end_p > 0:
+                    r_pct = round(((effective_end_p - sp) / sp) * 100.0, 2)
                     s_item["range_pct"] = r_pct
                     s_item["start_price"] = sp
-                    s_item["start_date"] = act_d
+                    s_item["start_date"] = act_sd
+                    s_item["end_price"] = effective_end_p
+                    s_item["end_date"] = act_ed
                 else:
                     s_item["range_pct"] = None
                     s_item["start_price"] = None
                     s_item["start_date"] = None
+                    s_item["end_price"] = None
+                    s_item["end_date"] = None
 
             with ThreadPoolExecutor(max_workers=min(16, max(1, len(filtered)))) as executor:
                 list(executor.map(_attach_range_stats, filtered))
@@ -334,6 +360,8 @@ def get_signal_dashboard(
                 s_item["range_pct"] = None
                 s_item["start_price"] = None
                 s_item["start_date"] = None
+                s_item["end_price"] = None
+                s_item["end_date"] = None
 
         # 统计面板数据
         total_cnt = len(filtered)
@@ -370,6 +398,7 @@ def get_signal_dashboard(
             "watchlist": list(watchlist_set),
             "period": period,
             "start_date": start_date,
+            "end_date": end_date,
         }
     except Exception as e:
         logger.exception("Failed to get signal dashboard")

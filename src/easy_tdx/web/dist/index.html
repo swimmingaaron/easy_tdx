@@ -2096,18 +2096,9 @@
             <button onclick="switchTab('etfdata')" id="tab-etfdata"
                 class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="layers"
                     class="w-3.5 h-3.5 inline mr-1 text-emerald-400"></i>ETF数据</button>
-            <!-- 区间统计 · 起始时间 -->
-            <div id="nav-range-stat-box" class="flex items-center space-x-1.5 px-3 py-1 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 rounded-lg text-xs transition ml-1">
-                <span class="text-slate-300 font-medium flex items-center whitespace-nowrap">
-                    <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>区间统计
-                </span>
-                <span class="text-slate-500 font-normal">|</span>
-                <label for="wl-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">起始时间</label>
-                <input type="date" id="wl-range-start-date" onchange="onRangeStatDateChange(this.value)"
-                    class="bg-slate-900 border border-slate-700/80 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                    title="设置区间统计起始时间，计算自该日起至最新价的累计涨跌幅">
-                <button onclick="clearRangeStatDate()" class="text-[11px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-700/60 transition whitespace-nowrap" title="清空起始时间">重置</button>
-            </div>
+            <button onclick="switchTab('rangestat')" id="tab-rangestat"
+                class="tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"><i data-lucide="calendar-range"
+                    class="w-3.5 h-3.5 inline mr-1 text-cyan-400"></i>区间统计</button>
         </nav>
     </header>
 
@@ -3192,11 +3183,15 @@
                                 <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-cyan-400"></i>区间统计
                             </span>
                             <span class="text-slate-600 font-normal">|</span>
-                            <label for="table-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">起始时间</label>
-                            <input type="date" id="table-range-start-date" onchange="onRangeStatDateChange(this.value)"
+                            <label for="table-range-start-date" class="text-slate-400 whitespace-nowrap text-[11px]">开始时间</label>
+                            <input type="date" id="table-range-start-date" onchange="onWatchlistRangeDateChange()"
                                 class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                                title="选择区间统计起始日期">
-                            <button onclick="clearRangeStatDate()" class="text-[10.5px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-800 transition whitespace-nowrap" title="清空起始时间">重置</button>
+                                title="选择区间统计开始日期">
+                            <label for="table-range-end-date" class="text-slate-400 whitespace-nowrap text-[11px]">截至时间</label>
+                            <input type="date" id="table-range-end-date" onchange="onWatchlistRangeDateChange()"
+                                class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
+                                title="选择区间统计截至日期（默认留空即表示至今）">
+                            <button onclick="clearWatchlistRangeDate()" class="text-[10.5px] text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded hover:bg-slate-800 transition whitespace-nowrap" title="重置为默认至今">重置</button>
                         </div>
                         <div class="relative flex items-center">
                             <div class="relative">
@@ -5404,6 +5399,232 @@
             </div>
         </section>
 
+        <!-- ==================== 区间统计视图 (Range Statistics View) ==================== -->
+        <section id="view-rangestat" class="hidden space-y-6">
+            <!-- 顶部工具栏与筛选面板 (Glass Card) -->
+            <div class="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700/60 shadow-lg relative overflow-hidden bg-white/90 dark:bg-slate-900/60 space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <span class="p-2.5 rounded-xl bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 dark:border-cyan-500/30">
+                                <i data-lucide="calendar-range" class="w-6 h-6"></i>
+                            </span>
+                            <div>
+                                <h2 class="text-xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
+                                    多维区间统计 · 涨跌幅分析
+                                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-500/30 font-medium">前复权 · 截至时间默认至今</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">设定任意开始时间与截至时间（默认至今），全维度穿透分析全市场或核心标的池的区间累计涨跌幅与量化多因子状态</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧操作按钮组 -->
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <button id="rs-btn-query" onclick="runRangeStatQuery(true)"
+                            class="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs shadow-md transition cursor-pointer">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                            <span id="rs-query-btn-text">开始统计</span>
+                        </button>
+                        <button onclick="resetRangeStatParams()"
+                            class="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs transition cursor-pointer"
+                            title="恢复默认日期（开始时间为20日交易日前，截至时间为今日）">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            <span>重置至今</span>
+                        </button>
+                        <button onclick="exportRangeStatCSV()"
+                            class="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs transition cursor-pointer"
+                            title="导出当前区间统计表格为 CSV">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span class="hidden sm:inline">导出</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 筛选控制矩阵 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-center text-xs">
+                    <!-- 1. 股票池范围 (2 cols) -->
+                    <div class="lg:col-span-2 space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                            <i data-lucide="layers" class="w-3 h-3 mr-1 text-cyan-400"></i>统计标的池
+                        </label>
+                        <select id="rs-universe-select" onchange="runRangeStatQuery()"
+                            class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium focus:border-cyan-500 outline-none">
+                            <option value="core" selected>核心龙头 (159只)</option>
+                            <option value="hs300">沪深 300 (300只)</option>
+                            <option value="zz500">中证 500 (500只)</option>
+                            <option value="zz1000">中证 1000 (1000只)</option>
+                            <option value="watchlist">我的自选池</option>
+                            <option value="all">全市场 A股 (5000+)</option>
+                        </select>
+                    </div>
+
+                    <!-- 2. 开始时间 (2 cols) -->
+                    <div class="lg:col-span-2 space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                            <i data-lucide="calendar" class="w-3 h-3 mr-1 text-emerald-400"></i>开始时间
+                        </label>
+                        <input type="date" id="rs-start-date" onchange="runRangeStatQuery()"
+                            class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono focus:border-cyan-500 outline-none">
+                    </div>
+
+                    <!-- 3. 截至时间 (2 cols) 默认至今 -->
+                    <div class="lg:col-span-2 space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                            <i data-lucide="calendar-check" class="w-3 h-3 mr-1 text-rose-400"></i>截至时间 (默认至今)
+                        </label>
+                        <input type="date" id="rs-end-date" onchange="runRangeStatQuery()"
+                            class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono focus:border-cyan-500 outline-none">
+                    </div>
+
+                    <!-- 4. 快捷时间预设胶囊 (3 cols) -->
+                    <div class="lg:col-span-3 space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">快捷区间预设</label>
+                        <div class="flex items-center space-x-1 overflow-x-auto py-0.5">
+                            <button type="button" onclick="setRangePreset('5d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近5日</button>
+                            <button type="button" onclick="setRangePreset('10d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近10日</button>
+                            <button type="button" onclick="setRangePreset('20d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近20日</button>
+                            <button type="button" onclick="setRangePreset('60d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近60日</button>
+                            <button type="button" onclick="setRangePreset('ytd')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">今年来</button>
+                            <button type="button" onclick="setRangePreset('1y')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近1年</button>
+                        </div>
+                    </div>
+
+                    <!-- 5. 行业分类与搜索 (3 cols) -->
+                    <div class="lg:col-span-3 flex items-center space-x-2 pt-3 lg:pt-0">
+                        <div class="w-1/2 space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">板块行业</label>
+                            <select id="rs-industry-select" onchange="applyRangeStatFilter()"
+                                class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-medium focus:border-cyan-500 outline-none">
+                                <option value="">全部行业</option>
+                            </select>
+                        </div>
+                        <div class="w-1/2 space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">代码 / 名称</label>
+                            <div class="relative">
+                                <input type="text" id="rs-search-input" placeholder="搜索标的..." oninput="applyRangeStatFilter()"
+                                    class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg pl-2 pr-6 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-cyan-500 outline-none font-mono">
+                                <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2 top-2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI 概览指标卡 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div class="glass-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">统计标的总数</div>
+                        <div id="rs-kpi-total" class="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">--</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-blue-500/10 text-blue-500"><i data-lucide="layers" class="w-5 h-5"></i></div>
+                </div>
+                <div class="glass-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">区间上涨标的</div>
+                        <div id="rs-kpi-up" class="text-xl font-bold font-mono text-rose-600 dark:text-rose-500 mt-1">--</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-rose-500/10 text-rose-500"><i data-lucide="trending-up" class="w-5 h-5"></i></div>
+                </div>
+                <div class="glass-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">区间下跌标的</div>
+                        <div id="rs-kpi-down" class="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">--</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500"><i data-lucide="trending-down" class="w-5 h-5"></i></div>
+                </div>
+                <div class="glass-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">区间平均涨跌幅</div>
+                        <div id="rs-kpi-avg" class="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">--</div>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-purple-500/10 text-purple-500"><i data-lucide="activity" class="w-5 h-5"></i></div>
+                </div>
+            </div>
+
+            <!-- 主结果表格面板 (按照上次需求的列序排列) -->
+            <div class="glass-card p-5 rounded-2xl space-y-4 shadow-sm border border-slate-200/80 dark:border-slate-800/80">
+                <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">区间统计结果</h3>
+                        <span id="rs-table-count" class="text-xs px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-400 border border-cyan-800/80 font-mono font-bold">0 只</span>
+                        <span id="rs-time-range-desc" class="text-xs text-slate-500 dark:text-slate-400 font-mono ml-2">-- 至 --</span>
+                    </div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 font-normal">
+                        * 默认按【区间涨跌幅】由大到小排序，点击任意表头可自定义正序/倒序 ↕
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-sans select-none sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
+                            <tr>
+                                <th onclick="changeRangeStatSort('stock_code')" class="py-3 px-2 whitespace-nowrap text-left font-semibold cursor-pointer hover:text-indigo-400">
+                                    股票代码 <span id="rs-sort-stock_code" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('stock_name')" class="py-3 px-2 whitespace-nowrap text-left font-semibold cursor-pointer hover:text-indigo-400">
+                                    股票名称 <span id="rs-sort-stock_name" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('industry')" class="py-3 px-2 whitespace-nowrap text-left font-semibold cursor-pointer hover:text-indigo-400">
+                                    所属板块 <span id="rs-sort-industry" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('buy_score')" class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    买入分 <span id="rs-sort-buy_score" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('sell_score')" class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    卖出分 <span id="rs-sort-sell_score" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('mkt_capt')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    总市值 <span id="rs-sort-mkt_capt" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('close')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    最新价 <span id="rs-sort-close" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('range_pct')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer text-indigo-500 font-bold hover:text-indigo-400 bg-indigo-500/10 rounded" title="设定区间内的累计涨跌幅">
+                                    区间涨跌幅 <span id="rs-sort-range_pct" class="text-[11px] font-bold text-indigo-400">↓</span></th>
+                                <th onclick="changeRangeStatSort('pct')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    涨幅% <span id="rs-sort-pct" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('amplitude')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    振幅% <span id="rs-sort-amplitude" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('dde_net')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    主力净流入 <span id="rs-sort-dde_net" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('consec_amount')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    连续净流入 <span id="rs-sort-consec_amount" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('v_rate')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    量比 <span id="rs-sort-v_rate" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('t_rate')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    换手% <span id="rs-sort-t_rate" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('amount')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    成交额 <span id="rs-sort-amount" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('days')" class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    连涨天 <span id="rs-sort-days" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('zig')" class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    ZIG (日线) <span id="rs-sort-zig" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('ystz')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    营业同比 <span id="rs-sort-ystz" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('sjltz')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    净利润同比 <span id="rs-sort-sjltz" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('pe_percentile')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    PE(3年分位) <span id="rs-sort-pe_percentile" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('holder_ratio')" class="py-3 px-2 whitespace-nowrap text-right font-semibold cursor-pointer hover:text-indigo-400">
+                                    股东集中度 <span id="rs-sort-holder_ratio" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('holders_num')" class="py-3 px-3 whitespace-nowrap text-left font-semibold cursor-pointer hover:text-indigo-400">
+                                    股东人数 <span id="rs-sort-holders_num" class="text-[10px] text-slate-500">↕</span></th>
+                                <th onclick="changeRangeStatSort('pattern_score')" class="py-3 px-2 whitespace-nowrap text-center font-semibold cursor-pointer hover:text-indigo-400">
+                                    形态特征 <span id="rs-sort-pattern_score" class="text-[10px] text-slate-500">↕</span></th>
+                                <th class="py-3 px-2 whitespace-nowrap text-right pr-3 font-semibold">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="range-stat-table" class="divide-y divide-slate-800/60 font-mono">
+                            <tr>
+                                <td colspan="24" class="py-12 text-center text-slate-400 font-sans">
+                                    <div class="flex flex-col items-center justify-center space-y-2">
+                                        <i data-lucide="calendar" class="w-8 h-8 text-slate-500 stroke-1"></i>
+                                        <p class="text-xs text-slate-400">请设定开始时间与截至时间，点击「开始统计」载入区间涨跌幅结果</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
 <!-- ==================== 资金监控视图 (Capital Flow & Strategies View) ==================== -->
         <section id="view-fundflow" class="hidden space-y-6">
             <!-- 头部导览卡片 -->
@@ -7339,7 +7560,7 @@
             setTimeout(() => { t.remove(); }, 4000);
         }
 
-        const VALID_TABS = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
+        const VALID_TABS = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata', 'rangestat'];
 
         function getActiveTabName() {
             if (window.currentTab && VALID_TABS.includes(window.currentTab)) return window.currentTab;
@@ -7444,6 +7665,11 @@
                             setTimeout(() => {
                                 if (typeof initFundFlowView === 'function') initFundFlowView();
                             }, 50);
+                        } else if (t === 'rangestat') {
+                            setTimeout(() => {
+                                if (typeof initRangeStatDatesIfNeeded === 'function') initRangeStatDatesIfNeeded();
+                                if (typeof runRangeStatQuery === 'function') runRangeStatQuery();
+                            }, 50);
                         } else if (t === 'aireview') {
                             loadAIReview();
                             runDiagnosis();
@@ -7506,7 +7732,8 @@
             finaanalysis: '财报分析',
             sectorleaders: '板块龙头',
             chanlun: '缠论',
-            etfdata: 'ETF数据'
+            etfdata: 'ETF数据',
+            rangestat: '区间统计'
         };
 
         function toggleMobileNav(forceState) {
@@ -17229,43 +17456,64 @@
         let _cachedWatchlistRows = []; window._cachedWatchlistRows = _cachedWatchlistRows;
 
         let _wlRangeStartDate = '';
+        let _wlRangeEndDate = '';
         try {
             _wlRangeStartDate = localStorage.getItem('easy_tdx_wl_start_date') || '';
+            _wlRangeEndDate = localStorage.getItem('easy_tdx_wl_end_date') || '';
         } catch (e) { }
         window._wlRangeStartDate = _wlRangeStartDate;
+        window._wlRangeEndDate = _wlRangeEndDate;
 
-        function syncRangeDateInputs() {
-            const navInput = document.getElementById('wl-range-start-date');
-            if (navInput && navInput.value !== window._wlRangeStartDate) {
-                navInput.value = window._wlRangeStartDate;
+        function syncWatchlistRangeInputs() {
+            const startInput = document.getElementById('table-range-start-date');
+            if (startInput && startInput.value !== window._wlRangeStartDate) {
+                startInput.value = window._wlRangeStartDate;
             }
-            const tblInput = document.getElementById('table-range-start-date');
-            if (tblInput && tblInput.value !== window._wlRangeStartDate) {
-                tblInput.value = window._wlRangeStartDate;
+            const endInput = document.getElementById('table-range-end-date');
+            if (endInput && endInput.value !== window._wlRangeEndDate) {
+                endInput.value = window._wlRangeEndDate;
+            }
+            const legacyNav = document.getElementById('wl-range-start-date');
+            if (legacyNav && legacyNav.value !== window._wlRangeStartDate) {
+                legacyNav.value = window._wlRangeStartDate;
             }
         }
 
-        function onRangeStatDateChange(val) {
-            window._wlRangeStartDate = (val || '').trim();
+        function onWatchlistRangeDateChange() {
+            const startInput = document.getElementById('table-range-start-date');
+            const endInput = document.getElementById('table-range-end-date');
+            window._wlRangeStartDate = (startInput ? startInput.value : '').trim();
+            window._wlRangeEndDate = (endInput ? endInput.value : '').trim();
             try {
                 if (window._wlRangeStartDate) {
                     localStorage.setItem('easy_tdx_wl_start_date', window._wlRangeStartDate);
                 } else {
                     localStorage.removeItem('easy_tdx_wl_start_date');
                 }
+                if (window._wlRangeEndDate) {
+                    localStorage.setItem('easy_tdx_wl_end_date', window._wlRangeEndDate);
+                } else {
+                    localStorage.removeItem('easy_tdx_wl_end_date');
+                }
             } catch (e) { }
-            syncRangeDateInputs();
+            syncWatchlistRangeInputs();
             loadRealtimeQuotes();
         }
 
-        function clearRangeStatDate() {
+        function clearWatchlistRangeDate() {
             window._wlRangeStartDate = '';
+            window._wlRangeEndDate = '';
             try {
                 localStorage.removeItem('easy_tdx_wl_start_date');
+                localStorage.removeItem('easy_tdx_wl_end_date');
             } catch (e) { }
-            syncRangeDateInputs();
+            syncWatchlistRangeInputs();
             loadRealtimeQuotes();
         }
+
+        function syncRangeDateInputs() { syncWatchlistRangeInputs(); }
+        function onRangeStatDateChange(val) { onWatchlistRangeDateChange(); }
+        function clearRangeStatDate() { clearWatchlistRangeDate(); }
 
         function changeWatchlistSort(col) {
             if (_watchlistSortCol === col) {
@@ -17412,8 +17660,10 @@
                         const rPctColor = rPct > 0 ? 'text-rose-600 dark:text-rose-500' : (rPct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
                         const rPctStr = (rPct > 0 ? '+' : '') + rPct.toFixed(2) + '%';
                         const startPStr = q.start_price ? `¥${Number(q.start_price).toFixed(2)}` : '--';
-                        const actDateStr = q.start_date || (window._wlRangeStartDate || '');
-                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${rPctColor}" title="基准日: ${actDateStr} (基准价: ${startPStr}) -> 最新: ${priceStr} (累计涨幅: ${rPctStr})">${rPctStr}</td>`;
+                        const actStartDateStr = q.start_date || (window._wlRangeStartDate || '');
+                        const endPStr = q.end_price ? `¥${Number(q.end_price).toFixed(2)}` : (priceStr || '--');
+                        const actEndDateStr = q.end_date || (window._wlRangeEndDate || '至今');
+                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${rPctColor}" title="基准日: ${actStartDateStr} (${startPStr}) -> 截至日: ${actEndDateStr} (${endPStr}) | 累计涨幅: ${rPctStr}">${rPctStr}</td>`;
                     } else {
                         rangePctTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap" title="未设置起始时间或暂无区间数据">--</td>`;
                     }
@@ -17626,6 +17876,9 @@
                 if (window._wlRangeStartDate) {
                     dashUrl += `&start_date=${encodeURIComponent(window._wlRangeStartDate)}`;
                 }
+                if (window._wlRangeEndDate) {
+                    dashUrl += `&end_date=${encodeURIComponent(window._wlRangeEndDate)}`;
+                }
                 const resp = await fetch(dashUrl);
                 if (resp.ok) {
                     const json = await resp.json();
@@ -17646,6 +17899,606 @@
             } catch (e) {
                 console.error('Failed to load realtime quotes:', e);
             }
+        }
+
+        // ==================== 区间统计视图 (Range Statistics View Controller) ====================
+        let _rangeStatRawRows = [];
+        let _rangeStatFilteredRows = [];
+        let _rangeStatSortCol = 'range_pct';
+        let _rangeStatSortAsc = false;
+        let _rangeStatLoading = false;
+
+        function initRangeStatDatesIfNeeded() {
+            const endInput = document.getElementById('rs-end-date');
+            const startInput = document.getElementById('rs-start-date');
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (endInput && !endInput.value) {
+                endInput.value = todayStr;
+            }
+            if (startInput && !startInput.value) {
+                // 默认起始时间为约 20 个交易日前 (28个自然日)
+                const d = new Date(Date.now() - 28 * 86400000);
+                startInput.value = d.toISOString().split('T')[0];
+            }
+        }
+
+        function setRangePreset(preset) {
+            initRangeStatDatesIfNeeded();
+            const endInput = document.getElementById('rs-end-date');
+            const startInput = document.getElementById('rs-start-date');
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            if (endInput) endInput.value = todayStr;
+
+            let startStr = todayStr;
+            if (preset === '5d') {
+                startStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+            } else if (preset === '10d') {
+                startStr = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
+            } else if (preset === '20d') {
+                startStr = new Date(Date.now() - 28 * 86400000).toISOString().split('T')[0];
+            } else if (preset === '60d') {
+                startStr = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+            } else if (preset === 'ytd') {
+                startStr = `${now.getFullYear()}-01-01`;
+            } else if (preset === '1y') {
+                startStr = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+            }
+            if (startInput) startInput.value = startStr;
+            runRangeStatQuery(true);
+        }
+
+        function resetRangeStatParams() {
+            const endInput = document.getElementById('rs-end-date');
+            const startInput = document.getElementById('rs-start-date');
+            const searchInput = document.getElementById('rs-search-input');
+            const indSelect = document.getElementById('rs-industry-select');
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (endInput) endInput.value = todayStr;
+            if (startInput) {
+                const d = new Date(Date.now() - 28 * 86400000);
+                startInput.value = d.toISOString().split('T')[0];
+            }
+            if (searchInput) searchInput.value = '';
+            if (indSelect) indSelect.value = '';
+            _rangeStatSortCol = 'range_pct';
+            _rangeStatSortAsc = false;
+            runRangeStatQuery(true);
+        }
+
+        async function runRangeStatQuery(force = false) {
+            initRangeStatDatesIfNeeded();
+            if (_rangeStatLoading) return;
+            _rangeStatLoading = true;
+            const btnText = document.getElementById('rs-query-btn-text');
+            if (btnText) btnText.textContent = '统计中...';
+            const tableEl = document.getElementById('range-stat-table');
+            if (tableEl && (!_rangeStatRawRows || _rangeStatRawRows.length === 0)) {
+                tableEl.innerHTML = `
+                    <tr>
+                        <td colspan="24" class="py-12 text-center text-slate-400 font-sans">
+                            <div class="flex items-center justify-center space-x-2">
+                                <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-cyan-500"></i>
+                                <span class="text-xs text-slate-400">正在计算全维度多因子打分与区间累计涨跌幅...</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                if (window.lucide) lucide.createIcons();
+            }
+
+            try {
+                const universeSelect = document.getElementById('rs-universe-select');
+                const universe = universeSelect ? universeSelect.value : 'core';
+                const startInput = document.getElementById('rs-start-date');
+                const endInput = document.getElementById('rs-end-date');
+                const startDate = (startInput ? startInput.value : '').trim();
+                const endDate = (endInput ? endInput.value : '').trim();
+
+                let url = '';
+                if (universe === 'watchlist') {
+                    const symbols = getWatchlistSymbols();
+                    if (!symbols || symbols.length === 0) {
+                        _rangeStatRawRows = [];
+                        applyRangeStatFilter();
+                        _rangeStatLoading = false;
+                        if (btnText) btnText.textContent = '开始统计';
+                        return;
+                    }
+                    url = `/api/trading_system/dashboard?symbols=${encodeURIComponent(symbols.join(','))}&period=day`;
+                } else {
+                    url = `/api/trading_system/dashboard?universe=${encodeURIComponent(universe)}&period=day`;
+                }
+
+                if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+                if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+                if (force) url += `&force_refresh=true`;
+
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    _rangeStatRawRows = data.rows || [];
+
+                    // Populate industry dropdown
+                    const indSelect = document.getElementById('rs-industry-select');
+                    if (indSelect) {
+                        const currInd = indSelect.value;
+                        const indSet = new Set();
+                        _rangeStatRawRows.forEach(r => {
+                            const ind = r.industry || r.board_name;
+                            if (ind && ind !== '--') indSet.add(ind);
+                        });
+                        const indArr = Array.from(indSet).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+                        let optHtml = '<option value="">全部行业</option>';
+                        indArr.forEach(ind => {
+                            optHtml += `<option value="${ind}" ${ind === currInd ? 'selected' : ''}>${ind}</option>`;
+                        });
+                        indSelect.innerHTML = optHtml;
+                    }
+
+                    // Update time range text
+                    const rangeDescEl = document.getElementById('rs-time-range-desc');
+                    if (rangeDescEl) {
+                        rangeDescEl.textContent = `${startDate || '起始'} 至 ${endDate || '今日'}`;
+                    }
+
+                    updateRangeStatKPIs(_rangeStatRawRows);
+                    applyRangeStatFilter();
+                } else {
+                    console.error('Failed to load range stats, status:', resp.status);
+                    showToast('区间统计错误', '加载区间统计数据失败，请重试');
+                }
+            } catch (e) {
+                console.error('Error in runRangeStatQuery:', e);
+                showToast('区间统计错误', '网络或服务端异常');
+            } finally {
+                _rangeStatLoading = false;
+                if (btnText) btnText.textContent = '开始统计';
+            }
+        }
+
+        function updateRangeStatKPIs(rows) {
+            const totalEl = document.getElementById('rs-kpi-total');
+            const upEl = document.getElementById('rs-kpi-up');
+            const downEl = document.getElementById('rs-kpi-down');
+            const avgEl = document.getElementById('rs-kpi-avg');
+
+            const total = rows.length;
+            if (totalEl) totalEl.textContent = `${total} 只`;
+
+            let upCount = 0;
+            let downCount = 0;
+            let validReturnSum = 0;
+            let validReturnCount = 0;
+
+            rows.forEach(r => {
+                if (r.range_pct !== undefined && r.range_pct !== null) {
+                    const val = Number(r.range_pct);
+                    if (val > 0) upCount++;
+                    else if (val < 0) downCount++;
+                    validReturnSum += val;
+                    validReturnCount++;
+                }
+            });
+
+            const upRate = total > 0 ? ((upCount / total) * 100).toFixed(1) : '0.0';
+            const downRate = total > 0 ? ((downCount / total) * 100).toFixed(1) : '0.0';
+
+            if (upEl) {
+                upEl.innerHTML = `${upCount} <span class="text-xs text-rose-500 font-normal">(${upRate}%)</span>`;
+            }
+            if (downEl) {
+                downEl.innerHTML = `${downCount} <span class="text-xs text-emerald-500 font-normal">(${downRate}%)</span>`;
+            }
+            if (avgEl) {
+                const avg = validReturnCount > 0 ? (validReturnSum / validReturnCount) : 0;
+                const sign = avg > 0 ? '+' : '';
+                const avgColor = avg > 0 ? 'text-rose-600 dark:text-rose-500' : (avg < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white');
+                avgEl.className = `text-xl font-bold font-mono mt-1 ${avgColor}`;
+                avgEl.textContent = `${sign}${avg.toFixed(2)}%`;
+            }
+        }
+
+        function changeRangeStatSort(col) {
+            if (_rangeStatSortCol === col) {
+                _rangeStatSortAsc = !_rangeStatSortAsc;
+            } else {
+                _rangeStatSortCol = col;
+                _rangeStatSortAsc = (col === 'stock_code' || col === 'stock_name' || col === 'sell_score');
+            }
+            applyRangeStatFilter();
+        }
+
+        function applyRangeStatFilter() {
+            const indSelect = document.getElementById('rs-industry-select');
+            const searchInput = document.getElementById('rs-search-input');
+            const indFilter = indSelect ? indSelect.value.trim() : '';
+            const keyword = searchInput ? searchInput.value.trim().toUpperCase() : '';
+
+            let filtered = (_rangeStatRawRows || []).filter(r => {
+                if (indFilter) {
+                    const ind = r.industry || r.board_name || '';
+                    if (ind !== indFilter) return false;
+                }
+                if (keyword) {
+                    const code = (r.stock_code || r.code || '').toUpperCase();
+                    const name = (r.stock_name || r.name || '').toUpperCase();
+                    if (!code.includes(keyword) && !name.includes(keyword)) return false;
+                }
+                return true;
+            });
+
+            const countEl = document.getElementById('rs-table-count');
+            if (countEl) countEl.textContent = `${filtered.length} 只`;
+
+            // Update sort indicator icons
+            const sortCols = ['stock_code', 'stock_name', 'industry', 'buy_score', 'sell_score', 'mkt_capt', 'close', 'range_pct', 'pct', 'amplitude', 'dde_net', 'consec_amount', 'v_rate', 't_rate', 'amount', 'days', 'zig', 'ystz', 'sjltz', 'pe_percentile', 'holder_ratio', 'holders_num', 'pattern_score'];
+            sortCols.forEach(col => {
+                const sortSpan = document.getElementById(`rs-sort-${col}`);
+                if (sortSpan) {
+                    if (col === _rangeStatSortCol) {
+                        sortSpan.innerHTML = _rangeStatSortAsc ? '↑' : '↓';
+                        sortSpan.className = 'text-[11px] font-bold text-cyan-400';
+                    } else {
+                        sortSpan.innerHTML = '↕';
+                        sortSpan.className = 'text-[10px] text-slate-500';
+                    }
+                }
+            });
+
+            // Sort rows
+            if (_rangeStatSortCol) {
+                filtered.sort((a, b) => {
+                    let va = a[_rangeStatSortCol];
+                    let vb = b[_rangeStatSortCol];
+                    if (typeof va === 'string' || typeof vb === 'string') {
+                        va = (va || '').toString();
+                        vb = (vb || '').toString();
+                        return _rangeStatSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                    }
+                    va = Number(va != null && !isNaN(va) ? va : (_rangeStatSortAsc ? Infinity : -Infinity));
+                    vb = Number(vb != null && !isNaN(vb) ? vb : (_rangeStatSortAsc ? Infinity : -Infinity));
+                    return _rangeStatSortAsc ? va - vb : vb - va;
+                });
+            }
+
+            _rangeStatFilteredRows = filtered;
+            renderRangeStatTable(filtered);
+        }
+
+        function renderRangeStatTable(rows) {
+            const tableEl = document.getElementById('range-stat-table');
+            if (!tableEl) return;
+
+            if (!rows || rows.length === 0) {
+                tableEl.innerHTML = `
+                    <tr>
+                        <td colspan="24" class="py-12 text-center text-slate-400 font-sans">
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <i data-lucide="inbox" class="w-8 h-8 text-slate-500 stroke-1"></i>
+                                <p class="text-xs text-slate-400">没有符合筛选条件的标的数据</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            const wlSymbols = new Set(getWatchlistSymbols());
+
+            tableEl.innerHTML = rows.map((q) => {
+                try {
+                    const code = q.stock_code || q.code || '';
+                    let name = q.stock_name || q.name || code;
+                    if (typeof name === 'string' && name.startsWith('标的_')) {
+                        name = name.replace('标的_', '');
+                    }
+                    const pfx = (code.startsWith('6') || code.startsWith('9') || code.startsWith('5')) ? 'SH' : ((code.startsWith('4') || code.startsWith('8')) ? 'BJ' : 'SZ');
+                    const xqUrl = `https://xueqiu.com/s/${pfx}${code}`;
+
+                    // 1. 股票代码
+                    const codeTd = `<td class="py-2.5 px-2 font-semibold whitespace-nowrap text-left"><a href="${xqUrl}" target="_blank" rel="noopener noreferrer" class="stock-code-link font-mono font-bold text-slate-800 dark:text-slate-100 hover:text-cyan-400 hover:underline text-xs" title="在雪球查看 ${code} ${name}">${code}</a></td>`;
+
+                    // 2. 股票名称
+                    const nameTd = `<td class="py-2.5 px-2 font-sans font-semibold whitespace-nowrap text-left"><span onclick="openKlineModal('${code}', '${name}', null, _rangeStatFilteredRows)" class="stock-click-link text-slate-900 dark:text-white cursor-pointer hover:text-cyan-400 font-bold" title="点击查看【${name}】K线行情">${name}</span></td>`;
+
+                    // 3. 所属板块
+                    let boardHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">--</span>';
+                    const indName = q.industry || q.board_name || '';
+                    const bCode = q.board_code || '';
+                    if (indName && indName !== '--') {
+                        if (bCode) {
+                            boardHtml = `<span onclick="openKlineModal('${bCode}', '${indName}')" class="stock-click-link text-slate-700 dark:text-slate-300 font-sans font-medium text-xs hover:text-cyan-400 cursor-pointer" title="点击查看【${indName}】(${bCode}) 板块K线">${indName}</span>`;
+                        } else {
+                            boardHtml = `<span class="text-slate-600 dark:text-slate-400 font-sans font-medium text-xs">${indName}</span>`;
+                        }
+                    }
+                    const indTd = `<td class="py-2.5 px-2 whitespace-nowrap text-left">${boardHtml}</td>`;
+
+                    // 4. 买入分
+                    const bScore = Number(q.buy_score || 0);
+                    let bBadge = '';
+                    if (bScore >= 10) {
+                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">${bScore}分 强烈买入</span>`;
+                    } else if (bScore >= 8) {
+                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-xs">${bScore}分 买入</span>`;
+                    } else if (bScore >= 5) {
+                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600/90 text-white">${bScore}分 关注</span>`;
+                    } else {
+                        bBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">${bScore}分 观望</span>`;
+                    }
+                    if (q.star_buy) bBadge += `<span class="ml-1 text-rose-500 font-bold" title="红星共振">★</span>`;
+                    const cleanCode = (code || '').toString().trim().replace(/[^0-9]/g, '');
+                    const cleanName = (name || cleanCode).toString().replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const buyLinkHtml = cleanCode
+                        ? `<a href="/#chanlun?code=${cleanCode}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${cleanCode}', '${cleanName}', event, '', _rangeStatFilteredRows)" class="inline-block cursor-pointer hover:opacity-80 transition transform hover:scale-105 no-underline" title="在新标签中打开【${cleanName}】(${cleanCode}) 缠论K线">${bBadge}</a>`
+                        : bBadge;
+                    const buyTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${buyLinkHtml}</td>`;
+
+                    // 5. 卖出分
+                    const sScore = Number(q.sell_score || 0);
+                    let sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50" title="无卖出风险信号，持股安全">0分 安全</span>`;
+                    if (sScore >= 5) {
+                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-700 text-white shadow-xs">▲ ${sScore}分 顶危</span>`;
+                    } else if (sScore >= 3) {
+                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 shadow-xs">${sScore}分 卖出</span>`;
+                    } else if (sScore >= 1) {
+                        sBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60">${sScore}分 警惕</span>`;
+                    }
+                    if (q.star_sell) sBadge += `<span class="ml-1 text-emerald-500 dark:text-emerald-400 font-bold" title="绿星预警">★</span>`;
+                    const sellTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${sBadge}</td>`;
+
+                    // 6. 总市值
+                    const mvStr = fmtMoneyTs(q.mkt_capt || (q.total_mv_yi ? q.total_mv_yi * 1e8 : 0));
+                    const mvTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">${mvStr}</td>`;
+
+                    // 7. 最新价
+                    const price = Number(q.close != null ? q.close : (q.price != null ? q.price : 0));
+                    const priceStr = price > 0 ? `¥${price.toFixed(2)}` : '--';
+                    const priceTd = `<td class="py-2.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">${priceStr}</td>`;
+
+                    // 8. 区间涨跌幅
+                    let rangePctTd = '';
+                    if (q.range_pct !== undefined && q.range_pct !== null) {
+                        const rPct = Number(q.range_pct);
+                        const rPctColor = rPct > 0 ? 'text-rose-600 dark:text-rose-500' : (rPct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
+                        const rPctStr = (rPct > 0 ? '+' : '') + rPct.toFixed(2) + '%';
+                        const startPStr = q.start_price ? `¥${Number(q.start_price).toFixed(2)}` : '--';
+                        const actStartDateStr = q.start_date || '';
+                        const endPStr = q.end_price ? `¥${Number(q.end_price).toFixed(2)}` : (priceStr || '--');
+                        const actEndDateStr = q.end_date || '至今';
+                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${rPctColor}" title="基准日: ${actStartDateStr} (${startPStr}) -> 截至日: ${actEndDateStr} (${endPStr}) | 累计涨幅: ${rPctStr}">${rPctStr}</td>`;
+                    } else {
+                        rangePctTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap" title="未设置起始时间或暂无区间数据">--</td>`;
+                    }
+
+                    // 9. 涨幅%
+                    const pct = Number(q.pct != null ? q.pct : (q.change_pct != null ? q.change_pct : 0));
+                    const pctColor = pct > 0 ? 'text-rose-600 dark:text-rose-500' : (pct < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500');
+                    const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+                    const pctTd = `<td class="py-2.5 px-2 text-right font-mono font-bold whitespace-nowrap ${pctColor}">${pctStr}</td>`;
+
+                    // 10. 振幅%
+                    const amp = (q.amplitude !== undefined && q.amplitude !== null) ? Number(q.amplitude).toFixed(2) + '%' : '--';
+                    const ampTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">${amp}</td>`;
+
+                    // 11. 主力净流入
+                    const dde = Number(q.dde_net != null ? q.dde_net : (q.main_net_amount || 0));
+                    const ddeColor = dde > 0 ? 'text-rose-600 dark:text-rose-500 font-semibold' : (dde < 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-500');
+                    const ddeStr = fmtMoneyTs(dde);
+                    const ddeTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${ddeColor}" title="主力净流入: ${ddeStr}">${ddeStr}</td>`;
+
+                    // 12. 连续净流入
+                    let consecHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+                    if (q.consec_days !== undefined && q.consec_days !== null && q.consec_days !== 0) {
+                        const cAmtStr = q.consec_amount ? fmtMoneyTs(q.consec_amount) : '';
+                        if (q.consec_days > 0) {
+                            consecHtml = `<span class="text-rose-600 dark:text-rose-400 font-semibold font-mono text-xs" title="连续 ${q.consec_days} 天主力净流入，累计: ${cAmtStr}">+${q.consec_days}天 (${cAmtStr})</span>`;
+                        } else {
+                            consecHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-xs" title="连续 ${Math.abs(q.consec_days)} 天主力净流出，累计: ${cAmtStr}">${q.consec_days}天 (${cAmtStr})</span>`;
+                        }
+                    }
+                    const consecTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${consecHtml}</td>`;
+
+                    // 13. 量比
+                    const vr = (q.v_rate != null) ? Number(q.v_rate).toFixed(2) : '--';
+                    const vrClass = (Number(q.v_rate) >= 2) ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300';
+                    const vrTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${vrClass}">${vr}</td>`;
+
+                    // 14. 换手%
+                    const tr = (q.t_rate != null) ? Number(q.t_rate).toFixed(2) + '%' : '--';
+                    const trClass = (Number(q.t_rate) >= 5) ? 'text-amber-500 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300';
+                    const trTd = `<td class="py-2.5 px-2 text-right font-mono whitespace-nowrap ${trClass}">${tr}</td>`;
+
+                    // 15. 成交额
+                    const amt = Number(q.amount != null ? q.amount : (q.turnover_wan ? q.turnover_wan * 10000 : 0));
+                    const amtStr = amt > 0 ? fmtMoneyTs(amt) : '--';
+                    const amtTd = `<td class="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">${amtStr}</td>`;
+
+                    // 16. 连涨天
+                    const days = Number(q.days || 0);
+                    let daysHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">0天</span>';
+                    if (days > 0) {
+                        daysHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs">${days}连阳</span>`;
+                    } else if (days < 0) {
+                        daysHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs">${Math.abs(days)}连阴</span>`;
+                    }
+                    const daysTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${daysHtml}</td>`;
+
+                    // 17. ZIG (日线)
+                    const zig = Number(q.zig || 0);
+                    let zigHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+                    if (zig > 0) {
+                        zigHtml = `<span class="text-rose-600 dark:text-rose-400 font-mono font-semibold text-xs" title="ZIG 向上波段持续 ${zig} 天 (日线)">+${zig}</span>`;
+                    } else if (zig < 0) {
+                        zigHtml = `<span class="text-emerald-600 dark:text-emerald-400 font-mono font-semibold text-xs" title="ZIG 向下波段持续 ${Math.abs(zig)} 天 (日线)">-${Math.abs(zig)}</span>`;
+                    }
+                    const zigTd = `<td class="py-2.5 px-2 text-center whitespace-nowrap">${zigHtml}</td>`;
+
+                    // 18. 营业同比
+                    const ystzLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/ZYCWZB`;
+                    let ystzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+                    if (q.ystz !== undefined && q.ystz !== null && q.ystz !== 0) {
+                        const yColor = q.ystz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                        ystzHtml = `<a href="${ystzLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-semibold hover:underline ${yColor}" title="点击在雪球查看【${name}】主要财务指标">${q.ystz > 0 ? '+' : ''}${Number(q.ystz).toFixed(2)}%</a>`;
+                    }
+                    const ystzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${ystzHtml}</td>`;
+
+                    // 19. 净利润同比
+                    const sjltzLink = `https://a.13145188.xyz/sina_html/sina_${code}.html`;
+                    let sjltzHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+                    if (q.sjltz !== undefined && q.sjltz !== null && q.sjltz !== 0) {
+                        const sColor = q.sjltz > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400';
+                        sjltzHtml = `<a href="${sjltzLink}" target="_blank" rel="noopener noreferrer" class="font-mono font-semibold hover:underline ${sColor}" title="点击在新浪查看【${name}】财务分析">${q.sjltz > 0 ? '+' : ''}${Number(q.sjltz).toFixed(2)}%</a>`;
+                    }
+                    const sjltzTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${sjltzHtml}</td>`;
+
+                    // 20. PE(3年分位)
+                    let peHtml = '<span class="text-slate-400 dark:text-slate-500 font-mono text-xs">-</span>';
+                    if (q.pe_percentile !== undefined && q.pe_percentile !== null) {
+                        const pVal = Number(q.pe_percentile);
+                        const pColor = pVal <= 20 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : (pVal >= 80 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-300 font-semibold');
+                        peHtml = `<span class="font-mono ${pColor}" title="当前股价处于近3年估值区间的 ${pVal.toFixed(1)}% 分位">${pVal.toFixed(1)}%</span>`;
+                    }
+                    const peTd = `<td class="py-2.5 px-2 text-right whitespace-nowrap">${peHtml}</td>`;
+
+                    // 21. 股东集中度
+                    let hRatioVal = (q.holder_ratio !== undefined && q.holder_ratio !== null) ? Number(q.holder_ratio) : 0;
+                    let holderRatioHtml = '<span class="text-slate-400 font-mono">-</span>';
+                    if (hRatioVal > 0) {
+                        let fireTag = hRatioVal >= 70 ? ' <span class="select-none">🔥</span>' : '';
+                        holderRatioHtml = `<span class="font-semibold text-slate-800 dark:text-slate-100">${hRatioVal.toFixed(1)}%</span>${fireTag}`;
+                    }
+                    const hTitle = `股东户数: ${q.holders_str || '-'}, 十大股东集中度: ${hRatioVal > 0 ? hRatioVal.toFixed(1) + '%' : '-'}, 评价: ${q.holder_focus || '-'}`;
+                    const holderRatioTd = `<td class="py-2.5 px-2 text-center font-mono text-xs whitespace-nowrap" title="${hTitle}">${holderRatioHtml}</td>`;
+
+                    // 22. 股东人数
+                    const gdrsLink = `https://xueqiu.com/snowman/S/${pfx}${code}/detail#/GDRS`;
+                    const holdersNumText = (q.holders_str && q.holders_str !== '--') ? q.holders_str : (q.holders_num ? (q.holders_num >= 10000 ? (q.holders_num / 10000).toFixed(2) + '万' : q.holders_num + '户') : '-');
+                    let holdersChangesHtml = '';
+                    if (q.holders_changes && Array.isArray(q.holders_changes) && q.holders_changes.length > 0) {
+                        const changeSpans = q.holders_changes.slice(0, 3).map(c => {
+                            const chgVal = Number(c.ratio) || 0;
+                            const chgColor = chgVal > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold' : (chgVal < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400 font-medium');
+                            const sign = chgVal > 0 ? '+' : '';
+                            const numDesc = c.num ? (c.num >= 10000 ? (c.num / 10000).toFixed(1) + '万' : c.num + '户') : '';
+                            const dateStr = c.date || '';
+                            return `<span class="${chgColor}" title="${dateStr}: 较上期变动 ${sign}${chgVal.toFixed(1)}% (${numDesc})">${sign}${chgVal.toFixed(1)}%</span>`;
+                        });
+                        holdersChangesHtml = `<span class="text-xs text-slate-500 dark:text-slate-400 font-mono select-none whitespace-nowrap font-normal">(${changeSpans.join('&nbsp; ')})</span>`;
+                    }
+                    const holdersNumHtml = `<div class="inline-flex items-center text-xs font-mono whitespace-nowrap">
+                        <a href="${gdrsLink}" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-900 dark:text-white hover:text-cyan-400 hover:underline cursor-pointer" title="点击在雪球查看【${name}】股东人数及筹码变动详情">${holdersNumText}</a>${holdersChangesHtml}
+                    </div>`;
+                    const holdersNumTd = `<td class="py-2.5 px-3 text-left whitespace-nowrap">${holdersNumHtml}</td>`;
+
+                    // 23. 形态特征
+                    const patNames = (q.pattern_names && q.pattern_names.length > 0) ? q.pattern_names : (q.patterns || []);
+                    const patternTd = `<td class="py-2.5 px-2 text-center font-sans whitespace-nowrap">${renderPatternBadges(patNames, q.status)}</td>`;
+
+                    // 24. 操作
+                    const inWl = wlSymbols.has(code);
+                    const wlToggleBtn = inWl
+                        ? `<button onclick="removeWatchlistStock('${code}', '${name}'); runRangeStatQuery();" class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold hover:bg-amber-500/20 transition cursor-pointer" title="已在自选池，点击移出">★</button>`
+                        : `<button onclick="addWatchlistStock('${code}', '${name}'); runRangeStatQuery();" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-amber-400 text-xs border border-slate-300 dark:border-slate-700 transition cursor-pointer" title="点击加入自选池">☆</button>`;
+
+                    const opTd = `
+                        <td class="py-2.5 px-2 pr-3 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end space-x-1.5">
+                                <button onclick="openTsFinaModal('${code}', '${name}')" class="px-2 py-0.5 rounded text-xs border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition cursor-pointer font-medium" title="查看近5年深度财报与AI体检">诊断</button>
+                                <a href="/#chanlun?code=${code}" target="_blank" rel="noopener noreferrer" onclick="openChanlunKline('${code}', '${name}', event, '', _rangeStatFilteredRows)" class="inline-block px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs hover:bg-purple-100 dark:hover:bg-purple-900 transition cursor-pointer font-medium no-underline text-center" title="在新标签中打开【${name}】(${code}) 缠论K线">缠论</a>
+                                <button onclick="quickBacktest('${code}')" class="px-2 py-0.5 rounded text-xs border border-cyan-200 dark:border-cyan-800 text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/80 hover:bg-cyan-100 dark:hover:bg-cyan-900 transition cursor-pointer font-medium" title="针对【${name}】进入参数寻优">回测</button>
+                                ${wlToggleBtn}
+                            </div>
+                        </td>
+                    `;
+
+                    return `
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group border-b border-slate-100 dark:border-slate-800/60">
+                            ${codeTd}
+                            ${nameTd}
+                            ${indTd}
+                            ${buyTd}
+                            ${sellTd}
+                            ${mvTd}
+                            ${priceTd}
+                            ${rangePctTd}
+                            ${pctTd}
+                            ${ampTd}
+                            ${ddeTd}
+                            ${consecTd}
+                            ${vrTd}
+                            ${trTd}
+                            ${amtTd}
+                            ${daysTd}
+                            ${zigTd}
+                            ${ystzTd}
+                            ${sjltzTd}
+                            ${peTd}
+                            ${holderRatioTd}
+                            ${holdersNumTd}
+                            ${patternTd}
+                            ${opTd}
+                        </tr>
+                    `;
+                } catch (rowErr) {
+                    console.error("Error rendering range stat row", q, rowErr);
+                    return '';
+                }
+            }).join('');
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function exportRangeStatCSV() {
+            if (!_rangeStatFilteredRows || _rangeStatFilteredRows.length === 0) {
+                showToast('导出提示', '当前无统计结果可导出');
+                return;
+            }
+            const headers = ['股票代码', '股票名称', '所属板块', '买入分', '卖出分', '总市值', '最新价', '区间涨跌幅%', '开始日期', '开始基准价', '截至日期', '截至收盘价', '涨幅%', '振幅%', '主力净流入', '量比', '换手%', '成交额', '连涨天', 'ZIG转向', '营业同比%', '净利润同比%', 'PE3年分位%', '股东集中度%', '股东人数', '形态特征'];
+            const rows = _rangeStatFilteredRows.map(r => [
+                `"${r.stock_code || r.code || ''}"`,
+                `"${(r.stock_name || r.name || '').replace(/"/g, '""')}"`,
+                `"${(r.industry || r.board_name || '').replace(/"/g, '""')}"`,
+                r.buy_score || 0,
+                r.sell_score || 0,
+                r.mkt_capt || 0,
+                r.close || r.price || 0,
+                r.range_pct != null ? r.range_pct : '',
+                `"${r.start_date || ''}"`,
+                r.start_price != null ? r.start_price : '',
+                `"${r.end_date || ''}"`,
+                r.end_price != null ? r.end_price : '',
+                r.pct != null ? r.pct : (r.change_pct != null ? r.change_pct : 0),
+                r.amplitude != null ? r.amplitude : '',
+                r.dde_net != null ? r.dde_net : '',
+                r.v_rate != null ? r.v_rate : '',
+                r.t_rate != null ? r.t_rate : '',
+                r.amount != null ? r.amount : '',
+                r.days || 0,
+                r.zig || 0,
+                r.ystz != null ? r.ystz : '',
+                r.sjltz != null ? r.sjltz : '',
+                r.pe_percentile != null ? r.pe_percentile : '',
+                r.holder_ratio != null ? r.holder_ratio : '',
+                `"${r.holders_str || (r.holders_num || '')}"`,
+                `"${((r.pattern_names || r.patterns || []).join('; ')).replace(/"/g, '""')}"`
+            ].join(','));
+
+            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const startInput = document.getElementById('rs-start-date');
+            const endInput = document.getElementById('rs-end-date');
+            const sDate = startInput ? startInput.value : '';
+            const eDate = endInput ? endInput.value : '';
+            link.href = URL.createObjectURL(blob);
+            link.download = `区间统计_${sDate || '起始'}_${eDate || '今日'}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('导出成功', `已下载 ${rows.length} 只标的区间统计结果`);
         }
 
         let _ladderRawData = null;
