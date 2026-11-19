@@ -21,12 +21,19 @@
                 }
 
                 // Pre-resolve initial tab before DOM paints to prevent dashboard flashing on jump or refresh
-                var validTabs = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata'];
+                var validTabs = ['dashboard', 'fundflow', 'backtest', 'optimize', 'screener', 'ladder', 'abnormal', 'aireview', 'aichat', 'tradingsystem', 'finaanalysis', 'sectorleaders', 'chanlun', 'etfdata', 'rangestat'];
                 var rawHash = (window.location.hash || '').replace('#', '').trim();
                 var hashTab = rawHash.split('?')[0].toLowerCase();
                 var targetTab = 'dashboard';
                 if (validTabs.indexOf(hashTab) !== -1) {
                     targetTab = hashTab;
+                } else if (!rawHash) {
+                    targetTab = 'dashboard';
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState(null, '', '#dashboard');
+                    } else {
+                        window.location.hash = '#dashboard';
+                    }
                 } else {
                     var savedTab = localStorage.getItem('easy_tdx_active_tab');
                     if (savedTab && validTabs.indexOf(savedTab) !== -1) {
@@ -7888,10 +7895,24 @@
             const [hashTab, queryStr] = rawHash.split('?');
             if (VALID_TABS.includes(hashTab)) {
                 targetTab = hashTab;
+            } else if (!rawHash) {
+                targetTab = 'dashboard';
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#dashboard');
+                } else {
+                    window.location.hash = '#dashboard';
+                }
             } else if (!window.__RESOLVED_INITIAL_TAB__) {
                 const saved = localStorage.getItem('easy_tdx_active_tab');
                 if (saved && VALID_TABS.includes(saved)) {
                     targetTab = saved;
+                }
+            }
+            if (targetTab === 'dashboard' && (!window.location.hash || window.location.hash === '#' || window.location.hash === '')) {
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#dashboard');
+                } else {
+                    window.location.hash = '#dashboard';
                 }
             }
             if (targetTab === 'chanlun') {
@@ -22395,7 +22416,6 @@
 
 
         window.addEventListener('DOMContentLoaded', async () => {
-            syncRangeDateInputs();
             initECharts();
             restoreInitialTab();
             await populateInitialData();
