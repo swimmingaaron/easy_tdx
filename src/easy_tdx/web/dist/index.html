@@ -4766,6 +4766,7 @@
                         <span id="cl-board-badge" class="px-1.5 py-0.5 rounded text-xs font-bold text-orange-400 bg-orange-400/10 border border-orange-400/30">--</span>
                         <span id="cl-full-symbol" class="text-sm sm:text-base font-bold font-mono text-white">--</span>
                         <span id="cl-stock-name" class="text-sm sm:text-base font-semibold text-slate-200 whitespace-nowrap">正在载入K线...</span>
+                        <span id="cl-stock-board" class="px-2 py-0.5 rounded text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/30 whitespace-nowrap cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-400/20 transition hidden" title="所属行业板块（点击查看板块成分股）">--</span>
 
                         <div class="flex items-baseline space-x-1 font-mono ml-1">
                             <span id="cl-price" class="text-base sm:text-lg font-black text-rose-500">--</span>
@@ -7878,6 +7879,16 @@
             
             const nameEl = document.getElementById('cl-stock-name');
             if (nameEl) nameEl.innerText = sName;
+
+            const boardEl = document.getElementById('cl-stock-board');
+            if (boardEl) {
+                if (window._clCurrentBoardName && window._clCurrentBoardName !== '--' && window._clCurrentBoardName !== sName && !isSectorIndex) {
+                    boardEl.innerText = window._clCurrentBoardName;
+                    boardEl.classList.remove('hidden');
+                } else {
+                    boardEl.classList.add('hidden');
+                }
+            }
             
             const inp = document.getElementById('cl-stock-input');
             if (inp) inp.value = cleanCode;
@@ -28103,6 +28114,7 @@
             const sName = d.name || c;
             const fullSymEl = document.getElementById('cl-full-symbol');
             const nameEl = document.getElementById('cl-stock-name');
+            const boardEl = document.getElementById('cl-stock-board');
             if (fullSymEl) fullSymEl.innerText = fullSym;
             if (nameEl) {
                 if (isSectorIndex) {
@@ -28112,6 +28124,24 @@
                 }
             }
             window._clCurrentName = sName;
+
+            // 所属板块信息更新
+            const bName = d.board_name || (d.summary && d.summary.board_name) || window._clCurrentBoardName || '';
+            const bCode = d.board_code || (d.summary && d.summary.board_code) || '';
+            if (bName && bName !== '--') window._clCurrentBoardName = bName;
+            if (boardEl) {
+                if (bName && bName !== '--' && bName !== sName && !isSectorIndex) {
+                    boardEl.innerText = bName;
+                    boardEl.classList.remove('hidden');
+                    boardEl.onclick = () => {
+                        if (typeof openSectorLeaderBoardModal === 'function') {
+                            openSectorLeaderBoardModal(bCode || '', bName);
+                        }
+                    };
+                } else {
+                    boardEl.classList.add('hidden');
+                }
+            }
             if (typeof updateChanlunWatchlistButton === 'function') {
                 updateChanlunWatchlistButton();
             }
@@ -28287,6 +28317,40 @@
                     else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
                     elMn.innerText = mnStr;
                     elMn.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
+                }
+
+                // 盘口数据补充所属板块
+                const bName = q.board_name || json.zs_block || json.board_name;
+                const bCode = q.board_code || json.board_code || '';
+                if (bName && bName !== '--' && !String(code).startsWith('88')) {
+                    window._clCurrentBoardName = bName;
+                    const boardEl = document.getElementById('cl-stock-board');
+                    if (boardEl) {
+                        boardEl.innerText = bName;
+                        boardEl.classList.remove('hidden');
+                        boardEl.onclick = () => {
+                            if (typeof openSectorLeaderBoardModal === 'function') {
+                                openSectorLeaderBoardModal(bCode, bName);
+                            }
+                        };
+                    }
+                    ['cl-chart-title-text', 'cl-chart-title-text-w2', 'cl-chart-title-text-right', 'cl-chart-title-text-w4'].forEach(tid => {
+                        const tel = document.getElementById(tid);
+                        if (tel && !tel.querySelector('.stock-title-board')) {
+                            const nameSpan = tel.querySelector('.stock-title-name');
+                            if (nameSpan && !nameSpan.innerText.includes(bName)) {
+                                const badgeSpan = document.createElement('span');
+                                badgeSpan.className = 'stock-title-board ml-1.5 px-1.5 py-0.5 rounded text-[10.5px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/30 whitespace-nowrap cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-400/20 transition';
+                                badgeSpan.innerText = bName;
+                                badgeSpan.title = '所属板块（点击查看板块成分股）';
+                                badgeSpan.onclick = (e) => {
+                                    e.stopPropagation();
+                                    if (typeof openSectorLeaderBoardModal === 'function') openSectorLeaderBoardModal(bCode, bName);
+                                };
+                                nameSpan.appendChild(badgeSpan);
+                            }
+                        }
+                    });
                 }
             } catch (e) {
                 console.debug("Quote metrics fetch ignored:", e);
@@ -30907,8 +30971,15 @@
                 const chgSign = isUp ? '+' : '';
                 const chgStr = `${chgSign}${lastChgPct.toFixed(2)}%`;
 
+                const bName = d.board_name || (d.summary && d.summary.board_name) || window._clCurrentBoardName || '';
+                const bCode = d.board_code || (d.summary && d.summary.board_code) || '';
+                const isSecIdx = String(d.code).startsWith('88');
+                const boardBadge = (bName && bName !== '--' && bName !== d.name && !isSecIdx)
+                    ? `<span class="stock-title-board ml-1.5 px-1.5 py-0.5 rounded text-[10.5px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-400/30 whitespace-nowrap cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-400/20 transition" title="所属板块（点击查看板块成分股）" onclick="event.stopPropagation(); if (typeof openSectorLeaderBoardModal === 'function') openSectorLeaderBoardModal('${bCode}', '${bName}');">${bName}</span>`
+                    : '';
+
                 titleEl.innerHTML = `
-                    <span class="stock-title-name font-bold tracking-tight whitespace-nowrap">${d.code} | ${d.name}</span>
+                    <span class="stock-title-name font-bold tracking-tight whitespace-nowrap flex items-center inline-flex">${d.code} | ${d.name}${boardBadge}</span>
                     <span id="${titleElId}-price" class="stock-title-price font-bold font-mono text-[12px] ml-2 shrink-0 whitespace-nowrap ${colorClass}">${priceStr}</span>
                     <span id="${titleElId}-chg" class="stock-title-chg font-bold font-mono text-[11px] ml-1.5 shrink-0 whitespace-nowrap ${colorClass}">${chgStr}</span>
                 `;

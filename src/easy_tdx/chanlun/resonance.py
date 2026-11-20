@@ -1253,6 +1253,15 @@ def analyze_multi_period_resonance(
     p_list = parse_three_periods(periods)
     high_p, mid_p, low_p = p_list[0], p_list[1], p_list[2]
     stock_name = get_stock_name(clean_code) or "标的资产"
+    board_name = "--"
+    board_code = ""
+    try:
+        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+        b_info = _resolve_stock_board_info(clean_code)
+        board_name = b_info.get("board_name") or "--"
+        board_code = b_info.get("board_code") or ""
+    except Exception:
+        pass
 
     is_backtracking = bool(cutoff_date and str(cutoff_date).strip())
     cutoff_str = str(cutoff_date).strip() if is_backtracking else ""
@@ -2465,6 +2474,8 @@ def analyze_multi_period_resonance(
         "status": "success",
         "code": clean_code,
         "name": stock_name,
+        "board_name": board_name,
+        "board_code": board_code,
         "periods": {
             "high": {"key": high_p, "label": PERIOD_SPECS[high_p]["label"], "name": PERIOD_SPECS[high_p]["short_name"]},
             "mid": {"key": mid_p, "label": PERIOD_SPECS[mid_p]["label"], "name": PERIOD_SPECS[mid_p]["short_name"]},
@@ -2472,6 +2483,8 @@ def analyze_multi_period_resonance(
         },
         "base_period": low_p,
         "summary": {
+            "board_name": board_name,
+            "board_code": board_code,
             "latest_price": round(latest_close, 2),
             "change_pct": chg_pct,
             "latest_date": latest_dt,
@@ -2700,9 +2713,32 @@ def analyze_quad_resonance(
         for win_key, data in pool.map(_assemble_window, windows_config.items()):
             windows_data[win_key] = data
 
+    stock_name = get_stock_name(clean_code) or "标的资产"
+    board_name = "--"
+    board_code = ""
+    try:
+        from easy_tdx.web.routers.quotes import _resolve_stock_board_info
+        b_info = _resolve_stock_board_info(clean_code)
+        board_name = b_info.get("board_name") or "--"
+        board_code = b_info.get("board_code") or ""
+    except Exception:
+        pass
+
+    # 确保各个窗口返回中也携带 board_name 与 board_code
+    for w_data in windows_data.values():
+        if isinstance(w_data, dict):
+            w_data.setdefault("board_name", board_name)
+            w_data.setdefault("board_code", board_code)
+            if "summary" in w_data and isinstance(w_data["summary"], dict):
+                w_data["summary"].setdefault("board_name", board_name)
+                w_data["summary"].setdefault("board_code", board_code)
+
     result_data = {
         "status": "success",
         "code": clean_code,
+        "name": stock_name,
+        "board_name": board_name,
+        "board_code": board_code,
         "windows": windows_data,
     }
     with _QUAD_RESONANCE_CACHE_LOCK:

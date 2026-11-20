@@ -1056,6 +1056,8 @@ def get_kline(
         "full_symbol": full_sym,
         "market": mkt,
         "board_tag": board,
+        "board_name": b_info.get("board_name", ""),
+        "board_code": b_info.get("board_code", ""),
         "zs_block": zs_block,
         "data1": data1,
         "period": period,
@@ -1070,6 +1072,8 @@ def get_kline(
             "td13_low": int(td13_l[-1]) if len(td13_l) > 0 else 0,
         },
         "quote": {
+            "board_name": b_info.get("board_name", ""),
+            "board_code": b_info.get("board_code", ""),
             "price": last_price,
             "change": chg,
             "change_pct": chg_pct,
