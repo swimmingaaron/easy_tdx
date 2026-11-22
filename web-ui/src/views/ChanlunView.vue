@@ -240,7 +240,7 @@ const showLowZs = ref(true)
 // 缠论K线买卖点：电脑PC端默认开启，移动设备如手机/Pad上默认关闭
 const showMmdMarks = ref(!checkIsMobileOrTablet())
 const showResonanceMarks = ref(false)
-const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('macd')
+const subIndicator = ref<'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'>('amount')
 const isKlineMerged = ref(false) // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 const activeLayersCount = computed(() => {
   let c = 0

@@ -4952,9 +4952,9 @@
                             <span class="text-[10px] text-slate-500 font-sans px-1 select-none font-medium shrink-0">副图:</span>
                             <select id="cl-select-sub-indicator" onchange="setChanlunSubIndicator(this.value)"
                                 class="h-6 bg-transparent text-cyan-600 dark:text-cyan-300 font-sans font-medium text-[11px] outline-none cursor-pointer">
-                                <option value="amount">成交额</option>
+                                <option value="amount" selected>成交额</option>
                                 <option value="inflow">主力净流入</option>
-                                <option value="macd" selected>MACD</option>
+                                <option value="macd">MACD</option>
                                 <option value="rsi">RSI</option>
                                 <option value="kdj">KDJ</option>
                                 <option value="expma">EXPMA</option>
@@ -27483,7 +27483,7 @@
             lod: true,     // 🗺️ 地图分级自适应：根据K线缩放范围自动分层显示买卖点与背驰
             lodMode: 'auto' // 'auto' (自动分级) | 'major' (仅大级别) | 'all' (全部显示)
         };
-        let _clSubIndicator = 'macd'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
+        let _clSubIndicator = 'amount'; // 'amount' | 'inflow' | 'macd' | 'rsi' | 'kdj' | 'expma' | 'none'
         let _clMergeKlines = false; // K线合并开关：严格按照缠论标准显示包含合并后的K线图，默认关闭
 
         function toggleChanlunMapLod() {
