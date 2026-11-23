@@ -334,6 +334,7 @@ function buildOption(): echarts.EChartsCoreOption {
         const chg = prevClose > 0 ? ((bar.close - prevClose) / prevClose) * 100 : 0
         const chgSign = chg > 0 ? '+' : ''
         const chgColor = chg >= 0 ? UP_COLOR : DOWN_COLOR
+        const ampVal = prevClose > 0 ? ((bar.high - bar.low) / prevClose) * 100 : 0
 
         const m5 = ma5[dataIndex] !== '-' ? Number(ma5[dataIndex]).toFixed(2) : '-'
         const m10 = ma10[dataIndex] !== '-' ? Number(ma10[dataIndex]).toFixed(2) : '-'
@@ -341,6 +342,24 @@ function buildOption(): echarts.EChartsCoreOption {
         const m30 = ma30[dataIndex] !== '-' ? Number(ma30[dataIndex]).toFixed(2) : '-'
         const m60 = ma60[dataIndex] !== '-' ? Number(ma60[dataIndex]).toFixed(2) : '-'
         const m250 = ma250[dataIndex] !== '-' ? Number(ma250[dataIndex]).toFixed(2) : '-'
+
+        // 计算 5日均线乖离率 (Close - MA5) / MA5 * 100% (高健壮防crash设计)
+        let bias5Str = '--'
+        let bias5Color = '#e6e8eb'
+        try {
+          if (m5 !== '-' && Number(m5) > 0 && isFinite(Number(m5)) && isFinite(bar.close)) {
+            const ma5Num = Number(m5)
+            const bias5 = ((bar.close - ma5Num) / ma5Num) * 100
+            if (isFinite(bias5)) {
+              const bSign = bias5 > 0 ? '+' : ''
+              bias5Str = `${bSign}${bias5.toFixed(2)}%`
+              bias5Color = bias5 > 0 ? UP_COLOR : (bias5 < 0 ? DOWN_COLOR : '#e6e8eb')
+            }
+          }
+        } catch (eBias) {
+          bias5Str = '--'
+          bias5Color = '#e6e8eb'
+        }
 
         let tdInfo = ''
         if (tdHigh[dataIndex] > 0) {
@@ -356,6 +375,8 @@ function buildOption(): echarts.EChartsCoreOption {
         html += `<div>收盘: <span style="color:${chgColor}; font-family:monospace; font-weight:600;">${fmt2(bar.close)} (${chgSign}${chg.toFixed(2)}%)</span></div>`
         html += `<div>最高: <span style="color:#e6e8eb; font-family:monospace;">${fmt2(bar.high)}</span></div>`
         html += `<div>最低: <span style="color:#e6e8eb; font-family:monospace;">${fmt2(bar.low)}</span></div>`
+        html += `<div>振幅: <span style="color:#e6e8eb; font-family:monospace;">${ampVal.toFixed(2)}%</span></div>`
+        html += `<div>5日乖离率: <span style="color:${bias5Color}; font-family:monospace; font-weight:600;">${bias5Str}</span></div>`
         html += `<div>成交额: <span style="color:#e6e8eb; font-family:monospace; font-weight:600;">${fmtAmount(bar.amount)}</span></div>`
         if (bar.vol) {
           html += `<div>成交量: <span style="color:#e6e8eb; font-family:monospace;">${(bar.vol / 100).toFixed(0)}手</span></div>`

@@ -2034,12 +2034,47 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
           const m250Str = (curM250 != null && curM250 !== '-') ? Number(curM250).toFixed(2) : '--'
           const m250Html = `<span style="margin-left:10px; color:#ff1f1f; font-weight:bold;">●MA250: <b>${m250Str}</b></span>`
 
+          // 计算 5日均线乖离率 (Close - MA5) / MA5 * 100% (高健壮防crash设计)
+          let bias5Str = '--'
+          let bias5Color = '#cbd5e1'
+          try {
+            if (typeof close === 'number' && isFinite(close) && close > 0 && Array.isArray(uc?.candles) && typeof idx === 'number' && idx >= 0 && idx < uc.candles.length) {
+              let sum = 0
+              let validCount = 0
+              const count = Math.min(idx + 1, 5)
+              for (let k = idx - count + 1; k <= idx; k++) {
+                if (uc.candles[k] && Array.isArray(uc.candles[k]) && uc.candles[k].length >= 2) {
+                  const cVal = Number(uc.candles[k][1])
+                  if (isFinite(cVal) && cVal > 0) {
+                    sum += cVal
+                    validCount++
+                  }
+                }
+              }
+              if (validCount > 0) {
+                const curMA5 = sum / validCount
+                if (curMA5 > 0 && isFinite(curMA5)) {
+                  const bias5Val = ((close - curMA5) / curMA5) * 100
+                  if (isFinite(bias5Val)) {
+                    const bSign = bias5Val > 0 ? '+' : ''
+                    bias5Str = `${bSign}${bias5Val.toFixed(2)}%`
+                    bias5Color = bias5Val > 0 ? '#ef4444' : (bias5Val < 0 ? '#10b981' : '#cbd5e1')
+                  }
+                }
+              }
+            }
+          } catch (eBias) {
+            bias5Str = '--'
+            bias5Color = '#cbd5e1'
+          }
+
           if (isKlineMerged.value) {
             html += `<div style="color:${color}; margin-bottom:4px;">
               <span style="background:rgba(192,132,252,0.2); color:#d8b4fe; border:1px solid rgba(192,132,252,0.4); border-radius:3px; padding:1px 4px; font-size:10px; margin-right:6px;">缠论K线(无影线)</span>
               高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b>
               <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
               <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
+              <span style="margin-left:6px; color:#cbd5e1;" title="股价距离5日均线乖离率 (Close - MA5) / MA5 * 100%">5日乖离: <b style="color:${bias5Color}">${bias5Str}</b></span>
               <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
               ${m250Html}
             </div>`
@@ -2048,6 +2083,7 @@ function buildChanlunOption(d: ChanlunResonanceResponse, winKey?: 'left' | 'w2' 
               开: <b>${open.toFixed(2)}</b> 高: <b>${high.toFixed(2)}</b> 低: <b>${low.toFixed(2)}</b> 收: <b>${close.toFixed(2)}</b>
               <span style="margin-left:8px; font-weight:bold;">${chgSign}${chgPct.toFixed(2)}% (${chgSign}${chg.toFixed(2)})</span>
               <span style="margin-left:6px; color:#cbd5e1;">振: <b>${ampVal.toFixed(2)}%</b></span>
+              <span style="margin-left:6px; color:#cbd5e1;" title="股价距离5日均线乖离率 (Close - MA5) / MA5 * 100%">5日乖离: <b style="color:${bias5Color}">${bias5Str}</b></span>
               <span style="margin-left:8px; color:#cbd5e1;">额: <b>${amtStr}</b></span>
               ${m250Html}
             </div>`
