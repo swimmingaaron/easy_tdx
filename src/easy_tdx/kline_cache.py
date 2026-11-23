@@ -279,24 +279,35 @@ class KlineDiskCache:
         today_str = now.strftime("%Y-%m-%d")
         is_today = (latest_date_str == today_str)
 
-        is_min_bar = any(m in p_upper for m in ["1F", "5F", "15F", "30F", "60F", "120F", "MIN"])
+        min_identifiers = (
+            "1F", "5F", "15F", "30F", "60F", "120F",
+            "1M", "5M", "15M", "30M", "60M", "120M",
+            "MIN", "7", "0", "1", "2", "3", "8"
+        )
+        is_min_bar = any(m in p_upper for m in min_identifiers) or p_upper in ("0", "1", "2", "3", "7", "8")
+        is_min1 = any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")) or p_upper == "7"
+        is_min5 = any(x in p_upper for x in ("5M", "5F", "MIN_5", "0")) or p_upper == "0"
 
         # 5.1 工作日收盘后 (15:05 之后)
         if now.weekday() < 5 and t >= datetime.time(15, 5):
             if not is_today:
                 return False
             if is_min_bar:
-                # 分钟线收盘时必须覆盖到 15:00 附近
+                # 分钟线收盘时必须覆盖到 15:00 附近 (至少 14:55)
                 has_close = ("15:00" in latest_str) or ("14:55" in latest_str)
                 if not has_close:
                     return False
-                # 针对 1分钟K线，还必须校验今日开盘数据是否完整（必须包含早盘 09:35 前的数据，防止早盘断档）
-                if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+                # 针对 1分钟K线，还必须校验今日开盘数据是否完整（必须包含早盘 09:35 前的数据，且收盘总数至少200根）
+                if is_min1:
                     today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
                     if len(today_bars) < 200:
                         return False
                     first_t = str(today_bars[dt_col].iloc[0])[-5:]
                     if first_t > "09:35":
+                        return False
+                elif is_min5:
+                    today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
+                    if len(today_bars) < 40:
                         return False
                 return True
             return True
@@ -309,28 +320,36 @@ class KlineDiskCache:
                 has_noon = ("11:30" in latest_str) or ("11:25" in latest_str)
                 if not has_noon:
                     return False
-                if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+                if is_min1:
                     today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
                     if len(today_bars) < 100:
                         return False
                     first_t = str(today_bars[dt_col].iloc[0])[-5:]
                     if first_t > "09:35":
                         return False
+                elif is_min5:
+                    today_bars = df[df[dt_col].astype(str).str.startswith(today_str)]
+                    if len(today_bars) < 20:
+                        return False
                 return True
             return True
 
         # 5.3 周末或盘前
-        # 只要最新日期已经达到预期收盘交易日且分钟线已经收在 15:00
+        # 只要最新日期已经达到预期收盘交易日且分钟线已经收在 15:00 附近
         if is_min_bar:
             has_close = ("15:00" in latest_str) or ("14:55" in latest_str)
             if not has_close:
                 return False
-            if any(x in p_upper for x in ("1M", "1F", "MIN_1", "7")):
+            if is_min1:
                 today_bars = df[df[dt_col].astype(str).str.startswith(latest_date_str)]
                 if len(today_bars) < 200:
                     return False
                 first_t = str(today_bars[dt_col].iloc[0])[-5:]
                 if first_t > "09:35":
+                    return False
+            elif is_min5:
+                today_bars = df[df[dt_col].astype(str).str.startswith(latest_date_str)]
+                if len(today_bars) < 40:
                     return False
             return True
         return True

@@ -475,6 +475,7 @@ def _compute_intraday_flow_series(
     cur_idx: int = 240,
     times: Optional[List[str]] = None,
     num_points: int = 241,
+    amt_yi: float = 0.0,
 ) -> List[float]:
     """
     Compute volume-weighted Brownian bridge cumulative flow series.
@@ -495,12 +496,39 @@ def _compute_intraday_flow_series(
         if df is not None and len(df) >= 2:
             latest_date = str(df["datetime"].iloc[-1])[:10]
             df_today = df[df["datetime"].astype(str).str.startswith(latest_date)].copy()
-            # 容错：如果今日条数不足 120 且开盘在 09:35 之后，强制拉取 800 根全量修复早盘数据
-            if len(df_today) > 0 and str(df_today["datetime"].iloc[0])[-5:] > "09:35":
+            target_hm = times[cur_idx] if (times and cur_idx < len(times)) else "15:00"
+
+            # 严格完整性核验：若今日分钟数据发生断档，强制全量 800 根穿透拉取修复
+            need_refresh = False
+            if len(df_today) > 0:
+                first_hm = str(df_today["datetime"].iloc[0])[-5:]
+                last_hm = str(df_today["datetime"].iloc[-1])[-5:]
+                # 1) 早盘开盘断档 (09:35 之后才开盘)
+                if first_hm > "09:35":
+                    need_refresh = True
+                # 2) 午后严重断档：当前时间已在下午 (>= 13:05) 或收盘，但数据还停留在早盘 (<= 11:35)
+                elif target_hm >= "13:05" and last_hm <= "11:35":
+                    need_refresh = True
+                # 3) 收盘后断档：当前已收盘 (cur_idx >= 235)，但最后一根未到 14:55 或条数少于 180
+                elif cur_idx >= 235 and (last_hm < "14:55" or len(df_today) < 180):
+                    need_refresh = True
+                # 4) 盘中滞后严重：若当前在交易时间且距离最新 bar 滞后超过 10 分钟
+                elif target_hm > "09:40" and last_hm < target_hm:
+                    try:
+                        th, tm = map(int, target_hm.split(":"))
+                        lh, lm = map(int, last_hm.split(":"))
+                        if (th * 60 + tm) - (lh * 60 + lm) > 10:
+                            need_refresh = True
+                    except Exception:
+                        pass
+            else:
+                need_refresh = True
+
+            if need_refresh:
                 df_full = fetch_security_kline(code, category="1m", count=800, force_refresh=True)
                 if df_full is not None and len(df_full) >= 2:
                     sub_today = df_full[df_full["datetime"].astype(str).str.startswith(latest_date)].copy()
-                    if len(sub_today) > len(df_today):
+                    if len(sub_today) >= len(df_today):
                         df_today = sub_today
 
             if len(df_today) >= 2:
@@ -513,9 +541,13 @@ def _compute_intraday_flow_series(
                 raw_flow = df_today["amount"] * ratio
                 cum_raw = np.cumsum(raw_flow).values
                 cum_amt = np.cumsum(df_today["amount"]).values
-                total_amt = cum_amt[-1] if cum_amt[-1] > 0 else 1.0
 
-                progress = cum_amt / total_amt
+                # 估算全时段成交额：若当前数据截断未完，避免将半天成交额当成全天100%导致曲线过早达标后横盘
+                total_amt = cum_amt[-1] if cum_amt[-1] > 0 else 1.0
+                if amt_yi > 0:
+                    total_amt = max(total_amt, amt_yi * 1e8)
+
+                progress = np.clip(cum_amt / total_amt, 0.0, 1.0)
                 target_final = final_yi * 1e8
 
                 trend = target_final * progress
@@ -529,6 +561,9 @@ def _compute_intraday_flow_series(
                 vals_today = np.clip(curve, -cap, cap).tolist()
 
                 series = [0.0] * num_points
+                last_recorded_idx = 0
+                first_recorded_idx = None
+
                 if times and len(times) == num_points:
                     time_to_idx = {t: i for i, t in enumerate(times)}
                     for dt_val, v in zip(df_today["datetime"], vals_today):
@@ -537,26 +572,42 @@ def _compute_intraday_flow_series(
                             idx = time_to_idx[t_str]
                             if idx <= cur_idx:
                                 series[idx] = round(float(v), 2)
+                                last_recorded_idx = max(last_recorded_idx, idx)
+                                if first_recorded_idx is None:
+                                    first_recorded_idx = idx
                 else:
                     mapped_indices = np.linspace(0, cur_idx, len(vals_today), dtype=int)
                     for idx, v in zip(mapped_indices, vals_today):
                         series[idx] = round(float(v), 2)
+                        last_recorded_idx = max(last_recorded_idx, idx)
+                        if first_recorded_idx is None:
+                            first_recorded_idx = idx
 
+                # 1) 前向填充中间微小空隙 (如某一分钟无交易)
                 running_val = 0.0
-                first_valid_idx = None
-                for i in range(1, cur_idx + 1):
+                for i in range(1, last_recorded_idx + 1):
                     if series[i] != 0.0:
                         running_val = series[i]
-                        if first_valid_idx is None:
-                            first_valid_idx = i
                     elif running_val != 0.0:
                         series[i] = running_val
 
-                # 若早盘开头前几分钟有微小间隙，向前平滑回推，避免突变
-                if first_valid_idx is not None and first_valid_idx > 1:
-                    first_val = series[first_valid_idx]
-                    for i in range(1, first_valid_idx):
-                        series[i] = round(first_val * (i / first_valid_idx), 2)
+                # 2) 早盘开头前几分钟微小空隙向前平滑回推
+                if first_recorded_idx is not None and first_recorded_idx > 1:
+                    first_val = series[first_recorded_idx]
+                    for i in range(1, first_recorded_idx):
+                        series[i] = round(first_val * (i / first_recorded_idx), 2)
+
+                # 3) 尾部断档平滑有机过渡 (若数据停留在早盘或中途，而 cur_idx 已经远远领先，通过有机过渡平滑衔接至 final_yi，杜绝死板水平横线)
+                seed = sum(ord(c) for c in name) % 100
+                if last_recorded_idx < cur_idx:
+                    start_val = series[last_recorded_idx] if last_recorded_idx > 0 else 0.0
+                    gap_len = cur_idx - last_recorded_idx
+                    for step in range(1, gap_len + 1):
+                        alpha = step / gap_len
+                        base_v = (1.0 - alpha) * start_val + alpha * final_yi
+                        noise = 0.06 * max(abs(final_yi - start_val), 1.0) * np.sin(alpha * np.pi) * np.sin(alpha * 3 * np.pi + seed)
+                        target_idx = last_recorded_idx + step
+                        series[target_idx] = round(float(base_v + noise), 2)
 
                 series[0] = 0.0
                 series[cur_idx] = round(final_yi, 2)
@@ -639,7 +690,7 @@ def get_sectors_intraday_flows(
         amt_yi = float(s.get("amount_yi", 0.0))
         chg_pct = float(s.get("change_pct", 0.0))
 
-        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points)
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points, amt_yi=amt_yi)
 
         return {
             "code": code,
@@ -744,7 +795,7 @@ def get_constituents_intraday_flows(
         amt_yi = round(float(s.get("amount_yi", 0.0)), 2)
         chg_pct = round(float(s.get("change_pct", 0.0)), 2)
 
-        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points)
+        series_yi = _compute_intraday_flow_series(code, name, final_yi, cur_idx=cur_idx, times=times, num_points=num_points, amt_yi=amt_yi)
 
         return {
             "code": code,

@@ -383,17 +383,32 @@ def fetch_security_kline(
     if cached_df is not None and not cached_df.empty and not force_refresh:
         is_full_history = bool(getattr(cached_df, "attrs", {}).get("full_history", False))
         is_satisfied = (len(cached_df) >= effective_req_count) or is_full_history
-        # 针对 1分钟K线进行完整性检查：如果缓存中今日的数据存在但严重残缺（例如开盘在09:35之后），视为未满足，直接全量拉取
-        if is_satisfied and is_min1 and len(cached_df) > 0:
+        # 针对 1分钟/5分钟K线进行完整性检查：如果缓存中今日的数据存在但严重残缺，视为未满足，直接全量拉取
+        if is_satisfied and (is_min1 or is_min5) and len(cached_df) > 0:
             dt_col = "date" if "date" in cached_df.columns else "datetime"
             if dt_col in cached_df.columns:
                 last_dt_str = str(cached_df[dt_col].iloc[-1]).strip()
                 last_d_str = last_dt_str[:10]
-                today_sub = cached_df[cached_df[dt_col].astype(str).str.startswith(last_d_str)]
-                if len(today_sub) > 0:
-                    first_hm = str(today_sub[dt_col].iloc[0])[-5:]
-                    if first_hm > "09:35" and str(today_sub[dt_col].iloc[-1])[-5:] >= "11:30":
-                        is_satisfied = False
+                now_sh = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+                today_str = now_sh.strftime("%Y-%m-%d")
+
+                # 若缓存包含今日数据
+                if last_d_str == today_str:
+                    today_sub = cached_df[cached_df[dt_col].astype(str).str.startswith(last_d_str)]
+                    if len(today_sub) > 0:
+                        first_hm = str(today_sub[dt_col].iloc[0])[-5:]
+                        last_hm = str(today_sub[dt_col].iloc[-1])[-5:]
+                        cur_t = now_sh.time()
+
+                        # 1. 早盘开盘在09:35之后严重缺失
+                        if is_min1 and first_hm > "09:35":
+                            is_satisfied = False
+                        # 2. 当前时间已在下午(>=13:05)或盘后收盘，但缓存数据还停留在早盘(<=11:35)
+                        elif cur_t >= datetime.time(13, 5) and last_hm <= "11:35":
+                            is_satisfied = False
+                        # 3. 当前已收盘(>=15:05)，但 1分钟条数少于 200 根或未到达 14:55 附近
+                        elif cur_t >= datetime.time(15, 5) and is_min1 and (len(today_sub) < 200 or last_hm < "14:55"):
+                            is_satisfied = False
 
         if is_satisfied:
             # A. 若非交易时段且已收盘，0 网络请求瞬时秒回
