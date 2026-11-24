@@ -199,10 +199,11 @@ def analyze_single_board_leaders(
                 symbols = ind_info["symbols"]
                 from .market_data import _get_market
                 from .market_overview import _get_or_create_mac_client
-                from .codec.bitmap import PresetField
+                from .codec.bitmap import PresetField, FieldBit
                 mac = _get_or_create_mac_client()
                 pairs = [(int(_get_market(s).value), s) for s in symbols]
-                df_q = mac.get_stock_quotes(pairs, fields=PresetField.BASIC)
+                fields = PresetField.BASIC + FieldBit.TOTAL_MARKET_CAP_AB + FieldBit.TOTAL_SHARES + FieldBit.AMOUNT + FieldBit.VOL_RATIO + FieldBit.MAIN_NET_AMOUNT + FieldBit.TURNOVER
+                df_q = mac.get_stock_quotes(pairs, fields=fields)
                 if df_q is not None and not df_q.empty:
                     df_members = df_q
         except Exception:
@@ -241,6 +242,16 @@ def analyze_single_board_leaders(
         main_net = float(row.get("main_net_amount", 0.0))
         vol_ratio = float(row.get("vol_ratio", 1.0))
         turnover = float(row.get("turnover", 0.0))
+        mkt_capt = float(
+            row.get("total_market_cap_ab", 0.0)
+            or row.get("mkt_capt", 0.0)
+            or row.get("total_mv", 0.0)
+            or 0.0
+        )
+        if mkt_capt <= 0.0:
+            tot_shares = float(row.get("total_shares", 0.0) or 0.0)
+            if tot_shares > 0 and price > 0:
+                mkt_capt = tot_shares * 10000.0 * price
 
         is_zt = _is_limit_up(code, price, pre_close)
 
@@ -269,6 +280,8 @@ def analyze_single_board_leaders(
             "price": round(price, 2),
             "pre_close": round(pre_close, 2),
             "change_pct": round(change_pct, 2),
+            "mkt_capt": round(mkt_capt, 2),
+            "total_mv": round(mkt_capt, 2),
             "amount": amount,
             "main_net_amount": main_net,
             "vol_ratio": round(vol_ratio, 2),

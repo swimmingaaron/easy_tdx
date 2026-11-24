@@ -5401,7 +5401,7 @@
                             <div>
                                 <h2 class="text-xl font-bold text-slate-800 dark:text-white tracking-wide flex items-center gap-2">
                                     多维区间统计 · 涨跌幅分析
-                                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-500/30 font-medium">前复权 · 截至时间默认至今</span>
+                                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-500/30 font-medium">前复权 · 默认近5日 · 截至时间默认至今</span>
                                 </h2>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">设定任意开始时间与截至时间（默认至今），全维度穿透分析全市场或核心标的池的区间累计涨跌幅与量化多因子状态</p>
                             </div>
@@ -5417,7 +5417,7 @@
                         </button>
                         <button onclick="resetRangeStatParams()"
                             class="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 text-xs transition cursor-pointer"
-                            title="恢复默认日期（开始时间为20日交易日前，截至时间为今日）">
+                            title="恢复默认日期（默认近5日，截至时间为今日）">
                             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
                             <span>重置至今</span>
                         </button>
@@ -5453,7 +5453,7 @@
                         <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center">
                             <i data-lucide="calendar" class="w-3 h-3 mr-1 text-emerald-400"></i>开始时间
                         </label>
-                        <input type="date" id="rs-start-date" onchange="runRangeStatQuery()"
+                        <input type="date" id="rs-start-date" onchange="onRangeDateManualChange()"
                             class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono focus:border-cyan-500 outline-none">
                     </div>
 
@@ -5462,7 +5462,7 @@
                         <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center">
                             <i data-lucide="calendar-check" class="w-3 h-3 mr-1 text-rose-400"></i>截至时间 (默认至今)
                         </label>
-                        <input type="date" id="rs-end-date" onchange="runRangeStatQuery()"
+                        <input type="date" id="rs-end-date" onchange="onRangeDateManualChange()"
                             class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono focus:border-cyan-500 outline-none">
                     </div>
 
@@ -5470,12 +5470,12 @@
                     <div class="lg:col-span-3 space-y-1">
                         <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">快捷区间预设</label>
                         <div class="flex items-center space-x-1 overflow-x-auto py-0.5">
-                            <button type="button" onclick="setRangePreset('5d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近5日</button>
-                            <button type="button" onclick="setRangePreset('10d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近10日</button>
-                            <button type="button" onclick="setRangePreset('20d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近20日</button>
-                            <button type="button" onclick="setRangePreset('60d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近60日</button>
-                            <button type="button" onclick="setRangePreset('ytd')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">今年来</button>
-                            <button type="button" onclick="setRangePreset('1y')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近1年</button>
+                            <button type="button" data-preset="5d" onclick="setRangePreset('5d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-cyan-500 text-black font-bold shadow-sm transition cursor-pointer">近5日</button>
+                            <button type="button" data-preset="10d" onclick="setRangePreset('10d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近10日</button>
+                            <button type="button" data-preset="20d" onclick="setRangePreset('20d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近20日</button>
+                            <button type="button" data-preset="60d" onclick="setRangePreset('60d')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近60日</button>
+                            <button type="button" data-preset="ytd" onclick="setRangePreset('ytd')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">今年来</button>
+                            <button type="button" data-preset="1y" onclick="setRangePreset('1y')" class="rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer">近1年</button>
                         </div>
                     </div>
 
@@ -5926,7 +5926,7 @@
             class="fixed inset-0 z-[75] bg-slate-900/40 dark:bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6"
             onclick="if(event.target === this) closeSectorLeaderModal()">
             <div
-                class="glass-card bg-white dark:bg-[#0b0f19]/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                class="glass-card bg-white dark:bg-[#0b0f19]/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl max-w-6xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
                 <!-- Modal Header -->
                 <div
                     class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/90 dark:bg-slate-900/60">
@@ -5962,6 +5962,7 @@
                                     <th class="py-2.5 px-2 text-left font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('name')" title="点击按名称排序">名称<span id="sl-sort-name" class="ml-1 text-[10px] text-slate-400">↕</span></th>
                                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('price')" title="点击按最新价排序">最新价<span id="sl-sort-price" class="ml-1 text-[10px] text-slate-400">↕</span></th>
                                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('change_pct')" title="点击按涨跌幅排序">涨跌幅%<span id="sl-sort-change_pct" class="ml-1 text-[10px] text-slate-400">↕</span></th>
+                                    <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('mkt_capt')" title="点击按总市值排序">总市值<span id="sl-sort-mkt_capt" class="ml-1 text-[10px] text-slate-400">↕</span></th>
                                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('main_net_amount')" title="点击按主力净流入排序">主力净流入<span id="sl-sort-main_net_amount" class="ml-1 text-[10px] text-slate-400">↕</span></th>
                                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('amount')" title="点击按成交额排序">成交额<span id="sl-sort-amount" class="ml-1 text-[10px] text-slate-400">↕</span></th>
                                     <th class="py-2.5 px-2 text-right font-semibold cursor-pointer select-none hover:text-indigo-600 dark:hover:text-amber-400 transition" onclick="sortSectorLeaderTable('vol_ratio')" title="点击按量比排序">量比<span id="sl-sort-vol_ratio" class="ml-1 text-[10px] text-slate-400">↕</span></th>
@@ -18016,6 +18017,22 @@
         let rsPageSize = 50;
         let rsTotalPages = 1;
 
+        function updateRangePresetUI(activePreset) {
+            document.querySelectorAll('.rs-preset-btn').forEach(btn => {
+                const p = btn.getAttribute('data-preset');
+                if (p && p === activePreset) {
+                    btn.className = 'rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-cyan-500 text-black font-bold shadow-sm transition cursor-pointer';
+                } else {
+                    btn.className = 'rs-preset-btn px-2 py-1 rounded-md text-[11px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-cyan-500 hover:text-black dark:hover:bg-cyan-500 dark:hover:text-black transition cursor-pointer';
+                }
+            });
+        }
+
+        function onRangeDateManualChange() {
+            updateRangePresetUI('');
+            runRangeStatQuery();
+        }
+
         function initRangeStatDatesIfNeeded() {
             const endInput = document.getElementById('rs-end-date');
             const startInput = document.getElementById('rs-start-date');
@@ -18024,9 +18041,10 @@
                 endInput.value = todayStr;
             }
             if (startInput && !startInput.value) {
-                // 默认起始时间为约 20 个交易日前 (28个自然日)
-                const d = new Date(Date.now() - 28 * 86400000);
+                // 默认起始时间为近 5 日 (7个自然日)
+                const d = new Date(Date.now() - 7 * 86400000);
                 startInput.value = d.toISOString().split('T')[0];
+                updateRangePresetUI('5d');
             }
         }
 
@@ -18053,6 +18071,7 @@
                 startStr = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
             }
             if (startInput) startInput.value = startStr;
+            updateRangePresetUI(preset);
             runRangeStatQuery(true);
         }
 
@@ -18065,8 +18084,9 @@
             const todayStr = new Date().toISOString().split('T')[0];
             if (endInput) endInput.value = todayStr;
             if (startInput) {
-                const d = new Date(Date.now() - 28 * 86400000);
+                const d = new Date(Date.now() - 7 * 86400000);
                 startInput.value = d.toISOString().split('T')[0];
+                updateRangePresetUI('5d');
             }
             if (searchInput) searchInput.value = '';
             if (indSelect) indSelect.value = '';
@@ -26539,7 +26559,7 @@
         window._slSortAsc = false;
 
         function updateSectorLeaderSortIcons(currentField, isAsc) {
-            const fields = ['code', 'name', 'price', 'change_pct', 'main_net_amount', 'amount', 'vol_ratio', 'turnover', 'lbc', 'leader_score'];
+            const fields = ['code', 'name', 'price', 'change_pct', 'mkt_capt', 'main_net_amount', 'amount', 'vol_ratio', 'turnover', 'lbc', 'leader_score'];
             fields.forEach(f => {
                 const el = document.getElementById(`sl-sort-${f}`);
                 if (!el) return;
@@ -26591,7 +26611,7 @@
             if (!tbody) return;
 
             if (!candidates || candidates.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans">暂无成分股数据</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="py-12 text-center text-slate-400 font-sans">暂无成分股数据</td></tr>`;
                 return;
             }
 
@@ -26615,6 +26635,10 @@
                     ? 'color: var(--stock-red, #dc2626) !important; font-weight: 700;' 
                     : (isDown ? 'color: var(--stock-green, #16a34a) !important; font-weight: 700;' : 'color: #334155 !important; font-weight: 600;');
                 const priceClass = isUp ? 'stock-up' : (isDown ? 'stock-down' : '');
+
+                // 总市值
+                const mktVal = Number(s.mkt_capt || s.total_mv || s.total_market_cap_ab || 0);
+                const mktStr = mktVal > 0 ? (typeof fmtMoneyTs === 'function' ? fmtMoneyTs(mktVal) : (mktVal >= 1e8 ? (mktVal / 1e8).toFixed(2) + '亿' : (mktVal / 1e4).toFixed(0) + '万')) : '--';
 
                 // 2. 流入红色 流出绿色 (主力净流入)
                 const netVal = Number(s.main_net_amount || 0);
@@ -26652,6 +26676,7 @@
                         <td class="py-2.5 px-2 text-left font-sans font-bold text-slate-900 dark:text-white cursor-pointer hover:text-cyan-500" onclick="openKlineModal('${code}', '${name}', null, window._slModalCandidates)" title="点击查看【${name}】(${code}) K线行情">${name}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${priceClass}" style="${priceStyle}">¥${Number(s.price).toFixed(2)}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${pctClass}" style="${pctStyle}">${pctStr}</td>
+                        <td class="py-2.5 px-2 text-right font-mono text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">${mktStr}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${netClass}" style="${netStyle}">${netStr}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${amtColor}">${fmtMoneyTs(s.amount)}</td>
                         <td class="py-2.5 px-2 text-right font-mono ${vrColor}">${vr.toFixed(2)}</td>
@@ -26686,7 +26711,7 @@
             if (codeEl) codeEl.innerText = cleanCode || boardCode;
             if (subtitleEl) subtitleEl.innerText = '正在加载板块内全部成分股实时行情与多因子排名...';
             if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>正在抓取【${boardName}】全部成分股行情与多因子排名...</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="py-12 text-center text-slate-400 font-sans"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>正在抓取【${boardName}】全部成分股行情与多因子排名...</td></tr>`;
                 if (window.lucide) lucide.createIcons();
             }
             modal.classList.remove('hidden');
@@ -26705,7 +26730,7 @@
 
                         if (subtitleEl) subtitleEl.innerText = `全量成分股共 ${candidates.length} 只 · 支持点击表头任意列排序 · 实时红绿报价 (点击股票可查看个股详情)`;
                         if (candidates.length === 0) {
-                            tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-slate-400 font-sans">【${boardName}】暂未获取到成分股行情，请稍后刷新重试。</td></tr>`;
+                            tbody.innerHTML = `<tr><td colspan="14" class="py-12 text-center text-slate-400 font-sans">【${boardName}】暂未获取到成分股行情，请稍后刷新重试。</td></tr>`;
                             return;
                         }
 
@@ -26714,7 +26739,7 @@
                 }
             } catch (e) {
                 console.error("Failed to load board detail modal:", e);
-                tbody.innerHTML = `<tr><td colspan="13" class="py-12 text-center text-rose-400 font-sans">加载成分股异常: ${e.message || e}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="py-12 text-center text-rose-400 font-sans">加载成分股异常: ${e.message || e}</td></tr>`;
             }
         }
 
@@ -26753,7 +26778,7 @@
                 if (window.showToast) showToast('提示', '当前暂无板块龙头数据可导出');
                 return;
             }
-            const headers = ['板块代码', '板块名称', '板块类型', '板块涨跌幅%', '板块总成交额', '主力净流入', '代码', '股票名称', '最新价', '个股涨跌幅%', '主力净流入', '成交额', '量比', '换手率%', '连板数', '龙头得分', '龙头角色定位'];
+            const headers = ['板块代码', '板块名称', '板块类型', '板块涨跌幅%', '板块总成交额', '主力净流入', '代码', '股票名称', '最新价', '个股涨跌幅%', '总市值', '主力净流入', '成交额', '量比', '换手率%', '连板数', '龙头得分', '龙头角色定位'];
             const rows = [headers.join(',')];
 
             _cachedSectorLeaders.forEach(b => {
@@ -26776,6 +26801,7 @@
                         `"${s.name}"`,
                         s.price,
                         s.change_pct,
+                        s.mkt_capt || s.total_mv || s.total_market_cap_ab || 0,
                         s.main_net_amount,
                         s.amount,
                         s.vol_ratio,
