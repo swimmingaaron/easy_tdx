@@ -7684,6 +7684,9 @@
                                 if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
                                 if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
                                 if (typeof attachTdxSelectionToChanlunCharts === 'function') attachTdxSelectionToChanlunCharts();
+                                if (typeof isTradeSession === 'function' && isTradeSession() && _clAutoRefresh && !_clIsBacktracking) {
+                                    if (typeof startChanlunAutoRefresh === 'function') startChanlunAutoRefresh();
+                                }
                             }, 50);
                         } else if (t === 'etfdata') {
                             setTimeout(() => {
@@ -19197,6 +19200,18 @@
                     tasks.push(loadAnomaliesData(false));
                 }
 
+                // 4. 当且仅当 界面为 缠论 (且未被 K线弹窗遮挡) 时，5s 自动静默高频刷新 缠论页面最新行情与多周期共振买卖点 (与 Dashboard 完全同频)
+                const chanlunView = document.getElementById('view-chanlun');
+                const isChanlunActive = chanlunView && !chanlunView.classList.contains('hidden') && !isKlineModalActive && (window.currentTab === 'chanlun');
+                if (isChanlunActive && !_clIsBacktracking && _clAutoRefresh) {
+                    if (typeof loadChanlunData === 'function') {
+                        tasks.push(loadChanlunData(true, true)); // forceRefresh=true, silent=true
+                    }
+                    if (typeof loadChanlunHotStocks === 'function') {
+                        tasks.push(loadChanlunHotStocks());
+                    }
+                }
+
                 if (tasks.length > 0) {
                     await Promise.allSettled(tasks);
                 }
@@ -27203,8 +27218,9 @@
         let _clExpandingWindows = new Set();
         let _clZoomDebounceTimers = {};
 
-        async function loadChanlunData(forceRefresh = false) {
+        async function loadChanlunData(forceRefresh = false, silent = false) {
             if (_clIsDataLoading && !forceRefresh && _clLoadingTargetCode === _clCurrentCode && _clLoadingTargetDate === _clBacktrackDate) return;
+            if (_clIsDataLoading && silent) return; // 后台静默高频刷新时，若前一次请求尚未结束，直接跳过本次，绝不排队积压
             _clLoadingTargetCode = _clCurrentCode;
             _clLoadingTargetDate = _clBacktrackDate;
             const reqCode = _clCurrentCode;
@@ -27279,7 +27295,7 @@
 
             _clIsDataLoading = true;
             const refreshIcon = document.getElementById('cl-btn-refresh-icon');
-            if (refreshIcon) refreshIcon.classList.add('animate-spin');
+            if (!silent && refreshIcon) refreshIcon.classList.add('animate-spin');
 
             const loadingOverlay = document.getElementById('cl-loading-overlay');
             const loadingOverlayW2 = document.getElementById('cl-loading-overlay-w2');
@@ -27291,10 +27307,18 @@
             const hasRightData = !!(_clRightCachedData && _clRightCachedData.unified_chart);
             const hasW4Data = !!(_clW4CachedData && _clW4CachedData.unified_chart);
 
-            if (loadingOverlay) loadingOverlay.style.display = (!hasLeftData && !_clIsBacktracking) ? 'flex' : 'none';
-            if (loadingOverlayW2 && _clWindowMode === 'quad') loadingOverlayW2.style.display = (!hasW2Data && !_clIsBacktracking) ? 'flex' : 'none';
-            if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) loadingOverlayRight.style.display = (!hasRightData && !_clIsBacktracking) ? 'flex' : 'none';
-            if (loadingOverlayW4 && _clWindowMode === 'quad') loadingOverlayW4.style.display = (!hasW4Data && !_clIsBacktracking) ? 'flex' : 'none';
+            if (silent) {
+                // 后台静默实时轮询刷新：绝对不弹遮罩，确保用户看盘交互 100% 丝滑无感
+                if (loadingOverlay) loadingOverlay.style.display = 'none';
+                if (loadingOverlayW2) loadingOverlayW2.style.display = 'none';
+                if (loadingOverlayRight) loadingOverlayRight.style.display = 'none';
+                if (loadingOverlayW4) loadingOverlayW4.style.display = 'none';
+            } else {
+                if (loadingOverlay) loadingOverlay.style.display = (!hasLeftData && !_clIsBacktracking) ? 'flex' : 'none';
+                if (loadingOverlayW2 && _clWindowMode === 'quad') loadingOverlayW2.style.display = (!hasW2Data && !_clIsBacktracking) ? 'flex' : 'none';
+                if (loadingOverlayRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) loadingOverlayRight.style.display = (!hasRightData && !_clIsBacktracking) ? 'flex' : 'none';
+                if (loadingOverlayW4 && _clWindowMode === 'quad') loadingOverlayW4.style.display = (!hasW4Data && !_clIsBacktracking) ? 'flex' : 'none';
+            }
 
             try {
                 async function fetchResonance(periods, customCount = null) {
@@ -27461,7 +27485,7 @@
                     window._clResetZoomToLatest = false;
                     window._clForceAlignLatestBar = false;
                 }
-                if (refreshIcon) {
+                if (!silent && refreshIcon) {
                     setTimeout(() => {
                         refreshIcon.classList.remove('animate-spin');
                     }, 400);
@@ -31416,7 +31440,7 @@
         }
 
         function getChanlunLowestPeriodSeconds() {
-            return 30;
+            return 5;
         }
 
         function getChanlunLowestPeriod() {
@@ -31611,12 +31635,16 @@
         function startChanlunAutoRefresh() {
             stopChanlunAutoRefresh();
             _clRefreshInterval = getChanlunLowestPeriodSeconds();
+            // 确保全局后台主巡检调度器激活
+            if (typeof startDashboardAutoRefresh === 'function') {
+                startDashboardAutoRefresh();
+            }
             _clRefreshTimer = setInterval(() => {
                 if (!_clIsBacktracking && window.currentTab === 'chanlun') {
                     if (typeof document !== 'undefined' && document.hidden) return;
                     const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
                     if (inSession && _clAutoRefresh) {
-                        loadChanlunData(true);
+                        loadChanlunData(true, true);
                         loadChanlunHotStocks(); // 热门股票也随之实时更新
                     }
                 }
@@ -31820,7 +31848,12 @@
                 slider.value = slider.max;
                 updateChanlunSliderTrack(slider.max, slider.max);
             }
-            loadChanlunData(false);
+            _clAutoRefresh = true;
+            toggleChanlunAutoRefreshState(true);
+            if (typeof isTradeSession === 'function' && isTradeSession()) {
+                startChanlunAutoRefresh();
+            }
+            loadChanlunData(true);
         }
 
         let _clBacktrackRequestSeq = 0;

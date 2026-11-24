@@ -310,8 +310,8 @@ function onMainLayersSelect(e: Event) {
   target.value = ''
 }
 
-// 统一实时刷新周期：30秒
-const REFRESH_INTERVAL_SECONDS = 30
+// 统一实时刷新周期：5秒 (与 Dashboard 保持一致的高频秒级刷新)
+const REFRESH_INTERVAL_SECONDS = 5
 
 function isTradeSession(): boolean {
   const now = new Date()
@@ -587,7 +587,7 @@ async function triggerBacktrackLoad() {
 }
 
 // ── 数据加载 ─────────────────────────────────────────────────────────────────
-async function loadData(forceRefresh = false) {
+async function loadData(forceRefresh = false, silent = false) {
   if (!code.value) return
 
   const cacheKey = getBacktrackCacheKey(code.value, leftPeriods.value, backtrackDate.value)
@@ -614,7 +614,8 @@ async function loadData(forceRefresh = false) {
   const reqDate = backtrackDate.value
 
   isDataLoading = true
-  if (!isBacktrackingMode.value) {
+  const hasExistingData = !!(chanDataLeft.value?.unified_chart)
+  if (!isBacktrackingMode.value && !silent && !hasExistingData) {
     loading.value = true
   }
   errorMsg.value = ''
@@ -855,7 +856,7 @@ function startAutoRefresh() {
   refreshTimer = setInterval(() => {
     inTradeSession.value = isTradeSession()
     if (!isBacktrackingMode.value && !loading.value && inTradeSession.value && autoRefresh.value) {
-      loadData(false) // 允许命中后端智能增量缓存，避免击穿
+      loadData(true, true) // 高频静默刷新，强制拉取盘中最新数据且不阻碍交互
       loadHotStocks() // 热门股票也随之实时更新
     }
   }, REFRESH_INTERVAL_SECONDS * 1000)
@@ -886,7 +887,11 @@ function exitBacktracking() {
   isBacktrackingMode.value = false
   stopReplay()
   backtrackDate.value = null
-  loadData()
+  autoRefresh.value = true
+  if (inTradeSession.value) {
+    startAutoRefresh()
+  }
+  loadData(true)
 }
 
 // 鼠标双击K线时调用：将缠论K线回溯的最新日期设为此处，方便回溯
