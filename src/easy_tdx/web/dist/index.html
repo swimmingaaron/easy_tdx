@@ -7446,8 +7446,10 @@
 
     
     <!-- ==================== 板块资金走势动态弹窗 (全天分钟级走势) ==================== -->
-    <div id="sector-flow-modal" style="display: none;" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md items-center justify-center p-2 sm:p-4 transition-opacity">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[820px] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
+    <div id="sector-flow-modal" style="display: none;" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md items-center justify-center p-2 sm:p-4 transition-opacity"
+        onclick="if(event.target === this) closeSectorFlowTrendModal()">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[88vh] max-h-[820px] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+            onclick="event.stopPropagation()">
             <!-- 弹窗顶部栏 -->
             <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-900/90 select-none">
                 <div class="flex items-center space-x-2.5">
@@ -9832,6 +9834,16 @@
             if (isSlOpen && !isKlineOpen && !isFinaOpen && e.key === 'Escape') {
                 e.preventDefault();
                 closeSectorLeaderModal();
+                return;
+            }
+
+            // 板块资金走势 / 成分股走势 动态弹窗 ESC 键快速关闭支持
+            const sfModal = document.getElementById('sector-flow-modal');
+            const isSfOpen = sfModal && sfModal.style.display !== 'none' && !sfModal.classList.contains('hidden');
+            if (isSfOpen && !isKlineOpen && !isFinaOpen && (e.key === 'Escape' || e.keyCode === 27)) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeSectorFlowTrendModal();
                 return;
             }
 
@@ -34923,6 +34935,20 @@ function closeSectorFlowTrendModal() {
     if (tt) tt.classList.add('hidden');
 }
 window.closeSectorFlowTrendModal = closeSectorFlowTrendModal;
+
+// 全局监听 ESC 键快速关闭板块资金走势与成分股走势窗口
+window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' || e.keyCode === 27) {
+        const sfModal = document.getElementById('sector-flow-modal');
+        if (sfModal && sfModal.style.display !== 'none' && !sfModal.classList.contains('hidden')) {
+            const kpModal = document.getElementById('kline-preview-modal');
+            if (kpModal && !kpModal.classList.contains('hidden')) return; // 上层有K线行情弹窗时优先关闭K线弹窗
+            e.preventDefault();
+            e.stopPropagation();
+            closeSectorFlowTrendModal();
+        }
+    }
+}, true);
 
 async function loadSectorFlowData(force = false, silent = false) {
     const loadingEl = document.getElementById('sector-flow-loading');
