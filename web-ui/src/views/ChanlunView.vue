@@ -767,10 +767,32 @@ const screenerNavList = ref<ScreenerNavItem[]>([])
 
 function loadScreenerNavList() {
   try {
+    const fromParam = route?.query?.from
+    if (fromParam === 'watchlist') {
+      const wlRaw = localStorage.getItem('easy_tdx_watchlist_rows')
+      if (wlRaw) {
+        const wl = JSON.parse(wlRaw)
+        if (Array.isArray(wl) && wl.length > 0) {
+          screenerNavList.value = wl
+          return
+        }
+      }
+      if (watchlistSymbols.value.length > 0) {
+        screenerNavList.value = watchlistSymbols.value.map((s) => ({ code: s, name: s }))
+        return
+      }
+    }
     const raw = localStorage.getItem('easy_tdx_screener_nav_stocks')
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
+        const stName = localStorage.getItem('easy_tdx_screener_strategy') || ''
+        if ((stName.includes('自选') || fromParam === 'watchlist') && parsed.length > 500) {
+          if (watchlistSymbols.value.length > 0) {
+            screenerNavList.value = watchlistSymbols.value.map((s) => ({ code: s, name: s }))
+            return
+          }
+        }
         screenerNavList.value = parsed
       }
     }
@@ -786,8 +808,11 @@ const currentNavIndex = computed(() => {
 const navInfoText = computed(() => {
   const total = screenerNavList.value.length
   if (total === 0) return '--/--'
-  if (currentNavIndex.value === -1) return `--/${total}`
-  return `${currentNavIndex.value + 1}/${total}`
+  const stName = localStorage.getItem('easy_tdx_screener_strategy') || ''
+  const fromParam = route?.query?.from
+  const prefix = (fromParam === 'watchlist' || stName.includes('自选')) ? '自选' : (stName ? stName.slice(0, 4) : '')
+  if (currentNavIndex.value === -1) return prefix ? `${prefix}:--/${total}` : `--/${total}`
+  return prefix ? `${prefix}:${currentNavIndex.value + 1}/${total}` : `${currentNavIndex.value + 1}/${total}`
 })
 
 function switchPrevNavStock() {
@@ -2869,7 +2894,26 @@ onMounted(async () => {
     }
   }
   await loadData(true)
-  fetchWatchlist()
+  await fetchWatchlist()
+  if (route?.query?.from === 'watchlist') {
+    const wlRowsRaw = localStorage.getItem('easy_tdx_watchlist_rows')
+    if (wlRowsRaw) {
+      try {
+        const wlRows = JSON.parse(wlRowsRaw)
+        if (Array.isArray(wlRows) && wlRows.length > 0) {
+          screenerNavList.value = wlRows
+        } else if (watchlistSymbols.value.length > 0) {
+          screenerNavList.value = watchlistSymbols.value.map((s) => ({ code: s, name: s }))
+        }
+      } catch {
+        if (watchlistSymbols.value.length > 0) {
+          screenerNavList.value = watchlistSymbols.value.map((s) => ({ code: s, name: s }))
+        }
+      }
+    } else if (watchlistSymbols.value.length > 0) {
+      screenerNavList.value = watchlistSymbols.value.map((s) => ({ code: s, name: s }))
+    }
+  }
   clockTimer = setInterval(() => {
     inTradeSession.value = isTradeSession()
   }, 1000)
