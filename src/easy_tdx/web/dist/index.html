@@ -559,8 +559,30 @@
             border-color: #cbd5e1 !important;
             color: #0f172a !important;
         }
-        html.light #view-chanlun strong {
+        html.light #view-chanlun strong:not(.stock-red):not(.stock-green):not(#cl-main-net):not(#cl-vis-high):not(#cl-vis-low):not(#cl-vis-amp) {
             color: #0f172a !important;
+        }
+        #cl-main-net.stock-red,
+        html.light #view-chanlun strong#cl-main-net.stock-red,
+        html.dark #view-chanlun strong#cl-main-net.stock-red,
+        html.light #cl-main-net.stock-red {
+            color: var(--stock-red, #dc2626) !important;
+        }
+        #cl-main-net.stock-green,
+        html.light #view-chanlun strong#cl-main-net.stock-green,
+        html.dark #view-chanlun strong#cl-main-net.stock-green,
+        html.light #cl-main-net.stock-green {
+            color: var(--stock-green, #16a34a) !important;
+        }
+        #kp-main-net.stock-red,
+        html.light strong#kp-main-net.stock-red,
+        html.light #kp-main-net.stock-red {
+            color: var(--stock-red, #dc2626) !important;
+        }
+        #kp-main-net.stock-green,
+        html.light strong#kp-main-net.stock-green,
+        html.light #kp-main-net.stock-green {
+            color: var(--stock-green, #16a34a) !important;
         }
         html.light #view-chanlun #cl-visible-extrema {
             background: #ecfeff !important;
@@ -12140,8 +12162,11 @@
                 else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
                 else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
                 mnEl.innerText = mnStr;
-                mnEl.className = `font-mono font-bold ${mnVal >= 0 ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
-                mnEl.style.color = mnVal >= 0 ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
+                const isUp = mnVal >= 0;
+                mnEl.className = `font-mono font-bold ${isUp ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
+                const isLight = document.documentElement.classList.contains('light');
+                const colorVal = isUp ? (isLight ? '#dc2626' : '#f87171') : (isLight ? '#16a34a' : '#34d399');
+                mnEl.style.setProperty('color', colorVal, 'important');
                 mnEl.title = `主力净流入: ${mnStr}`;
             }
 
@@ -28629,8 +28654,11 @@
                     else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
                     else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
                     elMn.innerText = mnStr;
-                    elMn.className = `font-mono font-bold ${mnVal >= 0 ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
-                    elMn.style.color = mnVal >= 0 ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
+                    const isUp = mnVal >= 0;
+                    elMn.className = `font-mono font-bold ${isUp ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
+                    const isLight = document.documentElement.classList.contains('light');
+                    const colorVal = isUp ? (isLight ? '#dc2626' : '#f87171') : (isLight ? '#16a34a' : '#34d399');
+                    elMn.style.setProperty('color', colorVal, 'important');
                 }
 
                 // 盘口数据补充所属板块
