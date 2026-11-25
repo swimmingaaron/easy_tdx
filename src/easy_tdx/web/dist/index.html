@@ -4805,7 +4805,7 @@
                             <span class="text-slate-700">|</span>
                             <span>量比 <strong class="text-slate-200 font-mono font-semibold" id="cl-vol-ratio">--</strong></span>
                             <span class="text-slate-700">|</span>
-                            <span>主力净流 <strong class="font-mono font-semibold" id="cl-main-net">--</strong></span>
+                            <span>主力净流入 <strong class="font-mono font-bold" id="cl-main-net">--</strong></span>
                         </div>
                     </div>
 
@@ -6052,7 +6052,7 @@
                         <span>量比 <strong class="text-slate-200 font-mono font-semibold"
                                 id="kp-vol-ratio">--</strong></span>
                         <span class="text-slate-700">|</span>
-                        <span>主力净流 <strong class="font-mono font-semibold" id="kp-main-net">--</strong></span>
+                        <span>主力净流入 <strong class="font-mono font-bold" id="kp-main-net">--</strong></span>
                     </div>
                 </div>
 
@@ -12140,7 +12140,8 @@
                 else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
                 else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
                 mnEl.innerText = mnStr;
-                mnEl.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
+                mnEl.className = `font-mono font-bold ${mnVal >= 0 ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
+                mnEl.style.color = mnVal >= 0 ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
                 mnEl.title = `主力净流入: ${mnStr}`;
             }
 
@@ -18369,6 +18370,72 @@
 
             renderRangeStatTable(pageRows);
             updateRangeStatPagination(total, startIdx, endIdx);
+
+            // 自动异步并发补齐当前页缺失股东集中度及近3期环比变动数据
+            if (pageRows && pageRows.length > 0) {
+                window._rsCheckedHoldersSymbols = window._rsCheckedHoldersSymbols || new Set();
+                const missingCodes = pageRows
+                    .filter(r => {
+                        const code = r.stock_code || r.code;
+                        const hasFull = r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0 && r.holder_ratio > 0;
+                        return code && !window._rsCheckedHoldersSymbols.has(code) && !hasFull;
+                    })
+                    .map(r => r.stock_code || r.code);
+
+                if (missingCodes.length > 0 && !window._rsFetchingHolders) {
+                    const batchCodes = missingCodes.slice(0, 30);
+                    batchCodes.forEach(c => window._rsCheckedHoldersSymbols.add(c));
+                    window._rsFetchingHolders = true;
+                    fetch(`/api/trading_system/holders_batch?symbols=${batchCodes.join(',')}`)
+                        .then(res => res.json())
+                        .then(d => {
+                            window._rsFetchingHolders = false;
+                            if (d.success && d.data) {
+                                let updated = false;
+                                Object.keys(d.data).forEach(c => {
+                                    const item = d.data[c];
+                                    if (item && (item.holder_ratio > 0 || (item.holders_changes && item.holders_changes.length > 0))) {
+                                        const raw = _rangeStatRawRows.find(x => (x.stock_code || x.code) === c);
+                                        if (raw) {
+                                            if (item.holder_ratio > 0) raw.holder_ratio = item.holder_ratio;
+                                            if (item.holder_focus && item.holder_focus !== '--') raw.holder_focus = item.holder_focus;
+                                            if (item.holders_changes && item.holders_changes.length > 0) raw.holders_changes = item.holders_changes;
+                                            if (item.holders_num > 0) raw.holders_num = item.holders_num;
+                                            if (item.holders_str && item.holders_str !== '--') raw.holders_str = item.holders_str;
+                                            updated = true;
+                                        }
+                                        const filt = _rangeStatFilteredRows.find(x => (x.stock_code || x.code) === c);
+                                        if (filt) {
+                                            if (item.holder_ratio > 0) filt.holder_ratio = item.holder_ratio;
+                                            if (item.holder_focus && item.holder_focus !== '--') filt.holder_focus = item.holder_focus;
+                                            if (item.holders_changes && item.holders_changes.length > 0) filt.holders_changes = item.holders_changes;
+                                            if (item.holders_num > 0) filt.holders_num = item.holders_num;
+                                            if (item.holders_str && item.holders_str !== '--') filt.holders_str = item.holders_str;
+                                            updated = true;
+                                        }
+                                    }
+                                });
+                                if (updated) {
+                                    const curTotal = (_rangeStatFilteredRows || []).length;
+                                    const curStart = curTotal === 0 ? 0 : (rsCurrentPage - 1) * rsPageSize;
+                                    const curEnd = curTotal === 0 ? 0 : Math.min(curStart + rsPageSize, curTotal);
+                                    const curPageRows = curTotal === 0 ? [] : _rangeStatFilteredRows.slice(curStart, curEnd);
+                                    renderRangeStatTable(curPageRows);
+                                    const hasMore = curPageRows.some(r => {
+                                        const code = r.stock_code || r.code;
+                                        return code && !window._rsCheckedHoldersSymbols.has(code) && (!r.holders_changes || r.holders_changes.length === 0);
+                                    });
+                                    if (hasMore) {
+                                        setTimeout(renderCurrentRangeStatPage, 50);
+                                    }
+                                }
+                            }
+                        })
+                        .catch(() => {
+                            window._rsFetchingHolders = false;
+                        });
+                }
+            }
         }
 
         function updateRangeStatPagination(totalCount, startIdx, endIdx) {
@@ -23916,11 +23983,17 @@
             // 自动异步补齐当前页缺失股东集中度/历史变动的股票数据
             if (pageRows && pageRows.length > 0) {
                 window._checkedHoldersSymbols = window._checkedHoldersSymbols || new Set();
-                let missingCodes = pageRows.filter(r => !window._checkedHoldersSymbols.has(r.stock_code) && (!r.holder_ratio || Number(r.holder_ratio) <= 0)).map(r => r.stock_code);
+                let missingCodes = pageRows.filter(r => {
+                    const code = r.stock_code;
+                    const hasFull = r.holders_changes && Array.isArray(r.holders_changes) && r.holders_changes.length > 0 && r.holder_ratio > 0;
+                    return code && !window._checkedHoldersSymbols.has(code) && !hasFull;
+                }).map(r => r.stock_code);
+
                 if (missingCodes.length > 0 && !window._fetchingHolders) {
-                    missingCodes.forEach(c => window._checkedHoldersSymbols.add(c));
+                    const batchCodes = missingCodes.slice(0, 30);
+                    batchCodes.forEach(c => window._checkedHoldersSymbols.add(c));
                     window._fetchingHolders = true;
-                    fetch(`/api/trading_system/holders_batch?symbols=${missingCodes.slice(0, 20).join(',')}`)
+                    fetch(`/api/trading_system/holders_batch?symbols=${batchCodes.join(',')}`)
                         .then(res => res.json())
                         .then(d => {
                             window._fetchingHolders = false;
@@ -23928,23 +24001,24 @@
                                 let updated = false;
                                 Object.keys(d.data).forEach(c => {
                                     let item = d.data[c];
-                                    if (item && item.holder_ratio > 0) {
+                                    if (item && (item.holder_ratio > 0 || (item.holders_changes && item.holders_changes.length > 0))) {
                                         let found = tradingSystemRows.find(x => x.stock_code === c);
                                         if (found) {
-                                            found.holder_ratio = item.holder_ratio;
-                                            found.holder_focus = item.holder_focus;
-                                            found.holders_changes = item.holders_changes;
-                                            found.holders_num = item.holders_num;
-                                            found.holders_str = item.holders_str;
+                                            if (item.holder_ratio > 0) found.holder_ratio = item.holder_ratio;
+                                            if (item.holder_focus && item.holder_focus !== '--') found.holder_focus = item.holder_focus;
+                                            if (item.holders_changes && item.holders_changes.length > 0) found.holders_changes = item.holders_changes;
+                                            if (item.holders_num > 0) found.holders_num = item.holders_num;
+                                            if (item.holders_str && item.holders_str !== '--') found.holders_str = item.holders_str;
                                             updated = true;
                                         }
                                         let fFound = tradingSystemFilteredRows.find(x => x.stock_code === c);
                                         if (fFound) {
-                                            fFound.holder_ratio = item.holder_ratio;
-                                            fFound.holder_focus = item.holder_focus;
-                                            fFound.holders_changes = item.holders_changes;
-                                            fFound.holders_num = item.holders_num;
-                                            fFound.holders_str = item.holders_str;
+                                            if (item.holder_ratio > 0) fFound.holder_ratio = item.holder_ratio;
+                                            if (item.holder_focus && item.holder_focus !== '--') fFound.holder_focus = item.holder_focus;
+                                            if (item.holders_changes && item.holders_changes.length > 0) fFound.holders_changes = item.holders_changes;
+                                            if (item.holders_num > 0) fFound.holders_num = item.holders_num;
+                                            if (item.holders_str && item.holders_str !== '--') fFound.holders_str = item.holders_str;
+                                            updated = true;
                                         }
                                     }
                                 });
@@ -28318,28 +28392,51 @@
                 updateChanlunWatchlistButton();
             }
 
-            // 3. 价格与涨跌
-            const pVal = Number(sum.latest_price || 0);
-            const pctVal = Number(sum.change_pct || 0);
-            const chgVal = Number((pVal * pctVal) / (100 + pctVal));
+            // 3. 价格与涨跌 (始终优先展示日K线周期数据)
+            let pVal = 0, pctVal = 0, chgVal = 0;
+            const dayQ = (window._clDayQuote && (window._clDayQuote.code === d.code || window._clDayQuote.symbol === d.code)) ? window._clDayQuote : null;
+            if (dayQ && (dayQ.price || dayQ.close)) {
+                pVal = Number(dayQ.price != null ? dayQ.price : dayQ.close);
+                pctVal = Number(dayQ.change_pct || 0);
+                chgVal = Number(dayQ.change != null ? dayQ.change : ((pVal * pctVal) / (100 + pctVal)));
+            } else {
+                // 若日K实时行情暂未返回，尝试寻找并优先取日线级别窗口的数据，避免取到5F/30F等局部微观周期涨跌
+                let dayWinData = null;
+                const wins = [_clLeftCachedData, _clW2CachedData, _clRightCachedData, _clW4CachedData];
+                for (const w of wins) {
+                    if (w && (w.base_period === 'DAY' || w.summary?.period === 'DAY')) {
+                        dayWinData = w;
+                        break;
+                    }
+                }
+                const srcSum = (dayWinData && dayWinData.summary) ? dayWinData.summary : sum;
+                pVal = Number(srcSum.latest_price || 0);
+                pctVal = Number(srcSum.change_pct || 0);
+                chgVal = Number((pVal * pctVal) / (100 + pctVal));
+            }
+
             const isUp = pctVal >= 0;
             const sign = isUp ? '+' : '';
-            const chgColor = isUp ? 'text-rose-500' : 'text-emerald-500';
+            const chgColor = isUp ? 'stock-red text-rose-500' : 'stock-green text-emerald-500';
+            const inlineColor = isUp ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
 
             const priceEl = document.getElementById('cl-price');
             const changeEl = document.getElementById('cl-change');
             const pctEl = document.getElementById('cl-change-pct');
             if (priceEl) {
-                priceEl.innerText = pVal.toFixed(2);
+                priceEl.innerText = pVal > 0 ? pVal.toFixed(2) : '--';
                 priceEl.className = `text-base sm:text-lg font-black font-mono ${chgColor}`;
+                priceEl.style.color = inlineColor;
             }
             if (changeEl) {
-                changeEl.innerText = `${sign}${chgVal.toFixed(2)}`;
+                changeEl.innerText = pVal > 0 ? `${sign}${chgVal.toFixed(2)}` : '--';
                 changeEl.className = `text-xs font-bold font-mono ${chgColor}`;
+                changeEl.style.color = inlineColor;
             }
             if (pctEl) {
-                pctEl.innerText = `${sign}${pctVal.toFixed(2)}%`;
+                pctEl.innerText = pVal > 0 ? `${sign}${pctVal.toFixed(2)}%` : '--%';
                 pctEl.className = `text-xs font-bold font-mono ${chgColor}`;
+                pctEl.style.color = inlineColor;
             }
 
             // 4. 策略/共振状态胶囊
@@ -28428,8 +28525,8 @@
                 stockInput.value = d.code;
             }
 
-            // 6. 异步拉取盘口估值指标 (仅在股票变更且非回溯时拉取，避免回溯推演时产生冗余网络请求)
-            if (!_clIsBacktracking && window._clLastMetricsCode !== d.code) {
+            // 6. 异步拉取盘口估值指标与日K权威数据 (非回溯时拉取)
+            if (!_clIsBacktracking) {
                 window._clLastMetricsCode = d.code;
                 fetchKlineQuoteMetrics(d.code);
             }
@@ -28446,6 +28543,50 @@
                 if (!resp.ok) return;
                 const json = await resp.json();
                 const q = json.quote || {};
+                window._clDayQuote = { code, ...q };
+
+                // 立即更新顶部 股价 与 涨跌幅（始终对齐日K线周期数据）
+                const pVal = Number(q.price != null ? q.price : (q.close || 0));
+                if (pVal > 0) {
+                    const pctVal = Number(q.change_pct || 0);
+                    const chgVal = Number(q.change != null ? q.change : ((pVal * pctVal) / (100 + pctVal)));
+                    const isUp = pctVal >= 0;
+                    const sign = isUp ? '+' : '';
+                    const chgColor = isUp ? 'stock-red text-rose-500' : 'stock-green text-emerald-500';
+                    const inlineColor = isUp ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
+
+                    const priceEl = document.getElementById('cl-price');
+                    const changeEl = document.getElementById('cl-change');
+                    const pctEl = document.getElementById('cl-change-pct');
+                    if (priceEl) {
+                        priceEl.innerText = pVal.toFixed(2);
+                        priceEl.className = `text-base sm:text-lg font-black font-mono ${chgColor}`;
+                        priceEl.style.color = inlineColor;
+                    }
+                    if (changeEl) {
+                        changeEl.innerText = `${sign}${chgVal.toFixed(2)}`;
+                        changeEl.className = `text-xs font-bold font-mono ${chgColor}`;
+                        changeEl.style.color = inlineColor;
+                    }
+                    if (pctEl) {
+                        pctEl.innerText = `${sign}${pctVal.toFixed(2)}%`;
+                        pctEl.className = `text-xs font-bold font-mono ${chgColor}`;
+                        pctEl.style.color = inlineColor;
+                    }
+
+                    const cardPrice = document.getElementById('cl-card-price');
+                    const cardPct = document.getElementById('cl-card-pct');
+                    if (cardPrice) {
+                        cardPrice.innerText = `¥${pVal.toFixed(2)}`;
+                        cardPrice.className = `text-base font-extrabold font-mono ${chgColor}`;
+                        cardPrice.style.color = inlineColor;
+                    }
+                    if (cardPct) {
+                        cardPct.innerText = `${sign}${pctVal.toFixed(2)}%`;
+                        cardPct.className = `text-xs font-bold font-mono ${chgColor}`;
+                        cardPct.style.color = inlineColor;
+                    }
+                }
 
                 const totValStr = q.total_val_yi ? (q.total_val_yi >= 10000 ? `${(q.total_val_yi / 10000).toFixed(2)}万亿` : `${q.total_val_yi}亿`) : '--';
                 const fltValStr = q.float_val_yi ? (q.float_val_yi >= 10000 ? `${(q.float_val_yi / 10000).toFixed(2)}万亿` : `${q.float_val_yi}亿`) : '--';
@@ -28488,7 +28629,8 @@
                     else if (Math.abs(mnVal) >= 1e4) mnStr = `${mnSign}${(mnVal / 1e4).toFixed(0)}万`;
                     else if (mnVal !== 0) mnStr = `${mnSign}${mnVal.toFixed(0)}元`;
                     elMn.innerText = mnStr;
-                    elMn.className = mnVal >= 0 ? 'font-mono font-semibold text-rose-400' : 'font-mono font-semibold text-emerald-400';
+                    elMn.className = `font-mono font-bold ${mnVal >= 0 ? 'stock-red text-rose-500' : 'stock-green text-emerald-500'}`;
+                    elMn.style.color = mnVal >= 0 ? 'var(--stock-red, #ef4444)' : 'var(--stock-green, #10b981)';
                 }
 
                 // 盘口数据补充所属板块

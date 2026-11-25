@@ -382,9 +382,15 @@ def fetch_stock_holders(code: str, quick: bool = False) -> Dict[str, Any]:
     now = time.time()
     if clean_code in _HOLDERS_CACHE:
         ts, data = _HOLDERS_CACHE[clean_code]
-        # 只要缓存中有有效的股东数据且在24小时内，直接复用缓存
-        if (now - ts < 86400) and (data.get("holders_num", 0) > 0 or data.get("holder_ratio", 0.0) > 0):
-            return data
+        # 只要缓存中有有效的股东数据且在24小时内：
+        # 若为快速模式(quick=True)，只要有最新单期人数或完整数据即可直接复用；
+        # 若为完整模式(quick=False)，必须已有完整历史变动(holders_changes)或集中度(holder_ratio>0)，否则继续穿透拉取多期历史
+        if now - ts < 86400:
+            has_full_data = bool(data.get("holders_changes") or (data.get("holder_ratio", 0.0) > 0))
+            if quick and (data.get("holders_num", 0) > 0 or has_full_data):
+                return data
+            if not quick and has_full_data:
+                return data
 
     res = {
         "holders_num": 0,

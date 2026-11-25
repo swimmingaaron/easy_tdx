@@ -724,14 +724,19 @@ def get_stock_history_signals(code: str, days: int = Query(45, description="回�
 
 
 @router.get("/holders_batch")
-def batch_fetch_holders(symbols: str = Query(..., description="逗号分隔的个股代码列表，最多30个")) -> Dict[str, Any]:
-    """批量异步补全个股股东人数与集中度数据（如前台当前页标的缺失股东集中度时调用）。"""
-    sym_list = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols.split(",") if s.strip()][:30]
+def batch_fetch_holders(symbols: str = Query(..., description="逗号分隔的个股代码列表，最多50个")) -> Dict[str, Any]:
+    """批量异步并发补全个股股东人数与集中度数据（如前台当前页标的缺失股东集中度与近3次环比时调用）。"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    sym_list = [s.strip().upper().replace("SH", "").replace("SZ", "").replace("BJ", "") for s in symbols.split(",") if s.strip()][:50]
     results = {}
-    for code in sym_list:
+    if not sym_list:
+        return {"success": True, "data": results}
+
+    def _worker(code: str) -> tuple[str, dict]:
         try:
             h = fetch_stock_holders(code, quick=False)
-            results[code] = {
+            return code, {
                 "holder_ratio": h.get("holder_ratio", 0.0),
                 "holder_focus": h.get("holder_focus", "--"),
                 "holders_changes": h.get("holders_changes", []),
@@ -740,6 +745,16 @@ def batch_fetch_holders(symbols: str = Query(..., description="逗号分隔的�
             }
         except Exception as e:
             logger.debug(f"Failed to batch fetch holders for {code}: {e}")
+            return code, {}
+
+    max_workers = min(12, len(sym_list))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_worker, c) for c in sym_list]
+        for f in as_completed(futures):
+            c, item = f.result()
+            if item:
+                results[c] = item
+
     return {"success": True, "data": results}
 
 
