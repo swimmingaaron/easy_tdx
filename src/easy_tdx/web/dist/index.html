@@ -12131,10 +12131,23 @@
             const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
 
             let peStr = '--';
-            if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
-                peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
-            } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
-                peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
+            if (q.pe_dynamic !== undefined && q.pe_dynamic !== null && q.pe_dynamic !== '') {
+                const pNum = Number(q.pe_dynamic);
+                if (!isNaN(pNum)) {
+                    peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                }
+            }
+            if (peStr === '--' && q.pe_ttm !== undefined && q.pe_ttm !== null && q.pe_ttm !== '') {
+                const pNum = Number(q.pe_ttm);
+                if (!isNaN(pNum)) {
+                    peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                }
+            }
+            if (peStr === '--' && q.pe_static !== undefined && q.pe_static !== null && q.pe_static !== '') {
+                const pNum = Number(q.pe_static);
+                if (!isNaN(pNum)) {
+                    peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                }
             }
 
             if (document.getElementById('kp-total-val')) document.getElementById('kp-total-val').innerText = totValStr;
@@ -28625,10 +28638,23 @@
                 const volRatioStr = volRatioVal !== null ? `${volRatioVal.toFixed(2)}` : '--';
 
                 let peStr = '--';
-                if (q.pe_dynamic !== undefined && q.pe_dynamic !== null) {
-                    peStr = q.pe_dynamic < 0 ? `亏损 (${q.pe_dynamic})` : `${q.pe_dynamic}`;
-                } else if (q.pe_ttm !== undefined && q.pe_ttm !== null) {
-                    peStr = q.pe_ttm < 0 ? `亏损 (${q.pe_ttm})` : `${q.pe_ttm}`;
+                if (q.pe_dynamic !== undefined && q.pe_dynamic !== null && q.pe_dynamic !== '') {
+                    const pNum = Number(q.pe_dynamic);
+                    if (!isNaN(pNum)) {
+                        peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                    }
+                }
+                if (peStr === '--' && q.pe_ttm !== undefined && q.pe_ttm !== null && q.pe_ttm !== '') {
+                    const pNum = Number(q.pe_ttm);
+                    if (!isNaN(pNum)) {
+                        peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                    }
+                }
+                if (peStr === '--' && q.pe_static !== undefined && q.pe_static !== null && q.pe_static !== '') {
+                    const pNum = Number(q.pe_static);
+                    if (!isNaN(pNum)) {
+                        peStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                    }
                 }
 
                 const elTot = document.getElementById('cl-total-val');
@@ -28642,7 +28668,7 @@
                 if (elFlt) elFlt.innerText = fltValStr;
                 if (elPe) {
                     elPe.innerText = peStr;
-                    elPe.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM: ${q.pe_ttm ?? '--'}`;
+                    elPe.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM市盈率: ${q.pe_ttm ?? '--'}, 静态市盈率: ${q.pe_static ?? '--'}`;
                 }
                 if (elTo) elTo.innerText = turnoverStr;
                 if (elVr) {

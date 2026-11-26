@@ -291,6 +291,9 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             inflow_1d = rq.get("inflow_1d_str", "")
             inflow_3d = rq.get("inflow_3d_str", "")
             inflow_5d = rq.get("inflow_5d_str", "")
+            pe_d = rq.get("pe_dynamic")
+            pe_t = rq.get("pe_ttm")
+            pe_s = rq.get("pe_static")
         else:
             # Direct fallback to real single-security TDX kline
             k_df = fetch_security_kline(code, count=2)
@@ -314,6 +317,7 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             vr = 1.0
             m1, m3, m5 = 0.0, 0.0, 0.0
             inflow_1d, inflow_3d, inflow_5d = "0.0万", "0.0万", "0.0万"
+            pe_d, pe_t, pe_s = None, None, None
             
         b_info = _resolve_stock_board_info(code, full_sym)
         from easy_tdx.pattern_recognition import detect_stock_patterns
@@ -340,6 +344,10 @@ def get_realtime_quotes(symbols: str | None = Query(None, description="Comma-sep
             "float_mv_yi": float_mv_yi,
             "total_shares": tot_shares,
             "float_shares": flt_shares,
+            "pe_dynamic": pe_d,
+            "pe_ttm": pe_t,
+            "pe_static": pe_s,
+            "pe": pe_d or pe_t or pe_s,
             "vol_ratio": vr,
             "main_net_amount": m1,
             "main_net_3d": m3,
@@ -748,6 +756,32 @@ def get_kline(
         m3_real = cached_mac.get("main_net_3d_amount", 0.0)
         m5_real = cached_mac.get("main_net_5d_amount", 0.0)
         m10_real = cached_mac.get("main_net_10d_amount", 0.0)
+
+        # 核心修复：若快照缓存中缺失 PE 数据，主动向 TDX MAC 协议补齐 PE_DYNAMIC / PE_TTM / PE_STATIC
+        if pe_dynamic is None and pe_ttm is None and not clean_sym.startswith("88"):
+            try:
+                from easy_tdx.market_overview import _get_or_create_mac_client
+                from easy_tdx.codec.bitmap import FieldBit
+                mac = _get_or_create_mac_client()
+                fields = FieldBit.PE_DYNAMIC + FieldBit.PE_TTM + FieldBit.PE_STATIC
+                mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
+                df_pe = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
+                if df_pe is not None and not df_pe.empty:
+                    row_pe = df_pe.iloc[0]
+                    p_d = float(row_pe.get("pe_dynamic") or 0.0)
+                    if p_d != 0:
+                        pe_dynamic = round(p_d, 1)
+                        cached_mac["pe_dynamic"] = pe_dynamic
+                    p_t = float(row_pe.get("pe_ttm") or 0.0)
+                    if p_t != 0:
+                        pe_ttm = round(p_t, 1)
+                        cached_mac["pe_ttm"] = pe_ttm
+                    p_s = float(row_pe.get("pe_static") or 0.0)
+                    if p_s != 0:
+                        pe_static = round(p_s, 1)
+                        cached_mac["pe_static"] = pe_static
+            except Exception:
+                pass
     else:
         try:
             from easy_tdx.market_overview import _get_or_create_mac_client

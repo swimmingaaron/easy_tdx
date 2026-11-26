@@ -670,6 +670,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
             + FieldBit.MAIN_NET_3D_AMOUNT
             + FieldBit.MAIN_NET_5D_AMOUNT
             + FieldBit.VOL_RATIO
+            + FieldBit.PE_DYNAMIC
+            + FieldBit.PE_TTM
+            + FieldBit.PE_STATIC
         )
         mac_pairs = [(int(_get_market(s).value), s) for s in symbols]
         BATCH_SIZE = 80
@@ -715,6 +718,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                     m3 = float(row.get("main_net_3d_amount") or 0.0)
                     m5 = float(row.get("main_net_5d_amount") or 0.0)
                     vr = float(row.get("vol_ratio") or 0.0)
+                    pe_d = float(row.get("pe_dynamic") or 0.0)
+                    pe_t = float(row.get("pe_ttm") or 0.0)
+                    pe_s = float(row.get("pe_static") or 0.0)
                     
                     quotes_list.append({
                         "symbol": code,
@@ -732,6 +738,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                         "float_mv_yi": float_mv_yi,
                         "total_shares": tot_shares,
                         "float_shares": flt_shares,
+                        "pe_dynamic": round(pe_d, 1) if pe_d != 0 else None,
+                        "pe_ttm": round(pe_t, 1) if pe_t != 0 else None,
+                        "pe_static": round(pe_s, 1) if pe_s != 0 else None,
                         "change_pct": chg_pct,
                         "main_net_amount": m1,
                         "main_net_3d": m3,
