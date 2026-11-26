@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import time
+import math
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -718,9 +719,17 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                     m3 = float(row.get("main_net_3d_amount") or 0.0)
                     m5 = float(row.get("main_net_5d_amount") or 0.0)
                     vr = float(row.get("vol_ratio") or 0.0)
-                    pe_d = float(row.get("pe_dynamic") or 0.0)
-                    pe_t = float(row.get("pe_ttm") or 0.0)
-                    pe_s = float(row.get("pe_static") or 0.0)
+                    def _safe_pe(v):
+                        if v is None:
+                            return None
+                        try:
+                            f = float(v)
+                            return round(f, 1) if (not math.isnan(f) and not math.isinf(f) and f != 0.0) else None
+                        except Exception:
+                            return None
+                    pe_d = _safe_pe(row.get("pe_dynamic"))
+                    pe_t = _safe_pe(row.get("pe_ttm"))
+                    pe_s = _safe_pe(row.get("pe_static"))
                     
                     quotes_list.append({
                         "symbol": code,
@@ -738,9 +747,9 @@ def fetch_realtime_pool_quotes(symbols: list[str] | None = None, on_progress: An
                         "float_mv_yi": float_mv_yi,
                         "total_shares": tot_shares,
                         "float_shares": flt_shares,
-                        "pe_dynamic": round(pe_d, 1) if pe_d != 0 else None,
-                        "pe_ttm": round(pe_t, 1) if pe_t != 0 else None,
-                        "pe_static": round(pe_s, 1) if pe_s != 0 else None,
+                        "pe_dynamic": pe_d,
+                        "pe_ttm": pe_t,
+                        "pe_static": pe_s,
                         "change_pct": chg_pct,
                         "main_net_amount": m1,
                         "main_net_3d": m3,

@@ -31,6 +31,18 @@ def safe_float(val: Any, default: float | None = None) -> float | None:
     except Exception:
         return default
 
+def safe_pe(val: Any) -> float | None:
+    """Ensure PE values are valid non-zero numbers with 1 decimal precision, or None."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f) or f == 0.0:
+            return None
+        return round(f, 1)
+    except Exception:
+        return None
+
 def _get_market_suffix(sym: str) -> tuple[str, str]:
     raw_upper = sym.strip().upper()
     if raw_upper.endswith(".SH") or raw_upper.endswith("SH") or raw_upper.startswith("SH"):
@@ -416,18 +428,22 @@ def get_kline(
         if cache_k in _KLINE_CACHE:
             ts, cached_res = _KLINE_CACHE[cache_k]
             if now - ts < effective_ttl:
-                return cached_res
+                q_c = cached_res.get("quote", {})
+                if not (not clean_sym.startswith("88") and q_c.get("pe_dynamic") is None and q_c.get("pe_ttm") is None):
+                    return cached_res
         if not clean_end_date and base_k in _KLINE_BASE_CACHE:
             ts, base_res = _KLINE_BASE_CACHE[base_k]
             if now - ts < effective_ttl:
-                b_data = base_res.get("data", [])
-                if len(b_data) >= n_bars:
-                    sliced_data = b_data[-n_bars:]
-                    res_slice = dict(base_res)
-                    res_slice["data"] = sliced_data
-                    res_slice["count"] = len(sliced_data)
-                    _KLINE_CACHE[cache_k] = (ts, res_slice)
-                    return res_slice
+                q_b = base_res.get("quote", {})
+                if not (not clean_sym.startswith("88") and q_b.get("pe_dynamic") is None and q_b.get("pe_ttm") is None):
+                    b_data = base_res.get("data", [])
+                    if len(b_data) >= n_bars:
+                        sliced_data = b_data[-n_bars:]
+                        res_slice = dict(base_res)
+                        res_slice["data"] = sliced_data
+                        res_slice["count"] = len(sliced_data)
+                        _KLINE_CACHE[cache_k] = (ts, res_slice)
+                        return res_slice
     
     fetch_n = max(800, n_bars)
     if clean_end_date and str(period).upper() in ("1M", "5M", "15M", "30M", "60M", "120M", "1F", "5F", "15F", "30F", "60F", "120F"):
@@ -706,9 +722,9 @@ def get_kline(
                             "total_val_yi": t_cap_yi,
                             "float_val_yi": f_cap_yi,
                             "turnover": q_item.get("turnover_rate"),
-                            "pe_dynamic": q_item.get("pe_dynamic") or q_item.get("pe"),
-                            "pe_ttm": q_item.get("pe_ttm"),
-                            "pe_static": q_item.get("pe_static"),
+                            "pe_dynamic": safe_pe(q_item.get("pe_dynamic")) or safe_pe(q_item.get("pe")),
+                            "pe_ttm": safe_pe(q_item.get("pe_ttm")),
+                            "pe_static": safe_pe(q_item.get("pe_static")),
                             "vol_ratio": q_item.get("vol_ratio", vol_ratio),
                             "main_net_amount": q_item.get("main_net_amount", m1_real),
                             "main_net_3d_amount": q_item.get("main_net_3d", m3_real),
@@ -748,9 +764,9 @@ def get_kline(
             vol_shares = float(last_bar.get("volume", 0))
             turnover = round((vol_shares / (flt_shares * 10000.0)) * 100.0, 2)
 
-        pe_dynamic = cached_mac.get("pe_dynamic")
-        pe_ttm = cached_mac.get("pe_ttm")
-        pe_static = cached_mac.get("pe_static")
+        pe_dynamic = safe_pe(cached_mac.get("pe_dynamic"))
+        pe_ttm = safe_pe(cached_mac.get("pe_ttm"))
+        pe_static = safe_pe(cached_mac.get("pe_static"))
         vol_ratio = cached_mac.get("vol_ratio", vol_ratio)
         m1_real = cached_mac.get("main_net_amount", 0.0)
         m3_real = cached_mac.get("main_net_3d_amount", 0.0)
@@ -763,25 +779,25 @@ def get_kline(
                 from easy_tdx.market_overview import _get_or_create_mac_client
                 from easy_tdx.codec.bitmap import FieldBit
                 mac = _get_or_create_mac_client()
-                fields = FieldBit.PE_DYNAMIC + FieldBit.PE_TTM + FieldBit.PE_STATIC
+                fields = [FieldBit.PE_DYNAMIC, FieldBit.PE_TTM, FieldBit.PE_STATIC]
                 mac_mkt = 1 if (clean_sym.startswith(("6", "9")) or raw_sym.upper().endswith("SH")) else 0
                 df_pe = mac.get_stock_quotes([(mac_mkt, clean_sym)], fields=fields)
                 if df_pe is not None and not df_pe.empty:
                     row_pe = df_pe.iloc[0]
-                    p_d = float(row_pe.get("pe_dynamic") or 0.0)
-                    if p_d != 0:
-                        pe_dynamic = round(p_d, 1)
+                    p_d = safe_pe(row_pe.get("pe_dynamic"))
+                    if p_d is not None:
+                        pe_dynamic = p_d
                         cached_mac["pe_dynamic"] = pe_dynamic
-                    p_t = float(row_pe.get("pe_ttm") or 0.0)
-                    if p_t != 0:
-                        pe_ttm = round(p_t, 1)
+                    p_t = safe_pe(row_pe.get("pe_ttm"))
+                    if p_t is not None:
+                        pe_ttm = p_t
                         cached_mac["pe_ttm"] = pe_ttm
-                    p_s = float(row_pe.get("pe_static") or 0.0)
-                    if p_s != 0:
-                        pe_static = round(p_s, 1)
+                    p_s = safe_pe(row_pe.get("pe_static"))
+                    if p_s is not None:
+                        pe_static = p_s
                         cached_mac["pe_static"] = pe_static
-            except Exception:
-                pass
+            except Exception as e_pe:
+                logger.debug(f"Failed to fetch TDX MAC PE for {clean_sym}: {e_pe}")
     else:
         try:
             from easy_tdx.market_overview import _get_or_create_mac_client
@@ -833,15 +849,15 @@ def get_kline(
                     vol_shares = float(last_bar.get("volume", 0))
                     turnover = round((vol_shares / (flt_shares * 10000.0)) * 100.0, 2)
 
-                p_d = float(row_q.get("pe_dynamic") or 0.0)
-                if p_d != 0:
-                    pe_dynamic = round(p_d, 1)
-                p_t = float(row_q.get("pe_ttm") or 0.0)
-                if p_t != 0:
-                    pe_ttm = round(p_t, 1)
-                p_s = float(row_q.get("pe_static") or 0.0)
-                if p_s != 0:
-                    pe_static = round(p_s, 1)
+                p_d = safe_pe(row_q.get("pe_dynamic"))
+                if p_d is not None:
+                    pe_dynamic = p_d
+                p_t = safe_pe(row_q.get("pe_ttm"))
+                if p_t is not None:
+                    pe_ttm = p_t
+                p_s = safe_pe(row_q.get("pe_static"))
+                if p_s is not None:
+                    pe_static = p_s
                 vr = float(row_q.get("vol_ratio") or 0.0)
                 if vr > 0:
                     vol_ratio = round(vr, 2)

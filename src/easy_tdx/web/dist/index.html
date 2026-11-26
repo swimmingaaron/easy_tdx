@@ -28438,6 +28438,16 @@
             // 3. 价格与涨跌 (始终优先展示日K线周期数据)
             let pVal = 0, pctVal = 0, chgVal = 0;
             const dayQ = (window._clDayQuote && (window._clDayQuote.code === d.code || window._clDayQuote.symbol === d.code)) ? window._clDayQuote : null;
+            if (dayQ) {
+                const elPe = document.getElementById('cl-pe');
+                if (elPe && dayQ.pe_dynamic !== undefined && dayQ.pe_dynamic !== null) {
+                    const pNum = Number(dayQ.pe_dynamic);
+                    if (!isNaN(pNum)) {
+                        elPe.innerText = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                        elPe.title = `动态市盈率: ${dayQ.pe_dynamic ?? '--'}, TTM市盈率: ${dayQ.pe_ttm ?? '--'}, 静态市盈率: ${dayQ.pe_static ?? '--'}`;
+                    }
+                }
+            }
             if (dayQ && (dayQ.price || dayQ.close)) {
                 pVal = Number(dayQ.price != null ? dayQ.price : dayQ.close);
                 pctVal = Number(dayQ.change_pct || 0);
@@ -28582,7 +28592,8 @@
 
         async function fetchKlineQuoteMetrics(code) {
             try {
-                const resp = await fetch(`/api/quotes/kline?symbol=${code}&period=DAY&count=2`);
+                const cleanCode = String(code || '').replace(/[^0-9]/g, '');
+                const resp = await fetch(`/api/quotes/kline?symbol=${cleanCode || code}&period=DAY&count=2`);
                 if (!resp.ok) return;
                 const json = await resp.json();
                 const q = json.quote || {};
@@ -28669,6 +28680,28 @@
                 if (elPe) {
                     elPe.innerText = peStr;
                     elPe.title = `动态市盈率: ${q.pe_dynamic ?? '--'}, TTM市盈率: ${q.pe_ttm ?? '--'}, 静态市盈率: ${q.pe_static ?? '--'}`;
+                }
+
+                // 核心保障：若K线接口返回的PE仍为'--'且非指数，异步向实时行情接口补充拉取PE并极速刷新
+                if (peStr === '--' && !String(code).startsWith('88')) {
+                    fetch(`/api/quotes/realtime?symbols=${cleanCode || code}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(rJson => {
+                            if (!rJson || !rJson.data || !rJson.data.length) return;
+                            const rq = rJson.data[0];
+                            const rpe = rq.pe_dynamic ?? rq.pe ?? rq.pe_ttm ?? rq.pe_static;
+                            if (rpe !== undefined && rpe !== null && rpe !== '') {
+                                const pNum = Number(rpe);
+                                if (!isNaN(pNum)) {
+                                    const fallbackPeStr = pNum < 0 ? `亏损 (${pNum.toFixed(1)})` : (pNum === 0 ? '--' : pNum.toFixed(1));
+                                    if (elPe && fallbackPeStr !== '--') {
+                                        elPe.innerText = fallbackPeStr;
+                                        elPe.title = `动态市盈率: ${rq.pe_dynamic ?? '--'}, TTM市盈率: ${rq.pe_ttm ?? '--'}, 静态市盈率: ${rq.pe_static ?? '--'}`;
+                                    }
+                                }
+                            }
+                        })
+                        .catch(() => {});
                 }
                 if (elTo) elTo.innerText = turnoverStr;
                 if (elVr) {
