@@ -7704,10 +7704,6 @@
                                 if (typeof initChanlun === 'function') initChanlun();
                                 if (typeof adjustChanlunLayoutHeight === 'function') adjustChanlunLayoutHeight();
                                 if (typeof updateChanlunNavButtons === 'function') updateChanlunNavButtons();
-                                if (window.chanlunChart) window.chanlunChart.resize();
-                                if (window.chanlunChartW2 && _clWindowMode === 'quad') window.chanlunChartW2.resize();
-                                if (window.chanlunChartRight && (_clWindowMode === 'dual' || _clWindowMode === 'dual_h' || _clWindowMode === 'quad')) window.chanlunChartRight.resize();
-                                if (window.chanlunChartW4 && _clWindowMode === 'quad') window.chanlunChartW4.resize();
                                 if (typeof attachTdxSelectionToChanlunCharts === 'function') attachTdxSelectionToChanlunCharts();
                                 if (typeof isTradeSession === 'function' && isTradeSession() && _clAutoRefresh && !_clIsBacktracking) {
                                     if (typeof startChanlunAutoRefresh === 'function') startChanlunAutoRefresh();
@@ -7741,6 +7737,9 @@
                     } else {
                         btn.className = 'tab-btn px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white';
                         view.classList.add('hidden');
+                        if (t === 'chanlun') {
+                            if (typeof stopChanlunAutoRefresh === 'function') stopChanlunAutoRefresh();
+                        }
                         if (t === 'rangestat' && typeof rsProgressTimer !== 'undefined' && rsProgressTimer) {
                             clearInterval(rsProgressTimer);
                             rsProgressTimer = null;
@@ -19373,12 +19372,12 @@
             }
         }
 
-        // A股交易时间 后台 5s 统一高频自动刷新调度器 (严格只在A股交易时间内执行)
+        // A股交易时间 后台 5s 统一高频自动刷新调度器 (严格只在A股交易时间内执行，且页面可见时运行)
         async function tickMasterBackgroundOnce() {
             updateTradingStatusUI();
 
-            // 后台 5s 自动刷新 只在A股交易时间内 执行
-            if (!isTradeSession()) {
+            // 后台 5s 自动刷新 只在A股交易时间内 执行，切到后台隐藏时自动休眠节省 CPU/显存
+            if (!isTradeSession() || (typeof document !== 'undefined' && document.hidden)) {
                 return;
             }
 
@@ -27349,8 +27348,15 @@
             adjustChanlunLayoutHeight();
             if (!_clHasInitialized) {
                 _clHasInitialized = true;
+                let _clResizeTimer = null;
                 window.addEventListener('resize', () => {
-                    adjustChanlunLayoutHeight();
+                    if (_clResizeTimer) clearTimeout(_clResizeTimer);
+                    _clResizeTimer = setTimeout(() => {
+                        _clResizeTimer = null;
+                        if (window.currentTab === 'chanlun') {
+                            adjustChanlunLayoutHeight();
+                        }
+                    }, 100);
                 });
             }
 
@@ -27434,7 +27440,6 @@
                         renderSingleChanlunChart(k, wins[k]);
                     }
                 });
-                setTimeout(adjustChanlunLayoutHeight, 30);
                 window._clResetZoomToLatest = false;
                 window._clForceAlignLatestBar = false;
             });
@@ -29176,7 +29181,21 @@
             return [maxMark, minMark];
         }
 
+        let _clExtremaRafs = {};
+        let _clExtremaLatestParams = {};
+
         function updateChanlunVisibleExtrema(side = 'left', zoomParams = null) {
+            if (zoomParams) _clExtremaLatestParams[side] = zoomParams;
+            if (_clExtremaRafs[side]) return; // 这一帧内已有待执行任务，合并防抖
+            _clExtremaRafs[side] = requestAnimationFrame(() => {
+                _clExtremaRafs[side] = null;
+                const latestP = _clExtremaLatestParams[side] || null;
+                delete _clExtremaLatestParams[side];
+                _executeChanlunVisibleExtrema(side, latestP);
+            });
+        }
+
+        function _executeChanlunVisibleExtrema(side = 'left', zoomParams = null) {
             let chartInstance = window.chanlunChart;
             let d = _clLeftCachedData || _clCachedData;
             if (side === 'w2') {
@@ -29284,6 +29303,7 @@
                                 name: '基准K线',
                                 markPoint: {
                                     silent: true,
+                                    animation: false,
                                     data: [
                                         ...visMarks,
                                         ...newExtrema
@@ -29296,16 +29316,19 @@
                                 name: 'DIF',
                                 markPoint: {
                                     silent: true,
+                                    animation: false,
                                     data: displayMacd
                                 }
                             });
                         }
                         chartInstance.setOption({
+                            animation: false,
                             yAxis: [{ min: finalYMin, max: finalYMax }],
                             series: updateSeries
                         });
                     } else {
                         chartInstance.setOption({
+                            animation: false,
                             yAxis: [{ min: finalYMin, max: finalYMax }]
                         });
                     }
@@ -30401,8 +30424,10 @@
                         data: macdData.dif || [],
                         lineStyle: { color: isDark ? '#00e5ff' : '#0284c7', width: 1.3 },
                         symbol: 'none',
+                        animation: false,
                         markPoint: {
                             silent: true,
+                            animation: false,
                             data: macdMarks
                         }
                     },
@@ -31141,6 +31166,7 @@
                     {
                         name: '基准K线',
                         type: 'candlestick',
+                        animation: false,
                         barWidth: '55%',
                         barMaxWidth: 14,
                         large: true,
@@ -31156,6 +31182,7 @@
                         },
                         markPoint: {
                             silent: true,
+                            animation: false,
                             data: [
                                 ...initialVisMarks,
                                 ...extremaMarkPoints
@@ -31303,7 +31330,9 @@
                 }
             }
             if (!instance) {
-                const dpr = window.devicePixelRatio || 1;
+                // 优化一：限制 DPR 最大为 1.25，兼顾高分屏清晰度并削减 50%~70% 的 Canvas 显存
+                const rawDpr = window.devicePixelRatio || 1;
+                const dpr = Math.min(rawDpr, 1.25);
                 instance = echarts.init(chartDom, isDark ? 'dark' : null, {
                     devicePixelRatio: dpr
                 });
@@ -31443,10 +31472,24 @@
             }
             instance._clLastRenderedCode = targetCurrentCode;
 
+            // 优化：增量脏检查，若当前窗口数据与图元未发生变动，直接跳过耗时的选项重建与全量重绘
+            const n_bars = dates.length;
+            const lastCandle = n_bars > 0 ? (uc.candles && uc.candles[n_bars - 1]) : null;
+            const lastDate = n_bars > 0 ? dates[n_bars - 1] : '';
+            const lastC = lastCandle ? lastCandle[1] : '';
+            const lastV = (uc.volumes && n_bars > 0) ? uc.volumes[n_bars - 1] : '';
+            const mmdSig = d.summary?.latest_mmd || '';
+            const currentDataSig = `${targetCurrentCode}_${n_bars}_${lastDate}_${lastC}_${lastV}_${mmdSig}_${_clMergeKlines ? 1 : 0}_${_clSubIndicator}_${isDark ? 1 : 0}`;
+
+            if (instance && instance._clLastDataSig === currentDataSig && !window._clResetZoomToLatest && !window._clForceAlignLatestBar && !customPrevZoom) {
+                return;
+            }
+            instance._clLastDataSig = currentDataSig;
+
             const opt = buildChanlunEchartOption(d, isDark, prevDataZoom, side);
             if (opt) {
                 instance.setOption(opt, true);
-                try { instance.resize(); } catch (_) {}
+                // 优化二：移除冗余的同步 instance.resize()，ECharts 按容器实际几何精准渲染，彻底消除二次重排
             }
 
             // 鼠标点击图表任意区域时，将该窗口设为回溯主控窗口
@@ -31610,7 +31653,12 @@
             else if (side === 'sector') window._sectorChanlunData = d;
         }
 
-        function renderChanlunChart(d) {
+        function renderChanlunChart(d, force = false) {
+            if (!d || force) {
+                ['chanlunChart', 'chanlunChartW2', 'chanlunChartRight', 'chanlunChartW4', 'sectorChanlunChart'].forEach(p => {
+                    if (window[p]) window[p]._clLastDataSig = null;
+                });
+            }
             const leftData = d || _clLeftCachedData || _clCachedData;
             if (leftData) renderSingleChanlunChart('left', leftData);
             if (_clWindowMode === 'quad') {
@@ -31932,24 +31980,16 @@
 
         function startChanlunAutoRefresh() {
             stopChanlunAutoRefresh();
+            _clAutoRefresh = true;
             _clRefreshInterval = getChanlunLowestPeriodSeconds();
-            // 确保全局后台主巡检调度器激活
+            // 优化三：统一由后台全局主巡检调度器 (tickMasterBackgroundOnce) 承载 5s 自动刷新，彻底消除双重定时器并发竞争
             if (typeof startDashboardAutoRefresh === 'function') {
                 startDashboardAutoRefresh();
             }
-            _clRefreshTimer = setInterval(() => {
-                if (!_clIsBacktracking && window.currentTab === 'chanlun') {
-                    if (typeof document !== 'undefined' && document.hidden) return;
-                    const inSession = (typeof isTradeSession === 'function') ? isTradeSession() : false;
-                    if (inSession && _clAutoRefresh) {
-                        loadChanlunData(true, true);
-                        loadChanlunHotStocks(); // 热门股票也随之实时更新
-                    }
-                }
-            }, _clRefreshInterval * 1000);
         }
 
         function stopChanlunAutoRefresh() {
+            _clAutoRefresh = false;
             if (_clRefreshTimer) {
                 clearInterval(_clRefreshTimer);
                 _clRefreshTimer = null;
